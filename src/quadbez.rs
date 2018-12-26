@@ -127,10 +127,9 @@ impl ParamCurveNearest for QuadBez {
         let roots = solve_cubic(c0, c1, c2, c3);
         let mut r_best = None;
         let mut t_best = 0.0;
-        let mut need_ends = try_t(self, p, &mut t_best, &mut r_best, roots.0);
-        if let Some((t1, t2)) = roots.1 {
-            need_ends |= try_t(self, p, &mut t_best, &mut r_best, t1);
-            need_ends |= try_t(self, p, &mut t_best, &mut r_best, t2);
+        let mut need_ends = false;
+        for &t in &roots {
+            need_ends |= try_t(self, p, &mut t_best, &mut r_best, t);
         }
         if need_ends {
             eval_t(p, &mut t_best, &mut r_best, 0.0, self.p0);

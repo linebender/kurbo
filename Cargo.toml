@@ -7,3 +7,4 @@ edition = "2018"
 keywords = ["graphics", "curves", "geometry"]
 
 [dependencies]
+arrayvec = "0.4.10"
