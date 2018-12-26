@@ -1,6 +1,6 @@
 //! Cubic Bézier segments.
 
-use std::ops::Mul;
+use std::ops::{Mul, Range};
 
 use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveNearest, QuadBez, Vec2};
@@ -25,36 +25,6 @@ impl CubicBez {
     /// Create a new cubic Bézier segment.
     pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V, p3: V) -> CubicBez {
         CubicBez { p0: p0.into(), p1: p1.into(), p2: p2.into(), p3: p3.into() }
-    }
-
-    /// Subdivide into halves, using de Casteljau.
-    pub fn subdivide(&self) -> (CubicBez, CubicBez) {
-        let pm = self.eval(0.5);
-        (
-            CubicBez::new(self.p0,
-                (self.p0 + self.p1) / 2.0,
-                (self.p0 + self.p1 * 2.0 + self.p2) * 0.25,
-                pm),
-            CubicBez::new(pm,
-                (self.p1 + self.p2 * 2.0 + self.p3) * 0.25,
-                (self.p2 + self.p3) / 2.0,
-                self.p3)
-        )
-    }
-
-    /// Compute a subsegment in the given parameter range.
-    ///
-    /// TODO: two proposed changes. One is ergonomic, to use a range rather than
-    /// two separate t values. The other is to move this into the basic trait, as
-    /// it's likely to get used.
-    pub fn subsegment(&self, t0: f64, t1: f64) -> CubicBez {
-        let p0 = self.eval(t0);
-        let p3 = self.eval(t1);
-        let d = self.deriv();
-        let scale = (t1 - t0) * (1.0 / 3.0);
-        let p1 = p0 + scale * d.eval(t0);
-        let p2 = p3 - scale * d.eval(t1);
-        CubicBez { p0, p1, p2, p3 }
     }
 
     /// Convert to quadratic Béziers.
@@ -85,6 +55,32 @@ impl ParamCurve for CubicBez {
 
     fn end(&self) -> Vec2 {
         self.p3
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> CubicBez {
+        let (t0, t1) = (range.start, range.end);
+        let p0 = self.eval(t0);
+        let p3 = self.eval(t1);
+        let d = self.deriv();
+        let scale = (t1 - t0) * (1.0 / 3.0);
+        let p1 = p0 + scale * d.eval(t0);
+        let p2 = p3 - scale * d.eval(t1);
+        CubicBez { p0, p1, p2, p3 }
+    }
+
+    /// Subdivide into halves, using de Casteljau.
+    fn subdivide(&self) -> (CubicBez, CubicBez) {
+        let pm = self.eval(0.5);
+        (
+            CubicBez::new(self.p0,
+                (self.p0 + self.p1) / 2.0,
+                (self.p0 + self.p1 * 2.0 + self.p2) * 0.25,
+                pm),
+            CubicBez::new(pm,
+                (self.p1 + self.p2 * 2.0 + self.p3) * 0.25,
+                (self.p2 + self.p3) / 2.0,
+                self.p3)
+        )
     }
 }
 
@@ -171,7 +167,7 @@ impl Iterator for ToQuads {
         let mut t1 = 1.0;
         if t0 == t1 { return None; }
         loop {
-            let seg = self.c.subsegment(t0, t1);
+            let seg = self.c.subsegment(t0..t1);
             // Compute error for candidate quadratic.
             let p1x2 = 3.0 * seg.p1 - seg.p0;
             let p2x2 = 3.0 * seg.p2 - seg.p3;
@@ -224,8 +220,26 @@ mod tests {
         for i in 0..12 {
             let accuracy = 0.1f64.powi(i);
             let error = c.arclen(accuracy) - true_arclen;
-            println!("{:e}: {:e}", accuracy, error);
+            //println!("{:e}: {:e}", accuracy, error);
             assert!(error.abs() < accuracy);
+        }
+    }
+
+    #[test]
+    fn cubicbez_inv_arclen() {
+        // y = x^2
+        let c = CubicBez::new((0.0, 0.0), (1.0/3.0, 0.0), (2.0/3.0, 1.0/3.0), (1.0, 1.0));
+        let true_arclen = 0.5 * 5.0f64.sqrt() + 0.25 * (2.0 + 5.0f64.sqrt()).ln();
+        for i in 0..12 {
+            let accuracy = 0.1f64.powi(i);
+            let n = 10;
+            for j in 0..=n {
+                let arc = (j as f64) * ((n as f64).recip() * true_arclen);
+                let t = c.inv_arclen(arc, accuracy * 0.5);
+                let actual_arc = c.subsegment(0.0 .. t).arclen(accuracy * 0.5);
+                assert!((arc - actual_arc).abs() < accuracy,
+                    "at accuracy {:e}, wanted {} got {}", accuracy, actual_arc, arc);
+            }
         }
     }
 

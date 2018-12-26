@@ -1,6 +1,6 @@
 //! Lines.
 
-use std::ops::Mul;
+use std::ops::{Mul, Range};
 
 use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveNearest, Vec2};
@@ -20,7 +20,7 @@ impl Line {
 
 impl ParamCurve for Line {
     fn eval(&self, t: f64) -> Vec2 {
-        self.p0 + (self.p1 - self.p0) * t
+        self.p0.lerp(self.p1, t)
     }
 
     fn start(&self) -> Vec2 {
@@ -29,6 +29,10 @@ impl ParamCurve for Line {
 
     fn end(&self) -> Vec2 {
         self.p1
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> Line {
+        Line { p0: self.eval(range.start), p1: self.eval(range.end) }
     }
 }
 
@@ -76,11 +80,16 @@ impl ParamCurveCurvature for Line {
 }
 
 /// A trivial "curve" that is just a constant.
+#[derive(Clone, Copy)]
 pub struct ConstVec2(Vec2);
 
 impl ParamCurve for ConstVec2 {
     fn eval(&self, _t: f64) -> Vec2 {
         self.0
+    }
+
+    fn subsegment(&self, _range: Range<f64>) -> ConstVec2 {
+        *self
     }
 }
 
@@ -103,5 +112,21 @@ impl Mul<Line> for Affine {
 
     fn mul(self, other: Line) -> Line {
         Line { p0: self * other.p0, p1: self * other.p1 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Line, ParamCurveArclen};
+
+    #[test]
+    fn line_arclen() {
+        let l = Line::new((0.0, 0.0), (1.0, 1.0));
+        let true_len = 2.0f64.sqrt();
+        let epsilon = 1e-9;
+        assert!(l.arclen(epsilon) - true_len < epsilon);
+
+        let t = l.inv_arclen(true_len / 3.0, epsilon);
+        println!("{}", t);
     }
 }

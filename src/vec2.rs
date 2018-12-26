@@ -52,6 +52,11 @@ impl Vec2 {
     pub fn from_angle(th: f64) -> Vec2 {
         Vec2 { x: th.cos(), y: th.sin() }
     }
+
+    /// Linearly interpolate between two points.
+    pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
+        *self + t * (other - *self)
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {

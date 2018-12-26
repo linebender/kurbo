@@ -1,10 +1,10 @@
 //! Bézier paths (up to cubic).
 
-use std::ops::Mul;
+use std::ops::{Mul, Range};
 use std::io::Write;
 
-use crate::{Affine, CubicBez, Line, ParamCurveArea, ParamCurveArclen, ParamCurveNearest, QuadBez,
-    Vec2};
+use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen,
+    ParamCurveNearest, QuadBez, Vec2};
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
 #[derive(Clone, Default)]
@@ -243,6 +243,24 @@ impl<'a> Iterator for BezPathSegs<'a> {
             }
         }
         None
+    }
+}
+
+impl ParamCurve for PathSeg {
+    fn eval(&self, t: f64) -> Vec2 {
+        match *self {
+            PathSeg::Line(line) => line.eval(t),
+            PathSeg::Quad(quad) => quad.eval(t),
+            PathSeg::Cubic(cubic) => cubic.eval(t),
+        }
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> PathSeg {
+        match *self {
+            PathSeg::Line(line) => PathSeg::Line(line.subsegment(range)),
+            PathSeg::Quad(quad) => PathSeg::Quad(quad.subsegment(range)),
+            PathSeg::Cubic(cubic) => PathSeg::Cubic(cubic.subsegment(range)),
+        }
     }
 }
 

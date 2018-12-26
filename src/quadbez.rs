@@ -1,6 +1,6 @@
 //! Quadratic Bézier segments.
 
-use std::ops::Mul;
+use std::ops::{Mul, Range};
 
 use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveNearest, Vec2};
@@ -18,13 +18,6 @@ impl QuadBez {
     /// Create a new quadratic Bézier segment.
     pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V) -> QuadBez {
         QuadBez { p0: p0.into(), p1: p1.into(), p2: p2.into() }
-    }
-
-    /// Subdivide into halves, using de Casteljau.
-    pub fn subdivide(&self) -> (QuadBez, QuadBez) {
-        let pm = self.eval(0.5);
-        (QuadBez::new(self.p0, (self.p0 + self.p1) / 2.0, pm),
-            QuadBez::new(pm, (self.p1 + self.p2) / 2.0, self.p2))
     }
 
     /// Raise the order by 1.
@@ -51,6 +44,21 @@ impl ParamCurve for QuadBez {
 
     fn end(&self) -> Vec2 {
         self.p2
+    }
+
+    /// Subdivide into halves, using de Casteljau.
+    fn subdivide(&self) -> (QuadBez, QuadBez) {
+        let pm = self.eval(0.5);
+        (QuadBez::new(self.p0, (self.p0 + self.p1) / 2.0, pm),
+            QuadBez::new(pm, (self.p1 + self.p2) / 2.0, self.p2))
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> QuadBez {
+        let (t0, t1) = (range.start, range.end);
+        let p0 = self.eval(t0);
+        let p2 = self.eval(t1);
+        let p1 = p0 + (self.p1 - self.p0).lerp(self.p2 - self.p1, t0) * (t1 - t0);
+        QuadBez { p0, p1, p2 }
     }
 }
 
@@ -184,6 +192,21 @@ mod tests {
             let error = q.arclen(accuracy) - true_arclen;
             //println!("{:e}: {:e}", accuracy, error);
             assert!(error.abs() < accuracy);
+        }
+    }
+
+    #[test]
+    fn quadbez_subsegment() {
+        let q = QuadBez::new((3.1, 4.1), (5.9, 2.6), (5.3, 5.8));
+        let t0 = 0.1;
+        let t1 = 0.8;
+        let qs = q.subsegment(t0..t1);
+        let epsilon = 1e-12;
+        let n = 10;
+        for i in 0..=n {
+            let t = (i as f64) * (n as f64).recip();
+            let ts = t0 + t * (t1 - t0);
+            assert_near(q.eval(ts), qs.eval(t), epsilon);
         }
     }
 
