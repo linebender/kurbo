@@ -2,8 +2,8 @@
 
 use std::ops::Mul;
 
-use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveDeriv,
-    ParamCurveNearest, Vec2};
+use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveNearest, Vec2};
 
 /// A single line.
 #[derive(Clone, Copy)]
@@ -66,6 +66,12 @@ impl ParamCurveNearest for Line {
             let dist = (p - self.eval(t)).hypot2();
             (t, dist)
         }
+    }
+}
+
+impl ParamCurveCurvature for Line {
+    fn curvature(&self, _t: f64) -> f64 {
+        0.0
     }
 }
 

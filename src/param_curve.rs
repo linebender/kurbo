@@ -19,6 +19,8 @@ pub trait ParamCurve {
     fn end(&self) -> Vec2 { self.eval(1.0) }
 }
 
+// TODO: I might not want to have separate traits for all these.
+
 /// A differentiable parametrized curve.
 pub trait ParamCurveDeriv {
     type DerivResult: ParamCurve;
@@ -60,4 +62,20 @@ pub trait ParamCurveNearest {
     ///
     /// Returns the parameter and the square of the distance.
     fn nearest(&self, p: Vec2, accuracy: f64) -> (f64, f64);
+}
+
+/// A parametrized curve that reports its curvature.
+pub trait ParamCurveCurvature: ParamCurveDeriv
+    where Self::DerivResult: ParamCurveDeriv
+{
+    /// Compute the signed curvature at parameter `t`.
+    fn curvature(&self, t: f64) -> f64 {
+        let deriv = self.deriv();
+        let deriv2 = deriv.deriv();
+        let d = deriv.eval(t);
+        let d2 = deriv2.eval(t);
+        // TODO: What's the convention for sign? I think it should match signed
+        // area - a positive area curve should have positive curvature.
+        d2.cross(d) * d.hypot2().powf(-1.5)
+    }
 }

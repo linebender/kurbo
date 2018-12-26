@@ -2,8 +2,8 @@
 
 use std::ops::Mul;
 
-use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveDeriv,
-    ParamCurveNearest, Vec2};
+use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveNearest, Vec2};
 use crate::common::solve_cubic;
 
 /// A single quadratic Bézier segment.
@@ -139,6 +139,8 @@ impl ParamCurveNearest for QuadBez {
         (t_best, r_best.unwrap())
     }
 }
+
+impl ParamCurveCurvature for QuadBez {}
 
 impl Mul<QuadBez> for Affine {
     type Output = QuadBez;
