@@ -78,26 +78,31 @@ impl ParamCurveArclen for QuadBez {
     ///
     /// This algorithm is based on "Adaptive subdivision and the length and
     /// energy of Bézier curves" by Jens Gravesen.
+    ///
+    /// TODO: Gauss-Legendre Quadrature is better, see:
+    /// https://github.com/Pomax/BezierInfo-2/issues/77
     fn arclen(&self, accuracy: f64) -> f64 {
         // Estimate for a single segment.
         fn calc_l0(q: &QuadBez) -> f64 {
             let lc = (q.p2 - q.p0).hypot();
             let lp = (q.p1 - q.p0).hypot() + (q.p2 - q.p1).hypot();
-            (2.0 * lc + lp) * (1.0 / 3.0)
+            (2.0 / 3.0) * lc + (1.0 / 3.0) * lp
         }
-        fn rec(q: &QuadBez, l0: f64, accuracy: f64) -> f64 {
+        const MAX_DEPTH: usize = 16;
+        fn rec(q: &QuadBez, l0: f64, accuracy: f64, depth: usize) -> f64 {
             let (q0, q1) = q.subdivide();
             let l0_q0 = calc_l0(&q0);
             let l0_q1 = calc_l0(&q1);
             let l1 = l0_q0 + l0_q1;
             let error = (l0 - l1) * (1.0 / 15.0);
-            if error.abs() < accuracy {
+            if error.abs() < accuracy || depth == MAX_DEPTH {
                 l1 - error
             } else {
-                rec(&q0, l0_q0, accuracy * 0.5) + rec(&q1, l0_q1, accuracy * 0.5)
+                rec(&q0, l0_q0, accuracy * 0.5, depth + 1)
+                    + rec(&q1, l0_q1, accuracy * 0.5, depth + 1)
             }
         }
-        rec(self, calc_l0(self), accuracy)
+        rec(self, calc_l0(self), accuracy, 0)
     }
 }
 
@@ -221,6 +226,15 @@ mod tests {
             //println!("{:e}: {:e}", accuracy, error);
             assert!(error.abs() < accuracy);
         }
+    }
+
+    #[test]
+    fn quadbez_arclen_pathological() {
+        let q = QuadBez::new((-1.0, 0.0), (1.03, 0.0), (1.0, 0.0));
+        let true_arclen = 2.0008737864167325; // Probably good to 12 places
+        let accuracy = 1e-12;
+        let est = q.arclen(accuracy);
+        assert!((est - true_arclen).abs() < accuracy);
     }
 
     #[test]

@@ -112,19 +112,21 @@ impl ParamCurveArclen for CubicBez {
             let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
             (lc + lp) * 0.5
         }
-        fn rec(c: &CubicBez, l0: f64, accuracy: f64) -> f64 {
+        const MAX_DEPTH: usize = 16;
+        fn rec(c: &CubicBez, l0: f64, accuracy: f64, depth: usize) -> f64 {
             let (c0, c1) = c.subdivide();
             let l0_c0 = calc_l0(&c0);
             let l0_c1 = calc_l0(&c1);
             let l1 = l0_c0 + l0_c1;
             let error = (l0 - l1) * (1.0 / 15.0);
-            if error.abs() < accuracy {
+            if error.abs() < accuracy || depth == MAX_DEPTH {
                 l1 - error
             } else {
-                rec(&c0, l0_c0, accuracy * 0.5) + rec(&c1, l0_c1, accuracy * 0.5)
+                rec(&c0, l0_c0, accuracy * 0.5, depth + 1)
+                    + rec(&c1, l0_c1, accuracy * 0.5, depth + 1)
             }
         }
-        rec(self, calc_l0(self), accuracy)
+        rec(self, calc_l0(self), accuracy, 0)
     }
 }
 
