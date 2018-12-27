@@ -5,6 +5,11 @@ authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
 keywords = ["graphics", "curves", "geometry"]
+repository = "https://github.com/linebender/kurbo"
+description = "A 2D curves library"
+readme = "README.md"
+# The category should be "graphics", but this doesn't exist yet
+# https://github.com/rust-lang/crates.io/pull/1582
 
 [dependencies]
 arrayvec = "0.4.10"
