@@ -1,7 +1,6 @@
 //! Bézier paths (up to cubic).
 
 use std::ops::{Mul, Range};
-use std::io::Write;
 
 use arrayvec::ArrayVec;
 
@@ -116,26 +115,6 @@ impl BezPath {
                 _ => false,
             }
         )
-    }
-
-    /// Convert the path to an SVG path string representation.
-    ///
-    /// The current implementation doesn't take any special care to produce a
-    /// short string (reducing precision, using relative movement).
-    pub fn to_svg(&self) -> String {
-        let mut result = Vec::new();
-        for el in &self.0 {
-            match *el {
-                PathEl::Moveto(p) => write!(result, "M{} {}", p.x, p.y).unwrap(),
-                PathEl::Lineto(p) => write!(result, "L{} {}", p.x, p.y).unwrap(),
-                PathEl::Quadto(p1, p2) => write!(result, "Q{} {} {} {}",
-                    p1.x, p1.y, p2.x, p2.y).unwrap(),
-                PathEl::Curveto(p1, p2, p3) => write!(result, "C{} {} {} {} {} {}",
-                    p1.x, p1.y, p2.x, p2.y, p3.x, p3.y).unwrap(),
-                PathEl::Closepath => write!(result, "Z").unwrap(),
-            }
-        }
-        String::from_utf8(result).unwrap()
     }
 
     /// Apply an affine transform to the path.
