@@ -2,8 +2,11 @@
 
 use std::ops::{Mul, Range};
 
+use arrayvec::ArrayVec;
+
 use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveNearest, Vec2};
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Vec2};
+use crate::MAX_EXTREMA;
 
 /// A single line.
 #[derive(Clone, Copy)]
@@ -79,6 +82,12 @@ impl ParamCurveCurvature for Line {
     }
 }
 
+impl ParamCurveExtrema for Line {
+    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+        ArrayVec::new()
+    }
+}
+
 /// A trivial "curve" that is just a constant.
 #[derive(Clone, Copy)]
 pub struct ConstVec2(Vec2);
@@ -127,6 +136,7 @@ mod tests {
         assert!(l.arclen(epsilon) - true_len < epsilon);
 
         let t = l.inv_arclen(true_len / 3.0, epsilon);
-        println!("{}", t);
+        assert!((t - 1.0 / 3.0).abs() < epsilon);
+        //println!("{}", t);
     }
 }

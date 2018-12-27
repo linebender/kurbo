@@ -2,8 +2,11 @@
 
 use std::ops::{Mul, Range};
 
+use arrayvec::ArrayVec;
+
 use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveNearest, Vec2};
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Vec2};
+use crate::MAX_EXTREMA;
 use crate::common::solve_cubic;
 
 /// A single quadratic Bézier segment.
@@ -149,6 +152,31 @@ impl ParamCurveNearest for QuadBez {
 
 impl ParamCurveCurvature for QuadBez {}
 
+impl ParamCurveExtrema for QuadBez {
+    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+        let mut result = ArrayVec::new();
+        let d0 = self.p1 - self.p0;
+        let d1 = self.p2 - self.p1;
+        let dd = d1 - d0;
+        if dd.x != 0.0 {
+            let t = -d0.x / dd.x;
+            if t > 0.0 && t < 1.0 {
+                result.push(t);
+            }
+        }
+        if dd.y != 0.0 {
+            let t = -d0.y / dd.y;
+            if t > 0.0 && t < 1.0 {
+                result.push(t);
+                if result.len() == 2 && result[0] > t {
+                    result.swap(0, 1);
+                }
+            }
+        }
+        result
+    }
+}
+
 impl Mul<QuadBez> for Affine {
     type Output = QuadBez;
 
@@ -160,7 +188,7 @@ impl Mul<QuadBez> for Affine {
 #[cfg(test)]
 mod tests {
     use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveDeriv,
-        ParamCurveNearest, QuadBez, Vec2};
+        ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
 
     fn assert_near(p0: Vec2, p1: Vec2, epsilon: f64) {
         assert!((p1 - p0).hypot() < epsilon, "{:?} != {:?}", p0, p1);
@@ -252,5 +280,27 @@ mod tests {
         verify(q.nearest((-1.1, 1.1).into(), 1e-3), 0.0);
         let a = Affine::rotate(0.5);
         verify((a * q).nearest(a * Vec2::new(0.5, 0.25), 1e-3), 0.75);
+    }
+
+    #[test]
+    fn quadbez_extrema() {
+        // y = x^2
+        let q = QuadBez::new((-1.0, 1.0), (0.0, -1.0), (1.0, 1.0));
+        let extrema = q.extrema();
+        assert_eq!(extrema.len(), 1);
+        assert!((extrema[0] - 0.5).abs() < 1e-6);
+
+        let q = QuadBez::new((0.0, 0.5), (1.0, 1.0), (0.5, 0.0));
+        let extrema = q.extrema();
+        assert_eq!(extrema.len(), 2);
+        assert!((extrema[0] - 1.0 / 3.0).abs() < 1e-6);
+        assert!((extrema[1] - 2.0 / 3.0).abs() < 1e-6);
+
+        // Reverse direction
+        let q = QuadBez::new((0.5, 0.0), (1.0, 1.0), (0.0, 0.5));
+        let extrema = q.extrema();
+        assert_eq!(extrema.len(), 2);
+        assert!((extrema[0] - 1.0 / 3.0).abs() < 1e-6);
+        assert!((extrema[1] - 2.0 / 3.0).abs() < 1e-6);
     }
 }

@@ -2,6 +2,8 @@
 
 use std::ops::Range;
 
+use arrayvec::ArrayVec;
+
 use crate::Vec2;
 
 /// A curve parametrized by a scalar.
@@ -127,4 +129,22 @@ pub trait ParamCurveCurvature: ParamCurveDeriv
         // area - a positive area curve should have positive curvature.
         d2.cross(d) * d.hypot2().powf(-1.5)
     }
+}
+
+/// The maximum number of extrema that can be reported in the `ParamCurveExtrema` trait.
+///
+/// This is 4 to support cubic Béziers. If other curves are used, they should be
+/// subdivided to limit the number of extrema.
+pub const MAX_EXTREMA: usize = 4;
+
+/// A parametrized curve that reports its extrema.
+pub trait ParamCurveExtrema {
+    /// Compute the extrema of the curve.
+    ///
+    /// Only extrema within the interior of the curve count.
+    /// At most four extrema can be reported, which is sufficient for
+    /// cubic Béziers.
+    ///
+    /// The extrema should be reported in increasing parameter order.
+    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]>;
 }

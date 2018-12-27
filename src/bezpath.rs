@@ -3,8 +3,11 @@
 use std::ops::{Mul, Range};
 use std::io::Write;
 
+use arrayvec::ArrayVec;
+
 use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen,
-    ParamCurveNearest, QuadBez, Vec2};
+    ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
+use crate::MAX_EXTREMA;
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
 #[derive(Clone, Default)]
@@ -290,6 +293,16 @@ impl ParamCurveNearest for PathSeg {
             PathSeg::Line(line) => line.nearest(p, accuracy),
             PathSeg::Quad(quad) => quad.nearest(p, accuracy),
             PathSeg::Cubic(cubic) => cubic.nearest(p, accuracy),
+        }        
+    }
+}
+
+impl ParamCurveExtrema for PathSeg {
+    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+        match *self {
+            PathSeg::Line(line) => line.extrema(),
+            PathSeg::Quad(quad) => quad.extrema(),
+            PathSeg::Cubic(cubic) => cubic.extrema(),
         }        
     }
 }

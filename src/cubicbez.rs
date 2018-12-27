@@ -2,8 +2,12 @@
 
 use std::ops::{Mul, Range};
 
+use arrayvec::ArrayVec;
+use crate::MAX_EXTREMA;
+
 use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveNearest, QuadBez, Vec2};
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
+use crate::common::solve_quadratic;
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug)]
@@ -151,6 +155,30 @@ impl ParamCurveNearest for CubicBez {
 
 impl ParamCurveCurvature for CubicBez {}
 
+impl ParamCurveExtrema for CubicBez {
+    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+        fn one_coord(result: &mut ArrayVec<[f64; MAX_EXTREMA]>, d0: f64, d1: f64, d2: f64) {
+            let a = d0 - 2.0 * d1 + d2;
+            let b = 2.0 * (d1 - d0);
+            let c = d0;
+            let roots = solve_quadratic(c, b, a);
+            for &t in &roots {
+                if t > 0.0 && t < 1.0 {
+                    result.push(t);
+                }
+            }
+        }
+        let mut result = ArrayVec::new();
+        let d0 = self.p1 - self.p0;
+        let d1 = self.p2 - self.p1;
+        let d2 = self.p3 - self.p2;
+        one_coord(&mut result, d0.x, d1.x, d2.x);
+        one_coord(&mut result, d0.y, d1.y, d2.y);
+        result.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        result
+    }
+}
+
 impl Mul<CubicBez> for Affine {
     type Output = CubicBez;
 
@@ -192,7 +220,7 @@ impl Iterator for ToQuads {
 #[cfg(test)]
 mod tests {
     use crate::{Affine, CubicBez, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveDeriv,
-        ParamCurveNearest, Vec2};
+        ParamCurveExtrema, ParamCurveNearest, Vec2};
 
     #[test]
     fn cubicbez_deriv() {
@@ -286,6 +314,19 @@ mod tests {
         verify(c.nearest((-0.1, 0.0).into(), 1e-6), 0.0);
         let a = Affine::rotate(0.5);
         verify((a * c).nearest(a * Vec2::new(0.1, 0.001), 1e-6), 0.1);
+    }
+
+    #[test]
+    fn cubicbez_extrema() {
+        // y = x^2
+        let q = CubicBez::new((0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0));
+        let extrema = q.extrema();
+        assert_eq!(extrema.len(), 1);
+        assert!((extrema[0] - 0.5).abs() < 1e-6);
+
+        let q = CubicBez::new((0.4, 0.5), (0.0, 1.0), (1.0, 0.0), (0.5, 0.4));
+        let extrema = q.extrema();
+        assert_eq!(extrema.len(), 4);
     }
 
     #[test]
