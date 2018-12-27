@@ -8,6 +8,7 @@ use arrayvec::ArrayVec;
 use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen,
     ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
 use crate::MAX_EXTREMA;
+use crate::common::{solve_cubic, solve_quadratic};
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
 #[derive(Clone, Default)]
@@ -176,6 +177,13 @@ impl BezPath {
         }
         best.unwrap()
     }
+
+    /// Compute the winding number.
+    ///
+    /// TODO: make sure all the signs are consistent.
+    pub fn winding(&self, p: Vec2) -> i32 {
+        self.segments().map(|(_, seg)| seg.winding(p)).sum()
+    }
 }
 
 impl Mul<PathEl> for Affine {
@@ -304,5 +312,73 @@ impl ParamCurveExtrema for PathSeg {
             PathSeg::Quad(quad) => quad.extrema(),
             PathSeg::Cubic(cubic) => cubic.extrema(),
         }        
+    }
+}
+
+impl PathSeg {
+    // Assumes split at extrema.
+    fn winding_inner(&self, p: Vec2) -> i32 {
+        let start = self.start();
+        let end = self.end();
+        let sign = if end.y > start.y {
+            if p.y < start.y || p.y >= end.y { return 0; }
+            1
+        } else if end.y < start.y {
+            if p.y < end.y || p.y >= start.y { return 0; }
+            -1
+        } else {
+            return 0;
+        };
+        match *self {
+            PathSeg::Line(_line) => {
+                if p.x < start.x.min(end.x) { return 0; }
+                if p.x >= start.x.max(end.x) { return sign; }
+                // line equation ax + by = c
+                let a = end.y - start.y;
+                let b = start.x - end.x;
+                let c = a * start.x + b * start.y;
+                if (a * p.x + b * p.y - c) * (sign as f64) >= 0.0 { sign } else { 0 }
+            }
+            PathSeg::Quad(quad) => {
+                let p1 = quad.p1;
+                if p.x < start.x.min(end.x).min(p1.x) { return 0; }
+                if p.x >= start.x.max(end.x).max(p1.x) { return sign; }
+                let a = end.y - 2.0 * p1.y + start.y;
+                let b = 2.0 * (p1.y - start.y);
+                let c = start.y - p.y;
+                for t in solve_quadratic(c, b, a) {
+                    if t >= 0.0 && t <= 1.0 {
+                        let x = quad.eval(t).x;
+                        if p.x >= x { return sign; } else { return 0; }
+                    }
+                }
+                0
+            }
+            PathSeg::Cubic(cubic) => {
+                let p1 = cubic.p1;
+                let p2 = cubic.p2;
+                if p.x < start.x.min(end.x).min(p1.x).min(p2.x) { return 0; }
+                if p.x >= start.x.max(end.x).max(p1.x).max(p2.x) { return sign; }
+                let a = end.y - 3.0 * p2.y + 3.0 * p1.y - start.y;
+                let b = 3.0 * (p2.y - 2.0 * p1.y + start.y);
+                let c = 3.0 * (p1.y - start.y);
+                let d = start.y - p.y;
+                for t in solve_cubic(d, c, b, a) {
+                    if t >= 0.0 && t <= 1.0 {
+                        let x = cubic.eval(t).x;
+                        if p.x >= x { return sign; } else { return 0; }
+                    }
+                }
+                0
+            }
+        }
+    }
+
+    /// Compute the winding number contribution of a single segment.
+    ///
+    /// Cast a ray to the left and count intersections.
+    fn winding(&self, p: Vec2) -> i32 {
+        self.extrema_ranges().into_iter().map(|range|
+            self.subsegment(range).winding_inner(p)).sum()
     }
 }
