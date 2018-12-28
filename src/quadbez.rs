@@ -83,33 +83,48 @@ impl ParamCurveDeriv for QuadBez {
 impl ParamCurveArclen for QuadBez {
     /// Arclength of a quadratic Bézier segment.
     ///
-    /// This algorithm is based on "Adaptive subdivision and the length and
-    /// energy of Bézier curves" by Jens Gravesen.
+    /// This computation is based on an analytical formula. Since that formula suffers
+    /// from numerical instability when the curve is very close to a straight line, we
+    /// detect that case and fall back to Legendre-Gauss quadrature.
     ///
-    /// TODO: Gauss-Legendre Quadrature is better, see:
-    /// https://github.com/Pomax/BezierInfo-2/issues/77
-    fn arclen(&self, accuracy: f64) -> f64 {
-        // Estimate for a single segment.
-        fn calc_l0(q: &QuadBez) -> f64 {
-            let lc = (q.p2 - q.p0).hypot();
-            let lp = (q.p1 - q.p0).hypot() + (q.p2 - q.p1).hypot();
-            (2.0 / 3.0) * lc + (1.0 / 3.0) * lp
+    /// Accuracy should be better than 1e-13 over the entire range.
+    ///
+    /// Adapted from <http://www.malczak.linuxpl.com/blog/quadratic-bezier-curve-length/>
+    /// with permission.
+    fn arclen(&self, _accuracy: f64) -> f64 {
+        let d2 = self.p0 - 2.0 * self.p1 + self.p2;
+        let a = d2.hypot2();
+        let d1 = self.p1 - self.p0;
+        let c = d1.hypot2();
+        if a < 5e-4 * c {
+            // This case happens for nearly straight Béziers.
+            //
+            // Calculate arclength using Legendre-Gauss quadrature using formula from Behdad
+            // in https://github.com/Pomax/BezierInfo-2/issues/77
+            let v0 = (-0.492943519233745 * self.p0 + 0.430331482911935 * self.p1
+                + 0.0626120363218102 * self.p2).hypot();
+            let v1 = ((self.p2 - self.p0) * 0.4444444444444444).hypot();
+            let v2 = (-0.0626120363218102 * self.p0 - 0.430331482911935 * self.p1
+                + 0.492943519233745 * self.p2).hypot();
+            return v0 + v1 + v2;
         }
-        const MAX_DEPTH: usize = 16;
-        fn rec(q: &QuadBez, l0: f64, accuracy: f64, depth: usize) -> f64 {
-            let (q0, q1) = q.subdivide();
-            let l0_q0 = calc_l0(&q0);
-            let l0_q1 = calc_l0(&q1);
-            let l1 = l0_q0 + l0_q1;
-            let error = (l0 - l1) * (1.0 / 15.0);
-            if error.abs() < accuracy || depth == MAX_DEPTH {
-                l1 - error
-            } else {
-                rec(&q0, l0_q0, accuracy * 0.5, depth + 1)
-                    + rec(&q1, l0_q1, accuracy * 0.5, depth + 1)
-            }
+        let b = 2.0 * d2.dot(d1);
+
+        let sabc = (a + b + c).sqrt();
+        let a2 = a.powf(-0.5);
+        let a32 = a2.powi(3);
+        let c2 = 2.0 * c.sqrt();
+        let ba_c2 = b * a2 + c2;
+
+        let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc-c2) + sabc;
+        // TODO: justify and fine-tune this exact constant.
+        if ba_c2 < 1e-13 {
+            // This case happens for Béziers with a sharp kink.
+            v0
+        } else {
+            v0 + 0.25 * a32
+                * (4.0 * c * a - b * b) * (((2.0 * a + b) * a2 + 2.0 * sabc) / ba_c2).ln()
         }
-        rec(self, calc_l0(self), accuracy, 0)
     }
 }
 
@@ -231,19 +246,20 @@ mod tests {
         let true_arclen = 0.5 * 5.0f64.sqrt() + 0.25 * (2.0 + 5.0f64.sqrt()).ln();
         for i in 0..12 {
             let accuracy = 0.1f64.powi(i);
-            let error = q.arclen(accuracy) - true_arclen;
+            let est = q.arclen(accuracy);
+            let error = est - true_arclen;
             //println!("{:e}: {:e}", accuracy, error);
-            assert!(error.abs() < accuracy);
+            assert!(error.abs() < accuracy, "{} != {}", est, true_arclen);
         }
     }
 
     #[test]
     fn quadbez_arclen_pathological() {
         let q = QuadBez::new((-1.0, 0.0), (1.03, 0.0), (1.0, 0.0));
-        let true_arclen = 2.0008737864167325; // Probably good to 12 places
-        let accuracy = 1e-12;
+        let true_arclen = 2.0008737864167325; // A rough empirical calculation
+        let accuracy = 1e-11;
         let est = q.arclen(accuracy);
-        assert!((est - true_arclen).abs() < accuracy);
+        assert!((est - true_arclen).abs() < accuracy, "{} != {}", est, true_arclen);
     }
 
     #[test]

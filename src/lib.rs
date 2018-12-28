@@ -2,7 +2,7 @@
 
 mod affine;
 mod bezpath;
-mod common;
+pub mod common;
 mod cubicbez;
 mod line;
 mod param_curve;

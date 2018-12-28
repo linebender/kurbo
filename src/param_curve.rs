@@ -40,6 +40,18 @@ pub trait ParamCurveDeriv {
 
     /// The derivative of the curve.
     fn deriv(&self) -> Self::DerivResult;
+
+    /// Estimate arclength using Gaussian quadrature.
+    ///
+    /// The coefficients are assumed to cover the range (-1..1), which is
+    /// traditional.
+    #[inline]
+    fn gauss_arclen(&self, coeffs: &[(f64, f64)]) -> f64 {
+        let d = self.deriv();
+        coeffs.iter().map(|(wi, xi)|
+            wi * d.eval(0.5 * (xi + 1.0)).hypot()
+        ).sum::<f64>() * 0.5
+    }
 }
 
 /// A parametrized curve that can have its arc length measured.

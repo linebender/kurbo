@@ -8,6 +8,7 @@ use crate::MAX_EXTREMA;
 use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
 use crate::common::solve_quadratic;
+use crate::common::GAUSS_LEGENDRE_COEFFS_9;
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug)]
@@ -110,30 +111,32 @@ impl ParamCurveDeriv for CubicBez {
 impl ParamCurveArclen for CubicBez {
     /// Arclength of a cubic Bézier segment.
     ///
-    /// This algorithm is based on "Adaptive subdivision and the length and
-    /// energy of Bézier curves" by Jens Gravesen.
+    /// This is an adaptive subdivision approach using Legendre-Gauss quadrature
+    /// in the base case, and an error estimate to decide when to subdivide.
     fn arclen(&self, accuracy: f64) -> f64 {
-        // Estimate for a single segment.
-        fn calc_l0(c: &CubicBez) -> f64 {
+        // Squared L2 norm of the second derivative of the cubic.
+        fn cubic_errnorm(c: &CubicBez) -> f64 {
+            let d = c.deriv().deriv();
+            let dd = d.end() - d.start();
+            d.start().hypot2() + d.start().dot(dd) + dd.hypot2() * (1.0 / 3.0)
+        }
+        fn est_gauss9_error(c: &CubicBez) -> f64 {
             let lc = (c.p3 - c.p0).hypot();
             let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
-            (lc + lp) * 0.5
+
+            2.56e-8 * (cubic_errnorm(c) / (lc * lc)).powi(8) * lp
         }
         const MAX_DEPTH: usize = 16;
-        fn rec(c: &CubicBez, l0: f64, accuracy: f64, depth: usize) -> f64 {
-            let (c0, c1) = c.subdivide();
-            let l0_c0 = calc_l0(&c0);
-            let l0_c1 = calc_l0(&c1);
-            let l1 = l0_c0 + l0_c1;
-            let error = (l0 - l1) * (1.0 / 15.0);
-            if error.abs() < accuracy || depth == MAX_DEPTH {
-                l1 - error
+        fn rec(c: &CubicBez, accuracy: f64, depth: usize) -> f64 {
+            if depth == MAX_DEPTH || est_gauss9_error(c) < accuracy {
+                c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_9)
             } else {
-                rec(&c0, l0_c0, accuracy * 0.5, depth + 1)
-                    + rec(&c1, l0_c1, accuracy * 0.5, depth + 1)
+                let (c0, c1) = c.subdivide();
+                rec(&c0, accuracy * 0.5, depth + 1)
+                    + rec(&c1, accuracy * 0.5, depth + 1)
             }
         }
-        rec(self, calc_l0(self), accuracy, 0)
+        rec(self, accuracy, 0)
     }
 }
 

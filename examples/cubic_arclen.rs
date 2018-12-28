@@ -1,6 +1,7 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
 use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, CubicBez, Vec2};
+use kurbo::common::{GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9, GAUSS_LEGENDRE_COEFFS_11};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
@@ -16,23 +17,8 @@ fn gauss_arclen_5(c: CubicBez) -> f64 {
     v0 + v1 + v2 + v3 + v4
 }
 
-fn gauss_arclen_n<C: ParamCurveDeriv>(c: C, coeffs: &[(f64, f64)]) -> f64 {
-    let d = c.deriv();
-    coeffs.iter().map(|(wi, xi)|
-        wi * d.eval(0.5 * (xi + 1.0)).hypot()
-    ).sum::<f64>() * 0.5
-}
-
 fn gauss_arclen_7<C: ParamCurveDeriv>(c: C) -> f64 {
-    gauss_arclen_n(c, &[
-        (0.4179591836734694,  0.0000000000000000),
-        (0.3818300505051189,  0.4058451513773972),
-        (0.3818300505051189,  -0.4058451513773972),
-        (0.2797053914892766,  -0.7415311855993945),
-        (0.2797053914892766,  0.7415311855993945),
-        (0.1294849661688697,  -0.9491079123427585),
-        (0.1294849661688697,  0.9491079123427585),
-    ])
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_7)
 }
 
 fn est_gauss5_error(c: CubicBez) -> f64 {
@@ -61,39 +47,6 @@ fn cubic_errnorm(c: CubicBez) -> f64 {
     d.start().hypot2() + d.start().dot(dd) + dd.hypot2() * (1.0 / 3.0)
 }
 
-// These are from https://pomax.github.io/bezierinfo/legendre-gauss.html
-const GAUSS_LEGENDRE_COEFFS_3: &[(f64, f64)] = &[
-    (0.8888888888888888,  0.0000000000000000),
-    (0.5555555555555556,  -0.7745966692414834),
-    (0.5555555555555556,  0.7745966692414834),
-];
-
-const GAUSS_LEGENDRE_COEFFS_9: &[(f64, f64)] = &[
-    (0.3302393550012598,  0.0000000000000000),
-    (0.1806481606948574,  -0.8360311073266358),
-    (0.1806481606948574,  0.8360311073266358),
-    (0.0812743883615744,  -0.9681602395076261),
-    (0.0812743883615744,  0.9681602395076261),
-    (0.3123470770400029,  -0.3242534234038089),
-    (0.3123470770400029,  0.3242534234038089),
-    (0.2606106964029354,  -0.6133714327005904),
-    (0.2606106964029354,  0.6133714327005904),
-];
-
-const GAUSS_LEGENDRE_COEFFS_11: &[(f64, f64)] = &[
-    (0.2729250867779006,  0.0000000000000000),
-    (0.2628045445102467,  -0.2695431559523450),
-    (0.2628045445102467,  0.2695431559523450),
-    (0.2331937645919905,  -0.5190961292068118),
-    (0.2331937645919905,  0.5190961292068118),
-    (0.1862902109277343,  -0.7301520055740494),
-    (0.1862902109277343,  0.7301520055740494),
-    (0.1255803694649046,  -0.8870625997680953),
-    (0.1255803694649046,  0.8870625997680953),
-    (0.0556685671161737,  -0.9782286581460570),
-    (0.0556685671161737,  0.9782286581460570),
-];
-
 fn est_gauss7_error(c: CubicBez) -> f64 {
     let lc = (c.p3 - c.p0).hypot();
     let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
@@ -102,11 +55,11 @@ fn est_gauss7_error(c: CubicBez) -> f64 {
 }
 
 fn gauss_arclen_9<C: ParamCurveDeriv>(c: C) -> f64 {
-    gauss_arclen_n(c, GAUSS_LEGENDRE_COEFFS_9)
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_9)
 }
 
 fn gauss_arclen_11<C: ParamCurveDeriv>(c: C) -> f64 {
-    gauss_arclen_n(c, GAUSS_LEGENDRE_COEFFS_11)
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_11)
 }
 
 fn est_gauss9_error(c: CubicBez) -> f64 {
