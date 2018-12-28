@@ -158,14 +158,13 @@ fn quad_arclen_analytical(q: QuadBez) -> f64 {
     let ax = q.p0.x - 2.0 * q.p1.x + q.p2.x;
     let ay = q.p0.y - 2.0 * q.p1.y + q.p2.y;
     let a = ax * ax + ay * ay;
-    if a < 2e-3 {
-        // 0.07 is threshold where gauss_arclen_5 does better
-        return gauss_arclen_3(q);
-    }
     let bx = q.p1.x - q.p0.x;
     let by = q.p1.y - q.p0.y;
-    let b = 2.0 * (ax * bx + ay * by);
     let c = bx * bx + by * by;
+    if a < 5e-4 * c {
+        return gauss_arclen_3(q);
+    }
+    let b = 2.0 * (ax * bx + ay * by);
 
     let sabc = (a + b + c).sqrt();
     let a2 = a.powf(-0.5);
@@ -221,9 +220,9 @@ fn main() {
     let n = 400;
     let accuracy = 1e-6;
     for i in 0..=n {
-        let x = 2.0 * (i as f64) * (n as f64).recip();
+        let x = 0.1 * (i as f64) * (n as f64).recip();
         for j in 0..=n {
-            let y = 2.0 * (j as f64) * (n as f64).recip();
+            let y = 0.1 * (j as f64) * (n as f64).recip();
             let q = QuadBez::new((-1.0, 0.0), (x, y), (1.0, 0.0));
             let mut count = 0;
             let accurate_arclen = awesome_quad_arclen7(q, 1e-15, 0, &mut count);
