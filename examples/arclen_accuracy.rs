@@ -54,8 +54,8 @@ fn gravesen_rec(q: &QuadBez, l0: f64, accuracy: f64, depth: usize, count: &mut u
 
 /// Another implementation, using weights from
 /// https://pomax.github.io/bezierinfo/legendre-gauss.html
-fn gauss_arclen_n(q: QuadBez, coeffs: &[(f64, f64)]) -> f64 {
-    let d = q.deriv();
+fn gauss_arclen_n<C: ParamCurveDeriv>(c: C, coeffs: &[(f64, f64)]) -> f64 {
+    let d = c.deriv();
     coeffs.iter().map(|(wi, xi)|
         wi * d.eval(0.5 * (xi + 1.0)).hypot()
     ).sum::<f64>() * 0.5
