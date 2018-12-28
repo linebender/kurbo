@@ -13,3 +13,7 @@ readme = "README.md"
 
 [dependencies]
 arrayvec = "0.4.10"
+
+# Probably don't want to commit this
+[dev-dependencies]
+rand = "0.6"

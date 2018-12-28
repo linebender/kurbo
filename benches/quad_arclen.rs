@@ -30,7 +30,7 @@ fn quad_arclen_analytical(q: QuadBez) -> f64 {
         )
 }
 
-/// Calculate arclenth using Gauss-Legendre quadrature using formula from Behdad
+/// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
 fn gauss_arclen_3(q: QuadBez) -> f64 {
     let v0 = (-0.492943519233745*q.p0 + 0.430331482911935*q.p1 + 0.0626120363218102*q.p2).hypot();
