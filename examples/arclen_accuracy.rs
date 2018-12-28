@@ -1,12 +1,15 @@
 //! A test program to plot the error of arclength approximation.
 
+// TODO: make more functionality accessible from command line rather than uncommenting.
+
 use std::env;
+use std::time::Instant;
 
 use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, QuadBez};
 
-/// Calculate arclenth using Gauss-Legendre quadrature using formula from Behdad
+/// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
-fn gauss_arclen(q: QuadBez) -> f64 {
+fn gauss_arclen_3(q: QuadBez) -> f64 {
     let v0 = (-0.492943519233745*q.p0 + 0.430331482911935*q.p1 + 0.0626120363218102*q.p2).hypot();
     let v1 = ((q.p2-q.p0)*0.4444444444444444).hypot();
     let v2 = (-0.0626120363218102*q.p0 - 0.430331482911935*q.p1 + 0.492943519233745*q.p2).hypot();
@@ -25,7 +28,7 @@ fn awesome_quad_arclen(q: QuadBez, accuracy: f64, depth: usize, count: &mut usiz
     let est_err = 0.06 * (lp - lc) * (x * x + y * y).powf(2.0);
     if est_err < accuracy || depth == 16 {
         *count += 1;
-        gauss_arclen(q)
+        gauss_arclen_3(q)
     } else {
         let (q0, q1) = q.subdivide();
         awesome_quad_arclen(q0, accuracy * 0.5, depth + 1, count)
@@ -129,6 +132,53 @@ fn awesome_quad_arclen7(q: QuadBez, accuracy: f64, depth: usize, count: &mut usi
     }
 }
 
+fn awesome_quad_arclen24(q: QuadBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
+    let pm = (q.p0 + q.p2) / 2.0;
+    let d1 = q.p1 - pm;
+    let d = q.p2 - q.p0;
+    let dhypot2 = d.hypot2();
+    let x = 2.0 * d.dot(d1) / dhypot2;
+    let y = 2.0 * d.cross(d1) / dhypot2;
+    let lc = (q.p2 - q.p0).hypot();
+    let lp = (q.p1 - q.p0).hypot() + (q.p2 - q.p1).hypot();
+    // This isn't quite right near (1.1, 0)
+    let est_err = 1.0 * (lp - lc) * (0.5 * x * x + 0.1 * y * y).powf(16.0).tanh();
+    if est_err < accuracy || depth == 16 {
+        *count += 1;
+        gauss_arclen_24(q)
+    } else {
+        let (q0, q1) = q.subdivide();
+        awesome_quad_arclen24(q0, accuracy * 0.5, depth + 1, count)
+            + awesome_quad_arclen24(q1, accuracy * 0.5, depth + 1, count)
+    }
+}
+
+// Based on http://www.malczak.linuxpl.com/blog/quadratic-bezier-curve-length/
+fn quad_arclen_analytical(q: QuadBez) -> f64 {
+    let ax = q.p0.x - 2.0 * q.p1.x + q.p2.x;
+    let ay = q.p0.y - 2.0 * q.p1.y + q.p2.y;
+    let a = ax * ax + ay * ay;
+    if a < 2e-3 {
+        // 0.07 is threshold where gauss_arclen_5 does better
+        return gauss_arclen_3(q);
+    }
+    let bx = q.p1.x - q.p0.x;
+    let by = q.p1.y - q.p0.y;
+    let b = 2.0 * (ax * bx + ay * by);
+    let c = bx * bx + by * by;
+
+    let sabc = (a + b + c).sqrt();
+    let a2 = a.powf(-0.5);
+    let a32 = a2.powi(3);
+    let c2 = 2.0 * c.sqrt();
+    let ba = b * a2;
+
+    sabc
+        + 0.25 * (a2 * a2 * b * (2.0 * sabc-c2)
+            + a32 * (4.0 * c * a - b * b) * (((2.0 * a + b) * a2 + 2.0 * sabc) / (ba + c2)).ln()
+        )
+}
+
 /// Calculate the L0 metric from "Adaptive subdivision and the length and
 /// energy of Bézier curves" by Jens Gravesen.
 fn calc_l0(q: QuadBez) -> f64 {
@@ -149,10 +199,10 @@ fn with_subdiv(q: QuadBez, f: &Fn(QuadBez) -> f64, depth: usize) -> f64 {
 /// Generate map data suitable for plotting in Gnuplot.
 fn main() {
     let mut n_subdiv = 0;
-    let mut func: &Fn(QuadBez) -> f64 = &gauss_arclen;
+    let mut func: &Fn(QuadBez) -> f64 = &gauss_arclen_3;
     for arg in env::args().skip(1) {
-        if arg == "gauss" {
-            func = &gauss_arclen;
+        if arg == "gauss3" {
+            func = &gauss_arclen_3;
         } else if arg == "gauss5" {
             func = &gauss_arclen_5;
         } else if arg == "gauss7" {
@@ -175,20 +225,25 @@ fn main() {
         for j in 0..=n {
             let y = 2.0 * (j as f64) * (n as f64).recip();
             let q = QuadBez::new((-1.0, 0.0), (x, y), (1.0, 0.0));
-            let accurate_arclen = q.arclen(1e-15);
             let mut count = 0;
+            let accurate_arclen = awesome_quad_arclen7(q, 1e-15, 0, &mut count);
+            //count = 0;
+            let start_time = Instant::now();
             //let est = awesome_quad_arclen7(q, accuracy, 0, &mut count);
-            let est = gravesen_rec(&q, calc_l0(q), accuracy, 0, &mut count);
+            let est = quad_arclen_analytical(q);
+            let elapsed = start_time.elapsed();
+            //let est = gravesen_rec(&q, calc_l0(q), accuracy, 0, &mut count);
+            //let est = with_subdiv(q, func, n_subdiv);
             let error = est - accurate_arclen;
             println!("{} {} {}", x, y, (error.abs() + 1e-18).log10());
             //println!("{} {} {}", x, y, count);
-            /*
+            //println!("{} {} {}", x, y, elapsed.subsec_nanos());
             //let accurate_arclen = with_subdiv(q, &gauss_arclen_5, 8);
-            let est = with_subdiv(q, func, n_subdiv);
-            let error = est - accurate_arclen;
+            //let error = est - accurate_arclen;
+            /*
             let lc = (q.p2 - q.p0).hypot();
             let lp = (q.p1 - q.p0).hypot() + (q.p2 - q.p1).hypot();
-            let est_err = 2.5e-2 * (lp - lc) * (x * x + y * y).powf(8.0).tanh();
+            let est_err = 1.0 * (lp - lc) * (0.5 * x * x + 0.1 * y * y).powf(16.0).tanh();
             println!("{} {} {}", x, y, (est_err/error.abs() + 1e-15).log10());
             */
         }
