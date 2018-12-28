@@ -15,12 +15,14 @@ fn gauss_arclen(q: QuadBez) -> f64 {
 
 fn awesome_quad_arclen(q: QuadBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
     let pm = (q.p0 + q.p2) / 2.0;
-    let d1 = (q.p1 - pm);
-    let d = (q.p2 - q.p0);
+    let d1 = q.p1 - pm;
+    let d = q.p2 - q.p0;
     let dhypot2 = d.hypot2();
     let x = 2.0 * d.dot(d1) / dhypot2;
     let y = 2.0 * d.cross(d1) / dhypot2;
-    let est_err = 0.08 * d.hypot() * (x * x + y * y).powf(3.0);
+    let lc = (q.p2 - q.p0).hypot();
+    let lp = (q.p1 - q.p0).hypot() + (q.p2 - q.p1).hypot();
+    let est_err = 0.06 * (lp - lc) * (x * x + y * y).powf(2.0);
     if est_err < accuracy || depth == 16 {
         *count += 1;
         gauss_arclen(q)
@@ -28,6 +30,22 @@ fn awesome_quad_arclen(q: QuadBez, accuracy: f64, depth: usize, count: &mut usiz
         let (q0, q1) = q.subdivide();
         awesome_quad_arclen(q0, accuracy * 0.5, depth + 1, count)
             + awesome_quad_arclen(q1, accuracy * 0.5, depth + 1, count)
+    }
+}
+
+const MAX_DEPTH: usize = 16;
+fn gravesen_rec(q: &QuadBez, l0: f64, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
+    let (q0, q1) = q.subdivide();
+    let l0_q0 = calc_l0(q0);
+    let l0_q1 = calc_l0(q1);
+    let l1 = l0_q0 + l0_q1;
+    let error = (l0 - l1) * (1.0 / 15.0);
+    if error.abs() < accuracy || depth == MAX_DEPTH {
+        *count += 1;
+        l1 - error
+    } else {
+        gravesen_rec(&q0, l0_q0, accuracy * 0.5, depth + 1, count)
+            + gravesen_rec(&q1, l0_q1, accuracy * 0.5, depth + 1, count)
     }
 }
 
@@ -131,18 +149,19 @@ fn main() {
         }
     }
     let n = 400;
-    let accuracy = 1e-3;
+    let accuracy = 1e-4;
     for i in 0..=n {
         let x = 2.0 * (i as f64) * (n as f64).recip();
         for j in 0..=n {
             let y = 2.0 * (j as f64) * (n as f64).recip();
             let q = QuadBez::new((-1.0, 0.0), (x, y), (1.0, 0.0));
-            //let accurate_arclen = q.arclen(1e-15);
+            let accurate_arclen = q.arclen(1e-15);
             let mut count = 0;
-            let est = awesome_quad_arclen(q, accuracy, 0, &mut count);
-            //let error = est - accurate_arclen;
-            //println!("{} {} {}", x, y, (error.abs() + 1e-18).log10());
-            println!("{} {} {}", x, y, count);
+            //let est = awesome_quad_arclen(q, accuracy, 0, &mut count);
+            let est = gravesen_rec(&q, calc_l0(q), accuracy, 0, &mut count);
+            let error = est - accurate_arclen;
+            println!("{} {} {}", x, y, (error.abs() + 1e-18).log10());
+            //println!("{} {} {}", x, y, count);
             /*
             //let accurate_arclen = with_subdiv(q, &gauss_arclen_5, 8);
             let est = with_subdiv(q, func, n_subdiv);
@@ -156,7 +175,11 @@ fn main() {
             let th = y.atan2(x - 1.0) - y.atan2(x + 1.0);
             let pi_th = std::f64::consts::PI - th;
             // The following is close for gauss3
-            let est_err = 0.015 * (x * x + y * y).powf(3.0);
+            let est_err = 0.06 * (x * x + y * y).powf(2.0);
+            //let est_err2 = 100.0 * (((x + 1.0) * 12.0).tanh() + ((x - 1.0) * 12.0).tanh()) * (y + 0.02).powi(2);
+            let est_err2 = lp - lc;
+            let est_err = est_err * est_err2;
+            //let est_err = est_err.min(est_err2);
             //let est_err = 5.0 / 65536.0f64.powf(th / std::f64::consts::PI);
             //let est_err = (1.0 + 1e-12 - c).powf(2.0);
             println!("{} {} {}", x, y, (est_err/error.abs() + 1e-15).log10());
