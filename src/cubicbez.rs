@@ -27,6 +27,7 @@ struct ToQuads {
 
 impl CubicBez {
     /// Create a new cubic Bézier segment.
+    #[inline]
     pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V, p3: V) -> CubicBez {
         CubicBez { p0: p0.into(), p1: p1.into(), p2: p2.into(), p3: p3.into() }
     }
@@ -38,6 +39,7 @@ impl CubicBez {
     ///
     /// Note that the resulting quadratic Béziers are not in general G1 continuous;
     /// they are optimized for minimizing distance error.
+    #[inline]
     pub fn to_quads(&self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
         // This magic number is the square of 36 / sqrt(3).
         // See: http://caffeineowl.com/graphics/2d/vectorial/cubic2quad01.html
@@ -47,16 +49,19 @@ impl CubicBez {
 }
 
 impl ParamCurve for CubicBez {
+    #[inline]
     fn eval(&self, t: f64) -> Vec2 {
         let mt = 1.0 - t;
         self.p0 * (mt * mt * mt)
             + (self.p1 * (mt * mt * 3.0) + (self.p2 * (mt * 3.0) + self.p3 * t) * t) * t
     }
 
+    #[inline]
     fn start(&self) -> Vec2 {
         self.p0
     }
 
+    #[inline]
     fn end(&self) -> Vec2 {
         self.p3
     }
@@ -73,6 +78,7 @@ impl ParamCurve for CubicBez {
     }
 
     /// Subdivide into halves, using de Casteljau.
+    #[inline]
     fn subdivide(&self) -> (CubicBez, CubicBez) {
         let pm = self.eval(0.5);
         (
@@ -91,6 +97,7 @@ impl ParamCurve for CubicBez {
 impl ParamCurveDeriv for CubicBez {
     type DerivResult = QuadBez;
 
+    #[inline]
     fn deriv(&self) -> QuadBez {
         QuadBez::new(
             3.0 * (self.p1 - self.p0),
@@ -131,6 +138,7 @@ impl ParamCurveArclen for CubicBez {
 }
 
 impl ParamCurveArea for CubicBez {
+    #[inline]
     fn signed_area(&self) -> f64 {
         (self.p0.x * (6.0 * self.p1.y + 3.0 * self.p2.y + self.p3.y)
             + 3.0 * (self.p1.x * (-2.0 * self.p0.y + self.p2.y + self.p3.y)
@@ -184,6 +192,7 @@ impl ParamCurveExtrema for CubicBez {
 impl Mul<CubicBez> for Affine {
     type Output = CubicBez;
 
+    #[inline]
     fn mul(self, c: CubicBez) -> CubicBez {
         CubicBez { p0: self * c.p0, p1: self * c.p1, p2: self * c.p2, p3: self * c.p3 }
     }

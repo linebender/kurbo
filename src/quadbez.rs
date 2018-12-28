@@ -19,6 +19,7 @@ pub struct QuadBez {
 
 impl QuadBez {
     /// Create a new quadratic Bézier segment.
+    #[inline]
     pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V) -> QuadBez {
         QuadBez { p0: p0.into(), p1: p1.into(), p2: p2.into() }
     }
@@ -26,6 +27,7 @@ impl QuadBez {
     /// Raise the order by 1.
     ///
     /// Returns a cubic Bézier segment that exactly represents this quadratic.
+    #[inline]
     pub fn raise(&self) -> CubicBez {
         CubicBez::new(
             self.p0,
@@ -36,20 +38,24 @@ impl QuadBez {
 }
 
 impl ParamCurve for QuadBez {
+    #[inline]
     fn eval(&self, t: f64) -> Vec2 {
         let mt = 1.0 - t;
         self.p0 * (mt * mt) + (self.p1 * (mt * 2.0) + self.p2 * t) * t
     }
 
+    #[inline]
     fn start(&self) -> Vec2 {
         self.p0
     }
 
+    #[inline]
     fn end(&self) -> Vec2 {
         self.p2
     }
 
     /// Subdivide into halves, using de Casteljau.
+    #[inline]
     fn subdivide(&self) -> (QuadBez, QuadBez) {
         let pm = self.eval(0.5);
         (QuadBez::new(self.p0, (self.p0 + self.p1) / 2.0, pm),
@@ -68,6 +74,7 @@ impl ParamCurve for QuadBez {
 impl ParamCurveDeriv for QuadBez {
     type DerivResult = Line;
 
+    #[inline]
     fn deriv(&self) -> Line {
         Line::new(2.0 * (self.p1 - self.p0), 2.0 * (self.p2 - self.p1))
     }
@@ -107,6 +114,7 @@ impl ParamCurveArclen for QuadBez {
 }
 
 impl ParamCurveArea for QuadBez {
+    #[inline]
     fn signed_area(&self) -> f64 {
         (self.p0.x * (2.0 * self.p1.y + self.p2.y)
             + 2.0 * self.p1.x * (self.p2.y - self.p0.y)
@@ -185,6 +193,7 @@ impl ParamCurveExtrema for QuadBez {
 impl Mul<QuadBez> for Affine {
     type Output = QuadBez;
 
+    #[inline]
     fn mul(self, other: QuadBez) -> QuadBez {
         QuadBez { p0: self * other.p0, p1: self * other.p1, p2: self * other.p2 }
     }

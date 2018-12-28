@@ -155,16 +155,14 @@ fn awesome_quad_arclen24(q: QuadBez, accuracy: f64, depth: usize, count: &mut us
 
 // Based on http://www.malczak.linuxpl.com/blog/quadratic-bezier-curve-length/
 fn quad_arclen_analytical(q: QuadBez) -> f64 {
-    let ax = q.p0.x - 2.0 * q.p1.x + q.p2.x;
-    let ay = q.p0.y - 2.0 * q.p1.y + q.p2.y;
-    let a = ax * ax + ay * ay;
-    let bx = q.p1.x - q.p0.x;
-    let by = q.p1.y - q.p0.y;
-    let c = bx * bx + by * by;
+    let d2 = q.p0 - 2.0 * q.p1 + q.p2;
+    let a = d2.hypot2();
+    let d1 = q.p1 - q.p0;
+    let c = d1.hypot2();
     if a < 5e-4 * c {
         return gauss_arclen_3(q);
     }
-    let b = 2.0 * (ax * bx + ay * by);
+    let b = 2.0 * d2.dot(d1);
 
     let sabc = (a + b + c).sqrt();
     let a2 = a.powf(-0.5);

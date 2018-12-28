@@ -16,24 +16,29 @@ pub struct Line {
 }
 
 impl Line {
+    #[inline]
     pub fn new<V: Into<Vec2>>(p0: V, p1: V) -> Line {
         Line { p0: p0.into(), p1: p1.into() }
     }
 }
 
 impl ParamCurve for Line {
+    #[inline]
     fn eval(&self, t: f64) -> Vec2 {
         self.p0.lerp(self.p1, t)
     }
 
+    #[inline]
     fn start(&self) -> Vec2 {
         self.p0
     }
 
+    #[inline]
     fn end(&self) -> Vec2 {
         self.p1
     }
 
+    #[inline]
     fn subsegment(&self, range: Range<f64>) -> Line {
         Line { p0: self.eval(range.start), p1: self.eval(range.end) }
     }
@@ -42,18 +47,21 @@ impl ParamCurve for Line {
 impl ParamCurveDeriv for Line {
     type DerivResult = ConstVec2;
 
+    #[inline]
     fn deriv(&self) -> ConstVec2 {
         ConstVec2(self.p1 - self.p0)
     }
 }
 
 impl ParamCurveArclen for Line {
+    #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
         (self.p1 - self.p0).hypot()
     }
 }
 
 impl ParamCurveArea for Line {
+    #[inline]
     fn signed_area(&self) -> f64 {
         self.p0.cross(self.p1) * 0.5
     }
@@ -77,12 +85,14 @@ impl ParamCurveNearest for Line {
 }
 
 impl ParamCurveCurvature for Line {
+    #[inline]
     fn curvature(&self, _t: f64) -> f64 {
         0.0
     }
 }
 
 impl ParamCurveExtrema for Line {
+    #[inline]
     fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
         ArrayVec::new()
     }
@@ -93,10 +103,12 @@ impl ParamCurveExtrema for Line {
 pub struct ConstVec2(Vec2);
 
 impl ParamCurve for ConstVec2 {
+    #[inline]
     fn eval(&self, _t: f64) -> Vec2 {
         self.0
     }
 
+    #[inline]
     fn subsegment(&self, _range: Range<f64>) -> ConstVec2 {
         *self
     }
@@ -105,12 +117,14 @@ impl ParamCurve for ConstVec2 {
 impl ParamCurveDeriv for ConstVec2 {
     type DerivResult = ConstVec2;
 
+    #[inline]
     fn deriv(&self) -> ConstVec2 {
         ConstVec2(Vec2::new(0.0, 0.0))
     }
 }
 
 impl ParamCurveArclen for ConstVec2 {
+    #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
         0.0
     }
@@ -119,6 +133,7 @@ impl ParamCurveArclen for ConstVec2 {
 impl Mul<Line> for Affine {
     type Output = Line;
 
+    #[inline]
     fn mul(self, other: Line) -> Line {
         Line { p0: self * other.p0, p1: self * other.p1 }
     }

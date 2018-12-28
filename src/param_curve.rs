@@ -20,6 +20,7 @@ pub trait ParamCurve: Sized {
     fn subsegment(&self, range: Range<f64>) -> Self;
 
     /// Subdivide into (roughly) halves.
+    #[inline]
     fn subdivide(&self) -> (Self, Self) {
         (self.subsegment(0.0 .. 0.5), self.subsegment(0.5 .. 1.0))
     }
@@ -120,6 +121,7 @@ pub trait ParamCurveCurvature: ParamCurveDeriv
     where Self::DerivResult: ParamCurveDeriv
 {
     /// Compute the signed curvature at parameter `t`.
+    #[inline]
     fn curvature(&self, t: f64) -> f64 {
         let deriv = self.deriv();
         let deriv2 = deriv.deriv();
