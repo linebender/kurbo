@@ -141,6 +141,7 @@ fn bench_quad_arclen_analytical(b: &mut Bencher) {
     b.iter(|| quad_arclen_analytical(test::black_box(q)))
 }
 
+
 const ACCURACY: f64 = 1e-6;
 
 #[bench]

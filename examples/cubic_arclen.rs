@@ -1,6 +1,6 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
-use kurbo::common::{GAUSS_LEGENDRE_COEFFS_11, GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9};
+use kurbo::common::*;
 use kurbo::{CubicBez, ParamCurve, ParamCurveArclen, ParamCurveDeriv, Vec2};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
@@ -82,6 +82,38 @@ fn est_gauss11_error(c: CubicBez) -> f64 {
     1e-12 * (2.0 * cubic_errnorm(c) / lc.powi(2)).powi(11) * lp
 }
 
+// A new approach based on integrating local error.
+fn est_gauss11_error_2(c: CubicBez) -> f64 {
+    let d = c.deriv();
+    let d2 = d.deriv();
+    GAUSS_LEGENDRE_COEFFS_11
+        .iter()
+        .map(|(wi, xi)| wi * {
+            let t = 0.5 * (xi + 1.0);
+            let v = d.eval(t).hypot();
+            let a2 = d2.eval(t).hypot2();
+            a2.powi(3) / v.powi(5)
+        })
+        .sum::<f64>()
+}
+
+// A new approach based on integrating local error; the cost of evaluating the
+// error metric is likely to dominate unless the accuracy buys a lot of subdivisions.
+fn est_gauss9_error_2(c: CubicBez) -> f64 {
+    let d = c.deriv();
+    let d2 = d.deriv();
+    let p = 10;
+    GAUSS_LEGENDRE_COEFFS_9
+        .iter()
+        .map(|(wi, xi)| wi * {
+            let t = 0.5 * (xi + 1.0);
+            let v = d.eval(t).hypot();
+            let a = d2.eval(t).hypot();
+            (1.0e-1 * a/v).tanh().powi(p) * v
+        })
+        .sum::<f64>() * 3.0
+}
+
 fn my_arclen(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
     if depth == 16 || est_gauss5_error(c) < accuracy {
         *count += 1;
@@ -138,8 +170,8 @@ fn randbez() -> CubicBez {
 }
 
 fn main() {
-    let accuracy = 1e-6;
-    for _ in 0..10_000 {
+    let accuracy = 1e-4;
+    for _ in 0..2_000 {
         let c = randbez();
         let t: f64 = rand::random();
         let c = c.subsegment(0.0..t);
@@ -148,8 +180,8 @@ fn main() {
         let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);
 
         /*
-        let est = gauss_arclen_11(c);
-        let est_err = est_gauss11_error(c);
+        let est = gauss_arclen_9(c);
+        let est_err = est_gauss9_error_2(c);
         let err = (accurate_arclen - est).abs();
         println!("{} {}", est_err, err);
         */
