@@ -22,14 +22,18 @@ pub trait ParamCurve: Sized {
     /// Subdivide into (roughly) halves.
     #[inline]
     fn subdivide(&self) -> (Self, Self) {
-        (self.subsegment(0.0 .. 0.5), self.subsegment(0.5 .. 1.0))
+        (self.subsegment(0.0..0.5), self.subsegment(0.5..1.0))
     }
 
     /// The start point.
-    fn start(&self) -> Vec2 { self.eval(0.0) }
+    fn start(&self) -> Vec2 {
+        self.eval(0.0)
+    }
 
     /// The end point.
-    fn end(&self) -> Vec2 { self.eval(1.0) }
+    fn end(&self) -> Vec2 {
+        self.eval(1.0)
+    }
 }
 
 // TODO: I might not want to have separate traits for all these.
@@ -48,9 +52,11 @@ pub trait ParamCurveDeriv {
     #[inline]
     fn gauss_arclen(&self, coeffs: &[(f64, f64)]) -> f64 {
         let d = self.deriv();
-        coeffs.iter().map(|(wi, xi)|
-            wi * d.eval(0.5 * (xi + 1.0)).hypot()
-        ).sum::<f64>() * 0.5
+        coeffs
+            .iter()
+            .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).hypot())
+            .sum::<f64>()
+            * 0.5
     }
 }
 
@@ -80,9 +86,9 @@ pub trait ParamCurveArclen: ParamCurve {
         for i in 0..n {
             let tm = 0.5 * (t0 + t1);
             let (range, dir) = if tm > t_last {
-                (t_last .. tm, 1.0)
+                (t_last..tm, 1.0)
             } else {
-                (tm .. t_last, -1.0)
+                (tm..t_last, -1.0)
             };
             let range_size = range.end - range.start;
             let arc = self.subsegment(range).arclen(inner_accuracy);
@@ -130,7 +136,8 @@ pub trait ParamCurveNearest {
 
 /// A parametrized curve that reports its curvature.
 pub trait ParamCurveCurvature: ParamCurveDeriv
-    where Self::DerivResult: ParamCurveDeriv
+where
+    Self::DerivResult: ParamCurveDeriv,
 {
     /// Compute the signed curvature at parameter `t`.
     #[inline]
@@ -167,10 +174,10 @@ pub trait ParamCurveExtrema {
         let mut result = ArrayVec::new();
         let mut t0 = 0.0;
         for t in self.extrema() {
-            result.push(t0 .. t);
+            result.push(t0..t);
             t0 = t;
         }
-        result.push(t0 .. 1.0);
+        result.push(t0..1.0);
         result
     }
 }

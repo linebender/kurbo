@@ -57,7 +57,10 @@ impl Vec2 {
     /// A unit vector of the given angle.
     #[inline]
     pub fn from_angle(th: f64) -> Vec2 {
-        Vec2 { x: th.cos(), y: th.sin() }
+        Vec2 {
+            x: th.cos(),
+            y: th.sin(),
+        }
     }
 
     /// Linearly interpolate between two points.
@@ -86,14 +89,20 @@ impl Add for Vec2 {
 
     #[inline]
     fn add(self, other: Vec2) -> Vec2 {
-        Vec2 { x: self.x + other.x, y: self.y + other.y }
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 }
 
 impl AddAssign for Vec2 {
     #[inline]
     fn add_assign(&mut self, other: Vec2) {
-        *self = Vec2 { x: self.x + other.x, y: self.y + other.y }
+        *self = Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 }
 
@@ -102,14 +111,20 @@ impl Sub for Vec2 {
 
     #[inline]
     fn sub(self, other: Vec2) -> Vec2 {
-        Vec2 { x: self.x - other.x, y: self.y - other.y }
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 }
 
 impl SubAssign for Vec2 {
     #[inline]
     fn sub_assign(&mut self, other: Vec2) {
-        *self = Vec2 { x: self.x - other.x, y: self.y - other.y }
+        *self = Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 }
 
@@ -118,14 +133,20 @@ impl Mul<f64> for Vec2 {
 
     #[inline]
     fn mul(self, other: f64) -> Vec2 {
-        Vec2 { x: self.x * other, y: self.y * other}
+        Vec2 {
+            x: self.x * other,
+            y: self.y * other,
+        }
     }
 }
 
 impl MulAssign<f64> for Vec2 {
     #[inline]
     fn mul_assign(&mut self, other: f64) {
-        *self = Vec2 { x: self.x * other, y: self.y * other};
+        *self = Vec2 {
+            x: self.x * other,
+            y: self.y * other,
+        };
     }
 }
 
@@ -162,6 +183,9 @@ impl Neg for Vec2 {
 
     #[inline]
     fn neg(self) -> Vec2 {
-        Vec2 { x: -self.x, y: -self.y }
+        Vec2 {
+            x: -self.x,
+            y: -self.y,
+        }
     }
 }

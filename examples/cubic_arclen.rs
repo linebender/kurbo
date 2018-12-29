@@ -1,18 +1,22 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
-use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, CubicBez, Vec2};
-use kurbo::common::{GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9, GAUSS_LEGENDRE_COEFFS_11};
+use kurbo::common::{GAUSS_LEGENDRE_COEFFS_11, GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9};
+use kurbo::{CubicBez, ParamCurve, ParamCurveArclen, ParamCurveDeriv, Vec2};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
 fn gauss_arclen_5(c: CubicBez) -> f64 {
-    let v0 = (c.p1-c.p0).hypot() *0.15;
-    let v1 = (-0.558983582205757*c.p0 + 0.325650248872424*c.p1
-        + 0.208983582205757*c.p2 + 0.024349751127576*c.p3).hypot();
-    let v2 = (c.p3-c.p0+c.p2-c.p1).hypot()*0.26666666666666666;
-    let v3 = (-0.024349751127576*c.p0 - 0.208983582205757*c.p1
-        - 0.325650248872424*c.p2 + 0.558983582205757*c.p3).hypot();
-    let v4 = (c.p3-c.p2).hypot()*0.15;
+    let v0 = (c.p1 - c.p0).hypot() * 0.15;
+    let v1 = (-0.558983582205757 * c.p0
+        + 0.325650248872424 * c.p1
+        + 0.208983582205757 * c.p2
+        + 0.024349751127576 * c.p3)
+        .hypot();
+    let v2 = (c.p3 - c.p0 + c.p2 - c.p1).hypot() * 0.26666666666666666;
+    let v3 = (-0.024349751127576 * c.p0 - 0.208983582205757 * c.p1 - 0.325650248872424 * c.p2
+        + 0.558983582205757 * c.p3)
+        .hypot();
+    let v4 = (c.p3 - c.p2).hypot() * 0.15;
 
     v0 + v1 + v2 + v3 + v4
 }
@@ -32,12 +36,14 @@ fn est_gauss5_error(c: CubicBez) -> f64 {
 }
 
 fn gauss_errnorm_n<C: ParamCurveDeriv>(c: C, coeffs: &[(f64, f64)]) -> f64
-    where C::DerivResult: ParamCurveDeriv
+where
+    C::DerivResult: ParamCurveDeriv,
 {
     let d = c.deriv().deriv();
-    coeffs.iter().map(|(wi, xi)|
-        wi * d.eval(0.5 * (xi + 1.0)).hypot2()
-    ).sum::<f64>()
+    coeffs
+        .iter()
+        .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).hypot2())
+        .sum::<f64>()
 }
 
 // Squared L2 norm of the second derivative of the cubic.
@@ -136,7 +142,7 @@ fn main() {
     for _ in 0..10_000 {
         let c = randbez();
         let t: f64 = rand::random();
-        let c = c.subsegment(0.0 .. t);
+        let c = c.subsegment(0.0..t);
         //let accurate_arclen = c.arclen(1e-12);
         let mut count = 0;
         let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);

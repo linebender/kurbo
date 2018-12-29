@@ -4,10 +4,12 @@ use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Vec2};
-use crate::MAX_EXTREMA;
 use crate::common::solve_cubic;
+use crate::MAX_EXTREMA;
+use crate::{
+    Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Vec2,
+};
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug)]
@@ -21,7 +23,11 @@ impl QuadBez {
     /// Create a new quadratic Bézier segment.
     #[inline]
     pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V) -> QuadBez {
-        QuadBez { p0: p0.into(), p1: p1.into(), p2: p2.into() }
+        QuadBez {
+            p0: p0.into(),
+            p1: p1.into(),
+            p2: p2.into(),
+        }
     }
 
     /// Raise the order by 1.
@@ -31,9 +37,10 @@ impl QuadBez {
     pub fn raise(&self) -> CubicBez {
         CubicBez::new(
             self.p0,
-            self.p0 + (2.0/3.0) * (self.p1 - self.p0),
-            self.p2 + (2.0/3.0) * (self.p1 - self.p2),
-            self.p2)
+            self.p0 + (2.0 / 3.0) * (self.p1 - self.p0),
+            self.p2 + (2.0 / 3.0) * (self.p1 - self.p2),
+            self.p2,
+        )
     }
 }
 
@@ -58,8 +65,10 @@ impl ParamCurve for QuadBez {
     #[inline]
     fn subdivide(&self) -> (QuadBez, QuadBez) {
         let pm = self.eval(0.5);
-        (QuadBez::new(self.p0, (self.p0 + self.p1) / 2.0, pm),
-            QuadBez::new(pm, (self.p1 + self.p2) / 2.0, self.p2))
+        (
+            QuadBez::new(self.p0, (self.p0 + self.p1) / 2.0, pm),
+            QuadBez::new(pm, (self.p1 + self.p2) / 2.0, self.p2),
+        )
     }
 
     fn subsegment(&self, range: Range<f64>) -> QuadBez {
@@ -101,11 +110,14 @@ impl ParamCurveArclen for QuadBez {
             //
             // Calculate arclength using Legendre-Gauss quadrature using formula from Behdad
             // in https://github.com/Pomax/BezierInfo-2/issues/77
-            let v0 = (-0.492943519233745 * self.p0 + 0.430331482911935 * self.p1
-                + 0.0626120363218102 * self.p2).hypot();
+            let v0 = (-0.492943519233745 * self.p0
+                + 0.430331482911935 * self.p1
+                + 0.0626120363218102 * self.p2)
+                .hypot();
             let v1 = ((self.p2 - self.p0) * 0.4444444444444444).hypot();
             let v2 = (-0.0626120363218102 * self.p0 - 0.430331482911935 * self.p1
-                + 0.492943519233745 * self.p2).hypot();
+                + 0.492943519233745 * self.p2)
+                .hypot();
             return v0 + v1 + v2;
         }
         let b = 2.0 * d2.dot(d1);
@@ -116,14 +128,16 @@ impl ParamCurveArclen for QuadBez {
         let c2 = 2.0 * c.sqrt();
         let ba_c2 = b * a2 + c2;
 
-        let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc-c2) + sabc;
+        let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc - c2) + sabc;
         // TODO: justify and fine-tune this exact constant.
         if ba_c2 < 1e-13 {
             // This case happens for Béziers with a sharp kink.
             v0
         } else {
-            v0 + 0.25 * a32
-                * (4.0 * c * a - b * b) * (((2.0 * a + b) * a2 + 2.0 * sabc) / ba_c2).ln()
+            v0 + 0.25
+                * a32
+                * (4.0 * c * a - b * b)
+                * (((2.0 * a + b) * a2 + 2.0 * sabc) / ba_c2).ln()
         }
     }
 }
@@ -131,9 +145,9 @@ impl ParamCurveArclen for QuadBez {
 impl ParamCurveArea for QuadBez {
     #[inline]
     fn signed_area(&self) -> f64 {
-        (self.p0.x * (2.0 * self.p1.y + self.p2.y)
-            + 2.0 * self.p1.x * (self.p2.y - self.p0.y)
-            - self.p2.x * (self.p0.y + 2.0 * self.p1.y)) * (1.0 / 6.0)
+        (self.p0.x * (2.0 * self.p1.y + self.p2.y) + 2.0 * self.p1.x * (self.p2.y - self.p0.y)
+            - self.p2.x * (self.p0.y + 2.0 * self.p1.y))
+            * (1.0 / 6.0)
     }
 }
 
@@ -147,9 +161,7 @@ impl ParamCurveNearest for QuadBez {
                 *t_best = t;
             }
         }
-        fn try_t(q: &QuadBez, p: Vec2, t_best: &mut f64, r_best: &mut Option<f64>, t: f64)
-            -> bool
-        {
+        fn try_t(q: &QuadBez, p: Vec2, t_best: &mut f64, r_best: &mut Option<f64>, t: f64) -> bool {
             if t < 0.0 || t > 1.0 {
                 return true;
             }
@@ -210,14 +222,20 @@ impl Mul<QuadBez> for Affine {
 
     #[inline]
     fn mul(self, other: QuadBez) -> QuadBez {
-        QuadBez { p0: self * other.p0, p1: self * other.p1, p2: self * other.p2 }
+        QuadBez {
+            p0: self * other.p0,
+            p1: self * other.p1,
+            p2: self * other.p2,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
+    use crate::{
+        Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema,
+        ParamCurveNearest, QuadBez, Vec2,
+    };
 
     fn assert_near(p0: Vec2, p1: Vec2, epsilon: f64) {
         assert!((p1 - p0).hypot() < epsilon, "{:?} != {:?}", p0, p1);
@@ -259,7 +277,12 @@ mod tests {
         let true_arclen = 2.0008737864167325; // A rough empirical calculation
         let accuracy = 1e-11;
         let est = q.arclen(accuracy);
-        assert!((est - true_arclen).abs() < accuracy, "{} != {}", est, true_arclen);
+        assert!(
+            (est - true_arclen).abs() < accuracy,
+            "{} != {}",
+            est,
+            true_arclen
+        );
     }
 
     #[test]
@@ -297,16 +320,21 @@ mod tests {
         // y = 1 - x^2
         let q = QuadBez::new((1.0, 0.0), (0.5, 1.0), (0.0, 1.0));
         let epsilon = 1e-12;
-        assert!((q.signed_area() - 2.0/3.0).abs() < epsilon);
-        assert!(((Affine::rotate(0.5) * q).signed_area() - 2.0/3.0).abs() < epsilon);
-        assert!(((Affine::translate((0.0, 1.0)) * q).signed_area() - 3.5/3.0).abs() < epsilon);
-        assert!(((Affine::translate((1.0, 0.0)) * q).signed_area() - 3.5/3.0).abs() < epsilon);
+        assert!((q.signed_area() - 2.0 / 3.0).abs() < epsilon);
+        assert!(((Affine::rotate(0.5) * q).signed_area() - 2.0 / 3.0).abs() < epsilon);
+        assert!(((Affine::translate((0.0, 1.0)) * q).signed_area() - 3.5 / 3.0).abs() < epsilon);
+        assert!(((Affine::translate((1.0, 0.0)) * q).signed_area() - 3.5 / 3.0).abs() < epsilon);
     }
 
     #[test]
     fn quadbez_nearest() {
         fn verify(result: (f64, f64), expected: f64) {
-            assert!((result.0 - expected).abs() < 1e-6, "got {:?} expected {}", result, expected);
+            assert!(
+                (result.0 - expected).abs() < 1e-6,
+                "got {:?} expected {}",
+                result,
+                expected
+            );
         }
         // y = x^2
         let q = QuadBez::new((-1.0, 1.0), (0.0, -1.0), (1.0, 1.0));

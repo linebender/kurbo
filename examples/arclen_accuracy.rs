@@ -3,18 +3,20 @@
 // TODO: make more functionality accessible from command line rather than uncommenting.
 
 use std::env;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, QuadBez};
 
-use kurbo::common::{GAUSS_LEGENDRE_COEFFS_5, GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_24};
+use kurbo::common::{GAUSS_LEGENDRE_COEFFS_24, GAUSS_LEGENDRE_COEFFS_5, GAUSS_LEGENDRE_COEFFS_7};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
 fn gauss_arclen_3(q: QuadBez) -> f64 {
-    let v0 = (-0.492943519233745*q.p0 + 0.430331482911935*q.p1 + 0.0626120363218102*q.p2).hypot();
-    let v1 = ((q.p2-q.p0)*0.4444444444444444).hypot();
-    let v2 = (-0.0626120363218102*q.p0 - 0.430331482911935*q.p1 + 0.492943519233745*q.p2).hypot();
+    let v0 =
+        (-0.492943519233745 * q.p0 + 0.430331482911935 * q.p1 + 0.0626120363218102 * q.p2).hypot();
+    let v1 = ((q.p2 - q.p0) * 0.4444444444444444).hypot();
+    let v2 =
+        (-0.0626120363218102 * q.p0 - 0.430331482911935 * q.p1 + 0.492943519233745 * q.p2).hypot();
     v0 + v1 + v2
 }
 
@@ -125,14 +127,13 @@ fn quad_arclen_analytical(q: QuadBez) -> f64 {
     let c2 = 2.0 * c.sqrt();
     let ba_c2 = b * a2 + c2;
 
-    let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc-c2) + sabc;
+    let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc - c2) + sabc;
     // TODO: justify and fine-tune this exact constant.
     if ba_c2 < 1e-13 {
         // This case happens for Béziers with a sharp kink.
         v0
     } else {
-        v0 + 0.25 * a32
-            * (4.0 * c * a - b * b) * (((2.0 * a + b) * a2 + 2.0 * sabc) / ba_c2).ln()
+        v0 + 0.25 * a32 * (4.0 * c * a - b * b) * (((2.0 * a + b) * a2 + 2.0 * sabc) / ba_c2).ln()
     }
 }
 
@@ -153,6 +154,33 @@ fn with_subdiv(q: QuadBez, f: &Fn(QuadBez) -> f64, depth: usize) -> f64 {
     }
 }
 
+fn duration_to_time(d: Duration) -> f64 {
+    1e-9 * (d.subsec_nanos() as f64) + (d.as_secs() as f64)
+}
+
+fn run_simple() {
+    let q = QuadBez::new((0.0, 0.0), (0.0, 0.5), (1.0, 1.0));
+    let true_len = q.arclen(1e-13);
+    for i in 0..20 {
+        let n = 1 << i;
+        let start_time = Instant::now();
+        let mut est = 0.0;
+        let mut last = q.start();
+        let dt = (n as f64).recip();
+        for j in 0..n {
+            let t = ((j + 1) as f64) * dt;
+            let p = q.eval(t);
+            est += (p - last).hypot();
+            last = p;
+        }
+        let elapsed = duration_to_time(start_time.elapsed());
+        let err = true_len - est;
+        if i > 0 {
+            println!("{} {}", elapsed, err);
+        }
+    }
+}
+
 /// Generate map data suitable for plotting in Gnuplot.
 fn main() {
     let mut n_subdiv = 0;
@@ -168,6 +196,9 @@ fn main() {
             func = &gauss_arclen_24;
         } else if arg == "l0" {
             func = &calc_l0;
+        } else if arg == "simple" {
+            run_simple();
+            return;
         } else if let Ok(n) = arg.parse() {
             n_subdiv = n;
         } else {

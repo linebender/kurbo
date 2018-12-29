@@ -4,9 +4,11 @@ use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Vec2};
 use crate::MAX_EXTREMA;
+use crate::{
+    Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
+    ParamCurveExtrema, ParamCurveNearest, Vec2,
+};
 
 /// A single line.
 #[derive(Clone, Copy)]
@@ -18,7 +20,10 @@ pub struct Line {
 impl Line {
     #[inline]
     pub fn new<V: Into<Vec2>>(p0: V, p1: V) -> Line {
-        Line { p0: p0.into(), p1: p1.into() }
+        Line {
+            p0: p0.into(),
+            p1: p1.into(),
+        }
     }
 }
 
@@ -40,7 +45,10 @@ impl ParamCurve for Line {
 
     #[inline]
     fn subsegment(&self, range: Range<f64>) -> Line {
-        Line { p0: self.eval(range.start), p1: self.eval(range.end) }
+        Line {
+            p0: self.eval(range.start),
+            p1: self.eval(range.end),
+        }
     }
 }
 
@@ -135,7 +143,10 @@ impl Mul<Line> for Affine {
 
     #[inline]
     fn mul(self, other: Line) -> Line {
-        Line { p0: self * other.p0, p1: self * other.p1 }
+        Line {
+            p0: self * other.p0,
+            p1: self * other.p1,
+        }
     }
 }
 

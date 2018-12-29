@@ -2,13 +2,15 @@
 
 use std::ops::{Mul, Range};
 
-use arrayvec::ArrayVec;
 use crate::MAX_EXTREMA;
+use arrayvec::ArrayVec;
 
-use crate::{Affine, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
 use crate::common::solve_quadratic;
 use crate::common::GAUSS_LEGENDRE_COEFFS_9;
+use crate::{
+    Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
+    ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2,
+};
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug)]
@@ -30,7 +32,12 @@ impl CubicBez {
     /// Create a new cubic Bézier segment.
     #[inline]
     pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V, p3: V) -> CubicBez {
-        CubicBez { p0: p0.into(), p1: p1.into(), p2: p2.into(), p3: p3.into() }
+        CubicBez {
+            p0: p0.into(),
+            p1: p1.into(),
+            p2: p2.into(),
+            p3: p3.into(),
+        }
     }
 
     /// Convert to quadratic Béziers.
@@ -45,7 +52,11 @@ impl CubicBez {
         // This magic number is the square of 36 / sqrt(3).
         // See: http://caffeineowl.com/graphics/2d/vectorial/cubic2quad01.html
         let max_hypot2 = 432.0 * accuracy * accuracy;
-        ToQuads { c: *self, max_hypot2, t: 0.0 }
+        ToQuads {
+            c: *self,
+            max_hypot2,
+            t: 0.0,
+        }
     }
 }
 
@@ -83,14 +94,18 @@ impl ParamCurve for CubicBez {
     fn subdivide(&self) -> (CubicBez, CubicBez) {
         let pm = self.eval(0.5);
         (
-            CubicBez::new(self.p0,
+            CubicBez::new(
+                self.p0,
                 (self.p0 + self.p1) / 2.0,
                 (self.p0 + self.p1 * 2.0 + self.p2) * 0.25,
-                pm),
-            CubicBez::new(pm,
+                pm,
+            ),
+            CubicBez::new(
+                pm,
                 (self.p1 + self.p2 * 2.0 + self.p3) * 0.25,
                 (self.p2 + self.p3) / 2.0,
-                self.p3)
+                self.p3,
+            ),
         )
     }
 }
@@ -103,7 +118,7 @@ impl ParamCurveDeriv for CubicBez {
         QuadBez::new(
             3.0 * (self.p1 - self.p0),
             3.0 * (self.p2 - self.p1),
-            3.0 * (self.p3 - self.p2)
+            3.0 * (self.p3 - self.p2),
         )
     }
 }
@@ -132,8 +147,7 @@ impl ParamCurveArclen for CubicBez {
                 c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_9)
             } else {
                 let (c0, c1) = c.subdivide();
-                rec(&c0, accuracy * 0.5, depth + 1)
-                    + rec(&c1, accuracy * 0.5, depth + 1)
+                rec(&c0, accuracy * 0.5, depth + 1) + rec(&c1, accuracy * 0.5, depth + 1)
             }
         }
         rec(self, accuracy, 0)
@@ -144,9 +158,11 @@ impl ParamCurveArea for CubicBez {
     #[inline]
     fn signed_area(&self) -> f64 {
         (self.p0.x * (6.0 * self.p1.y + 3.0 * self.p2.y + self.p3.y)
-            + 3.0 * (self.p1.x * (-2.0 * self.p0.y + self.p2.y + self.p3.y)
-                - self.p2.x * (self.p0.y + self.p1.y - 2.0 * self.p3.y))
-            - self.p3.x * (self.p0.y + 3.0 * self.p1.y + 6.0 * self.p2.y)) * (1.0 / 20.0)
+            + 3.0
+                * (self.p1.x * (-2.0 * self.p0.y + self.p2.y + self.p3.y)
+                    - self.p2.x * (self.p0.y + self.p1.y - 2.0 * self.p3.y))
+            - self.p3.x * (self.p0.y + 3.0 * self.p1.y + 6.0 * self.p2.y))
+            * (1.0 / 20.0)
     }
 }
 
@@ -197,7 +213,12 @@ impl Mul<CubicBez> for Affine {
 
     #[inline]
     fn mul(self, c: CubicBez) -> CubicBez {
-        CubicBez { p0: self * c.p0, p1: self * c.p1, p2: self * c.p2, p3: self * c.p3 }
+        CubicBez {
+            p0: self * c.p0,
+            p1: self * c.p1,
+            p2: self * c.p2,
+            p3: self * c.p3,
+        }
     }
 }
 
@@ -207,7 +228,9 @@ impl Iterator for ToQuads {
     fn next(&mut self) -> Option<(f64, f64, QuadBez)> {
         let t0 = self.t;
         let mut t1 = 1.0;
-        if t0 == t1 { return None; }
+        if t0 == t1 {
+            return None;
+        }
         loop {
             let seg = self.c.subsegment(t0..t1);
             // Compute error for candidate quadratic.
@@ -223,7 +246,7 @@ impl Iterator for ToQuads {
                 let shrink = if t1 == 1.0 && err < 64.0 * self.max_hypot2 {
                     0.5
                 } else {
-                    0.999_999 * (self.max_hypot2 / err).powf(1./6.0)
+                    0.999_999 * (self.max_hypot2 / err).powf(1. / 6.0)
                 };
                 t1 = t0 + shrink * (t1 - t0);
             }
@@ -233,13 +256,20 @@ impl Iterator for ToQuads {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Affine, CubicBez, ParamCurve, ParamCurveArea, ParamCurveArclen, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, Vec2};
+    use crate::{
+        Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
+        ParamCurveExtrema, ParamCurveNearest, Vec2,
+    };
 
     #[test]
     fn cubicbez_deriv() {
         // y = x^2
-        let c = CubicBez::new((0.0, 0.0), (1.0/3.0, 0.0), (2.0/3.0, 1.0/3.0), (1.0, 1.0));
+        let c = CubicBez::new(
+            (0.0, 0.0),
+            (1.0 / 3.0, 0.0),
+            (2.0 / 3.0, 1.0 / 3.0),
+            (1.0, 1.0),
+        );
         let deriv = c.deriv();
 
         let n = 10;
@@ -257,7 +287,12 @@ mod tests {
     #[test]
     fn cubicbez_arclen() {
         // y = x^2
-        let c = CubicBez::new((0.0, 0.0), (1.0/3.0, 0.0), (2.0/3.0, 1.0/3.0), (1.0, 1.0));
+        let c = CubicBez::new(
+            (0.0, 0.0),
+            (1.0 / 3.0, 0.0),
+            (2.0 / 3.0, 1.0 / 3.0),
+            (1.0, 1.0),
+        );
         let true_arclen = 0.5 * 5.0f64.sqrt() + 0.25 * (2.0 + 5.0f64.sqrt()).ln();
         for i in 0..12 {
             let accuracy = 0.1f64.powi(i);
@@ -270,7 +305,12 @@ mod tests {
     #[test]
     fn cubicbez_inv_arclen() {
         // y = x^2
-        let c = CubicBez::new((0.0, 0.0), (1.0/3.0, 0.0), (2.0/3.0, 1.0/3.0), (1.0, 1.0));
+        let c = CubicBez::new(
+            (0.0, 0.0),
+            (1.0 / 3.0, 0.0),
+            (2.0 / 3.0, 1.0 / 3.0),
+            (1.0, 1.0),
+        );
         let true_arclen = 0.5 * 5.0f64.sqrt() + 0.25 * (2.0 + 5.0f64.sqrt()).ln();
         for i in 0..12 {
             let accuracy = 0.1f64.powi(i);
@@ -278,9 +318,14 @@ mod tests {
             for j in 0..=n {
                 let arc = (j as f64) * ((n as f64).recip() * true_arclen);
                 let t = c.inv_arclen(arc, accuracy * 0.5);
-                let actual_arc = c.subsegment(0.0 .. t).arclen(accuracy * 0.5);
-                assert!((arc - actual_arc).abs() < accuracy,
-                    "at accuracy {:e}, wanted {} got {}", accuracy, actual_arc, arc);
+                let actual_arc = c.subsegment(0.0..t).arclen(accuracy * 0.5);
+                assert!(
+                    (arc - actual_arc).abs() < accuracy,
+                    "at accuracy {:e}, wanted {} got {}",
+                    accuracy,
+                    actual_arc,
+                    arc
+                );
             }
         }
     }
@@ -288,7 +333,12 @@ mod tests {
     #[test]
     fn cubicbez_signed_area_linear() {
         // y = 1 - x
-        let c = CubicBez::new((1.0, 0.0), (2.0/3.0, 1.0/3.0), (1.0/3.0, 2.0/3.0), (0.0, 1.0));
+        let c = CubicBez::new(
+            (1.0, 0.0),
+            (2.0 / 3.0, 1.0 / 3.0),
+            (1.0 / 3.0, 2.0 / 3.0),
+            (0.0, 1.0),
+        );
         let epsilon = 1e-12;
         assert_eq!((Affine::rotate(0.5) * c).signed_area(), 0.5);
         assert!(((Affine::rotate(0.5) * c).signed_area() - 0.5).abs() < epsilon);
@@ -299,7 +349,7 @@ mod tests {
     #[test]
     fn cubicbez_signed_area() {
         // y = 1 - x^3
-        let c = CubicBez::new((1.0, 0.0), (2.0/3.0, 1.0), (1.0/3.0, 1.0), (0.0, 1.0));
+        let c = CubicBez::new((1.0, 0.0), (2.0 / 3.0, 1.0), (1.0 / 3.0, 1.0), (0.0, 1.0));
         let epsilon = 1e-12;
         assert!((c.signed_area() - 0.75).abs() < epsilon);
         assert!(((Affine::rotate(0.5) * c).signed_area() - 0.75).abs() < epsilon);
@@ -310,10 +360,15 @@ mod tests {
     #[test]
     fn cubicbez_nearest() {
         fn verify(result: (f64, f64), expected: f64) {
-            assert!((result.0 - expected).abs() < 1e-6, "got {:?} expected {}", result, expected);
+            assert!(
+                (result.0 - expected).abs() < 1e-6,
+                "got {:?} expected {}",
+                result,
+                expected
+            );
         }
         // y = x^3
-        let c = CubicBez::new((0.0, 0.0), (1.0/3.0, 0.0), (2.0/3.0, 0.0), (1.0, 1.0));
+        let c = CubicBez::new((0.0, 0.0), (1.0 / 3.0, 0.0), (2.0 / 3.0, 0.0), (1.0, 1.0));
         verify(c.nearest((0.1, 0.001).into(), 1e-6), 0.1);
         verify(c.nearest((0.2, 0.008).into(), 1e-6), 0.2);
         verify(c.nearest((0.3, 0.027).into(), 1e-6), 0.3);
@@ -346,7 +401,7 @@ mod tests {
     #[test]
     fn cubicbez_toquads() {
         // y = x^3
-        let c = CubicBez::new((0.0, 0.0), (1.0/3.0, 0.0), (2.0/3.0, 0.0), (1.0, 1.0));
+        let c = CubicBez::new((0.0, 0.0), (1.0 / 3.0, 0.0), (2.0 / 3.0, 0.0), (1.0, 1.0));
         for i in 0..10 {
             let accuracy = 0.1f64.powi(i);
             let mut _count = 0;

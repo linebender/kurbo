@@ -49,8 +49,10 @@ impl Mul<Vec2> for Affine {
 
     #[inline]
     fn mul(self, other: Vec2) -> Vec2 {
-        Vec2::new(self.0[0] * other.x + self.0[2] * other.y + self.0[4],
-            self.0[1] * other.x + self.0[3] * other.y + self.0[5])
+        Vec2::new(
+            self.0[0] * other.x + self.0[2] * other.y + self.0[4],
+            self.0[1] * other.x + self.0[3] * other.y + self.0[5],
+        )
     }
 }
 

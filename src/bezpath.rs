@@ -4,10 +4,12 @@ use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::{Affine, CubicBez, Line, ParamCurve, ParamCurveArea, ParamCurveArclen,
-    ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2};
-use crate::MAX_EXTREMA;
 use crate::common::{solve_cubic, solve_quadratic};
+use crate::MAX_EXTREMA;
+use crate::{
+    Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
+    ParamCurveNearest, QuadBez, Vec2,
+};
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
 #[derive(Clone, Default)]
@@ -78,7 +80,12 @@ impl BezPath {
     ///
     /// The iterator returns the index within the path and the segment.
     pub fn segments<'a>(&'a self) -> impl Iterator<Item = (usize, PathSeg)> + 'a {
-        BezPathSegs { c: &self.0, ix: 0, start: None, last: None }
+        BezPathSegs {
+            c: &self.0,
+            ix: 0,
+            start: None,
+            last: None,
+        }
     }
 
     /// Get the segment at the given index.
@@ -90,31 +97,27 @@ impl BezPath {
             PathEl::Moveto(p) => p,
             PathEl::Lineto(p) => p,
             PathEl::Quadto(_, p2) => p2,
-            PathEl::Curveto(_, _ , p3) => p3,
+            PathEl::Curveto(_, _, p3) => p3,
             _ => return None,
         };
         match self.0[ix] {
             PathEl::Lineto(p) => Some(PathSeg::Line(Line::new(last, p))),
             PathEl::Quadto(p1, p2) => Some(PathSeg::Quad(QuadBez::new(last, p1, p2))),
             PathEl::Curveto(p1, p2, p3) => Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3))),
-            PathEl::Closepath => {
-                self.0[..ix].iter().rev().find_map(|el| match *el {
-                    PathEl::Moveto(start) => Some(PathSeg::Line(Line::new(last, start))),
-                    _ => None,
-                })
-            }
-            _ => None
+            PathEl::Closepath => self.0[..ix].iter().rev().find_map(|el| match *el {
+                PathEl::Moveto(start) => Some(PathSeg::Line(Line::new(last, start))),
+                _ => None,
+            }),
+            _ => None,
         }
     }
 
     /// Returns `true` if the path contains no segments.
     pub fn is_empty(&self) -> bool {
-        !self.0.iter().any(|el|
-            match *el {
-                PathEl::Lineto(..) | PathEl::Quadto(..) | PathEl::Curveto(..) => true,
-                _ => false,
-            }
-        )
+        !self.0.iter().any(|el| match *el {
+            PathEl::Lineto(..) | PathEl::Quadto(..) | PathEl::Curveto(..) => true,
+            _ => false,
+        })
     }
 
     /// Apply an affine transform to the path.
@@ -280,7 +283,7 @@ impl ParamCurveNearest for PathSeg {
             PathSeg::Line(line) => line.nearest(p, accuracy),
             PathSeg::Quad(quad) => quad.nearest(p, accuracy),
             PathSeg::Cubic(cubic) => cubic.nearest(p, accuracy),
-        }        
+        }
     }
 }
 
@@ -290,7 +293,7 @@ impl ParamCurveExtrema for PathSeg {
             PathSeg::Line(line) => line.extrema(),
             PathSeg::Quad(quad) => quad.extrema(),
             PathSeg::Cubic(cubic) => cubic.extrema(),
-        }        
+        }
     }
 }
 
@@ -300,35 +303,55 @@ impl PathSeg {
         let start = self.start();
         let end = self.end();
         let sign = if end.y > start.y {
-            if p.y < start.y || p.y >= end.y { return 0; }
+            if p.y < start.y || p.y >= end.y {
+                return 0;
+            }
             1
         } else if end.y < start.y {
-            if p.y < end.y || p.y >= start.y { return 0; }
+            if p.y < end.y || p.y >= start.y {
+                return 0;
+            }
             -1
         } else {
             return 0;
         };
         match *self {
             PathSeg::Line(_line) => {
-                if p.x < start.x.min(end.x) { return 0; }
-                if p.x >= start.x.max(end.x) { return sign; }
+                if p.x < start.x.min(end.x) {
+                    return 0;
+                }
+                if p.x >= start.x.max(end.x) {
+                    return sign;
+                }
                 // line equation ax + by = c
                 let a = end.y - start.y;
                 let b = start.x - end.x;
                 let c = a * start.x + b * start.y;
-                if (a * p.x + b * p.y - c) * (sign as f64) >= 0.0 { sign } else { 0 }
+                if (a * p.x + b * p.y - c) * (sign as f64) >= 0.0 {
+                    sign
+                } else {
+                    0
+                }
             }
             PathSeg::Quad(quad) => {
                 let p1 = quad.p1;
-                if p.x < start.x.min(end.x).min(p1.x) { return 0; }
-                if p.x >= start.x.max(end.x).max(p1.x) { return sign; }
+                if p.x < start.x.min(end.x).min(p1.x) {
+                    return 0;
+                }
+                if p.x >= start.x.max(end.x).max(p1.x) {
+                    return sign;
+                }
                 let a = end.y - 2.0 * p1.y + start.y;
                 let b = 2.0 * (p1.y - start.y);
                 let c = start.y - p.y;
                 for t in solve_quadratic(c, b, a) {
                     if t >= 0.0 && t <= 1.0 {
                         let x = quad.eval(t).x;
-                        if p.x >= x { return sign; } else { return 0; }
+                        if p.x >= x {
+                            return sign;
+                        } else {
+                            return 0;
+                        }
                     }
                 }
                 0
@@ -336,8 +359,12 @@ impl PathSeg {
             PathSeg::Cubic(cubic) => {
                 let p1 = cubic.p1;
                 let p2 = cubic.p2;
-                if p.x < start.x.min(end.x).min(p1.x).min(p2.x) { return 0; }
-                if p.x >= start.x.max(end.x).max(p1.x).max(p2.x) { return sign; }
+                if p.x < start.x.min(end.x).min(p1.x).min(p2.x) {
+                    return 0;
+                }
+                if p.x >= start.x.max(end.x).max(p1.x).max(p2.x) {
+                    return sign;
+                }
                 let a = end.y - 3.0 * p2.y + 3.0 * p1.y - start.y;
                 let b = 3.0 * (p2.y - 2.0 * p1.y + start.y);
                 let c = 3.0 * (p1.y - start.y);
@@ -345,7 +372,11 @@ impl PathSeg {
                 for t in solve_cubic(d, c, b, a) {
                     if t >= 0.0 && t <= 1.0 {
                         let x = cubic.eval(t).x;
-                        if p.x >= x { return sign; } else { return 0; }
+                        if p.x >= x {
+                            return sign;
+                        } else {
+                            return 0;
+                        }
                     }
                 }
                 0
@@ -357,7 +388,9 @@ impl PathSeg {
     ///
     /// Cast a ray to the left and count intersections.
     fn winding(&self, p: Vec2) -> i32 {
-        self.extrema_ranges().into_iter().map(|range|
-            self.subsegment(range).winding_inner(p)).sum()
+        self.extrema_ranges()
+            .into_iter()
+            .map(|range| self.subsegment(range).winding_inner(p))
+            .sum()
     }
 }
