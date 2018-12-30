@@ -1,7 +1,9 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
 use kurbo::common::*;
-use kurbo::{CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Vec2};
+use kurbo::{
+    Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Vec2,
+};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
@@ -68,11 +70,15 @@ fn gauss_arclen_11<C: ParamCurveDeriv>(c: C) -> f64 {
     c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_11)
 }
 
+fn gauss_arclen_24<C: ParamCurveDeriv>(c: C) -> f64 {
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_24)
+}
+
 fn est_gauss9_error(c: CubicBez) -> f64 {
     let lc = (c.p3 - c.p0).hypot();
     let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
 
-    1e-10 * (2.0 * cubic_errnorm(c) / lc.powi(2)).powi(8) * lp
+    (1e-10 * (2.0 * cubic_errnorm(c) / lc.powi(2)).powi(8) * lp) //.min(0.03 * (lp - lc))
 }
 
 fn est_gauss11_error(c: CubicBez) -> f64 {
@@ -100,7 +106,7 @@ fn est_gauss11_error_2(c: CubicBez) -> f64 {
 }
 
 fn est_max_curvature(c: CubicBez) -> f64 {
-    let n = 100;
+    let n = 10;
     let mut max = 0.0;
     for i in 0..=n {
         let t = (i as f64) * (n as f64).recip();
@@ -114,7 +120,7 @@ fn est_max_curvature(c: CubicBez) -> f64 {
 
 fn est_min_deriv_norm2(c: CubicBez) -> f64 {
     let d = c.deriv();
-    let n = 100;
+    let n = 10000;
     let mut min = d.eval(1.0).hypot2();
     for i in 0..n {
         let t = (i as f64) * (n as f64).recip();
@@ -167,6 +173,62 @@ fn est_gauss9_error_2(c: CubicBez) -> f64 {
         })
         .sum::<f64>()
         * 3.0
+}
+
+fn est_gauss9_error_4(c: CubicBez) -> f64 {
+    let lc = (c.p3 - c.p0).hypot();
+    let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
+    let est = gauss_arclen_9(c);
+    let d = c.deriv();
+    let v2 = GAUSS_LEGENDRE_COEFFS_9
+        .iter()
+        .map(|(wi, xi)| {
+            wi * {
+                let t = 0.5 * (xi + 1.0);
+                d.eval(t).hypot2()
+            }
+        })
+        .sum::<f64>()
+        * 0.5;
+    let v4 = GAUSS_LEGENDRE_COEFFS_9
+        .iter()
+        .map(|(wi, xi)| {
+            wi * {
+                let t = 0.5 * (xi + 1.0);
+                d.eval(t).hypot2().powi(2)
+            }
+        })
+        .sum::<f64>()
+        * 0.5;
+    //1e0 * ((v2 - est.powi(2))/est.powi(2)).powi(3) * lp
+    1e0 * ((v4 - v2.powi(2)) / v2.powi(2)).powf(3.5) * lp
+}
+
+fn est_gauss9_error_5(c: CubicBez) -> f64 {
+    let lc = (c.p3 - c.p0).hypot();
+    let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
+    let min_v2 = est_min_deriv_norm2(c);
+    let lm = 0.5 * (lp + lc);
+    (1.0 - (min_v2 / lm.powi(2))).powi(11) * 2e-3 * (lp - lc)
+    //(lp - lc) * 0.03
+}
+
+fn est_gauss9_error_6(c: CubicBez) -> f64 {
+    let lc = (c.p3 - c.p0).hypot();
+    let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
+    let lm = 0.5 * (lp + lc);
+    let d = c.deriv();
+    let d2 = d.deriv();
+    let est = GAUSS_LEGENDRE_COEFFS_9
+        .iter()
+        .map(|(wi, xi)| {
+            wi * {
+                let t = 0.5 * (xi + 1.0);
+                d2.eval(t).hypot2() / d.eval(t).hypot2()
+            }
+        })
+        .sum::<f64>();
+    (est.powi(4) * 1e-9).min(0.03) * (lp - lc)
 }
 
 fn my_arclen(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
@@ -226,16 +288,17 @@ fn randbez() -> CubicBez {
 
 fn main() {
     let accuracy = 1e-4;
-    for _ in 0..10_000 {
+    for _ in 0..2_000 {
         let c = randbez();
         let t: f64 = rand::random();
         let c = c.subsegment(0.0..t);
         //let accurate_arclen = c.arclen(1e-12);
+        let c = Affine::scale(c.arclen(1e-12).recip()) * c; // normalize to mean vel = 1
         let mut count = 0;
         let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);
 
         let est = gauss_arclen_9(c);
-        let est_err = est_gauss9_error_3(c);
+        let est_err = est_gauss9_error_6(c);
         let err = (accurate_arclen - est).abs();
         println!("{} {}", est_err, err);
 
