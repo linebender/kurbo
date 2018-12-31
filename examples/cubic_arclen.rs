@@ -219,16 +219,33 @@ fn est_gauss9_error_6(c: CubicBez) -> f64 {
     let lm = 0.5 * (lp + lc);
     let d = c.deriv();
     let d2 = d.deriv();
+    let est = GAUSS_LEGENDRE_COEFFS_7
+        .iter()
+        .map(|(wi, xi)| {
+            wi * {
+                let t = 0.5 * (xi + 1.0);
+                (d2.eval(t).hypot2() / d.eval(t).hypot2()).powi(1)
+            }
+        })
+        .sum::<f64>();
+    (est.powf(3.5) * 2e-9).min(0.03) * (lp - lc)
+}
+
+fn est_gauss24_error_6(c: CubicBez) -> f64 {
+    let lc = (c.p3 - c.p0).hypot();
+    let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
+    let d = c.deriv();
+    let d2 = d.deriv();
     let est = GAUSS_LEGENDRE_COEFFS_9
         .iter()
         .map(|(wi, xi)| {
             wi * {
                 let t = 0.5 * (xi + 1.0);
-                d2.eval(t).hypot2() / d.eval(t).hypot2()
+                (d2.eval(t).hypot2() / d.eval(t).hypot2()).powi(1)
             }
         })
         .sum::<f64>();
-    (est.powi(4) * 1e-9).min(0.03) * (lp - lc)
+    (est.powf(10.0) * 2e-23).min(4e-3) * (lp - lc)
 }
 
 fn my_arclen(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
