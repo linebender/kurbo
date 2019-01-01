@@ -62,12 +62,24 @@ fn est_gauss7_error(c: CubicBez) -> f64 {
     8e-9 * (2.0 * cubic_errnorm(c) / lc.powi(2)).powi(6) * lp
 }
 
+fn gauss_arclen_4<C: ParamCurveDeriv>(c: C) -> f64 {
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_4)
+}
+
+fn gauss_arclen_8<C: ParamCurveDeriv>(c: C) -> f64 {
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_8)
+}
+
 fn gauss_arclen_9<C: ParamCurveDeriv>(c: C) -> f64 {
     c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_9)
 }
 
 fn gauss_arclen_11<C: ParamCurveDeriv>(c: C) -> f64 {
     c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_11)
+}
+
+fn gauss_arclen_16<C: ParamCurveDeriv>(c: C) -> f64 {
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_16)
 }
 
 fn gauss_arclen_24<C: ParamCurveDeriv>(c: C) -> f64 {
@@ -120,7 +132,7 @@ fn est_max_curvature(c: CubicBez) -> f64 {
 
 fn est_min_deriv_norm2(c: CubicBez) -> f64 {
     let d = c.deriv();
-    let n = 10000;
+    let n = 100;
     let mut min = d.eval(1.0).hypot2();
     for i in 0..n {
         let t = (i as f64) * (n as f64).recip();
@@ -208,8 +220,13 @@ fn est_gauss9_error_5(c: CubicBez) -> f64 {
     let lc = (c.p3 - c.p0).hypot();
     let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
     let min_v2 = est_min_deriv_norm2(c);
-    let lm = 0.5 * (lp + lc);
-    (1.0 - (min_v2 / lm.powi(2))).powi(11) * 2e-3 * (lp - lc)
+    let lm = lp; //0.5 * (lp + lc);
+
+    let d2 = c.deriv().deriv();
+
+    let norm_d2 = cubic_errnorm(c);
+
+    ((1.0 - (min_v2 / lm.powi(2))) * norm_d2 / lm.powi(2)).powi(6) * 4e-7 * lm
     //(lp - lc) * 0.03
 }
 
@@ -236,7 +253,7 @@ fn est_gauss24_error_6(c: CubicBez) -> f64 {
     let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
     let d = c.deriv();
     let d2 = d.deriv();
-    let est = GAUSS_LEGENDRE_COEFFS_9
+    let est = GAUSS_LEGENDRE_COEFFS_8
         .iter()
         .map(|(wi, xi)| {
             wi * {
@@ -245,7 +262,52 @@ fn est_gauss24_error_6(c: CubicBez) -> f64 {
             }
         })
         .sum::<f64>();
-    (est.powf(10.0) * 2e-23).min(4e-3) * (lp - lc)
+    (est.powf(12.0) * 5e-24).min(4e-3) * (lp - lc)
+}
+
+/// Computes core parameters of error estimate.
+///
+/// Returns: quadrature of |x''|^2 / |x'|^2, and also lp - lc
+fn cubic_err_est_core(c: CubicBez) -> (f64, f64) {
+    let d03 = c.p3 - c.p0;
+    let d01 = c.p1 - c.p0;
+    let d12 = c.p2 - c.p1;
+    let d23 = c.p3 - c.p2;
+    let lc = d03.hypot();
+    let lp = d01.hypot() + d12.hypot() + d23.hypot();
+    let dd1 = d12 - d01;
+    let dd2 = d23 - d12;
+    // It might be faster to do direct multiplies, the data dependencies would be shorter.
+    let dm = 0.25 * (d01 + d23) + 0.5 * d12; // first derivative at midpoint
+    let dm1 = 0.5 * (dd2 + dd1); // second derivative at midpoint
+    let dm2 = 0.25 * (dd2 - dd1); // 0.5 * (third derivative at midpoint)
+
+    let est = GAUSS_LEGENDRE_COEFFS_8
+        .iter()
+        .map(|&(wi, xi)| {
+            wi * {
+                let d_norm2 = (dm + dm1 * xi + dm2 * (xi * xi)).hypot2();
+                let dd_norm2 = (dm1 + dm2 * (2.0 * xi)).hypot2();
+                dd_norm2 / d_norm2
+            }
+        })
+        .sum::<f64>();
+    (est, lp - lc)
+}
+
+fn est_gauss8_error(c: CubicBez) -> f64 {
+    let (est, lp_lc) = cubic_err_est_core(c);
+    (est.powi(3) * 2.5e-6).min(3e-2) * lp_lc
+}
+
+fn est_gauss16_error(c: CubicBez) -> f64 {
+    let (est, lp_lc) = cubic_err_est_core(c);
+    (est.powi(6) * 1.5e-11).min(9e-3) * lp_lc
+}
+
+fn est_gauss24_error(c: CubicBez) -> f64 {
+    let (est, lp_lc) = cubic_err_est_core(c);
+    (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc
 }
 
 fn my_arclen(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
@@ -295,6 +357,68 @@ fn my_arclen11(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f
     }
 }
 
+fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
+    let d03 = c.p3 - c.p0;
+    let d01 = c.p1 - c.p0;
+    let d12 = c.p2 - c.p1;
+    let d23 = c.p3 - c.p2;
+    let lp_lc = d01.hypot() + d12.hypot() + d23.hypot() - d03.hypot();
+    let dd1 = d12 - d01;
+    let dd2 = d23 - d12;
+    // It might be faster to do direct multiplies, the data dependencies would be shorter.
+    let dm = 0.25 * (d01 + d23) + 0.5 * d12; // first derivative at midpoint
+    let dm1 = 0.5 * (dd2 + dd1); // second derivative at midpoint
+    let dm2 = 0.25 * (dd2 - dd1); // 0.5 * (third derivative at midpoint)
+
+    let est = GAUSS_LEGENDRE_COEFFS_8
+        .iter()
+        .map(|&(wi, xi)| {
+            wi * {
+                let d_norm2 = (dm + dm1 * xi + dm2 * (xi * xi)).hypot2();
+                let dd_norm2 = (dm1 + dm2 * (2.0 * xi)).hypot2();
+                dd_norm2 / d_norm2
+            }
+        })
+        .sum::<f64>();
+    let est_gauss8_error = (est.powi(3) * 2.5e-6).min(3e-2) * lp_lc;
+    if est_gauss8_error < accuracy {
+        *count += 1;
+        return GAUSS_LEGENDRE_COEFFS_8
+            .iter()
+            .map(|&(wi, xi)| (2.25f64.sqrt() * wi) * (dm + dm1 * xi + dm2 * (xi * xi)).hypot())
+            .sum::<f64>();
+    }
+    let est_gauss16_error = (est.powi(6) * 1.5e-11).min(9e-3) * lp_lc;
+    if est_gauss16_error < accuracy {
+        *count += 1;
+        return GAUSS_LEGENDRE_COEFFS_16_HALF
+            .iter()
+            .map(|&(wi, xi)| {
+                let d = dm + dm2 * (xi * xi);
+                let dpx = (d + dm1 * xi).hypot();
+                let dmx = (d - dm1 * xi).hypot();
+                (2.25f64.sqrt() * wi) * (dpx + dmx)
+            })
+            .sum::<f64>();
+    }
+    let est_gauss24_error = (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc;
+    if est_gauss24_error < accuracy || depth >= 20 {
+        *count += 1;
+        return GAUSS_LEGENDRE_COEFFS_24_HALF
+            .iter()
+            .map(|&(wi, xi)| {
+                let d = dm + dm2 * (xi * xi);
+                let dpx = (d + dm1 * xi).hypot();
+                let dmx = (d - dm1 * xi).hypot();
+                (2.25f64.sqrt() * wi) * (dpx + dmx)
+            })
+            .sum::<f64>();
+    }
+    let (c0, c1) = c.subdivide();
+    my_arclen_new(c0, accuracy * 0.5, depth + 1, count)
+        + my_arclen_new(c1, accuracy * 0.5, depth + 1, count)
+}
+
 fn randpt() -> Vec2 {
     Vec2::new(rand::random(), rand::random())
 }
@@ -304,8 +428,8 @@ fn randbez() -> CubicBez {
 }
 
 fn main() {
-    let accuracy = 1e-4;
-    for _ in 0..2_000 {
+    let accuracy = 1e-9;
+    for _ in 0..100_000 {
         let c = randbez();
         let t: f64 = rand::random();
         let c = c.subsegment(0.0..t);
@@ -314,16 +438,16 @@ fn main() {
         let mut count = 0;
         let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);
 
-        let est = gauss_arclen_9(c);
-        let est_err = est_gauss9_error_6(c);
+        /*
+        let est = gauss_arclen_24(c);
+        let est_err = est_gauss24_error(c);
         let err = (accurate_arclen - est).abs();
         println!("{} {}", est_err, err);
+        */
 
-        /*
         let mut count = 0;
-        let est = my_arclen9(c, accuracy, 0, &mut count);
+        let est = my_arclen_new(c, accuracy, 0, &mut count);
         let err = (accurate_arclen - est).abs();
         println!("{} {}", err, count);
-        */
     }
 }
