@@ -1,5 +1,7 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
+use std::env;
+
 use kurbo::common::*;
 use kurbo::{
     Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Vec2,
@@ -357,7 +359,8 @@ fn my_arclen11(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f
     }
 }
 
-fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
+fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize,
+    c8: &mut usize, c16: &mut usize, c24: &mut usize) -> f64 {
     let d03 = c.p3 - c.p0;
     let d01 = c.p1 - c.p0;
     let d12 = c.p2 - c.p1;
@@ -382,7 +385,7 @@ fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) ->
         .sum::<f64>();
     let est_gauss8_error = (est.powi(3) * 2.5e-6).min(3e-2) * lp_lc;
     if est_gauss8_error < accuracy {
-        *count += 1;
+        *c8 += 1;
         return GAUSS_LEGENDRE_COEFFS_8
             .iter()
             .map(|&(wi, xi)| (2.25f64.sqrt() * wi) * (dm + dm1 * xi + dm2 * (xi * xi)).hypot())
@@ -390,7 +393,7 @@ fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) ->
     }
     let est_gauss16_error = (est.powi(6) * 1.5e-11).min(9e-3) * lp_lc;
     if est_gauss16_error < accuracy {
-        *count += 1;
+        *c16 += 1;
         return GAUSS_LEGENDRE_COEFFS_16_HALF
             .iter()
             .map(|&(wi, xi)| {
@@ -403,7 +406,7 @@ fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) ->
     }
     let est_gauss24_error = (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc;
     if est_gauss24_error < accuracy || depth >= 20 {
-        *count += 1;
+        *c24 += 1;
         return GAUSS_LEGENDRE_COEFFS_24_HALF
             .iter()
             .map(|&(wi, xi)| {
@@ -415,8 +418,8 @@ fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) ->
             .sum::<f64>();
     }
     let (c0, c1) = c.subdivide();
-    my_arclen_new(c0, accuracy * 0.5, depth + 1, count)
-        + my_arclen_new(c1, accuracy * 0.5, depth + 1, count)
+    my_arclen_new(c0, accuracy * 0.5, depth + 1, c8, c16, c24)
+        + my_arclen_new(c1, accuracy * 0.5, depth + 1, c8, c16, c24)
 }
 
 fn randpt() -> Vec2 {
@@ -427,27 +430,55 @@ fn randbez() -> CubicBez {
     CubicBez::new(randpt(), randpt(), randpt(), randpt())
 }
 
-fn main() {
-    let accuracy = 1e-9;
+fn report_stats() {
+    for i in 0..=15 {
+        let accuracy = 0.1f64.powi(i);
+        let mut c8 = 0;
+        let mut c16 = 0;
+        let mut c24 = 0;
+        for _ in 0..100_000 {
+            let c = randbez();
+            let t: f64 = rand::random();
+            let c = c.subsegment(0.0..t);
+            let mut count = 0;
+            let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);
+            let c = Affine::scale(accurate_arclen.recip()) * c; // normalize to mean vel = 1
+
+            let est = my_arclen_new(c, accuracy, 0, &mut c8, &mut c16, &mut c24);
+            let _err = (1.0 - est).abs();
+        }
+        println!("1e-{}: {} {} {}, total {}", i, c8, c16, c24, c8 + c16 + c24);
+    }
+}
+
+fn plot_accuracy() {
+        // TODO: make this a runtime parameter
+    let accuracy = 1e-6;
+    let mut c8 = 0;
+    let mut c16 = 0;
+    let mut c24 = 0;
     for _ in 0..100_000 {
         let c = randbez();
         let t: f64 = rand::random();
         let c = c.subsegment(0.0..t);
-        //let accurate_arclen = c.arclen(1e-12);
-        let c = Affine::scale(c.arclen(1e-12).recip()) * c; // normalize to mean vel = 1
         let mut count = 0;
         let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);
+        let c = Affine::scale(accurate_arclen.recip()) * c; // normalize to mean vel = 1
 
-        /*
         let est = gauss_arclen_24(c);
         let est_err = est_gauss24_error(c);
-        let err = (accurate_arclen - est).abs();
+        // The arclength has been normalized to 1.0.
+        let err = (1.0 - est).abs();
         println!("{} {}", est_err, err);
-        */
+    }
+}
 
-        let mut count = 0;
-        let est = my_arclen_new(c, accuracy, 0, &mut count);
-        let err = (accurate_arclen - est).abs();
-        println!("{} {}", err, count);
+fn main() {
+    for arg in env::args().skip(1) {
+        if arg == "report_stats" {
+            return report_stats();
+        } else if arg == "plot_accuracy" {
+            return plot_accuracy();
+        }
     }
 }
