@@ -1,5 +1,8 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
+// Lots of stuff is commented out or was just something to try.
+#![allow(unused)]
+
 use std::env;
 
 use kurbo::common::*;
@@ -86,6 +89,23 @@ fn gauss_arclen_16<C: ParamCurveDeriv>(c: C) -> f64 {
 
 fn gauss_arclen_24<C: ParamCurveDeriv>(c: C) -> f64 {
     c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_24)
+}
+
+fn gauss_arclen_32<C: ParamCurveDeriv>(c: C) -> f64 {
+    c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_32)
+}
+
+// A common method for quadrature of even order, exploiting symmetry
+fn arclen_quadrature_core(coeffs: &[(f64, f64)], dm: Vec2, dm1: Vec2, dm2: Vec2) -> f64 {
+    coeffs
+        .iter()
+        .map(|&(wi, xi)| {
+            let d = dm + dm2 * (xi * xi);
+            let dpx = (d + dm1 * xi).hypot();
+            let dmx = (d - dm1 * xi).hypot();
+            (2.25f64.sqrt() * wi) * (dpx + dmx)
+        })
+        .sum::<f64>()
 }
 
 fn est_gauss9_error(c: CubicBez) -> f64 {
@@ -312,6 +332,11 @@ fn est_gauss24_error(c: CubicBez) -> f64 {
     (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc
 }
 
+fn est_gauss32_error(c: CubicBez) -> f64 {
+    let (est, lp_lc) = cubic_err_est_core(c);
+    (est.powi(12) * 1.2e-20).min(1.8e-3) * lp_lc
+}
+
 fn my_arclen(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f64 {
     if depth == 16 || est_gauss5_error(c) < accuracy {
         *count += 1;
@@ -359,8 +384,14 @@ fn my_arclen11(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f
     }
 }
 
-fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize,
-    c8: &mut usize, c16: &mut usize, c24: &mut usize) -> f64 {
+fn my_arclen_new(
+    c: CubicBez,
+    accuracy: f64,
+    depth: usize,
+    c8: &mut usize,
+    c16: &mut usize,
+    c24: &mut usize,
+) -> f64 {
     let d03 = c.p3 - c.p0;
     let d01 = c.p1 - c.p0;
     let d12 = c.p2 - c.p1;
@@ -386,36 +417,17 @@ fn my_arclen_new(c: CubicBez, accuracy: f64, depth: usize,
     let est_gauss8_error = (est.powi(3) * 2.5e-6).min(3e-2) * lp_lc;
     if est_gauss8_error < accuracy {
         *c8 += 1;
-        return GAUSS_LEGENDRE_COEFFS_8
-            .iter()
-            .map(|&(wi, xi)| (2.25f64.sqrt() * wi) * (dm + dm1 * xi + dm2 * (xi * xi)).hypot())
-            .sum::<f64>();
+        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_8_HALF, dm, dm1, dm2);
     }
     let est_gauss16_error = (est.powi(6) * 1.5e-11).min(9e-3) * lp_lc;
     if est_gauss16_error < accuracy {
         *c16 += 1;
-        return GAUSS_LEGENDRE_COEFFS_16_HALF
-            .iter()
-            .map(|&(wi, xi)| {
-                let d = dm + dm2 * (xi * xi);
-                let dpx = (d + dm1 * xi).hypot();
-                let dmx = (d - dm1 * xi).hypot();
-                (2.25f64.sqrt() * wi) * (dpx + dmx)
-            })
-            .sum::<f64>();
+        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_16_HALF, dm, dm1, dm2);
     }
     let est_gauss24_error = (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc;
     if est_gauss24_error < accuracy || depth >= 20 {
         *c24 += 1;
-        return GAUSS_LEGENDRE_COEFFS_24_HALF
-            .iter()
-            .map(|&(wi, xi)| {
-                let d = dm + dm2 * (xi * xi);
-                let dpx = (d + dm1 * xi).hypot();
-                let dmx = (d - dm1 * xi).hypot();
-                (2.25f64.sqrt() * wi) * (dpx + dmx)
-            })
-            .sum::<f64>();
+        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_24_HALF, dm, dm1, dm2);
     }
     let (c0, c1) = c.subdivide();
     my_arclen_new(c0, accuracy * 0.5, depth + 1, c8, c16, c24)
@@ -436,7 +448,8 @@ fn report_stats() {
         let mut c8 = 0;
         let mut c16 = 0;
         let mut c24 = 0;
-        for _ in 0..100_000 {
+        let mut c32 = 0;
+        for _ in 0..1000_000 {
             let c = randbez();
             let t: f64 = rand::random();
             let c = c.subsegment(0.0..t);
@@ -447,12 +460,20 @@ fn report_stats() {
             let est = my_arclen_new(c, accuracy, 0, &mut c8, &mut c16, &mut c24);
             let _err = (1.0 - est).abs();
         }
-        println!("1e-{}: {} {} {}, total {}", i, c8, c16, c24, c8 + c16 + c24);
+        //println!("1e-{}: {} {} {}, total {}", i, c8, c16, c24, c8 + c16 + c24);
+        let est_time_estimating = 50 * (c8 + c16 + c24);
+        let est_time = 50 * c8 + 80 * c16 + 110 * c24 + est_time_estimating;
+        println!(
+            "1e-{}: est time {}ns, {}% estimating",
+            i,
+            1e-6 * (est_time as f64),
+            100.0 * (est_time_estimating as f64) / (est_time as f64)
+        );
     }
 }
 
 fn plot_accuracy() {
-        // TODO: make this a runtime parameter
+    // TODO: make this a runtime parameter
     let accuracy = 1e-6;
     let mut c8 = 0;
     let mut c16 = 0;
@@ -465,8 +486,8 @@ fn plot_accuracy() {
         let accurate_arclen = my_arclen9(c, 1e-15, 0, &mut count);
         let c = Affine::scale(accurate_arclen.recip()) * c; // normalize to mean vel = 1
 
-        let est = gauss_arclen_24(c);
-        let est_err = est_gauss24_error(c);
+        let est = gauss_arclen_32(c);
+        let est_err = est_gauss32_error(c);
         // The arclength has been normalized to 1.0.
         let err = (1.0 - est).abs();
         println!("{} {}", est_err, err);
