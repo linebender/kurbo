@@ -1,6 +1,6 @@
 [package]
 name = "kurbo"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
@@ -11,9 +11,16 @@ readme = "README.md"
 # The category should be "graphics", but this doesn't exist yet
 # https://github.com/rust-lang/crates.io/pull/1582
 
+[package.metadata.docs.rs]
+features = ["mint"]
+
 [dependencies]
 arrayvec = "0.4.10"
 
-# Probably don't want to commit this
+[dependencies.mint]
+version = "0.5.1"
+optional = true
+
+# This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
 rand = "0.6"

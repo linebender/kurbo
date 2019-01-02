@@ -22,6 +22,9 @@ impl Affine {
     }
 
     /// An affine transform representing rotation.
+    ///
+    /// TODO: the convention here is y-up. Probably reconsider?
+    /// Such a change would be considered breaking.
     #[inline]
     pub fn rotate(th: f64) -> Affine {
         let s = th.sin();
@@ -92,6 +95,36 @@ impl Mul<Affine> for f64 {
             self * other.0[4],
             self * other.0[5],
         ])
+    }
+}
+
+// Conversions to and from mint
+#[cfg(feature = "mint")]
+impl From<Affine> for mint::ColumnMatrix2x3<f64> {
+    #[inline]
+    fn from(a: Affine) -> mint::ColumnMatrix2x3<f64> {
+        mint::ColumnMatrix2x3 {
+            x: mint::Vector2 {
+                x: a.0[0],
+                y: a.0[1],
+            },
+            y: mint::Vector2 {
+                x: a.0[2],
+                y: a.0[3],
+            },
+            z: mint::Vector2 {
+                x: a.0[4],
+                y: a.0[5],
+            },
+        }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::ColumnMatrix2x3<f64>> for Affine {
+    #[inline]
+    fn from(m: mint::ColumnMatrix2x3<f64>) -> Affine {
+        Affine([m.x.x, m.x.y, m.y.x, m.y.y, m.z.x, m.z.y])
     }
 }
 

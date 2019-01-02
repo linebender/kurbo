@@ -1,4 +1,6 @@
 # kurbo, a Rust 2D curves library
+[![Docs](https://docs.rs/kurbo/badge.svg)](https://docs.rs/kurbo)
+[![Crates.io](https://img.shields.io/crates/v/kurbo.svg?maxAge=2592000)](https://crates.io/crates/kurbo)
 
 The kurbo library contains data structures and algorithms for curves and vector paths. It is probably most appropriate for creative tools, but is general enough it might be useful for other applications.
 
