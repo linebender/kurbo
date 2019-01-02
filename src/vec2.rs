@@ -55,6 +55,9 @@ impl Vec2 {
     }
 
     /// A unit vector of the given angle.
+    ///
+    /// Note: the convention here is a y-up coordinate space, which is suitable
+    /// for math but is backwards for graphics.
     #[inline]
     pub fn from_angle(th: f64) -> Vec2 {
         Vec2 {
@@ -187,5 +190,22 @@ impl Neg for Vec2 {
             x: -self.x,
             y: -self.y,
         }
+    }
+}
+
+// Conversions to and from mint
+#[cfg(feature = "mint")]
+impl From<Vec2> for mint::Vector2<f64> {
+    #[inline]
+    fn from(p: Vec2) -> mint::Vector2<f64> {
+        mint::Vector2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::Vector2<f64>> for Vec2 {
+    #[inline]
+    fn from(p: mint::Vector2<f64>) -> Vec2 {
+        Vec2 { x: p.x, y: p.y }
     }
 }

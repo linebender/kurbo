@@ -7,6 +7,7 @@ mod cubicbez;
 mod line;
 mod param_curve;
 mod quadbez;
+mod rect;
 mod svg;
 mod vec2;
 
@@ -16,5 +17,6 @@ pub use crate::cubicbez::*;
 pub use crate::line::*;
 pub use crate::param_curve::*;
 pub use crate::quadbez::*;
+pub use crate::rect::*;
 pub use crate::svg::*;
 pub use crate::vec2::*;
