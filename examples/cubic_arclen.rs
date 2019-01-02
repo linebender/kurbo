@@ -1,5 +1,8 @@
 //! Research testbed for arclengths of cubic Bézier segments.
 
+// Lots of stuff is commented out or was just something to try.
+#![allow(unused)]
+
 use kurbo::common::*;
 use kurbo::{CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Vec2};
 
