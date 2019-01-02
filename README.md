@@ -1,4 +1,5 @@
 # kurbo, a Rust 2D curves library
+[![Build Status](https://travis-ci.com/linebender/kurbo.svg)](https://travis-ci.com/linebender/kurbo)
 [![Docs](https://docs.rs/kurbo/badge.svg)](https://docs.rs/kurbo)
 [![Crates.io](https://img.shields.io/crates/v/kurbo.svg?maxAge=2592000)](https://crates.io/crates/kurbo)
 
