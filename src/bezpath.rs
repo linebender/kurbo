@@ -168,6 +168,15 @@ impl BezPath {
     }
 }
 
+impl<'a> IntoIterator for &'a BezPath {
+    type Item = PathEl;
+    type IntoIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.elements().iter().cloned()
+    }
+}
+
 impl Mul<PathEl> for Affine {
     type Output = PathEl;
 
