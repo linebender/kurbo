@@ -8,7 +8,7 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
-    ParamCurveNearest, QuadBez, Shape, Vec2,
+    ParamCurveNearest, QuadBez, Rect, Shape, Vec2,
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
@@ -440,5 +440,13 @@ impl Shape for BezPath {
     /// TODO: clean up duplication with impl method.
     fn winding(&self, pt: Vec2) -> i32 {
         BezPath::winding(self, pt)
+    }
+
+    fn bounding_box(&self) -> Rect {
+        let mut bbox = Rect::default();
+        for (_, seg) in self.segments() {
+            bbox = bbox.union(seg.bounding_box());
+        }
+        bbox
     }
 }

@@ -35,6 +35,9 @@ pub trait Shape {
     /// TODO: figure out sign convention, see #4.
     fn winding(&self, pt: Vec2) -> i32;
 
+    /// The smallest rectangle that encloses the shape.
+    fn bounding_box(&self) -> Rect;
+
     // TODO: centroid would be a good method to add.
 
     /// If the shape is a rectangle, report that.

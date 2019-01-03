@@ -256,6 +256,11 @@ impl Shape for Rect {
     }
 
     #[inline]
+    fn bounding_box(&self) -> Rect {
+        self.abs()
+    }
+
+    #[inline]
     fn as_rect(&self) -> Option<Rect> {
         Some(*self)
     }
