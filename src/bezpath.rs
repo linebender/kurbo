@@ -8,7 +8,7 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
-    ParamCurveNearest, QuadBez, Vec2,
+    ParamCurveNearest, QuadBez, Shape, Vec2,
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
@@ -39,6 +39,11 @@ impl BezPath {
     /// Create a new path.
     pub fn new() -> BezPath {
         Default::default()
+    }
+
+    /// Create a path from a vector of path elements.
+    pub fn from_vec(v: Vec<PathEl>) -> BezPath {
+        BezPath(v)
     }
 
     /// Push a generic path element onto the path.
@@ -401,5 +406,39 @@ impl PathSeg {
             .into_iter()
             .map(|range| self.subsegment(range).winding_inner(p))
             .sum()
+    }
+}
+
+impl Shape for BezPath {
+    type BezPathIter = std::vec::IntoIter<PathEl>;
+
+    fn to_bez_path(&self, _tolerance: f64) -> Self::BezPathIter {
+        self.clone().0.into_iter()
+    }
+
+    fn to_owned_bez_path(&self, _tolerance: f64) -> BezPath {
+        self.clone()
+    }
+
+    /// Signed area.
+    ///
+    /// TODO: figure out sign convention, see #4.
+    ///
+    /// TODO: clean up duplication with impl method.
+    fn area(&self) -> f64 {
+        BezPath::area(self)
+    }
+
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        self.arclen(accuracy)
+    }
+
+    /// Winding number of point.
+    ///
+    /// TODO: figure out sign convention, see #4.
+    ///
+    /// TODO: clean up duplication with impl method.
+    fn winding(&self, pt: Vec2) -> i32 {
+        BezPath::winding(self, pt)
     }
 }
