@@ -416,10 +416,6 @@ impl Shape for BezPath {
         self.clone().0.into_iter()
     }
 
-    fn to_owned_bez_path(&self, _tolerance: f64) -> BezPath {
-        self.clone()
-    }
-
     /// Signed area.
     ///
     /// TODO: figure out sign convention, see #4.
@@ -448,5 +444,9 @@ impl Shape for BezPath {
             bbox = bbox.union(seg.bounding_box());
         }
         bbox
+    }
+
+    fn as_path_slice(&self) -> Option<&[PathEl]> {
+        Some(&self.0)
     }
 }

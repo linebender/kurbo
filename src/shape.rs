@@ -1,26 +1,22 @@
 //! A generic trait for shapes.
 
-use crate::{BezPath, PathEl, Rect, Vec2};
+use crate::{PathEl, Rect, Vec2};
 
 /// A generic trait for closed shapes.
 pub trait Shape {
     /// The iterator resulting from `to_bez_path`.
+    type BezPathIter: Iterator<Item = PathEl>;
+
+    /// Convert to a Bézier path, as an iterator over path elements.
+    ///
+    /// Callers should exhaust the `as_` methods first, as those are
+    /// likely to be more efficient; in the general case, this
+    /// allocates.
     ///
     /// TODO: When GAT's land, the type of this can be changed to
     /// contain a `&'a self` reference, which would let us take
     /// iterators from complex shapes without cloning.
-    type BezPathIter: Iterator<Item = PathEl>;
-
-    /// Convert to a Bézier path.
     fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter;
-
-    /// Convert to an owned Bézier path.
-    ///
-    /// This might be less copying, and less computation in the
-    /// iterator. I'm not yet sure this method is worth having.
-    fn to_owned_bez_path(&self, tolerance: f64) -> BezPath {
-        BezPath::from_vec(self.to_bez_path(tolerance).collect())
-    }
 
     /// Signed area.
     ///
@@ -40,8 +36,18 @@ pub trait Shape {
 
     // TODO: centroid would be a good method to add.
 
-    /// If the shape is a rectangle, report that.
+    /// If the shape is a rectangle, make it available.
     fn as_rect(&self) -> Option<Rect> {
+        None
+    }
+
+    /// If the shape is stored as a slice of path elements, make
+    /// that available.
+    ///
+    /// Note: when GAT's land, a method like `to_bez_path` would be
+    /// able to iterate through the slice with no extra allocation,
+    /// without making any assumption that storage is contiguous.
+    fn as_path_slice(&self) -> Option<&[PathEl]> {
         None
     }
 
