@@ -439,11 +439,16 @@ impl Shape for BezPath {
     }
 
     fn bounding_box(&self) -> Rect {
-        let mut bbox = Rect::default();
+        let mut bbox: Option<Rect> = None;
         for (_, seg) in self.segments() {
-            bbox = bbox.union(seg.bounding_box());
+            let seg_bb = seg.bounding_box();
+            if let Some(bb) = bbox {
+                bbox = Some(bb.union(seg_bb));
+            } else {
+                bbox = Some(seg_bb)
+            }
         }
-        bbox
+        bbox.unwrap_or_default()
     }
 
     fn as_path_slice(&self) -> Option<&[PathEl]> {
