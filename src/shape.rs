@@ -1,8 +1,8 @@
 //! A generic trait for shapes.
 
-use crate::{PathEl, Rect, Vec2};
+use crate::{Line, PathEl, Rect, Vec2};
 
-/// A generic trait for closed shapes.
+/// A generic trait for open and closed shapes.
 pub trait Shape {
     /// The iterator resulting from `to_bez_path`.
     type BezPathIter: Iterator<Item = PathEl>;
@@ -20,6 +20,8 @@ pub trait Shape {
 
     /// Signed area.
     ///
+    /// This method only produces meaningful results with closed shapes.
+    ///
     /// TODO: figure out sign convention, see #4.
     fn area(&self) -> f64;
 
@@ -28,13 +30,18 @@ pub trait Shape {
 
     /// Winding number of point.
     ///
+    /// This method only produces meaningful results with closed shapes.
+    ///
     /// TODO: figure out sign convention, see #4.
     fn winding(&self, pt: Vec2) -> i32;
 
     /// The smallest rectangle that encloses the shape.
     fn bounding_box(&self) -> Rect;
 
-    // TODO: centroid would be a good method to add.
+    /// If the shape is a line, make it available.
+    fn as_line(&self) -> Option<Line> {
+        None
+    }
 
     /// If the shape is a rectangle, make it available.
     fn as_rect(&self) -> Option<Rect> {

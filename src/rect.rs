@@ -46,14 +46,6 @@ impl Rect {
         Rect::from_points(origin, origin + size)
     }
 
-    /// Return `true` if the rectangle is empty.
-    ///
-    /// A rectangle is considered empty if it has either zero width or height.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.x0 == self.x1 || self.y0 == self.y1
-    }
-
     /// The width of the rectangle.
     ///
     /// Note: nothing forbids negative width.
@@ -114,29 +106,24 @@ impl Rect {
 
     /// The smallest rectangle enclosing two rectangles.
     ///
-    /// This is only valid if width and height are non-negative.
-    /// Empty rectangles don't count towards the result.
+    /// Results are valid only if width and height are non-negative.
     #[inline]
     pub fn union(&self, other: Rect) -> Rect {
-        if self.is_empty() {
-            other
-        } else if other.is_empty() {
-            *self
-        } else {
-            Rect {
-                x0: self.x0.min(other.x0),
-                y0: self.y0.min(other.y0),
-                x1: self.x1.max(other.x1),
-                y1: self.y1.max(other.y1),
-            }
+        Rect {
+            x0: self.x0.min(other.x0),
+            y0: self.y0.min(other.y0),
+            x1: self.x1.max(other.x1),
+            y1: self.y1.max(other.y1),
         }
     }
 
     /// Compute the union with one point.
     ///
-    /// As opposed to [`union`](#method.union), this method includes the
-    /// perimeter of zero-area rectangles. Thus, a succession of `union_pt`
-    /// operations on a series of points yields their enclosing rectangle.
+    /// This method includes the perimeter of zero-area rectangles.
+    /// Thus, a succession of `union_pt` operations on a series of
+    /// points yields their enclosing rectangle.
+    ///
+    /// Results are valid only if width and height are non-negative.
     pub fn union_pt(&self, pt: Vec2) -> Rect {
         Rect::new(
             self.x0.min(pt.x),
@@ -148,7 +135,7 @@ impl Rect {
 
     /// The intersection of two rectangles.
     ///
-    /// The result is empty if either input has negative width or
+    /// The result is zero-area if either input has negative width or
     /// height. The result always has non-negative width and height.
     #[inline]
     pub fn intersect(&self, other: Rect) -> Rect {
