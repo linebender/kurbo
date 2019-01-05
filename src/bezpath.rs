@@ -84,8 +84,7 @@ impl BezPath {
     /// Iterate over the path segments.
     pub fn segments<'a>(&'a self) -> impl Iterator<Item = PathSeg> + 'a {
         BezPathSegs {
-            c: &self.0,
-            ix: 0,
+            c: self.0.iter(),
             start: None,
             last: None,
         }
@@ -203,8 +202,7 @@ impl Mul<BezPath> for Affine {
 }
 
 struct BezPathSegs<'a> {
-    c: &'a [PathEl],
-    ix: usize,
+    c: std::slice::Iter<'a, PathEl>,
     start: Option<Vec2>,
     last: Option<Vec2>,
 }
@@ -213,8 +211,7 @@ impl<'a> Iterator for BezPathSegs<'a> {
     type Item = PathSeg;
 
     fn next(&mut self) -> Option<PathSeg> {
-        while let Some(el) = self.c.get(self.ix) {
-            self.ix += 1;
+        for el in &mut self.c {
             match *el {
                 PathEl::Moveto(p) => {
                     self.start = Some(p);
