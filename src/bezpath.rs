@@ -218,34 +218,28 @@ impl<'a> Iterator for BezPathSegs<'a> {
 
     fn next(&mut self) -> Option<PathSeg> {
         for el in &mut self.c {
-            match *el {
+            let (ret, last) = match *el {
                 PathEl::Moveto(p) => {
                     self.start = p;
                     self.last = p;
+                    continue;
                 }
-                PathEl::Lineto(p) => {
-                    let seg = PathSeg::Line(Line::new(self.last, p));
-                    self.last = p;
-                    return Some(seg);
-                }
-                PathEl::Quadto(p1, p2) => {
-                    let seg = PathSeg::Quad(QuadBez::new(self.last, p1, p2));
-                    self.last = p2;
-                    return Some(seg);
-                }
+                PathEl::Lineto(p) => (PathSeg::Line(Line::new(self.last, p)), p),
+                PathEl::Quadto(p1, p2) => (PathSeg::Quad(QuadBez::new(self.last, p1, p2)), p2),
                 PathEl::Curveto(p1, p2, p3) => {
-                    let seg = PathSeg::Cubic(CubicBez::new(self.last, p1, p2, p3));
-                    self.last = p3;
-                    return Some(seg);
+                    (PathSeg::Cubic(CubicBez::new(self.last, p1, p2, p3)), p3)
                 }
                 PathEl::Closepath => {
                     if self.last != self.start {
-                        let seg = PathSeg::Line(Line::new(self.last, self.start));
-                        self.last = self.start;
-                        return Some(seg);
+                        (PathSeg::Line(Line::new(self.last, self.start)), self.start)
+                    } else {
+                        continue;
                     }
                 }
-            }
+            };
+
+            self.last = last;
+            return Some(ret);
         }
         None
     }
