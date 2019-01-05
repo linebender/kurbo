@@ -82,9 +82,7 @@ impl BezPath {
     }
 
     /// Iterate over the path segments.
-    ///
-    /// The iterator returns the index within the path and the segment.
-    pub fn segments<'a>(&'a self) -> impl Iterator<Item = (usize, PathSeg)> + 'a {
+    pub fn segments<'a>(&'a self) -> impl Iterator<Item = PathSeg> + 'a {
         BezPathSegs {
             c: &self.0,
             ix: 0,
@@ -140,23 +138,23 @@ impl BezPath {
     /// Note: this is one of the methods that could be implemented on an iterator
     /// of `PathEl`, to save allocation.
     pub fn arclen(&self, accuracy: f64) -> f64 {
-        self.segments().map(|(_, seg)| seg.arclen(accuracy)).sum()
+        self.segments().map(|seg| seg.arclen(accuracy)).sum()
     }
 
     /// Compute the total signed area.
     pub fn area(&self) -> f64 {
-        self.segments().map(|(_, seg)| seg.signed_area()).sum()
+        self.segments().map(|seg| seg.signed_area()).sum()
     }
 
     /// Find the nearest point.
     ///
     /// Panics if path is empty or invalid.
     ///
-    /// Returns the index of the element, the parameter within that segment, and
+    /// Returns the index of the segment, the parameter within that segment, and
     /// the square of the distance to the point.
     pub fn nearest(&self, p: Vec2, accuracy: f64) -> (usize, f64, f64) {
         let mut best = None;
-        for (ix, seg) in self.segments() {
+        for (ix, seg) in self.segments().enumerate() {
             let (t, r) = seg.nearest(p, accuracy);
             if best.map(|(_, _, r_best)| r < r_best).unwrap_or(true) {
                 best = Some((ix, t, r));
@@ -169,7 +167,7 @@ impl BezPath {
     ///
     /// TODO: make sure all the signs are consistent.
     pub fn winding(&self, p: Vec2) -> i32 {
-        self.segments().map(|(_, seg)| seg.winding(p)).sum()
+        self.segments().map(|seg| seg.winding(p)).sum()
     }
 }
 
@@ -212,9 +210,9 @@ struct BezPathSegs<'a> {
 }
 
 impl<'a> Iterator for BezPathSegs<'a> {
-    type Item = (usize, PathSeg);
+    type Item = PathSeg;
 
-    fn next(&mut self) -> Option<(usize, PathSeg)> {
+    fn next(&mut self) -> Option<PathSeg> {
         while self.ix < self.c.len() {
             let ix = self.ix;
             let el = self.c[ix];
@@ -227,24 +225,24 @@ impl<'a> Iterator for BezPathSegs<'a> {
                 PathEl::Lineto(p) => {
                     let seg = PathSeg::Line(Line::new(self.last.unwrap(), p));
                     self.last = Some(p);
-                    return Some((ix, seg));
+                    return Some(seg);
                 }
                 PathEl::Quadto(p1, p2) => {
                     let seg = PathSeg::Quad(QuadBez::new(self.last.unwrap(), p1, p2));
                     self.last = Some(p2);
-                    return Some((ix, seg));
+                    return Some(seg);
                 }
                 PathEl::Curveto(p1, p2, p3) => {
                     let seg = PathSeg::Cubic(CubicBez::new(self.last.unwrap(), p1, p2, p3));
                     self.last = Some(p3);
-                    return Some((ix, seg));
+                    return Some(seg);
                 }
                 PathEl::Closepath => {
                     let last = self.last.take();
                     let start = self.start.take();
                     if last != start {
                         let seg = PathSeg::Line(Line::new(last.unwrap(), start.unwrap()));
-                        return Some((ix, seg));
+                        return Some(seg);
                     }
                 }
             }
@@ -440,7 +438,7 @@ impl Shape for BezPath {
 
     fn bounding_box(&self) -> Rect {
         let mut bbox: Option<Rect> = None;
-        for (_, seg) in self.segments() {
+        for seg in self.segments() {
             let seg_bb = seg.bounding_box();
             if let Some(bb) = bbox {
                 bbox = Some(bb.union(seg_bb));
