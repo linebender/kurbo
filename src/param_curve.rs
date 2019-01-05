@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use arrayvec::ArrayVec;
 
-use crate::Vec2;
+use crate::{Rect, Vec2};
 
 /// A curve parametrized by a scalar.
 ///
@@ -159,7 +159,7 @@ where
 pub const MAX_EXTREMA: usize = 4;
 
 /// A parametrized curve that reports its extrema.
-pub trait ParamCurveExtrema {
+pub trait ParamCurveExtrema: ParamCurve {
     /// Compute the extrema of the curve.
     ///
     /// Only extrema within the interior of the curve count.
@@ -179,5 +179,14 @@ pub trait ParamCurveExtrema {
         }
         result.push(t0..1.0);
         result
+    }
+
+    /// The smallest rectangle that encloses the curve in the range (0..1).
+    fn bounding_box(&self) -> Rect {
+        let mut bbox = Rect::from_points(self.start(), self.end());
+        for t in self.extrema() {
+            bbox = bbox.union_pt(self.eval(t))
+        }
+        bbox
     }
 }

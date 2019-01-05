@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Sub};
 
-use crate::Vec2;
+use crate::{PathEl, Shape, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, Debug)]
@@ -44,14 +44,6 @@ impl Rect {
     #[inline]
     pub fn from_origin_size(origin: Vec2, size: Vec2) -> Rect {
         Rect::from_points(origin, origin + size)
-    }
-
-    /// Return `true` if the rectangle is empty.
-    ///
-    /// A rectangle is considered empty if it has either zero width or height.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.x0 == self.x1 || self.y0 == self.y1
     }
 
     /// The width of the rectangle.
@@ -114,27 +106,36 @@ impl Rect {
 
     /// The smallest rectangle enclosing two rectangles.
     ///
-    /// This is only valid if width and height are non-negative.
-    /// Empty rectangles don't count towards the result.
+    /// Results are valid only if width and height are non-negative.
     #[inline]
     pub fn union(&self, other: Rect) -> Rect {
-        if self.is_empty() {
-            other
-        } else if other.is_empty() {
-            *self
-        } else {
-            Rect {
-                x0: self.x0.min(other.x0),
-                y0: self.y0.min(other.y0),
-                x1: self.x1.max(other.x1),
-                y1: self.y1.max(other.y1),
-            }
+        Rect {
+            x0: self.x0.min(other.x0),
+            y0: self.y0.min(other.y0),
+            x1: self.x1.max(other.x1),
+            y1: self.y1.max(other.y1),
         }
+    }
+
+    /// Compute the union with one point.
+    ///
+    /// This method includes the perimeter of zero-area rectangles.
+    /// Thus, a succession of `union_pt` operations on a series of
+    /// points yields their enclosing rectangle.
+    ///
+    /// Results are valid only if width and height are non-negative.
+    pub fn union_pt(&self, pt: Vec2) -> Rect {
+        Rect::new(
+            self.x0.min(pt.x),
+            self.y0.min(pt.y),
+            self.x1.max(pt.y),
+            self.y1.max(pt.y),
+        )
     }
 
     /// The intersection of two rectangles.
     ///
-    /// The result is empty if either input has negative width or
+    /// The result is zero-area if either input has negative width or
     /// height. The result always has non-negative width and height.
     #[inline]
     pub fn intersect(&self, other: Rect) -> Rect {
@@ -192,6 +193,79 @@ impl Sub<Vec2> for Rect {
             y0: self.y0 - v.y,
             x1: self.x1 - v.x,
             y1: self.y1 - v.y,
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct RectPathIter {
+    rect: Rect,
+    ix: usize,
+}
+
+impl Shape for Rect {
+    type BezPathIter = RectPathIter;
+
+    fn to_bez_path(&self, _tolerance: f64) -> RectPathIter {
+        RectPathIter { rect: *self, ix: 0 }
+    }
+
+    // It's a bit of duplication having both this and the impl method, but
+    // removing that would require using the trait. We'll leave it for now.
+    #[inline]
+    fn area(&self) -> f64 {
+        Rect::area(self)
+    }
+
+    #[inline]
+    fn perimeter(&self, _accuracy: f64) -> f64 {
+        2.0 * (self.width().abs() + self.height().abs())
+    }
+
+    /// Note: this function is carefully designed so that if the plane is
+    /// tiled with rectangles, the winding number will be nonzero for exactly
+    /// one of them.
+    #[inline]
+    fn winding(&self, pt: Vec2) -> i32 {
+        let xmin = self.x0.min(self.x1);
+        let xmax = self.x0.max(self.x1);
+        let ymin = self.y0.min(self.y1);
+        let ymax = self.y0.max(self.y1);
+        if pt.x >= xmin && pt.x < xmax && pt.y >= ymin && pt.y < ymax {
+            if (self.x1 > self.x0) ^ (self.y1 > self.y0) {
+                -1
+            } else {
+                1
+            }
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    fn bounding_box(&self) -> Rect {
+        self.abs()
+    }
+
+    #[inline]
+    fn as_rect(&self) -> Option<Rect> {
+        Some(*self)
+    }
+}
+
+// This is clockwise in a y-down coordinate system for positive area.
+impl Iterator for RectPathIter {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        self.ix += 1;
+        match self.ix {
+            1 => Some(PathEl::Moveto(Vec2::new(self.rect.x0, self.rect.y0))),
+            2 => Some(PathEl::Lineto(Vec2::new(self.rect.x1, self.rect.y0))),
+            3 => Some(PathEl::Lineto(Vec2::new(self.rect.x1, self.rect.y1))),
+            4 => Some(PathEl::Lineto(Vec2::new(self.rect.x0, self.rect.y1))),
+            5 => Some(PathEl::Closepath),
+            _ => None,
         }
     }
 }

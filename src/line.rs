@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, Vec2,
+    ParamCurveExtrema, ParamCurveNearest, PathEl, Rect, Shape, Vec2,
 };
 
 /// A single line.
@@ -146,6 +146,62 @@ impl Mul<Line> for Affine {
         Line {
             p0: self * other.p0,
             p1: self * other.p1,
+        }
+    }
+}
+
+/// An iterator yielding the path for a single line.
+pub struct LinePathIter {
+    line: Line,
+    ix: usize,
+}
+
+impl Shape for Line {
+    type BezPathIter = LinePathIter;
+
+    #[inline]
+    fn to_bez_path(&self, _tolerance: f64) -> LinePathIter {
+        LinePathIter { line: *self, ix: 0 }
+    }
+
+    /// Returning zero here is consistent with the contract (area is
+    /// only meaningful for closed shapes), but an argument can be made
+    /// that the contract should be tightened to include the Green's
+    /// theorem contribution.
+    fn area(&self) -> f64 {
+        0.0
+    }
+
+    #[inline]
+    fn perimeter(&self, _accuracy: f64) -> f64 {
+        (self.p1 - self.p0).hypot()
+    }
+
+    /// Same consideration as `area`.
+    fn winding(&self, _pt: Vec2) -> i32 {
+        0
+    }
+
+    #[inline]
+    fn bounding_box(&self) -> Rect {
+        Rect::from_points(self.p0, self.p1)
+    }
+
+    #[inline]
+    fn as_line(&self) -> Option<Line> {
+        Some(*self)
+    }
+}
+
+impl Iterator for LinePathIter {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        self.ix += 1;
+        match self.ix {
+            1 => Some(PathEl::Moveto(self.line.p0)),
+            2 => Some(PathEl::Lineto(self.line.p1)),
+            _ => None,
         }
     }
 }

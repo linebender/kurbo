@@ -8,7 +8,7 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
-    ParamCurveNearest, QuadBez, Vec2,
+    ParamCurveNearest, QuadBez, Rect, Shape, Vec2,
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
@@ -39,6 +39,11 @@ impl BezPath {
     /// Create a new path.
     pub fn new() -> BezPath {
         Default::default()
+    }
+
+    /// Create a path from a vector of path elements.
+    pub fn from_vec(v: Vec<PathEl>) -> BezPath {
+        BezPath(v)
     }
 
     /// Push a generic path element onto the path.
@@ -165,6 +170,15 @@ impl BezPath {
     /// TODO: make sure all the signs are consistent.
     pub fn winding(&self, p: Vec2) -> i32 {
         self.segments().map(|(_, seg)| seg.winding(p)).sum()
+    }
+}
+
+impl<'a> IntoIterator for &'a BezPath {
+    type Item = PathEl;
+    type IntoIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.elements().iter().cloned()
     }
 }
 
@@ -392,5 +406,52 @@ impl PathSeg {
             .into_iter()
             .map(|range| self.subsegment(range).winding_inner(p))
             .sum()
+    }
+}
+
+impl Shape for BezPath {
+    type BezPathIter = std::vec::IntoIter<PathEl>;
+
+    fn to_bez_path(&self, _tolerance: f64) -> Self::BezPathIter {
+        self.clone().0.into_iter()
+    }
+
+    /// Signed area.
+    ///
+    /// TODO: figure out sign convention, see #4.
+    ///
+    /// TODO: clean up duplication with impl method.
+    fn area(&self) -> f64 {
+        BezPath::area(self)
+    }
+
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        self.arclen(accuracy)
+    }
+
+    /// Winding number of point.
+    ///
+    /// TODO: figure out sign convention, see #4.
+    ///
+    /// TODO: clean up duplication with impl method.
+    fn winding(&self, pt: Vec2) -> i32 {
+        BezPath::winding(self, pt)
+    }
+
+    fn bounding_box(&self) -> Rect {
+        let mut bbox: Option<Rect> = None;
+        for (_, seg) in self.segments() {
+            let seg_bb = seg.bounding_box();
+            if let Some(bb) = bbox {
+                bbox = Some(bb.union(seg_bb));
+            } else {
+                bbox = Some(seg_bb)
+            }
+        }
+        bbox.unwrap_or_default()
+    }
+
+    fn as_path_slice(&self) -> Option<&[PathEl]> {
+        Some(&self.0)
     }
 }
