@@ -5,7 +5,7 @@ use std::ops::{Mul, MulAssign};
 use crate::Vec2;
 
 /// A 2D affine transform.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Affine([f64; 6]);
 
 impl Affine {

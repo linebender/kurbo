@@ -12,13 +12,13 @@ use crate::{
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
 ///
 /// A valid path has `Moveto` at the beginning of each subpath.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum PathEl {
     Moveto(Vec2),
     Lineto(Vec2),
@@ -28,7 +28,7 @@ pub enum PathEl {
 }
 
 /// A segment of a Bézier path.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum PathSeg {
     Line(Line),
     Quad(QuadBez),
