@@ -83,10 +83,16 @@ impl BezPath {
 
     /// Iterate over the path segments.
     pub fn segments<'a>(&'a self) -> impl Iterator<Item = PathSeg> + 'a {
+        let first = match self.0.get(0) {
+            Some(PathEl::Moveto(ref p)) => *p,
+            Some(_) => panic!("First element has to be a PathEl::Moveto!"),
+            None => Default::default(),
+        };
+
         BezPathSegs {
             c: self.0.iter(),
-            start: None,
-            last: None,
+            start: first,
+            last: first,
         }
     }
 
@@ -203,8 +209,8 @@ impl Mul<BezPath> for Affine {
 
 struct BezPathSegs<'a> {
     c: std::slice::Iter<'a, PathEl>,
-    start: Option<Vec2>,
-    last: Option<Vec2>,
+    start: Vec2,
+    last: Vec2,
 }
 
 impl<'a> Iterator for BezPathSegs<'a> {
@@ -214,29 +220,28 @@ impl<'a> Iterator for BezPathSegs<'a> {
         for el in &mut self.c {
             match *el {
                 PathEl::Moveto(p) => {
-                    self.start = Some(p);
-                    self.last = Some(p);
+                    self.start = p;
+                    self.last = p;
                 }
                 PathEl::Lineto(p) => {
-                    let seg = PathSeg::Line(Line::new(self.last.unwrap(), p));
-                    self.last = Some(p);
+                    let seg = PathSeg::Line(Line::new(self.last, p));
+                    self.last = p;
                     return Some(seg);
                 }
                 PathEl::Quadto(p1, p2) => {
-                    let seg = PathSeg::Quad(QuadBez::new(self.last.unwrap(), p1, p2));
-                    self.last = Some(p2);
+                    let seg = PathSeg::Quad(QuadBez::new(self.last, p1, p2));
+                    self.last = p2;
                     return Some(seg);
                 }
                 PathEl::Curveto(p1, p2, p3) => {
-                    let seg = PathSeg::Cubic(CubicBez::new(self.last.unwrap(), p1, p2, p3));
-                    self.last = Some(p3);
+                    let seg = PathSeg::Cubic(CubicBez::new(self.last, p1, p2, p3));
+                    self.last = p3;
                     return Some(seg);
                 }
                 PathEl::Closepath => {
-                    let last = self.last.take();
-                    let start = self.start.take();
-                    if last != start {
-                        let seg = PathSeg::Line(Line::new(last.unwrap(), start.unwrap()));
+                    if self.last != self.start {
+                        let seg = PathSeg::Line(Line::new(self.last, self.start));
+                        self.last = self.start;
                         return Some(seg);
                     }
                 }
