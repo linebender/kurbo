@@ -213,11 +213,9 @@ impl<'a> Iterator for BezPathSegs<'a> {
     type Item = PathSeg;
 
     fn next(&mut self) -> Option<PathSeg> {
-        while self.ix < self.c.len() {
-            let ix = self.ix;
-            let el = self.c[ix];
+        while let Some(el) = self.c.get(self.ix) {
             self.ix += 1;
-            match el {
+            match *el {
                 PathEl::Moveto(p) => {
                     self.start = Some(p);
                     self.last = Some(p);
