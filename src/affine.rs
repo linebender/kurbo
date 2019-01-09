@@ -10,6 +10,22 @@ pub struct Affine([f64; 6]);
 
 impl Affine {
     /// Construct an affine transform from coefficients.
+    ///
+    /// If the coefficients are `(a, b, c, d, e, f)`, then the resulting
+    /// transformation represents this augmented matrix:
+    ///
+    /// ```
+    /// | a c e |
+    /// | b d f |
+    /// | 0 0 1 |
+    /// ```
+    ///
+    /// Note that this convention is transposed from PostScript and
+    /// Direct2D, but is consistent with the
+    /// [Wikipedia](https://en.wikipedia.org/wiki/Affine_transformation)
+    /// formulation of affine transformation as augmented matrix. The
+    /// idea is that `(A * B) * v == A * (B * v)`, where `*` is the
+    /// [`Mul`](https://doc.rust-lang.org/std/ops/trait.Mul.html) trait.
     #[inline]
     pub fn new(c: [f64; 6]) -> Affine {
         Affine(c)
@@ -23,8 +39,10 @@ impl Affine {
 
     /// An affine transform representing rotation.
     ///
-    /// TODO: the convention here is y-up. Probably reconsider?
-    /// Such a change would be considered breaking.
+    /// The convention for rotation is that a positive angle rotates a
+    /// positive X direction into positive Y. Thus, in a Y-down coordinate
+    /// system (as is common for graphics), it is a clockwise rotation, and
+    /// in Y-up (traditional for math), it is anti-clockwise.
     #[inline]
     pub fn rotate(th: f64) -> Affine {
         let s = th.sin();
@@ -37,6 +55,12 @@ impl Affine {
     pub fn translate<V: Into<Vec2>>(p: V) -> Affine {
         let p = p.into();
         Affine([1.0, 0.0, 0.0, 1.0, p.x, p.y])
+    }
+
+    /// Get the coefficients of the transform.
+    #[inline]
+    pub fn as_coeffs(self) -> [f64; 6] {
+        self.0
     }
 }
 
