@@ -14,7 +14,7 @@ impl Affine {
     /// If the coefficients are `(a, b, c, d, e, f)`, then the resulting
     /// transformation represents this augmented matrix:
     ///
-    /// ```
+    /// ```text
     /// | a c e |
     /// | b d f |
     /// | 0 0 1 |
