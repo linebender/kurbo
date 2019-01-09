@@ -101,7 +101,10 @@ impl BezPath {
         }
     }
 
-    /// Get the segment at the given index.
+    /// Get the segment at the given element index.
+    ///
+    /// The element index counts [`PathEl`](enum.PathEl.html) elements, so
+    /// for example includes an initial `Moveto`.
     pub fn get_seg(&self, ix: usize) -> Option<PathSeg> {
         if ix == 0 || ix >= self.0.len() {
             return None;
@@ -143,6 +146,11 @@ impl BezPath {
     /// Find the nearest point.
     ///
     /// Panics if path is empty or invalid.
+    ///
+    /// Note that the returned index counts segments, not elements. Thus, the
+    /// initial `Moveto` is not counted. For a simple path consisting of a `Moveto`
+    /// followed by `Lineto/Quadto/Cubicto` elements, the element index is the
+    /// segment index + 1.
     ///
     /// Returns the index of the segment, the parameter within that segment, and
     /// the square of the distance to the point.
