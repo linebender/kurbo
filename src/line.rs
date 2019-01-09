@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// A single line.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Line {
     pub p0: Vec2,
     pub p1: Vec2,
@@ -107,7 +107,7 @@ impl ParamCurveExtrema for Line {
 }
 
 /// A trivial "curve" that is just a constant.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ConstVec2(Vec2);
 
 impl ParamCurve for ConstVec2 {

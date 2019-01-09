@@ -12,13 +12,13 @@ use crate::{
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
 ///
 /// A valid path has `Moveto` at the beginning of each subpath.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum PathEl {
     Moveto(Vec2),
     Lineto(Vec2),
@@ -28,7 +28,7 @@ pub enum PathEl {
 }
 
 /// A segment of a Bézier path.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum PathSeg {
     Line(Line),
     Quad(QuadBez),
@@ -82,19 +82,22 @@ impl BezPath {
     }
 
     /// Iterate over the path segments.
-    ///
-    /// The iterator returns the index within the path and the segment.
-    pub fn segments<'a>(&'a self) -> impl Iterator<Item = (usize, PathSeg)> + 'a {
+    pub fn segments<'a>(&'a self) -> impl Iterator<Item = PathSeg> + 'a {
         BezPath::segments_of_slice(&self.0)
     }
 
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
     fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
+        let first = match slice.get(0) {
+            Some(PathEl::Moveto(ref p)) => *p,
+            Some(_) => panic!("First element has to be a PathEl::Moveto!"),
+            None => Default::default(),
+        };
+
         BezPathSegs {
-            c: slice,
-            ix: 0,
-            start: None,
-            last: None,
+            c: slice.iter(),
+            start: first,
+            last: first,
         }
     }
 
@@ -141,11 +144,11 @@ impl BezPath {
     ///
     /// Panics if path is empty or invalid.
     ///
-    /// Returns the index of the element, the parameter within that segment, and
+    /// Returns the index of the segment, the parameter within that segment, and
     /// the square of the distance to the point.
     pub fn nearest(&self, p: Vec2, accuracy: f64) -> (usize, f64, f64) {
         let mut best = None;
-        for (ix, seg) in self.segments() {
+        for (ix, seg) in self.segments().enumerate() {
             let (t, r) = seg.nearest(p, accuracy);
             if best.map(|(_, _, r_best)| r < r_best).unwrap_or(true) {
                 best = Some((ix, t, r));
@@ -187,49 +190,38 @@ impl Mul<BezPath> for Affine {
 }
 
 struct BezPathSegs<'a> {
-    c: &'a [PathEl],
-    ix: usize,
-    start: Option<Vec2>,
-    last: Option<Vec2>,
+    c: std::slice::Iter<'a, PathEl>,
+    start: Vec2,
+    last: Vec2,
 }
 
 impl<'a> Iterator for BezPathSegs<'a> {
-    type Item = (usize, PathSeg);
+    type Item = PathSeg;
 
-    fn next(&mut self) -> Option<(usize, PathSeg)> {
-        while self.ix < self.c.len() {
-            let ix = self.ix;
-            let el = self.c[ix];
-            self.ix += 1;
-            match el {
+    fn next(&mut self) -> Option<PathSeg> {
+        for el in &mut self.c {
+            let (ret, last) = match *el {
                 PathEl::Moveto(p) => {
-                    self.start = Some(p);
-                    self.last = Some(p);
+                    self.start = p;
+                    self.last = p;
+                    continue;
                 }
-                PathEl::Lineto(p) => {
-                    let seg = PathSeg::Line(Line::new(self.last.unwrap(), p));
-                    self.last = Some(p);
-                    return Some((ix, seg));
-                }
-                PathEl::Quadto(p1, p2) => {
-                    let seg = PathSeg::Quad(QuadBez::new(self.last.unwrap(), p1, p2));
-                    self.last = Some(p2);
-                    return Some((ix, seg));
-                }
+                PathEl::Lineto(p) => (PathSeg::Line(Line::new(self.last, p)), p),
+                PathEl::Quadto(p1, p2) => (PathSeg::Quad(QuadBez::new(self.last, p1, p2)), p2),
                 PathEl::Curveto(p1, p2, p3) => {
-                    let seg = PathSeg::Cubic(CubicBez::new(self.last.unwrap(), p1, p2, p3));
-                    self.last = Some(p3);
-                    return Some((ix, seg));
+                    (PathSeg::Cubic(CubicBez::new(self.last, p1, p2, p3)), p3)
                 }
                 PathEl::Closepath => {
-                    let last = self.last.take();
-                    let start = self.start.take();
-                    if last != start {
-                        let seg = PathSeg::Line(Line::new(last.unwrap(), start.unwrap()));
-                        return Some((ix, seg));
+                    if self.last != self.start {
+                        (PathSeg::Line(Line::new(self.last, self.start)), self.start)
+                    } else {
+                        continue;
                     }
                 }
-            }
+            };
+
+            self.last = last;
+            return Some(ret);
         }
         None
     }
@@ -241,23 +233,23 @@ impl<'a> BezPathSegs<'a> {
 
     // TODO: pub? Or is this subsumed by method of &[PathEl]?
     fn arclen(self, accuracy: f64) -> f64 {
-        self.map(|(_, seg)| seg.arclen(accuracy)).sum()
+        self.map(|seg| seg.arclen(accuracy)).sum()
     }
 
     // Same
     fn area(self) -> f64 {
-        self.map(|(_, seg)| seg.signed_area()).sum()
+        self.map(|seg| seg.signed_area()).sum()
     }
 
     // Same
     fn winding(self, p: Vec2) -> i32 {
-        self.map(|(_, seg)| seg.winding(p)).sum()
+        self.map(|seg| seg.winding(p)).sum()
     }
 
     // Same
     fn bounding_box(self) -> Rect {
         let mut bbox: Option<Rect> = None;
-        for (_, seg) in self {
+        for seg in self {
             let seg_bb = seg.bounding_box();
             if let Some(bb) = bbox {
                 bbox = Some(bb.union(seg_bb));
