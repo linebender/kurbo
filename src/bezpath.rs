@@ -83,20 +83,28 @@ impl BezPath {
 
     /// Iterate over the path segments.
     pub fn segments<'a>(&'a self) -> impl Iterator<Item = PathSeg> + 'a {
-        let first = match self.0.get(0) {
+        BezPath::segments_of_slice(&self.0)
+    }
+
+    // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
+    fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
+        let first = match slice.get(0) {
             Some(PathEl::Moveto(ref p)) => *p,
             Some(_) => panic!("First element has to be a PathEl::Moveto!"),
             None => Default::default(),
         };
 
         BezPathSegs {
-            c: self.0.iter(),
+            c: slice.iter(),
             start: first,
             last: first,
         }
     }
 
-    /// Get the segment at the given index.
+    /// Get the segment at the given element index.
+    ///
+    /// The element index counts [`PathEl`](enum.PathEl.html) elements, so
+    /// for example includes an initial `Moveto`.
     pub fn get_seg(&self, ix: usize) -> Option<PathSeg> {
         if ix == 0 || ix >= self.0.len() {
             return None;
@@ -135,25 +143,14 @@ impl BezPath {
         }
     }
 
-    /// Compute the total arclength.
-    ///
-    /// Here, `accuracy` specifies the accuracy for each Bézier segment. At worst,
-    /// the total error is `accuracy` times the number of Bézier segments.
-    ///
-    /// Note: this is one of the methods that could be implemented on an iterator
-    /// of `PathEl`, to save allocation.
-    pub fn arclen(&self, accuracy: f64) -> f64 {
-        self.segments().map(|seg| seg.arclen(accuracy)).sum()
-    }
-
-    /// Compute the total signed area.
-    pub fn area(&self) -> f64 {
-        self.segments().map(|seg| seg.signed_area()).sum()
-    }
-
     /// Find the nearest point.
     ///
     /// Panics if path is empty or invalid.
+    ///
+    /// Note that the returned index counts segments, not elements. Thus, the
+    /// initial `Moveto` is not counted. For a simple path consisting of a `Moveto`
+    /// followed by `Lineto/Quadto/Cubicto` elements, the element index is the
+    /// segment index + 1.
     ///
     /// Returns the index of the segment, the parameter within that segment, and
     /// the square of the distance to the point.
@@ -166,13 +163,6 @@ impl BezPath {
             }
         }
         best.unwrap()
-    }
-
-    /// Compute the winding number.
-    ///
-    /// TODO: make sure all the signs are consistent.
-    pub fn winding(&self, p: Vec2) -> i32 {
-        self.segments().map(|seg| seg.winding(p)).sum()
     }
 }
 
@@ -242,6 +232,40 @@ impl<'a> Iterator for BezPathSegs<'a> {
             return Some(ret);
         }
         None
+    }
+}
+
+impl<'a> BezPathSegs<'a> {
+    /// Here, `accuracy` specifies the accuracy for each Bézier segment. At worst,
+    /// the total error is `accuracy` times the number of Bézier segments.
+
+    // TODO: pub? Or is this subsumed by method of &[PathEl]?
+    fn arclen(self, accuracy: f64) -> f64 {
+        self.map(|seg| seg.arclen(accuracy)).sum()
+    }
+
+    // Same
+    fn area(self) -> f64 {
+        self.map(|seg| seg.signed_area()).sum()
+    }
+
+    // Same
+    fn winding(self, p: Vec2) -> i32 {
+        self.map(|seg| seg.winding(p)).sum()
+    }
+
+    // Same
+    fn bounding_box(self) -> Rect {
+        let mut bbox: Option<Rect> = None;
+        for seg in self {
+            let seg_bb = seg.bounding_box();
+            if let Some(bb) = bbox {
+                bbox = Some(bb.union(seg_bb));
+            } else {
+                bbox = Some(seg_bb)
+            }
+        }
+        bbox.unwrap_or_default()
     }
 }
 
@@ -411,39 +435,62 @@ impl Shape for BezPath {
     /// Signed area.
     ///
     /// TODO: figure out sign convention, see #4.
-    ///
-    /// TODO: clean up duplication with impl method.
     fn area(&self) -> f64 {
-        BezPath::area(self)
+        self.elements().area()
     }
 
     fn perimeter(&self, accuracy: f64) -> f64 {
-        self.arclen(accuracy)
+        self.elements().perimeter(accuracy)
     }
 
     /// Winding number of point.
     ///
     /// TODO: figure out sign convention, see #4.
-    ///
-    /// TODO: clean up duplication with impl method.
     fn winding(&self, pt: Vec2) -> i32 {
-        BezPath::winding(self, pt)
+        self.elements().winding(pt)
     }
 
     fn bounding_box(&self) -> Rect {
-        let mut bbox: Option<Rect> = None;
-        for seg in self.segments() {
-            let seg_bb = seg.bounding_box();
-            if let Some(bb) = bbox {
-                bbox = Some(bb.union(seg_bb));
-            } else {
-                bbox = Some(seg_bb)
-            }
-        }
-        bbox.unwrap_or_default()
+        self.elements().bounding_box()
     }
 
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(&self.0)
+    }
+}
+
+impl<'a> Shape for &'a [PathEl] {
+    type BezPathIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
+
+    #[inline]
+    fn to_bez_path(&self, _tolerance: f64) -> Self::BezPathIter {
+        self.iter().cloned()
+    }
+
+    /// Signed area.
+    ///
+    /// TODO: figure out sign convention, see #4.
+    fn area(&self) -> f64 {
+        BezPath::segments_of_slice(self).area()
+    }
+
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        BezPath::segments_of_slice(self).arclen(accuracy)
+    }
+
+    /// Winding number of point.
+    ///
+    /// TODO: figure out sign convention, see #4.
+    fn winding(&self, pt: Vec2) -> i32 {
+        BezPath::segments_of_slice(self).winding(pt)
+    }
+
+    fn bounding_box(&self) -> Rect {
+        BezPath::segments_of_slice(self).bounding_box()
+    }
+
+    #[inline]
+    fn as_path_slice(&self) -> Option<&[PathEl]> {
+        Some(self)
     }
 }
