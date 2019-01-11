@@ -56,8 +56,13 @@ impl Vec2 {
 
     /// A unit vector of the given angle.
     ///
-    /// Note: the convention here is a y-up coordinate space, which is suitable
-    /// for math but is backwards for graphics.
+    /// With `th` at zero, the result is the positive X unit vector, and
+    /// at π/2, it is the positive Y unit vector.
+    ///
+    /// Thus, in a Y-down coordinate system (as is common for graphics),
+    /// it is a clockwise rotation, and in Y-up (traditional for math), it
+    /// is anti-clockwise. This convention is consistent with
+    /// [`Affine::rotate`](struct.Affine.html#method.rotate).
     #[inline]
     pub fn from_angle(th: f64) -> Vec2 {
         Vec2 {
