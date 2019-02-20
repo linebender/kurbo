@@ -8,7 +8,7 @@ rust:
 
 cache: cargo
 before_script:
-  - rustup component add rustfmt
+  - if [[ "$TRAVIS_RUST_VERSION" = stable ]]; then rustup component add rustfmt; fi
 script:
   - if [[ "$TRAVIS_RUST_VERSION" = stable ]]; then cargo fmt --all -- --check; fi
   - RUSTFLAGS="-D warnings" cargo check --all || exit
