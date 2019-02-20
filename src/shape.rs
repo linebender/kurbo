@@ -1,6 +1,6 @@
 //! A generic trait for shapes.
 
-use crate::{BezPath, Line, PathEl, Rect, Vec2};
+use crate::{BezPath, Circle, Line, PathEl, Rect, Vec2};
 
 /// A generic trait for open and closed shapes.
 pub trait Shape: Sized {
@@ -54,6 +54,11 @@ pub trait Shape: Sized {
 
     /// If the shape is a rectangle, make it available.
     fn as_rect(&self) -> Option<Rect> {
+        None
+    }
+
+    /// If the shape is a circle, make it available.
+    fn as_circle(&self) -> Option<Circle> {
         None
     }
 
