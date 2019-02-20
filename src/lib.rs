@@ -2,6 +2,7 @@
 
 mod affine;
 mod bezpath;
+mod circle;
 pub mod common;
 mod cubicbez;
 mod line;
@@ -14,6 +15,7 @@ mod vec2;
 
 pub use crate::affine::*;
 pub use crate::bezpath::*;
+pub use crate::circle::*;
 pub use crate::cubicbez::*;
 pub use crate::line::*;
 pub use crate::param_curve::*;
