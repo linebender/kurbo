@@ -33,7 +33,7 @@ impl Rect {
             x0: p0.x,
             y0: p0.y,
             x1: p1.x,
-            y1: p1.x,
+            y1: p1.y,
         }
         .abs()
     }
