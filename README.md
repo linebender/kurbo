@@ -21,13 +21,15 @@ Here we mention a few other curves libraries and touch on some of the decisions 
 
 * [vek] has both 2D and 3D Béziers among other things, and is tuned for game engines.
 
+Some code has been copied from lyon_geom with adaptation, thus the author of lyon_geom, Nicolas Silva, is credited in the [AUTHORS] file.
+
 ## More info
 
 To learn more about Bézier curves, [A Primer on Bézier Curves] by Pomax is indispensable.
 
 ## Contributing
 
-Contributions are welcome. The [Rust Code of Conduct] applies.
+Contributions are welcome. The [Rust Code of Conduct] applies. Please feel free to add your name to the [AUTHORS] file in any substantive pull request.
 
 [Rust Code of Conduct]: https://www.rust-lang.org/policies/code-of-conduct
 [lyon_geom]: https://crates.io/crates/lyon_geom

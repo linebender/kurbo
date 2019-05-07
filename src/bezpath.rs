@@ -197,6 +197,14 @@ impl Mul<BezPath> for Affine {
     }
 }
 
+impl<'a> Mul<&'a BezPath> for Affine {
+    type Output = BezPath;
+
+    fn mul(self, other: &BezPath) -> BezPath {
+        BezPath(other.0.iter().map(|&el| self * el).collect())
+    }
+}
+
 struct BezPathSegs<'a> {
     c: std::slice::Iter<'a, PathEl>,
     start: Vec2,
