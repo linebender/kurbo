@@ -1,6 +1,6 @@
 //! SVG path representation.
 
-use std::f64::consts::PI;
+use std::f64::consts::{FRAC_PI_2, PI};
 use std::io::Write;
 
 use crate::{BezPath, PathEl, Vec2};
@@ -124,6 +124,7 @@ impl BezPath {
                     sweep: sweep != 0.0,
                 };
                 let arc = Arc::from_svg_arc(&svg_arc);
+                // TODO: consider making tolerance configurable
                 arc.append_to_path(&mut path, 0.1);
                 lexer.last_pt = p;
                 last_cmd = c;
@@ -325,19 +326,25 @@ impl Arc {
         }
     }
 
-    fn get_angle(&self, t: f64) -> f64 {
-        self.start_angle + t * self.sweep_angle
-    }
-
-    fn append_to_path(&self, path: &mut BezPath, _tolerance: f64) {
-        // TODO: it's cheesy to do linear flattening, figure out curve math
-        let n = 5;
-        let recip_n = (n as f64).recip();
-        for i in 0..n {
-            let t = (i + 1) as f64 * recip_n;
-            path.lineto(
-                self.center + sample_ellipse(self.radii, self.x_rotation, self.get_angle(t)),
-            );
+    fn append_to_path(&self, path: &mut BezPath, tolerance: f64) {
+        let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
+        // Number of subdivisions per circle based on error tolerance.
+        // Note: this may slightly underestimate the error for quadrants.
+        let n_err = (1.1163 * scaled_err).powf(1.0 / 6.0).max(3.999_999);
+        let n = (n_err * self.sweep_angle.abs() * (1.0 / (2.0 * PI))).ceil();
+        let angle_step = self.sweep_angle / n;
+        let n = n as usize;
+        let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan();
+        let mut angle0 = self.start_angle;
+        let mut p0 = sample_ellipse(self.radii, self.x_rotation, angle0);
+        for _ in 0..n {
+            let angle1 = angle0 + angle_step;
+            let p1 = p0 + arm_len * sample_ellipse(self.radii, self.x_rotation, angle0 + FRAC_PI_2);
+            let p3 = sample_ellipse(self.radii, self.x_rotation, angle1);
+            let p2 = p3 - arm_len * sample_ellipse(self.radii, self.x_rotation, angle1 + FRAC_PI_2);
+            path.curveto(self.center + p1, self.center + p2, self.center + p3);
+            angle0 = angle1;
+            p0 = p3;
         }
     }
 }
@@ -345,9 +352,13 @@ impl Arc {
 fn sample_ellipse(radii: Vec2, x_rotation: f64, angle: f64) -> Vec2 {
     let u = radii.x * angle.cos();
     let v = radii.y * angle.sin();
+    rotate_pt(Vec2::new(u, v), x_rotation)
+}
+
+fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
     Vec2::new(
-        u * x_rotation.cos() - v * x_rotation.sin(),
-        u * x_rotation.sin() + v * x_rotation.cos(),
+        pt.x * angle.cos() - pt.y * angle.sin(),
+        pt.x * angle.sin() + pt.y * angle.cos(),
     )
 }
 
