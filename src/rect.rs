@@ -128,7 +128,7 @@ impl Rect {
         Rect::new(
             self.x0.min(pt.x),
             self.y0.min(pt.y),
-            self.x1.max(pt.y),
+            self.x1.max(pt.x),
             self.y1.max(pt.y),
         )
     }
@@ -148,6 +148,19 @@ impl Rect {
             y0,
             x1: x1.max(x0),
             y1: y1.max(y0),
+        }
+    }
+
+    /// Expand a rectangle by a constant amount in both directions.
+    ///
+    /// The logic simply applies the amount in each direction. If rectangle
+    /// area or added dimensions are negative, this could give odd results.
+    pub fn inflate(&self, width: f64, height: f64) -> Rect {
+        Rect {
+            x0: self.x0 - width,
+            y0: self.y0 - height,
+            x1: self.x1 + width,
+            y1: self.y1 + height,
         }
     }
 }
