@@ -127,11 +127,18 @@ impl BezPath {
                     large_arc: large_arc != 0.0,
                     sweep: sweep != 0.0,
                 };
-                let arc = Arc::from_svg_arc(&svg_arc);
-                // TODO: consider making tolerance configurable
-                arc.to_cubic_beziers(0.1, |p1, p2, p3| {
-                    path.curveto(p1, p2, p3);
-                });
+
+                match Arc::from_svg_arc(&svg_arc) {
+                    Some(arc) => {
+                        // TODO: consider making tolerance configurable
+                        arc.to_cubic_beziers(0.1, |p1, p2, p3| {
+                            path.curveto(p1, p2, p3);
+                        });
+                    }
+                    None => {
+                        path.lineto(p);
+                    }
+                }
 
                 lexer.last_pt = p;
                 last_cmd = c;
@@ -256,8 +263,18 @@ impl<'a> SvgLexer<'a> {
     }
 }
 
+impl SvgArc {
+    pub fn is_straight_line(&self) -> bool {
+        self.radii.x.abs() <= 1e-5 || self.radii.y.abs() <= 1e-5 || self.from == self.to
+    }
+}
+
 impl Arc {
-    pub fn from_svg_arc(arc: &SvgArc) -> Arc {
+    pub fn from_svg_arc(arc: &SvgArc) -> Option<Arc> {
+        if arc.is_straight_line() {
+            return None;
+        }
+
         let mut rx = arc.radii.x.abs();
         let mut ry = arc.radii.y.abs();
 
@@ -324,13 +341,13 @@ impl Arc {
             sweep_angle -= 2.0 * PI;
         }
 
-        Arc {
+        Some(Arc {
             center,
             radii: Vec2::new(rx, ry),
             start_angle,
             sweep_angle,
             x_rotation: arc.x_rotation,
-        }
+        })
     }
 
     pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
