@@ -352,7 +352,7 @@ impl Arc {
 
     pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
     where
-        P: FnMut(Vec2, Vec2, Vec2)
+        P: FnMut(Vec2, Vec2, Vec2),
     {
         let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
