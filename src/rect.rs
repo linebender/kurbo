@@ -28,7 +28,9 @@ impl Rect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_points(p0: Vec2, p1: Vec2) -> Rect {
+    pub fn from_points(p0: impl Into<Vec2>, p1: impl Into<Vec2>) -> Rect {
+        let p0 = p0.into();
+        let p1 = p1.into();
         Rect {
             x0: p0.x,
             y0: p0.y,
@@ -42,7 +44,9 @@ impl Rect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_origin_size(origin: Vec2, size: Vec2) -> Rect {
+    pub fn from_origin_size(origin: impl Into<Vec2>, size: impl Into<Vec2>) -> Rect {
+        let origin = origin.into();
+        let size = size.into();
         Rect::from_points(origin, origin + size)
     }
 
@@ -212,8 +216,8 @@ impl Sub<Vec2> for Rect {
 
 #[doc(hidden)]
 pub struct RectPathIter {
-    rect: Rect,
-    ix: usize,
+    pub(crate) rect: Rect,
+    pub(crate) ix: usize,
 }
 
 impl Shape for Rect {

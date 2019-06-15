@@ -19,7 +19,7 @@ pub struct Line {
 
 impl Line {
     #[inline]
-    pub fn new<V: Into<Vec2>>(p0: V, p1: V) -> Line {
+    pub fn new(p0: impl Into<Vec2>, p1: impl Into<Vec2>) -> Line {
         Line {
             p0: p0.into(),
             p1: p1.into(),

@@ -20,6 +20,18 @@ arrayvec = "0.4.10"
 version = "0.5.1"
 optional = true
 
+[dependencies.euclid-crate]
+package = "euclid"
+version = "0.19.9"
+optional = true
+
+[dependencies.num-traits]
+version = "0.2.8"
+optional = true
+
+[features]
+euclid = ["euclid-crate", "num-traits"]
+
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
 rand = "0.6"

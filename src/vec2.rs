@@ -85,6 +85,16 @@ impl From<(f64, f64)> for Vec2 {
     }
 }
 
+impl From<(f32, f32)> for Vec2 {
+    #[inline]
+    fn from(v: (f32, f32)) -> Vec2 {
+        Vec2 {
+            x: v.0.into(),
+            y: v.1.into(),
+        }
+    }
+}
+
 impl From<Vec2> for (f64, f64) {
     #[inline]
     fn from(v: Vec2) -> (f64, f64) {

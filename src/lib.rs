@@ -19,6 +19,8 @@ mod bezpath;
 mod circle;
 pub mod common;
 mod cubicbez;
+#[cfg(feature = "euclid")]
+mod euclid;
 mod line;
 mod param_curve;
 mod quadbez;
