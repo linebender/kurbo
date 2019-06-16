@@ -119,7 +119,7 @@ impl Shape for RoundedRect {
 
     #[inline]
     fn bounding_box(&self) -> Rect {
-        self.rect
+        self.rect.bounding_box()
     }
 
     #[inline]
