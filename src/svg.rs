@@ -264,13 +264,20 @@ impl<'a> SvgLexer<'a> {
 }
 
 impl SvgArc {
+    /// Checks that arc is actually a straight line.
+    ///
+    /// In this case, it can be replaced with a LineTo.
     pub fn is_straight_line(&self) -> bool {
         self.radii.x.abs() <= 1e-5 || self.radii.y.abs() <= 1e-5 || self.from == self.to
     }
 }
 
 impl Arc {
+    /// Creates an `Arc` from a `SvgArc`.
+    ///
+    /// Returns `None` if `arc` is actually a straight line.
     pub fn from_svg_arc(arc: &SvgArc) -> Option<Arc> {
+        // Have to check this first, otherwise `sum_of_sq` will be 0.
         if arc.is_straight_line() {
             return None;
         }
@@ -350,6 +357,9 @@ impl Arc {
         })
     }
 
+    /// Converts an Arc into a series of cubic bezier segments.
+    ///
+    /// Closure will be invoked for each segment.
     pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
     where
         P: FnMut(Vec2, Vec2, Vec2),
