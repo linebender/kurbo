@@ -100,6 +100,10 @@ impl<'a, T: Shape> Shape for &'a T {
         (*self).bounding_box()
     }
 
+    fn as_circle(&self) -> Option<Circle> {
+        (*self).as_circle()
+    }
+
     fn as_line(&self) -> Option<Line> {
         (*self).as_line()
     }
