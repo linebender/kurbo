@@ -6,7 +6,10 @@ use std::io::Write;
 use crate::{BezPath, PathEl, Vec2};
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
-struct SvgArc {
+
+/// A single SVG arc segment.
+#[derive(Clone, Copy, Debug)]
+pub struct SvgArc {
     pub from: Vec2,
     pub to: Vec2,
     pub radii: Vec2,
@@ -15,8 +18,9 @@ struct SvgArc {
     pub sweep: bool,
 }
 
-// TODO: consider adding this to the public API.
-struct Arc {
+/// A single arc segment.
+#[derive(Clone, Copy, Debug)]
+pub struct Arc {
     pub center: Vec2,
     pub radii: Vec2,
     pub start_angle: f64,
@@ -108,7 +112,7 @@ impl BezPath {
                 last_cmd = c;
             } else if c == b'a' || c == b'A' {
                 let radii = lexer.get_number_pair()?;
-                let x_rotation = lexer.get_number()?;
+                let x_rotation = lexer.get_number()?.to_radians();
                 lexer.opt_comma();
                 let large_arc = lexer.get_number()?;
                 lexer.opt_comma();
@@ -123,9 +127,19 @@ impl BezPath {
                     large_arc: large_arc != 0.0,
                     sweep: sweep != 0.0,
                 };
-                let arc = Arc::from_svg_arc(&svg_arc);
-                // TODO: consider making tolerance configurable
-                arc.append_to_path(&mut path, 0.1);
+
+                match Arc::from_svg_arc(&svg_arc) {
+                    Some(arc) => {
+                        // TODO: consider making tolerance configurable
+                        arc.to_cubic_beziers(0.1, |p1, p2, p3| {
+                            path.curveto(p1, p2, p3);
+                        });
+                    }
+                    None => {
+                        path.lineto(p);
+                    }
+                }
+
                 lexer.last_pt = p;
                 last_cmd = c;
             } else if c == b'z' || c == b'Z' {
@@ -249,8 +263,25 @@ impl<'a> SvgLexer<'a> {
     }
 }
 
+impl SvgArc {
+    /// Checks that arc is actually a straight line.
+    ///
+    /// In this case, it can be replaced with a LineTo.
+    pub fn is_straight_line(&self) -> bool {
+        self.radii.x.abs() <= 1e-5 || self.radii.y.abs() <= 1e-5 || self.from == self.to
+    }
+}
+
 impl Arc {
-    fn from_svg_arc(arc: &SvgArc) -> Arc {
+    /// Creates an `Arc` from a `SvgArc`.
+    ///
+    /// Returns `None` if `arc` is actually a straight line.
+    pub fn from_svg_arc(arc: &SvgArc) -> Option<Arc> {
+        // Have to check this first, otherwise `sum_of_sq` will be 0.
+        if arc.is_straight_line() {
+            return None;
+        }
+
         let mut rx = arc.radii.x.abs();
         let mut ry = arc.radii.y.abs();
 
@@ -317,16 +348,23 @@ impl Arc {
             sweep_angle -= 2.0 * PI;
         }
 
-        Arc {
+        Some(Arc {
             center,
             radii: Vec2::new(rx, ry),
             start_angle,
-            sweep_angle: sweep_angle,
+            sweep_angle,
             x_rotation: arc.x_rotation,
-        }
+        })
     }
 
-    fn append_to_path(&self, path: &mut BezPath, tolerance: f64) {
+    /// Converts an Arc into a series of cubic bezier segments.
+    ///
+    /// Closure will be invoked for each segment.
+    pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
+    where
+        P: FnMut(Vec2, Vec2, Vec2),
+    {
+        let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
         // Number of subdivisions per circle based on error tolerance.
         // Note: this may slightly underestimate the error for quadrants.
@@ -334,7 +372,7 @@ impl Arc {
         let n = (n_err * self.sweep_angle.abs() * (1.0 / (2.0 * PI))).ceil();
         let angle_step = self.sweep_angle / n;
         let n = n as usize;
-        let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan();
+        let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan() * sign;
         let mut angle0 = self.start_angle;
         let mut p0 = sample_ellipse(self.radii, self.x_rotation, angle0);
         for _ in 0..n {
@@ -342,7 +380,7 @@ impl Arc {
             let p1 = p0 + arm_len * sample_ellipse(self.radii, self.x_rotation, angle0 + FRAC_PI_2);
             let p3 = sample_ellipse(self.radii, self.x_rotation, angle1);
             let p2 = p3 - arm_len * sample_ellipse(self.radii, self.x_rotation, angle1 + FRAC_PI_2);
-            path.curveto(self.center + p1, self.center + p2, self.center + p3);
+            p(self.center + p1, self.center + p2, self.center + p3);
             angle0 = angle1;
             p0 = p3;
         }
@@ -370,5 +408,11 @@ mod tests {
     fn test_parse_svg() {
         let path = BezPath::from_svg("m10 10 100 0 0 100 -100 0z").unwrap();
         assert_eq!(path.segments().count(), 4);
+    }
+
+    #[test]
+    fn test_parse_svg_arc() {
+        let path = BezPath::from_svg("M 100 100 A 25 25 0 1 0 -25 25 z").unwrap();
+        assert_eq!(path.segments().count(), 3);
     }
 }
