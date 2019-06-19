@@ -8,7 +8,7 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
-    ParamCurveNearest, QuadBez, Rect, Shape, Vec2,
+    ParamCurveNearest, Point, QuadBez, Rect, Shape,
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
@@ -20,11 +20,11 @@ pub struct BezPath(Vec<PathEl>);
 /// A valid path has `Moveto` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug)]
 pub enum PathEl {
-    Moveto(Vec2),
-    Lineto(Vec2),
-    Quadto(Vec2, Vec2),
-    Curveto(Vec2, Vec2, Vec2),
-    Closepath,
+    MoveTo(Point),
+    LineTo(Point),
+    QuadTo(Point, Point),
+    CurveTo(Point, Point, Point),
+    ClosePath,
 }
 
 /// A segment of a Bézier path.
@@ -51,29 +51,29 @@ impl BezPath {
         self.0.push(el)
     }
 
-    /// Push a moveto element onto the path.
-    pub fn moveto<V: Into<Vec2>>(&mut self, p: V) {
-        self.push(PathEl::Moveto(p.into()));
+    /// Push a "move to" element onto the path.
+    pub fn move_to<P: Into<Point>>(&mut self, p: P) {
+        self.push(PathEl::MoveTo(p.into()));
     }
 
-    /// Push a lineto element onto the path.
-    pub fn lineto<V: Into<Vec2>>(&mut self, p: V) {
-        self.push(PathEl::Lineto(p.into()));
+    /// Push a "line to" element onto the path.
+    pub fn line_to<P: Into<Point>>(&mut self, p: P) {
+        self.push(PathEl::LineTo(p.into()));
     }
 
-    /// Push a quadto element onto the path.
-    pub fn quadto<V: Into<Vec2>>(&mut self, p1: V, p2: V) {
-        self.push(PathEl::Quadto(p1.into(), p2.into()));
+    /// Push a "quad to" element onto the path.
+    pub fn quad_to<P: Into<Point>>(&mut self, p1: P, p2: P) {
+        self.push(PathEl::QuadTo(p1.into(), p2.into()));
     }
 
-    /// Push a curveto element onto the path.
-    pub fn curveto<V: Into<Vec2>>(&mut self, p1: V, p2: V, p3: V) {
-        self.push(PathEl::Curveto(p1.into(), p2.into(), p3.into()));
+    /// Push a "curPe to" element onto the path.
+    pub fn curve_to<P: Into<Point>>(&mut self, p1: P, p2: P, p3: P) {
+        self.push(PathEl::CurveTo(p1.into(), p2.into(), p3.into()));
     }
 
-    /// Push a closepath element onto the path.
-    pub fn closepath(&mut self) {
-        self.push(PathEl::Closepath);
+    /// Push a "close path" element onto the path.
+    pub fn close_path(&mut self) {
+        self.push(PathEl::ClosePath);
     }
 
     /// Get the path elements.
@@ -89,7 +89,7 @@ impl BezPath {
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
     fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
         let first = match slice.get(0) {
-            Some(PathEl::Moveto(ref p)) => *p,
+            Some(PathEl::MoveTo(ref p)) => *p,
             Some(_) => panic!("First element has to be a PathEl::Moveto!"),
             None => Default::default(),
         };
@@ -110,18 +110,18 @@ impl BezPath {
             return None;
         }
         let last = match self.0[ix - 1] {
-            PathEl::Moveto(p) => p,
-            PathEl::Lineto(p) => p,
-            PathEl::Quadto(_, p2) => p2,
-            PathEl::Curveto(_, _, p3) => p3,
+            PathEl::MoveTo(p) => p,
+            PathEl::LineTo(p) => p,
+            PathEl::QuadTo(_, p2) => p2,
+            PathEl::CurveTo(_, _, p3) => p3,
             _ => return None,
         };
         match self.0[ix] {
-            PathEl::Lineto(p) => Some(PathSeg::Line(Line::new(last, p))),
-            PathEl::Quadto(p1, p2) => Some(PathSeg::Quad(QuadBez::new(last, p1, p2))),
-            PathEl::Curveto(p1, p2, p3) => Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3))),
-            PathEl::Closepath => self.0[..ix].iter().rev().find_map(|el| match *el {
-                PathEl::Moveto(start) => Some(PathSeg::Line(Line::new(last, start))),
+            PathEl::LineTo(p) => Some(PathSeg::Line(Line::new(last, p))),
+            PathEl::QuadTo(p1, p2) => Some(PathSeg::Quad(QuadBez::new(last, p1, p2))),
+            PathEl::CurveTo(p1, p2, p3) => Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3))),
+            PathEl::ClosePath => self.0[..ix].iter().rev().find_map(|el| match *el {
+                PathEl::MoveTo(start) => Some(PathSeg::Line(Line::new(last, start))),
                 _ => None,
             }),
             _ => None,
@@ -131,7 +131,7 @@ impl BezPath {
     /// Returns `true` if the path contains no segments.
     pub fn is_empty(&self) -> bool {
         !self.0.iter().any(|el| match *el {
-            PathEl::Lineto(..) | PathEl::Quadto(..) | PathEl::Curveto(..) => true,
+            PathEl::LineTo(..) | PathEl::QuadTo(..) | PathEl::CurveTo(..) => true,
             _ => false,
         })
     }
@@ -154,7 +154,7 @@ impl BezPath {
     ///
     /// Returns the index of the segment, the parameter within that segment, and
     /// the square of the distance to the point.
-    pub fn nearest(&self, p: Vec2, accuracy: f64) -> (usize, f64, f64) {
+    pub fn nearest(&self, p: Point, accuracy: f64) -> (usize, f64, f64) {
         let mut best = None;
         for (ix, seg) in self.segments().enumerate() {
             let (t, r) = seg.nearest(p, accuracy);
@@ -180,11 +180,11 @@ impl Mul<PathEl> for Affine {
 
     fn mul(self, other: PathEl) -> PathEl {
         match other {
-            PathEl::Moveto(p) => PathEl::Moveto(self * p),
-            PathEl::Lineto(p) => PathEl::Lineto(self * p),
-            PathEl::Quadto(p1, p2) => PathEl::Quadto(self * p1, self * p2),
-            PathEl::Curveto(p1, p2, p3) => PathEl::Curveto(self * p1, self * p2, self * p3),
-            PathEl::Closepath => PathEl::Closepath,
+            PathEl::MoveTo(p) => PathEl::MoveTo(self * p),
+            PathEl::LineTo(p) => PathEl::LineTo(self * p),
+            PathEl::QuadTo(p1, p2) => PathEl::QuadTo(self * p1, self * p2),
+            PathEl::CurveTo(p1, p2, p3) => PathEl::CurveTo(self * p1, self * p2, self * p3),
+            PathEl::ClosePath => PathEl::ClosePath,
         }
     }
 }
@@ -207,8 +207,8 @@ impl<'a> Mul<&'a BezPath> for Affine {
 
 struct BezPathSegs<'a> {
     c: std::slice::Iter<'a, PathEl>,
-    start: Vec2,
-    last: Vec2,
+    start: Point,
+    last: Point,
 }
 
 impl<'a> Iterator for BezPathSegs<'a> {
@@ -217,17 +217,17 @@ impl<'a> Iterator for BezPathSegs<'a> {
     fn next(&mut self) -> Option<PathSeg> {
         for el in &mut self.c {
             let (ret, last) = match *el {
-                PathEl::Moveto(p) => {
+                PathEl::MoveTo(p) => {
                     self.start = p;
                     self.last = p;
                     continue;
                 }
-                PathEl::Lineto(p) => (PathSeg::Line(Line::new(self.last, p)), p),
-                PathEl::Quadto(p1, p2) => (PathSeg::Quad(QuadBez::new(self.last, p1, p2)), p2),
-                PathEl::Curveto(p1, p2, p3) => {
+                PathEl::LineTo(p) => (PathSeg::Line(Line::new(self.last, p)), p),
+                PathEl::QuadTo(p1, p2) => (PathSeg::Quad(QuadBez::new(self.last, p1, p2)), p2),
+                PathEl::CurveTo(p1, p2, p3) => {
                     (PathSeg::Cubic(CubicBez::new(self.last, p1, p2, p3)), p3)
                 }
-                PathEl::Closepath => {
+                PathEl::ClosePath => {
                     if self.last != self.start {
                         (PathSeg::Line(Line::new(self.last, self.start)), self.start)
                     } else {
@@ -258,7 +258,7 @@ impl<'a> BezPathSegs<'a> {
     }
 
     // Same
-    fn winding(self, p: Vec2) -> i32 {
+    fn winding(self, p: Point) -> i32 {
         self.map(|seg| seg.winding(p)).sum()
     }
 
@@ -278,7 +278,7 @@ impl<'a> BezPathSegs<'a> {
 }
 
 impl ParamCurve for PathSeg {
-    fn eval(&self, t: f64) -> Vec2 {
+    fn eval(&self, t: f64) -> Point {
         match *self {
             PathSeg::Line(line) => line.eval(t),
             PathSeg::Quad(quad) => quad.eval(t),
@@ -316,7 +316,7 @@ impl ParamCurveArea for PathSeg {
 }
 
 impl ParamCurveNearest for PathSeg {
-    fn nearest(&self, p: Vec2, accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, accuracy: f64) -> (f64, f64) {
         match *self {
             PathSeg::Line(line) => line.nearest(p, accuracy),
             PathSeg::Quad(quad) => quad.nearest(p, accuracy),
@@ -337,7 +337,7 @@ impl ParamCurveExtrema for PathSeg {
 
 impl PathSeg {
     // Assumes split at extrema.
-    fn winding_inner(&self, p: Vec2) -> i32 {
+    fn winding_inner(&self, p: Point) -> i32 {
         let start = self.start();
         let end = self.end();
         let sign = if end.y > start.y {
@@ -425,7 +425,7 @@ impl PathSeg {
     /// Compute the winding number contribution of a single segment.
     ///
     /// Cast a ray to the left and count intersections.
-    fn winding(&self, p: Vec2) -> i32 {
+    fn winding(&self, p: Point) -> i32 {
         self.extrema_ranges()
             .into_iter()
             .map(|range| self.subsegment(range).winding_inner(p))
@@ -454,7 +454,7 @@ impl Shape for BezPath {
     /// Winding number of point.
     ///
     /// TODO: figure out sign convention, see #4.
-    fn winding(&self, pt: Vec2) -> i32 {
+    fn winding(&self, pt: Point) -> i32 {
         self.elements().winding(pt)
     }
 
@@ -489,7 +489,7 @@ impl<'a> Shape for &'a [PathEl] {
     /// Winding number of point.
     ///
     /// TODO: figure out sign convention, see #4.
-    fn winding(&self, pt: Vec2) -> i32 {
+    fn winding(&self, pt: Point) -> i32 {
         BezPath::segments_of_slice(self).winding(pt)
     }
 

@@ -7,19 +7,19 @@ use arrayvec::ArrayVec;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, PathEl, Rect, Shape, Vec2,
+    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape,
 };
 
 /// A single line.
 #[derive(Clone, Copy, Debug)]
 pub struct Line {
-    pub p0: Vec2,
-    pub p1: Vec2,
+    pub p0: Point,
+    pub p1: Point,
 }
 
 impl Line {
     #[inline]
-    pub fn new<V: Into<Vec2>>(p0: V, p1: V) -> Line {
+    pub fn new<P: Into<Point>>(p0: P, p1: P) -> Line {
         Line {
             p0: p0.into(),
             p1: p1.into(),
@@ -29,17 +29,17 @@ impl Line {
 
 impl ParamCurve for Line {
     #[inline]
-    fn eval(&self, t: f64) -> Vec2 {
+    fn eval(&self, t: f64) -> Point {
         self.p0.lerp(self.p1, t)
     }
 
     #[inline]
-    fn start(&self) -> Vec2 {
+    fn start(&self) -> Point {
         self.p0
     }
 
     #[inline]
-    fn end(&self) -> Vec2 {
+    fn end(&self) -> Point {
         self.p1
     }
 
@@ -53,11 +53,11 @@ impl ParamCurve for Line {
 }
 
 impl ParamCurveDeriv for Line {
-    type DerivResult = ConstVec2;
+    type DerivResult = ConstPoint;
 
     #[inline]
-    fn deriv(&self) -> ConstVec2 {
-        ConstVec2(self.p1 - self.p0)
+    fn deriv(&self) -> ConstPoint {
+        ConstPoint((self.p1 - self.p0).to_point())
     }
 }
 
@@ -71,12 +71,12 @@ impl ParamCurveArclen for Line {
 impl ParamCurveArea for Line {
     #[inline]
     fn signed_area(&self) -> f64 {
-        self.p0.cross(self.p1) * 0.5
+        self.p0.to_vec2().cross(self.p1.to_vec2()) * 0.5
     }
 }
 
 impl ParamCurveNearest for Line {
-    fn nearest(&self, p: Vec2, _accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, _accuracy: f64) -> (f64, f64) {
         let d = self.p1 - self.p0;
         let dotp = d.dot(p - self.p0);
         let d_squared = d.dot(d);
@@ -108,30 +108,30 @@ impl ParamCurveExtrema for Line {
 
 /// A trivial "curve" that is just a constant.
 #[derive(Clone, Copy, Debug)]
-pub struct ConstVec2(Vec2);
+pub struct ConstPoint(Point);
 
-impl ParamCurve for ConstVec2 {
+impl ParamCurve for ConstPoint {
     #[inline]
-    fn eval(&self, _t: f64) -> Vec2 {
+    fn eval(&self, _t: f64) -> Point {
         self.0
     }
 
     #[inline]
-    fn subsegment(&self, _range: Range<f64>) -> ConstVec2 {
+    fn subsegment(&self, _range: Range<f64>) -> ConstPoint {
         *self
     }
 }
 
-impl ParamCurveDeriv for ConstVec2 {
-    type DerivResult = ConstVec2;
+impl ParamCurveDeriv for ConstPoint {
+    type DerivResult = ConstPoint;
 
     #[inline]
-    fn deriv(&self) -> ConstVec2 {
-        ConstVec2(Vec2::new(0.0, 0.0))
+    fn deriv(&self) -> ConstPoint {
+        ConstPoint(Point::new(0.0, 0.0))
     }
 }
 
-impl ParamCurveArclen for ConstVec2 {
+impl ParamCurveArclen for ConstPoint {
     #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
         0.0
@@ -178,7 +178,7 @@ impl Shape for Line {
     }
 
     /// Same consideration as `area`.
-    fn winding(&self, _pt: Vec2) -> i32 {
+    fn winding(&self, _pt: Point) -> i32 {
         0
     }
 
@@ -199,8 +199,8 @@ impl Iterator for LinePathIter {
     fn next(&mut self) -> Option<PathEl> {
         self.ix += 1;
         match self.ix {
-            1 => Some(PathEl::Moveto(self.line.p0)),
-            2 => Some(PathEl::Lineto(self.line.p1)),
+            1 => Some(PathEl::MoveTo(self.line.p0)),
+            2 => Some(PathEl::LineTo(self.line.p1)),
             _ => None,
         }
     }

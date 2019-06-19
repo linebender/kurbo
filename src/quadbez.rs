@@ -8,21 +8,21 @@ use crate::common::solve_cubic;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Vec2,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point,
 };
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug)]
 pub struct QuadBez {
-    pub p0: Vec2,
-    pub p1: Vec2,
-    pub p2: Vec2,
+    pub p0: Point,
+    pub p1: Point,
+    pub p2: Point,
 }
 
 impl QuadBez {
     /// Create a new quadratic Bézier segment.
     #[inline]
-    pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V) -> QuadBez {
+    pub fn new<V: Into<Point>>(p0: V, p1: V, p2: V) -> QuadBez {
         QuadBez {
             p0: p0.into(),
             p1: p1.into(),
@@ -46,18 +46,20 @@ impl QuadBez {
 
 impl ParamCurve for QuadBez {
     #[inline]
-    fn eval(&self, t: f64) -> Vec2 {
+    fn eval(&self, t: f64) -> Point {
         let mt = 1.0 - t;
-        self.p0 * (mt * mt) + (self.p1 * (mt * 2.0) + self.p2 * t) * t
+        (self.p0.to_vec2() * (mt * mt)
+            + (self.p1.to_vec2() * (mt * 2.0) + self.p2.to_vec2() * t) * t)
+            .to_point()
     }
 
     #[inline]
-    fn start(&self) -> Vec2 {
+    fn start(&self) -> Point {
         self.p0
     }
 
     #[inline]
-    fn end(&self) -> Vec2 {
+    fn end(&self) -> Point {
         self.p2
     }
 
@@ -66,8 +68,8 @@ impl ParamCurve for QuadBez {
     fn subdivide(&self) -> (QuadBez, QuadBez) {
         let pm = self.eval(0.5);
         (
-            QuadBez::new(self.p0, (self.p0 + self.p1) / 2.0, pm),
-            QuadBez::new(pm, (self.p1 + self.p2) / 2.0, self.p2),
+            QuadBez::new(self.p0, self.p0.midpoint(self.p1), pm),
+            QuadBez::new(pm, self.p1.midpoint(self.p2), self.p2),
         )
     }
 
@@ -85,7 +87,10 @@ impl ParamCurveDeriv for QuadBez {
 
     #[inline]
     fn deriv(&self) -> Line {
-        Line::new(2.0 * (self.p1 - self.p0), 2.0 * (self.p2 - self.p1))
+        Line::new(
+            (2.0 * (self.p1.to_vec2() - self.p0.to_vec2())).to_point(),
+            (2.0 * (self.p2.to_vec2() - self.p1.to_vec2())).to_point(),
+        )
     }
 }
 
@@ -101,7 +106,7 @@ impl ParamCurveArclen for QuadBez {
     /// Adapted from <http://www.malczak.linuxpl.com/blog/quadratic-bezier-curve-length/>
     /// with permission.
     fn arclen(&self, _accuracy: f64) -> f64 {
-        let d2 = self.p0 - 2.0 * self.p1 + self.p2;
+        let d2 = self.p0.to_vec2() - 2.0 * self.p1.to_vec2() + self.p2.to_vec2();
         let a = d2.hypot2();
         let d1 = self.p1 - self.p0;
         let c = d1.hypot2();
@@ -110,14 +115,15 @@ impl ParamCurveArclen for QuadBez {
             //
             // Calculate arclength using Legendre-Gauss quadrature using formula from Behdad
             // in https://github.com/Pomax/BezierInfo-2/issues/77
-            let v0 = (-0.492943519233745 * self.p0
-                + 0.430331482911935 * self.p1
-                + 0.0626120363218102 * self.p2)
-                .hypot();
+            let v0 = (-0.492943519233745 * self.p0.to_vec2()
+                + 0.430331482911935 * self.p1.to_vec2()
+                + 0.0626120363218102 * self.p2.to_vec2())
+            .hypot();
             let v1 = ((self.p2 - self.p0) * 0.4444444444444444).hypot();
-            let v2 = (-0.0626120363218102 * self.p0 - 0.430331482911935 * self.p1
-                + 0.492943519233745 * self.p2)
-                .hypot();
+            let v2 = (-0.0626120363218102 * self.p0.to_vec2()
+                - 0.430331482911935 * self.p1.to_vec2()
+                + 0.492943519233745 * self.p2.to_vec2())
+            .hypot();
             return v0 + v1 + v2;
         }
         let b = 2.0 * d2.dot(d1);
@@ -153,15 +159,21 @@ impl ParamCurveArea for QuadBez {
 
 impl ParamCurveNearest for QuadBez {
     /// Find nearest point, using analytical algorithm based on cubic root finding.
-    fn nearest(&self, p: Vec2, _accuracy: f64) -> (f64, f64) {
-        fn eval_t(p: Vec2, t_best: &mut f64, r_best: &mut Option<f64>, t: f64, p0: Vec2) {
+    fn nearest(&self, p: Point, _accuracy: f64) -> (f64, f64) {
+        fn eval_t(p: Point, t_best: &mut f64, r_best: &mut Option<f64>, t: f64, p0: Point) {
             let r = (p0 - p).hypot2();
             if r_best.map(|r_best| r < r_best).unwrap_or(true) {
                 *r_best = Some(r);
                 *t_best = t;
             }
         }
-        fn try_t(q: &QuadBez, p: Vec2, t_best: &mut f64, r_best: &mut Option<f64>, t: f64) -> bool {
+        fn try_t(
+            q: &QuadBez,
+            p: Point,
+            t_best: &mut f64,
+            r_best: &mut Option<f64>,
+            t: f64,
+        ) -> bool {
             if t < 0.0 || t > 1.0 {
                 return true;
             }
@@ -169,7 +181,7 @@ impl ParamCurveNearest for QuadBez {
             false
         }
         let d0 = self.p1 - self.p0;
-        let d1 = self.p0 + self.p2 - 2.0 * self.p1;
+        let d1 = self.p0.to_vec2() + self.p2.to_vec2() - 2.0 * self.p1.to_vec2();
         let d = self.p0 - p;
         let c0 = d.dot(d0);
         let c1 = 2.0 * d0.hypot2() + d.dot(d1);
@@ -234,10 +246,10 @@ impl Mul<QuadBez> for Affine {
 mod tests {
     use crate::{
         Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema,
-        ParamCurveNearest, QuadBez, Vec2,
+        ParamCurveNearest, Point, QuadBez,
     };
 
-    fn assert_near(p0: Vec2, p1: Vec2, epsilon: f64) {
+    fn assert_near(p0: Point, p1: Point, epsilon: f64) {
         assert!((p1 - p0).hypot() < epsilon, "{:?} != {:?}", p0, p1);
     }
 
@@ -253,7 +265,7 @@ mod tests {
             let p = q.eval(t);
             let p1 = q.eval(t + delta);
             let d_approx = (p1 - p) * delta.recip();
-            let d = deriv.eval(t);
+            let d = deriv.eval(t).to_vec2();
             assert!((d - d_approx).hypot() < delta * 2.0);
         }
     }
@@ -346,7 +358,7 @@ mod tests {
         verify(q.nearest((1.1, 1.1).into(), 1e-3), 1.0);
         verify(q.nearest((-1.1, 1.1).into(), 1e-3), 0.0);
         let a = Affine::rotate(0.5);
-        verify((a * q).nearest(a * Vec2::new(0.5, 0.25), 1e-3), 0.75);
+        verify((a * q).nearest(a * Point::new(0.5, 0.25), 1e-3), 0.75);
     }
 
     #[test]

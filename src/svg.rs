@@ -3,15 +3,15 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::io::Write;
 
-use crate::{BezPath, PathEl, Vec2};
+use crate::{BezPath, PathEl, Point, Vec2};
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
 /// A single SVG arc segment.
 #[derive(Clone, Copy, Debug)]
 pub struct SvgArc {
-    pub from: Vec2,
-    pub to: Vec2,
+    pub from: Point,
+    pub to: Point,
     pub radii: Vec2,
     pub x_rotation: f64,
     pub large_arc: bool,
@@ -21,7 +21,7 @@ pub struct SvgArc {
 /// A single arc segment.
 #[derive(Clone, Copy, Debug)]
 pub struct Arc {
-    pub center: Vec2,
+    pub center: Point,
     pub radii: Vec2,
     pub start_angle: f64,
     pub sweep_angle: f64,
@@ -37,18 +37,18 @@ impl BezPath {
         let mut result = Vec::new();
         for el in self.elements() {
             match *el {
-                PathEl::Moveto(p) => write!(result, "M{} {}", p.x, p.y).unwrap(),
-                PathEl::Lineto(p) => write!(result, "L{} {}", p.x, p.y).unwrap(),
-                PathEl::Quadto(p1, p2) => {
+                PathEl::MoveTo(p) => write!(result, "M{} {}", p.x, p.y).unwrap(),
+                PathEl::LineTo(p) => write!(result, "L{} {}", p.x, p.y).unwrap(),
+                PathEl::QuadTo(p1, p2) => {
                     write!(result, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y).unwrap()
                 }
-                PathEl::Curveto(p1, p2, p3) => write!(
+                PathEl::CurveTo(p1, p2, p3) => write!(
                     result,
                     "C{} {} {} {} {} {}",
                     p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
                 )
                 .unwrap(),
-                PathEl::Closepath => write!(result, "Z").unwrap(),
+                PathEl::ClosePath => write!(result, "Z").unwrap(),
             }
         }
         String::from_utf8(result).unwrap()
@@ -62,13 +62,13 @@ impl BezPath {
         while let Some(c) = lexer.get_cmd(last_cmd) {
             if c == b'm' || c == b'M' {
                 let pt = lexer.get_maybe_relative(c)?;
-                path.moveto(pt);
+                path.move_to(pt);
                 lexer.last_pt = pt;
                 last_ctrl = Some(pt);
                 last_cmd = c - (b'M' - b'L');
             } else if c == b'l' || c == b'L' {
                 let pt = lexer.get_maybe_relative(c)?;
-                path.lineto(pt);
+                path.line_to(pt);
                 lexer.last_pt = pt;
                 last_cmd = c;
             } else if c == b'h' || c == b'H' {
@@ -77,8 +77,8 @@ impl BezPath {
                 if c == b'h' {
                     x += lexer.last_pt.x;
                 }
-                let pt = Vec2::new(x, lexer.last_pt.y);
-                path.lineto(pt);
+                let pt = Point::new(x, lexer.last_pt.y);
+                path.line_to(pt);
                 lexer.last_pt = pt;
                 last_cmd = c;
             } else if c == b'v' || c == b'V' {
@@ -87,26 +87,26 @@ impl BezPath {
                 if c == b'v' {
                     y += lexer.last_pt.y;
                 }
-                let pt = Vec2::new(lexer.last_pt.x, y);
-                path.lineto(pt);
+                let pt = Point::new(lexer.last_pt.x, y);
+                path.line_to(pt);
                 lexer.last_pt = pt;
                 last_cmd = c;
             } else if c == b'c' || c == b'C' {
                 let p1 = lexer.get_maybe_relative(c)?;
                 let p2 = lexer.get_maybe_relative(c)?;
                 let p3 = lexer.get_maybe_relative(c)?;
-                path.curveto(p1, p2, p3);
+                path.curve_to(p1, p2, p3);
                 last_ctrl = Some(p2);
                 lexer.last_pt = p3;
                 last_cmd = c;
             } else if c == b's' || c == b'S' {
                 let p1 = match last_ctrl {
-                    Some(ctrl) => 2.0 * lexer.last_pt - ctrl,
+                    Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
                     None => lexer.last_pt,
                 };
                 let p2 = lexer.get_maybe_relative(c)?;
                 let p3 = lexer.get_maybe_relative(c)?;
-                path.curveto(p1, p2, p3);
+                path.curve_to(p1, p2, p3);
                 last_ctrl = Some(p2);
                 lexer.last_pt = p3;
                 last_cmd = c;
@@ -122,7 +122,7 @@ impl BezPath {
                 let svg_arc = SvgArc {
                     from: lexer.last_pt,
                     to: p,
-                    radii,
+                    radii: radii.to_vec2(),
                     x_rotation,
                     large_arc: large_arc != 0.0,
                     sweep: sweep != 0.0,
@@ -132,18 +132,18 @@ impl BezPath {
                     Some(arc) => {
                         // TODO: consider making tolerance configurable
                         arc.to_cubic_beziers(0.1, |p1, p2, p3| {
-                            path.curveto(p1, p2, p3);
+                            path.curve_to(p1, p2, p3);
                         });
                     }
                     None => {
-                        path.lineto(p);
+                        path.line_to(p);
                     }
                 }
 
                 lexer.last_pt = p;
                 last_cmd = c;
             } else if c == b'z' || c == b'Z' {
-                path.closepath();
+                path.close_path();
                 // TODO: implicit moveto
             }
         }
@@ -160,7 +160,7 @@ pub enum SvgParseError {
 struct SvgLexer<'a> {
     data: &'a str,
     ix: usize,
-    pub last_pt: Vec2,
+    pub last_pt: Point,
 }
 
 impl<'a> SvgLexer<'a> {
@@ -168,7 +168,7 @@ impl<'a> SvgLexer<'a> {
         SvgLexer {
             data,
             ix: 0,
-            last_pt: Vec2::new(0.0, 0.0),
+            last_pt: Point::ORIGIN,
         }
     }
 
@@ -236,18 +236,18 @@ impl<'a> SvgLexer<'a> {
         }
     }
 
-    fn get_number_pair(&mut self) -> Result<Vec2, SvgParseError> {
+    fn get_number_pair(&mut self) -> Result<Point, SvgParseError> {
         let x = self.get_number()?;
         self.opt_comma();
         let y = self.get_number()?;
         self.opt_comma();
-        Ok(Vec2::new(x, y))
+        Ok(Point::new(x, y))
     }
 
-    fn get_maybe_relative(&mut self, cmd: u8) -> Result<Vec2, SvgParseError> {
+    fn get_maybe_relative(&mut self, cmd: u8) -> Result<Point, SvgParseError> {
         let pt = self.get_number_pair()?;
         if cmd >= b'a' && cmd <= b'z' {
-            Ok(pt + self.last_pt)
+            Ok(self.last_pt + pt.to_vec2())
         } else {
             Ok(pt)
         }
@@ -330,7 +330,7 @@ impl Arc {
         let transformed_cy = -coe * rypx / rx;
 
         // F6.5.3
-        let center = Vec2::new(
+        let center = Point::new(
             cos_phi * transformed_cx - sin_phi * transformed_cy + hs_x,
             sin_phi * transformed_cx + cos_phi * transformed_cy + hs_y,
         );
@@ -362,7 +362,7 @@ impl Arc {
     /// Closure will be invoked for each segment.
     pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
     where
-        P: FnMut(Vec2, Vec2, Vec2),
+        P: FnMut(Point, Point, Point),
     {
         let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;

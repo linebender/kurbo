@@ -2,6 +2,8 @@
 
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use crate::{Point, Size};
+
 /// A 2D vector.
 ///
 /// This can be interpreted as a point in 2-space, a translation, a
@@ -18,6 +20,18 @@ impl Vec2 {
     #[inline]
     pub fn new(x: f64, y: f64) -> Vec2 {
         Vec2 { x, y }
+    }
+
+    /// Convert this vector into a `Point`.
+    #[inline]
+    pub fn to_point(self) -> Point {
+        Point::new(self.x, self.y)
+    }
+
+    /// Convert this vector into a `Size`.
+    #[inline]
+    pub fn to_size(self) -> Size {
+        Size::new(self.x, self.y)
     }
 
     /// Dot product of two vectors.
@@ -71,7 +85,7 @@ impl Vec2 {
         }
     }
 
-    /// Linearly interpolate between two points.
+    /// Linearly interpolate between two vectors.
     #[inline]
     pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
         *self + t * (other - *self)
@@ -212,5 +226,21 @@ impl From<mint::Vector2<f64>> for Vec2 {
     #[inline]
     fn from(p: mint::Vector2<f64>) -> Vec2 {
         Vec2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<Point> for mint::Point2<f64> {
+    #[inline]
+    fn from(p: Point) -> mint::Point2<f64> {
+        mint::Point2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::Point2<f64>> for Point {
+    #[inline]
+    fn from(p: mint::Point2<f64>) -> Point {
+        Point { x: p.x, y: p.y }
     }
 }

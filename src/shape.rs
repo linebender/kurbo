@@ -1,6 +1,6 @@
 //! A generic trait for shapes.
 
-use crate::{BezPath, Circle, Line, PathEl, Rect, Vec2};
+use crate::{BezPath, Circle, Line, PathEl, Point, Rect};
 
 /// A generic trait for open and closed shapes.
 pub trait Shape: Sized {
@@ -42,7 +42,7 @@ pub trait Shape: Sized {
     /// This method only produces meaningful results with closed shapes.
     ///
     /// TODO: figure out sign convention, see #4.
-    fn winding(&self, pt: Vec2) -> i32;
+    fn winding(&self, pt: Point) -> i32;
 
     /// The smallest rectangle that encloses the shape.
     fn bounding_box(&self) -> Rect;
@@ -92,7 +92,7 @@ impl<'a, T: Shape> Shape for &'a T {
         (*self).perimeter(accuracy)
     }
 
-    fn winding(&self, pt: Vec2) -> i32 {
+    fn winding(&self, pt: Point) -> i32 {
         (*self).winding(pt)
     }
 
