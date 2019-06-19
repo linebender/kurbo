@@ -22,6 +22,24 @@ impl Size {
         Size { width, height }
     }
 
+    /// Returns a new size bounded by `min` and `max.`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    ///
+    /// let this = Size::new(0., 100.);
+    /// let min = Size::new(10., 10.,);
+    /// let max = Size::new(50., 50.);
+    /// assert_eq!(this.clamp(min, max), Size::new(10., 50.))
+    /// ```
+    pub fn clamp(self, min: Size, max: Size) -> Self {
+        let width = self.width.max(min.width).min(max.width);
+        let height = self.height.max(min.height).min(max.height);
+        Size { width, height }
+    }
+
     /// Convert this size into a `Vec2`, with `width` mapped to `x` and `height`
     /// mapped to `y`.
     #[inline]
