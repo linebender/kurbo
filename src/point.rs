@@ -35,14 +35,20 @@ impl Point {
 
     /// Linearly interpolate between two points.
     #[inline]
-    pub fn lerp(&self, other: Point, t: f64) -> Point {
+    pub fn lerp(self, other: Point, t: f64) -> Point {
         self.to_vec2().lerp(other.to_vec2(), t).to_point()
     }
 
     /// Determine the midpoint of two points.
     #[inline]
-    pub fn midpoint(&self, other: Point) -> Point {
+    pub fn midpoint(self, other: Point) -> Point {
         Point::new(0.5 * (self.x + other.x), 0.5 * (self.y + other.y))
+    }
+
+    /// Euclidean distance.
+    #[inline]
+    pub fn distance(self, other: Point) -> f64 {
+        (self - other).hypot()
     }
 }
 
@@ -126,6 +132,17 @@ mod tests {
             Point::new(0., 0.) - Point::new(-5., 101.),
             Vec2::new(5., -101.)
         );
+    }
+
+    #[test]
+    fn distance() {
+        let p1 = Point::new(0., 10.);
+        let p2 = Point::new(0., 5.);
+        assert_eq!(p1.distance(p2), 5.);
+
+        let p1 = Point::new(-11., 1.);
+        let p2 = Point::new(-7., -2.);
+        assert_eq!(p1.distance(p2), 5.);
     }
 }
 
