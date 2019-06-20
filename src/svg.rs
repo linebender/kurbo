@@ -1,6 +1,6 @@
 //! SVG path representation.
 
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::PI;
 use std::io::Write;
 
 use crate::{Arc, BezPath, PathEl, Point, Vec2};

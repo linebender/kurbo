@@ -1,4 +1,4 @@
-use crate::{BezPath, Vec2, PathEl};
+use crate::{BezPath, PathEl, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A single arc segment.
@@ -24,8 +24,8 @@ impl Arc {
         let angle_step = self.sweep_angle / n;
         let n = n as usize;
         let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan();
-        let mut angle0 = self.start_angle;
-        let mut p0 = sample_ellipse(self.radii, self.x_rotation, angle0);
+        let angle0 = self.start_angle;
+        let p0 = sample_ellipse(self.radii, self.x_rotation, angle0);
 
         ArcAppendIter {
             idx: 0,
@@ -81,15 +81,21 @@ impl Iterator for ArcAppendIter {
 
         let angle1 = self.angle0 + self.angle_step;
         let p0 = self.p0;
-        let p1 = p0 + self.arm_len * sample_ellipse(self.radii, self.x_rotation, self.angle0 + FRAC_PI_2);
+        let p1 = p0
+            + self.arm_len * sample_ellipse(self.radii, self.x_rotation, self.angle0 + FRAC_PI_2);
         let p3 = sample_ellipse(self.radii, self.x_rotation, angle1);
-        let p2 = p3 - self.arm_len * sample_ellipse(self.radii, self.x_rotation, angle1 + FRAC_PI_2);
+        let p2 =
+            p3 - self.arm_len * sample_ellipse(self.radii, self.x_rotation, angle1 + FRAC_PI_2);
 
         self.angle0 = angle1;
         self.p0 = p3;
         self.idx += 1;
 
-        Some(PathEl::Curveto(self.center + p1, self.center + p2, self.center + p3))
+        Some(PathEl::Curveto(
+            self.center + p1,
+            self.center + p2,
+            self.center + p3,
+        ))
     }
 }
 
