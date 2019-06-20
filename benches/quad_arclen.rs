@@ -10,7 +10,7 @@ use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, QuadBez};
 
 // Based on http://www.malczak.linuxpl.com/blog/quadratic-bezier-curve-length/
 fn quad_arclen_analytical(q: QuadBez) -> f64 {
-    let d2 = q.p0 - 2.0 * q.p1 + q.p2;
+    let d2 = q.p0.to_vec2() - 2.0 * q.p1.to_vec2() + q.p2.to_vec2();
     let a = d2.hypot2();
     let d1 = q.p1 - q.p0;
     let b = 2.0 * d2.dot(d1);
@@ -30,16 +30,19 @@ fn quad_arclen_analytical(q: QuadBez) -> f64 {
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
 fn gauss_arclen_3(q: QuadBez) -> f64 {
-    let v0 =
-        (-0.492943519233745 * q.p0 + 0.430331482911935 * q.p1 + 0.0626120363218102 * q.p2).hypot();
+    let v0 = (-0.492943519233745 * q.p0.to_vec2()
+        + 0.430331482911935 * q.p1.to_vec2()
+        + 0.0626120363218102 * q.p2.to_vec2())
+    .hypot();
     let v1 = ((q.p2 - q.p0) * 0.4444444444444444).hypot();
-    let v2 =
-        (-0.0626120363218102 * q.p0 - 0.430331482911935 * q.p1 + 0.492943519233745 * q.p2).hypot();
+    let v2 = (-0.0626120363218102 * q.p0.to_vec2() - 0.430331482911935 * q.p1.to_vec2()
+        + 0.492943519233745 * q.p2.to_vec2())
+    .hypot();
     v0 + v1 + v2
 }
 
 fn awesome_quad_arclen3(q: QuadBez, accuracy: f64, depth: usize) -> f64 {
-    let pm = (q.p0 + q.p2) / 2.0;
+    let pm = q.p0.midpoint(q.p2);
     let d1 = q.p1 - pm;
     let d = q.p2 - q.p0;
     let dhypot2 = d.hypot2();
@@ -63,7 +66,7 @@ fn gauss_arclen_n(q: QuadBez, coeffs: &[(f64, f64)]) -> f64 {
     let d = q.deriv();
     coeffs
         .iter()
-        .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).hypot())
+        .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).to_vec2().hypot())
         .sum::<f64>()
         * 0.5
 }
@@ -116,7 +119,7 @@ fn gauss_arclen_24(q: QuadBez) -> f64 {
 }
 
 fn awesome_quad_arclen7(q: QuadBez, accuracy: f64, depth: usize) -> f64 {
-    let pm = (q.p0 + q.p2) / 2.0;
+    let pm = q.p0.midpoint(q.p2);
     let d1 = q.p1 - pm;
     let d = q.p2 - q.p0;
     let dhypot2 = d.hypot2();

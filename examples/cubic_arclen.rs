@@ -4,21 +4,25 @@
 #![allow(unused)]
 
 use kurbo::common::*;
-use kurbo::{CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Vec2};
+use kurbo::{
+    CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Point, Vec2,
+};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in https://github.com/Pomax/BezierInfo-2/issues/77
 fn gauss_arclen_5(c: CubicBez) -> f64 {
     let v0 = (c.p1 - c.p0).hypot() * 0.15;
-    let v1 = (-0.558983582205757 * c.p0
-        + 0.325650248872424 * c.p1
-        + 0.208983582205757 * c.p2
-        + 0.024349751127576 * c.p3)
-        .hypot();
-    let v2 = (c.p3 - c.p0 + c.p2 - c.p1).hypot() * 0.26666666666666666;
-    let v3 = (-0.024349751127576 * c.p0 - 0.208983582205757 * c.p1 - 0.325650248872424 * c.p2
-        + 0.558983582205757 * c.p3)
-        .hypot();
+    let v1 = (-0.558983582205757 * c.p0.to_vec2()
+        + 0.325650248872424 * c.p1.to_vec2()
+        + 0.208983582205757 * c.p2.to_vec2()
+        + 0.024349751127576 * c.p3.to_vec2())
+    .hypot();
+    let v2 = (c.p3 - c.p0 + (c.p2 - c.p1)).hypot() * 0.26666666666666666;
+    let v3 = (-0.024349751127576 * c.p0.to_vec2()
+        - 0.208983582205757 * c.p1.to_vec2()
+        - 0.325650248872424 * c.p2.to_vec2()
+        + 0.558983582205757 * c.p3.to_vec2())
+    .hypot();
     let v4 = (c.p3 - c.p2).hypot() * 0.15;
 
     v0 + v1 + v2 + v3 + v4
@@ -35,7 +39,9 @@ fn est_gauss5_error(c: CubicBez) -> f64 {
     let d2 = c.deriv().deriv();
     let d3 = d2.deriv();
     let lmi = 2.0 / (lp + lc);
-    7e-8 * (d3.eval(0.5).hypot() * lmi + 5.0 * d2.eval(0.5).hypot() * lmi).powi(5) * lp
+    7e-8 * (d3.eval(0.5).to_vec2().hypot() * lmi + 5.0 * d2.eval(0.5).to_vec2().hypot() * lmi)
+        .powi(5)
+        * lp
 }
 
 fn gauss_errnorm_n<C: ParamCurveDeriv>(c: C, coeffs: &[(f64, f64)]) -> f64
@@ -45,7 +51,7 @@ where
     let d = c.deriv().deriv();
     coeffs
         .iter()
-        .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).hypot2())
+        .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).to_vec2().hypot2())
         .sum::<f64>()
 }
 
@@ -53,7 +59,7 @@ where
 fn cubic_errnorm(c: CubicBez) -> f64 {
     let d = c.deriv().deriv();
     let dd = d.end() - d.start();
-    d.start().hypot2() + d.start().dot(dd) + dd.hypot2() * (1.0 / 3.0)
+    d.start().to_vec2().hypot2() + d.start().to_vec2().dot(dd) + dd.hypot2() * (1.0 / 3.0)
 }
 
 fn est_gauss7_error(c: CubicBez) -> f64 {
@@ -94,8 +100,8 @@ fn est_gauss11_error_2(c: CubicBez) -> f64 {
         .map(|(wi, xi)| {
             wi * {
                 let t = 0.5 * (xi + 1.0);
-                let v = d.eval(t).hypot();
-                let a2 = d2.eval(t).hypot2();
+                let v = d.eval(t).to_vec2().hypot();
+                let a2 = d2.eval(t).to_vec2().hypot2();
                 a2.powi(3) / v.powi(5)
             }
         })
@@ -118,10 +124,10 @@ fn est_max_curvature(c: CubicBez) -> f64 {
 fn est_min_deriv_norm2(c: CubicBez) -> f64 {
     let d = c.deriv();
     let n = 100;
-    let mut min = d.eval(1.0).hypot2();
+    let mut min = d.eval(1.0).to_vec2().hypot2();
     for i in 0..n {
         let t = (i as f64) * (n as f64).recip();
-        min = min.min(d.eval(t).hypot2())
+        min = min.min(d.eval(t).to_vec2().hypot2())
     }
     min
 }
@@ -163,8 +169,8 @@ fn est_gauss9_error_2(c: CubicBez) -> f64 {
         .map(|(wi, xi)| {
             wi * {
                 let t = 0.5 * (xi + 1.0);
-                let v = d.eval(t).hypot();
-                let a = d2.eval(t).hypot();
+                let v = d.eval(t).to_vec2().hypot();
+                let a = d2.eval(t).to_vec2().hypot();
                 (1.0e-1 * a / v).tanh().powi(p) * v
             }
         })
@@ -219,8 +225,8 @@ fn my_arclen11(c: CubicBez, accuracy: f64, depth: usize, count: &mut usize) -> f
     }
 }
 
-fn randpt() -> Vec2 {
-    Vec2::new(rand::random(), rand::random())
+fn randpt() -> Point {
+    Point::new(rand::random(), rand::random())
 }
 
 fn randbez() -> CubicBez {

@@ -9,16 +9,16 @@ use crate::common::solve_quadratic;
 use crate::common::GAUSS_LEGENDRE_COEFFS_9;
 use crate::{
     Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, QuadBez, Vec2,
+    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
 };
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug)]
 pub struct CubicBez {
-    pub p0: Vec2,
-    pub p1: Vec2,
-    pub p2: Vec2,
-    pub p3: Vec2,
+    pub p0: Point,
+    pub p1: Point,
+    pub p2: Point,
+    pub p3: Point,
 }
 
 /// An iterator which produces quadratic Bézier segments.
@@ -31,7 +31,7 @@ struct ToQuads {
 impl CubicBez {
     /// Create a new cubic Bézier segment.
     #[inline]
-    pub fn new<V: Into<Vec2>>(p0: V, p1: V, p2: V, p3: V) -> CubicBez {
+    pub fn new<P: Into<Point>>(p0: P, p1: P, p2: P, p3: P) -> CubicBez {
         CubicBez {
             p0: p0.into(),
             p1: p1.into(),
@@ -62,19 +62,22 @@ impl CubicBez {
 
 impl ParamCurve for CubicBez {
     #[inline]
-    fn eval(&self, t: f64) -> Vec2 {
+    fn eval(&self, t: f64) -> Point {
         let mt = 1.0 - t;
-        self.p0 * (mt * mt * mt)
-            + (self.p1 * (mt * mt * 3.0) + (self.p2 * (mt * 3.0) + self.p3 * t) * t) * t
+        let v = self.p0.to_vec2() * (mt * mt * mt)
+            + (self.p1.to_vec2() * (mt * mt * 3.0)
+                + (self.p2.to_vec2() * (mt * 3.0) + self.p3.to_vec2() * t) * t)
+                * t;
+        v.to_point()
     }
 
     #[inline]
-    fn start(&self) -> Vec2 {
+    fn start(&self) -> Point {
         self.p0
     }
 
     #[inline]
-    fn end(&self) -> Vec2 {
+    fn end(&self) -> Point {
         self.p3
     }
 
@@ -84,8 +87,8 @@ impl ParamCurve for CubicBez {
         let p3 = self.eval(t1);
         let d = self.deriv();
         let scale = (t1 - t0) * (1.0 / 3.0);
-        let p1 = p0 + scale * d.eval(t0);
-        let p2 = p3 - scale * d.eval(t1);
+        let p1 = p0 + scale * d.eval(t0).to_vec2();
+        let p2 = p3 - scale * d.eval(t1).to_vec2();
         CubicBez { p0, p1, p2, p3 }
     }
 
@@ -96,14 +99,16 @@ impl ParamCurve for CubicBez {
         (
             CubicBez::new(
                 self.p0,
-                (self.p0 + self.p1) / 2.0,
-                (self.p0 + self.p1 * 2.0 + self.p2) * 0.25,
+                self.p0.midpoint(self.p1),
+                ((self.p0.to_vec2() + self.p1.to_vec2() * 2.0 + self.p2.to_vec2()) * 0.25)
+                    .to_point(),
                 pm,
             ),
             CubicBez::new(
                 pm,
-                (self.p1 + self.p2 * 2.0 + self.p3) * 0.25,
-                (self.p2 + self.p3) / 2.0,
+                ((self.p1.to_vec2() + self.p2.to_vec2() * 2.0 + self.p3.to_vec2()) * 0.25)
+                    .to_point(),
+                self.p2.midpoint(self.p3),
                 self.p3,
             ),
         )
@@ -116,9 +121,9 @@ impl ParamCurveDeriv for CubicBez {
     #[inline]
     fn deriv(&self) -> QuadBez {
         QuadBez::new(
-            3.0 * (self.p1 - self.p0),
-            3.0 * (self.p2 - self.p1),
-            3.0 * (self.p3 - self.p2),
+            (3.0 * (self.p1 - self.p0)).to_point(),
+            (3.0 * (self.p2 - self.p1)).to_point(),
+            (3.0 * (self.p3 - self.p2)).to_point(),
         )
     }
 }
@@ -133,7 +138,7 @@ impl ParamCurveArclen for CubicBez {
         fn cubic_errnorm(c: &CubicBez) -> f64 {
             let d = c.deriv().deriv();
             let dd = d.end() - d.start();
-            d.start().hypot2() + d.start().dot(dd) + dd.hypot2() * (1.0 / 3.0)
+            d.start().to_vec2().hypot2() + d.start().to_vec2().dot(dd) + dd.hypot2() * (1.0 / 3.0)
         }
         fn est_gauss9_error(c: &CubicBez) -> f64 {
             let lc = (c.p3 - c.p0).hypot();
@@ -168,7 +173,7 @@ impl ParamCurveArea for CubicBez {
 
 impl ParamCurveNearest for CubicBez {
     /// Find nearest point, using subdivision.
-    fn nearest(&self, p: Vec2, accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, accuracy: f64) -> (f64, f64) {
         let mut best_r = None;
         let mut best_t = 0.0;
         for (t0, t1, q) in self.to_quads(accuracy) {
@@ -234,12 +239,12 @@ impl Iterator for ToQuads {
         loop {
             let seg = self.c.subsegment(t0..t1);
             // Compute error for candidate quadratic.
-            let p1x2 = 3.0 * seg.p1 - seg.p0;
-            let p2x2 = 3.0 * seg.p2 - seg.p3;
+            let p1x2 = 3.0 * seg.p1.to_vec2() - seg.p0.to_vec2();
+            let p2x2 = 3.0 * seg.p2.to_vec2() - seg.p3.to_vec2();
             let err = (p2x2 - p1x2).hypot2();
             //println!("{:?} {} {}", t0..t1, err, if err < self.max_hypot2 { "ok" } else { "" });
             if err < self.max_hypot2 {
-                let result = QuadBez::new(seg.p0, (p1x2 + p2x2) / 4.0, seg.p3);
+                let result = QuadBez::new(seg.p0, ((p1x2 + p2x2) / 4.0).to_point(), seg.p3);
                 self.t = t1;
                 return Some((t0, t1, result));
             } else {
@@ -258,7 +263,7 @@ impl Iterator for ToQuads {
 mod tests {
     use crate::{
         Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, Vec2,
+        ParamCurveExtrema, ParamCurveNearest, Point,
     };
 
     #[test]
@@ -279,7 +284,7 @@ mod tests {
             let p = c.eval(t);
             let p1 = c.eval(t + delta);
             let d_approx = (p1 - p) * delta.recip();
-            let d = deriv.eval(t);
+            let d = deriv.eval(t).to_vec2();
             assert!((d - d_approx).hypot() < delta * 2.0);
         }
     }
@@ -382,7 +387,7 @@ mod tests {
         verify(c.nearest((1.1, 1.1).into(), 1e-6), 1.0);
         verify(c.nearest((-0.1, 0.0).into(), 1e-6), 0.0);
         let a = Affine::rotate(0.5);
-        verify((a * c).nearest(a * Vec2::new(0.1, 0.001), 1e-6), 0.1);
+        verify((a * c).nearest(a * Point::new(0.1, 0.001), 1e-6), 0.1);
     }
 
     #[test]

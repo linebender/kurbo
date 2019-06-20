@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Sub};
 
-use crate::{PathEl, Shape, Vec2};
+use crate::{PathEl, Point, Shape, Size, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, Debug)]
@@ -28,7 +28,7 @@ impl Rect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_points(p0: Vec2, p1: Vec2) -> Rect {
+    pub fn from_points(p0: Point, p1: Point) -> Rect {
         Rect {
             x0: p0.x,
             y0: p0.y,
@@ -42,8 +42,8 @@ impl Rect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_origin_size(origin: Vec2, size: Vec2) -> Rect {
-        Rect::from_points(origin, origin + size)
+    pub fn from_origin_size(origin: Point, size: Size) -> Rect {
+        Rect::from_points(origin, origin + size.to_vec2())
     }
 
     /// The width of the rectangle.
@@ -67,14 +67,14 @@ impl Rect {
     /// This is the top left corner in a y-down space and with
     /// non-negative width and height.
     #[inline]
-    pub fn origin(&self) -> Vec2 {
-        Vec2::new(self.x0, self.y0)
+    pub fn origin(&self) -> Point {
+        Point::new(self.x0, self.y0)
     }
 
     /// The size of the rectangle, as a vector.
     #[inline]
-    pub fn size(&self) -> Vec2 {
-        Vec2::new(self.width(), self.height())
+    pub fn size(&self) -> Size {
+        Size::new(self.width(), self.height())
     }
 
     /// The area of the rectangle.
@@ -85,8 +85,8 @@ impl Rect {
 
     /// The center point of the rectangle.
     #[inline]
-    pub fn center(&self) -> Vec2 {
-        Vec2::new(0.5 * (self.x0 + self.x1), 0.5 * (self.y0 + self.y1))
+    pub fn center(&self) -> Point {
+        Point::new(0.5 * (self.x0 + self.x1), 0.5 * (self.y0 + self.y1))
     }
 
     /// Take absolute value of width and height.
@@ -124,7 +124,7 @@ impl Rect {
     /// points yields their enclosing rectangle.
     ///
     /// Results are valid only if width and height are non-negative.
-    pub fn union_pt(&self, pt: Vec2) -> Rect {
+    pub fn union_pt(&self, pt: Point) -> Rect {
         Rect::new(
             self.x0.min(pt.x),
             self.y0.min(pt.y),
@@ -178,9 +178,17 @@ impl From<Rect> for ((f64, f64), (f64, f64)) {
     }
 }
 
-// Note: there aren't any `From` implementations from pairs of Vec2 because the
-// interpretation is ambiguous (point or vector), and it's hard to decide what to
-// do with negative width and height.
+impl From<(Point, Point)> for Rect {
+    fn from(points: (Point, Point)) -> Rect {
+        Rect::from_points(points.0, points.1)
+    }
+}
+
+impl From<(Point, Size)> for Rect {
+    fn from(params: (Point, Size)) -> Rect {
+        Rect::from_origin_size(params.0, params.1)
+    }
+}
 
 impl Add<Vec2> for Rect {
     type Output = Rect;
@@ -239,7 +247,7 @@ impl Shape for Rect {
     /// tiled with rectangles, the winding number will be nonzero for exactly
     /// one of them.
     #[inline]
-    fn winding(&self, pt: Vec2) -> i32 {
+    fn winding(&self, pt: Point) -> i32 {
         let xmin = self.x0.min(self.x1);
         let xmax = self.x0.max(self.x1);
         let ymin = self.y0.min(self.y1);
@@ -273,11 +281,11 @@ impl Iterator for RectPathIter {
     fn next(&mut self) -> Option<PathEl> {
         self.ix += 1;
         match self.ix {
-            1 => Some(PathEl::Moveto(Vec2::new(self.rect.x0, self.rect.y0))),
-            2 => Some(PathEl::Lineto(Vec2::new(self.rect.x1, self.rect.y0))),
-            3 => Some(PathEl::Lineto(Vec2::new(self.rect.x1, self.rect.y1))),
-            4 => Some(PathEl::Lineto(Vec2::new(self.rect.x0, self.rect.y1))),
-            5 => Some(PathEl::Closepath),
+            1 => Some(PathEl::MoveTo(Point::new(self.rect.x0, self.rect.y0))),
+            2 => Some(PathEl::LineTo(Point::new(self.rect.x1, self.rect.y0))),
+            3 => Some(PathEl::LineTo(Point::new(self.rect.x1, self.rect.y1))),
+            4 => Some(PathEl::LineTo(Point::new(self.rect.x0, self.rect.y1))),
+            5 => Some(PathEl::ClosePath),
             _ => None,
         }
     }

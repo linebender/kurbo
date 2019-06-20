@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use arrayvec::ArrayVec;
 
-use crate::{Rect, Vec2};
+use crate::{Point, Rect};
 
 /// A curve parametrized by a scalar.
 ///
@@ -14,7 +14,7 @@ pub trait ParamCurve: Sized {
     /// Evaluate the curve at parameter `t`.
     ///
     /// Generally `t` is in the range [0..1].
-    fn eval(&self, t: f64) -> Vec2;
+    fn eval(&self, t: f64) -> Point;
 
     /// Get a subsegment of the curve for the given parameter range.
     fn subsegment(&self, range: Range<f64>) -> Self;
@@ -26,12 +26,12 @@ pub trait ParamCurve: Sized {
     }
 
     /// The start point.
-    fn start(&self) -> Vec2 {
+    fn start(&self) -> Point {
         self.eval(0.0)
     }
 
     /// The end point.
-    fn end(&self) -> Vec2 {
+    fn end(&self) -> Point {
         self.eval(1.0)
     }
 }
@@ -43,6 +43,11 @@ pub trait ParamCurveDeriv {
     type DerivResult: ParamCurve;
 
     /// The derivative of the curve.
+    ///
+    /// Note that the type of the return value is somewhat inaccurate, as
+    /// the derivative of a curve (mapping of param to point) is a mapping
+    /// of param to vector. We choose to accept this rather than have a
+    /// more complex type scheme.
     fn deriv(&self) -> Self::DerivResult;
 
     /// Estimate arclength using Gaussian quadrature.
@@ -54,7 +59,7 @@ pub trait ParamCurveDeriv {
         let d = self.deriv();
         coeffs
             .iter()
-            .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).hypot())
+            .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).to_vec2().hypot())
             .sum::<f64>()
             * 0.5
     }
@@ -131,7 +136,7 @@ pub trait ParamCurveNearest {
     /// Find the point on the curve nearest the given point.
     ///
     /// Returns the parameter and the square of the distance.
-    fn nearest(&self, p: Vec2, accuracy: f64) -> (f64, f64);
+    fn nearest(&self, p: Point, accuracy: f64) -> (f64, f64);
 }
 
 /// A parametrized curve that reports its curvature.
@@ -144,8 +149,8 @@ where
     fn curvature(&self, t: f64) -> f64 {
         let deriv = self.deriv();
         let deriv2 = deriv.deriv();
-        let d = deriv.eval(t);
-        let d2 = deriv2.eval(t);
+        let d = deriv.eval(t).to_vec2();
+        let d2 = deriv2.eval(t).to_vec2();
         // TODO: What's the convention for sign? I think it should match signed
         // area - a positive area curve should have positive curvature.
         d2.cross(d) * d.hypot2().powf(-1.5)

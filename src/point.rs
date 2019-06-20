@@ -18,6 +18,9 @@ impl Point {
     /// The point (0, 0).
     pub const ZERO: Point = Point::new(0., 0.);
 
+    /// The point at the origin; (0, 0).
+    pub const ORIGIN: Point = Point::new(0., 0.);
+
     /// Create a new `Point` with the provided `x` and `y` coordinates.
     #[inline]
     pub const fn new(x: f64, y: f64) -> Self {
@@ -28,6 +31,32 @@ impl Point {
     #[inline]
     pub fn to_vec2(self) -> Vec2 {
         Vec2::new(self.x, self.y)
+    }
+
+    /// Linearly interpolate between two points.
+    #[inline]
+    pub fn lerp(&self, other: Point, t: f64) -> Point {
+        self.to_vec2().lerp(other.to_vec2(), t).to_point()
+    }
+
+    /// Determine the midpoint of two points.
+    #[inline]
+    pub fn midpoint(&self, other: Point) -> Point {
+        Point::new(0.5 * (self.x + other.x), 0.5 * (self.y + other.y))
+    }
+}
+
+impl From<(f64, f64)> for Point {
+    #[inline]
+    fn from(v: (f64, f64)) -> Point {
+        Point { x: v.0, y: v.1 }
+    }
+}
+
+impl From<Point> for (f64, f64) {
+    #[inline]
+    fn from(v: Point) -> (f64, f64) {
+        (v.x, v.y)
     }
 }
 
@@ -97,5 +126,21 @@ mod tests {
             Point::new(0., 0.) - Point::new(-5., 101.),
             Vec2::new(5., -101.)
         );
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<Point> for mint::Point2<f64> {
+    #[inline]
+    fn from(p: Point) -> mint::Point2<f64> {
+        mint::Point2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::Point2<f64>> for Point {
+    #[inline]
+    fn from(p: mint::Point2<f64>) -> Point {
+        Point { x: p.x, y: p.y }
     }
 }

@@ -2,11 +2,13 @@
 
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use crate::{Point, Size};
+
 /// A 2D vector.
 ///
-/// This can be interpreted as a point in 2-space, a translation, a
-/// vector, or a complex number; the interpretation is not indicated
-/// in the type.
+/// This is intended primarily for a vector in the mathematical sense,
+/// but it can be interpreted as a translation, and converted to and
+/// from a point (vector relative to the origin) and size.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Vec2 {
     pub x: f64,
@@ -18,6 +20,18 @@ impl Vec2 {
     #[inline]
     pub fn new(x: f64, y: f64) -> Vec2 {
         Vec2 { x, y }
+    }
+
+    /// Convert this vector into a `Point`.
+    #[inline]
+    pub fn to_point(self) -> Point {
+        Point::new(self.x, self.y)
+    }
+
+    /// Convert this vector into a `Size`.
+    #[inline]
+    pub fn to_size(self) -> Size {
+        Size::new(self.x, self.y)
     }
 
     /// Dot product of two vectors.
@@ -71,7 +85,7 @@ impl Vec2 {
         }
     }
 
-    /// Linearly interpolate between two points.
+    /// Linearly interpolate between two vectors.
     #[inline]
     pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
         *self + t * (other - *self)

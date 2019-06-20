@@ -3,13 +3,13 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::ops::{Add, Sub};
 
-use crate::{PathEl, Rect, Shape, Vec2};
+use crate::{PathEl, Point, Rect, Shape, Vec2};
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Circle {
     /// The center.
-    pub center: Vec2,
+    pub center: Point,
     /// The radius.
     pub radius: f64,
 }
@@ -17,7 +17,7 @@ pub struct Circle {
 impl Circle {
     /// A new circle from center and radius.
     #[inline]
-    pub fn new(center: impl Into<Vec2>, radius: f64) -> Circle {
+    pub fn new(center: impl Into<Point>, radius: f64) -> Circle {
         Circle {
             center: center.into(),
             radius,
@@ -93,7 +93,7 @@ impl Shape for Circle {
         (2.0 * PI * self.radius).abs()
     }
 
-    fn winding(&self, pt: Vec2) -> i32 {
+    fn winding(&self, pt: Point) -> i32 {
         if (pt - self.center).hypot2() < self.radius.powi(2) {
             self.radius.signum() as i32
         } else {
@@ -123,7 +123,7 @@ impl Iterator for CirclePathIter {
         let ix = self.ix;
         self.ix += 1;
         if ix == 0 {
-            Some(PathEl::Moveto(Vec2::new(x + r, y)))
+            Some(PathEl::MoveTo(Point::new(x + r, y)))
         } else if ix <= self.n {
             let th1 = self.delta_th * (ix as f64);
             let th0 = th1 - self.delta_th;
@@ -133,13 +133,13 @@ impl Iterator for CirclePathIter {
             } else {
                 (th1.cos(), th1.sin())
             };
-            Some(PathEl::Curveto(
-                Vec2::new(x + r * (c0 - a * s0), y + r * (s0 + a * c0)),
-                Vec2::new(x + r * (c1 + a * s1), y + r * (s1 - a * c1)),
-                Vec2::new(x + r * c1, y + r * s1),
+            Some(PathEl::CurveTo(
+                Point::new(x + r * (c0 - a * s0), y + r * (s0 + a * c0)),
+                Point::new(x + r * (c1 + a * s1), y + r * (s1 - a * c1)),
+                Point::new(x + r * c1, y + r * s1),
             ))
         } else if ix == self.n + 1 {
-            Some(PathEl::Closepath)
+            Some(PathEl::ClosePath)
         } else {
             None
         }
