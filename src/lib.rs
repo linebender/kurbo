@@ -14,6 +14,7 @@
 
 //! A garden of data structures for manipulating 2D curves.
 
+mod arc;
 mod affine;
 mod bezpath;
 mod circle;
