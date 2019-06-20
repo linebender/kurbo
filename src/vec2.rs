@@ -6,9 +6,9 @@ use crate::{Point, Size};
 
 /// A 2D vector.
 ///
-/// This can be interpreted as a point in 2-space, a translation, a
-/// vector, or a complex number; the interpretation is not indicated
-/// in the type.
+/// This is intended primarily for a vector in the mathematical sense,
+/// but it can be interpreted as a translation, and converted to and
+/// from a point (vector relative to the origin) and size.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Vec2 {
     pub x: f64,
@@ -226,21 +226,5 @@ impl From<mint::Vector2<f64>> for Vec2 {
     #[inline]
     fn from(p: mint::Vector2<f64>) -> Vec2 {
         Vec2 { x: p.x, y: p.y }
-    }
-}
-
-#[cfg(feature = "mint")]
-impl From<Point> for mint::Point2<f64> {
-    #[inline]
-    fn from(p: Point) -> mint::Point2<f64> {
-        mint::Point2 { x: p.x, y: p.y }
-    }
-}
-
-#[cfg(feature = "mint")]
-impl From<mint::Point2<f64>> for Point {
-    #[inline]
-    fn from(p: mint::Point2<f64>) -> Point {
-        Point { x: p.x, y: p.y }
     }
 }

@@ -128,3 +128,19 @@ mod tests {
         );
     }
 }
+
+#[cfg(feature = "mint")]
+impl From<Point> for mint::Point2<f64> {
+    #[inline]
+    fn from(p: Point) -> mint::Point2<f64> {
+        mint::Point2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::Point2<f64>> for Point {
+    #[inline]
+    fn from(p: mint::Point2<f64>) -> Point {
+        Point { x: p.x, y: p.y }
+    }
+}
