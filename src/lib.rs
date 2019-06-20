@@ -32,6 +32,7 @@ mod svg;
 mod vec2;
 
 pub use crate::affine::*;
+pub use crate::arc::*;
 pub use crate::bezpath::*;
 pub use crate::circle::*;
 pub use crate::cubicbez::*;

@@ -120,7 +120,7 @@ impl BezPath {
 
                 match Arc::from_svg_arc(&svg_arc) {
                     Some(arc) => {
-                // TODO: consider making tolerance configurable
+                        // TODO: consider making tolerance configurable
                         arc.to_cubic_beziers(0.1, |p1, p2, p3| {
                             path.curve_to(p1, p2, p3);
                         });
@@ -346,6 +346,8 @@ impl Arc {
             x_rotation: arc.x_rotation,
         })
     }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::BezPath;

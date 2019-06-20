@@ -1,4 +1,4 @@
-use crate::{BezPath, PathEl, Vec2};
+use crate::{PathEl, Point, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A single arc segment.
@@ -49,7 +49,7 @@ impl Arc {
     where
         P: FnMut(Point, Point, Point),
     {
-        let path = self.append_iter(tolerance);
+        let mut path = self.append_iter(tolerance);
         while let Some(PathEl::CurveTo(p1, p2, p3)) = path.next() {
             p(p1, p2, p3);
         }
@@ -60,7 +60,7 @@ impl Arc {
 pub struct ArcAppendIter {
     idx: usize,
 
-    center: Vec2,
+    center: Point,
     radii: Vec2,
     x_rotation: f64,
     n: usize,
@@ -91,7 +91,7 @@ impl Iterator for ArcAppendIter {
         self.p0 = p3;
         self.idx += 1;
 
-        Some(PathEl::Curveto(
+        Some(PathEl::CurveTo(
             self.center + p1,
             self.center + p2,
             self.center + p3,

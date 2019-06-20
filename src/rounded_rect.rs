@@ -1,9 +1,6 @@
 //! A rectangle with rounded corners.
 
-use crate::{
-    arc::{Arc, ArcAppendIter},
-    PathEl, Rect, Shape, Vec2,
-};
+use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, Shape, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A rectangle with rounded corners.
@@ -29,7 +26,7 @@ impl RoundedRect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_points(p0: Vec2, p1: Vec2, radius: f64) -> RoundedRect {
+    pub fn from_points(p0: Point, p1: Point, radius: f64) -> RoundedRect {
         RoundedRect {
             rect: Rect::from_points(p0, p1),
             radius,
@@ -40,7 +37,7 @@ impl RoundedRect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_origin_size(origin: Vec2, size: Vec2, radius: f64) -> RoundedRect {
+    pub fn from_origin_size(origin: Point, size: Vec2, radius: f64) -> RoundedRect {
         RoundedRect {
             rect: Rect::from_points(origin, origin + size),
             radius,
@@ -78,13 +75,13 @@ impl RoundedRect {
     /// This is the top left corner in a y-down space and with
     /// non-negative width and height.
     #[inline]
-    pub fn origin(&self) -> Vec2 {
+    pub fn origin(&self) -> Point {
         self.rect.origin()
     }
 
     /// The center point of the rectangle.
     #[inline]
-    pub fn center(&self) -> Vec2 {
+    pub fn center(&self) -> Point {
         self.rect.center()
     }
 
@@ -133,28 +130,28 @@ impl Shape for RoundedRect {
         let arcs = [
             build_arc_iter(
                 2,
-                Vec2 {
+                Point {
                     x: self.rect.x0 + radius,
                     y: self.rect.y0 + radius,
                 },
             ),
             build_arc_iter(
                 3,
-                Vec2 {
+                Point {
                     x: self.rect.x1 - radius,
                     y: self.rect.y0 + radius,
                 },
             ),
             build_arc_iter(
                 0,
-                Vec2 {
+                Point {
                     x: self.rect.x1 - radius,
                     y: self.rect.y1 - radius,
                 },
             ),
             build_arc_iter(
                 1,
-                Vec2 {
+                Point {
                     x: self.rect.x0 + radius,
                     y: self.rect.y1 - radius,
                 },
@@ -183,7 +180,7 @@ impl Shape for RoundedRect {
     }
 
     #[inline]
-    fn winding(&self, pt: Vec2) -> i32 {
+    fn winding(&self, pt: Point) -> i32 {
         let radius = self.radius();
         let inside_half_width = (self.width() / 2.0 - self.radius()).max(0.0);
         let inside_half_height = (self.height() / 2.0 - self.radius()).max(0.0);
@@ -224,23 +221,23 @@ impl Iterator for RectPathIter {
     fn next(&mut self) -> Option<PathEl> {
         self.ix += 1;
         match self.ix {
-            1 => Some(PathEl::Moveto(Vec2::new(
+            1 => Some(PathEl::MoveTo(Point::new(
                 self.rect.x0,
                 self.rect.y0 + self.radius,
             ))),
-            2 => Some(PathEl::Lineto(Vec2::new(
+            2 => Some(PathEl::LineTo(Point::new(
                 self.rect.x1 - self.radius,
                 self.rect.y0,
             ))),
-            3 => Some(PathEl::Lineto(Vec2::new(
+            3 => Some(PathEl::LineTo(Point::new(
                 self.rect.x1,
                 self.rect.y1 - self.radius,
             ))),
-            4 => Some(PathEl::Lineto(Vec2::new(
+            4 => Some(PathEl::LineTo(Point::new(
                 self.rect.x0 + self.radius,
                 self.rect.y1,
             ))),
-            5 => Some(PathEl::Closepath),
+            5 => Some(PathEl::ClosePath),
             _ => None,
         }
     }
@@ -274,7 +271,7 @@ impl Iterator for RoundedRectPathIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Circle, Rect, RoundedRect, Shape, Vec2};
+    use crate::{Circle, Point, Rect, RoundedRect, Shape};
 
     #[test]
     fn area() {
@@ -294,12 +291,12 @@ mod tests {
     #[test]
     fn winding() {
         let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 5.0);
-        assert_eq!(rect.winding(Vec2::new(0.0, 0.0)), 1); // center
-        assert_eq!(rect.winding(Vec2::new(-10.0, 0.0)), 1); // left edge
-        assert_eq!(rect.winding(Vec2::new(0.0, 20.0)), 1); // top edge
-        assert_eq!(rect.winding(Vec2::new(10.0, 20.0)), 0); // bottom-right corner
+        assert_eq!(rect.winding(Point::new(0.0, 0.0)), 1); // center
+        assert_eq!(rect.winding(Point::new(-10.0, 0.0)), 1); // left edge
+        assert_eq!(rect.winding(Point::new(0.0, 20.0)), 1); // top edge
+        assert_eq!(rect.winding(Point::new(10.0, 20.0)), 0); // bottom-right corner
 
         let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0); // rectangle
-        assert_eq!(rect.winding(Vec2::new(10.0, 20.0)), 1); // bottom-right corner
+        assert_eq!(rect.winding(Point::new(10.0, 20.0)), 1); // bottom-right corner
     }
 }
