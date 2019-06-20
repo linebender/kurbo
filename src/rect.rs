@@ -46,6 +46,18 @@ impl Rect {
         Rect::from_points(origin, origin + size.to_vec2())
     }
 
+    /// Create a new `Rect` with the same size as `self` and a new origin.
+    #[inline]
+    pub fn with_origin(self, origin: Point) -> Rect {
+        Rect::from_origin_size(origin, self.size())
+    }
+
+    /// Create a new `Rect` with the same origin as `self` and a new size.
+    #[inline]
+    pub fn with_size(self, size: Size) -> Rect {
+        Rect::from_origin_size(self.origin(), size)
+    }
+
     /// The width of the rectangle.
     ///
     /// Note: nothing forbids negative width.
