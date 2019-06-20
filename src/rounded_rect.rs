@@ -184,7 +184,20 @@ impl Shape for RoundedRect {
 
     #[inline]
     fn winding(&self, pt: Vec2) -> i32 {
-        unimplemented!() // TODO
+        let radius = self.radius();
+        let inside_half_width = (self.width() / 2.0 - self.radius()).max(0.0);
+        let inside_half_height = (self.height() / 2.0 - self.radius()).max(0.0);
+
+        // project point out of the inner rectangle (positive quadrant)
+        let px = (pt.x.abs() - inside_half_width).max(0.0);
+        let py = (pt.y.abs() - inside_half_height).max(0.0);
+
+        let inside = px * px + py * py <= radius * radius;
+        if inside {
+            1
+        } else {
+            0
+        }
     }
 
     #[inline]
@@ -261,7 +274,7 @@ impl Iterator for RoundedRectPathIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Circle, Rect, RoundedRect, Shape};
+    use crate::{Circle, Rect, RoundedRect, Shape, Vec2};
 
     #[test]
     fn area() {
@@ -276,5 +289,17 @@ mod tests {
         let circle = Circle::new((0.0, 0.0), 50.0);
         let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 50.0);
         assert!((circle.area() - rounded_rect.area()).abs() < epsilon);
+    }
+
+    #[test]
+    fn winding() {
+        let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 5.0);
+        assert_eq!(rect.winding(Vec2::new(0.0, 0.0)), 1); // center
+        assert_eq!(rect.winding(Vec2::new(-10.0, 0.0)), 1); // left edge
+        assert_eq!(rect.winding(Vec2::new(0.0, 20.0)), 1); // top edge
+        assert_eq!(rect.winding(Vec2::new(10.0, 20.0)), 0); // bottom-right corner
+
+        let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0); // rectangle
+        assert_eq!(rect.winding(Vec2::new(10.0, 20.0)), 1); // bottom-right corner
     }
 }
