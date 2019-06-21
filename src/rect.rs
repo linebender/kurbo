@@ -104,6 +104,12 @@ impl Rect {
         Point::new(0.5 * (self.x0 + self.x1), 0.5 * (self.y0 + self.y1))
     }
 
+    /// Returns `true` if `point` lies within `self`.
+    #[inline]
+    pub fn contains(&self, point: Point) -> bool {
+        point.x >= self.x0 && point.x < self.x1 && point.y >= self.y0 && point.y < self.y1
+    }
+
     /// Take absolute value of width and height.
     ///
     /// The resulting rect has the same extents as the original, but is
