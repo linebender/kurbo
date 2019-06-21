@@ -3,21 +3,35 @@
 use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, Shape, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 
-/// A rectangle with rounded corners.
+/// A rectangle with equally rounded corners.
+///
+/// By construction the rounded rectangle will have
+/// non-negative dimensions and radius clamped to half size of the rect.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct RoundedRect {
     /// Coordinates of the rectangle.
-    pub rect: Rect,
+    rect: Rect,
     /// Radius of all four corners.
-    pub radius: f64,
+    radius: f64,
 }
 
 impl RoundedRect {
     /// A new rectangle from minimum and maximum coordinates.
     #[inline]
     pub fn new(x0: f64, y0: f64, x1: f64, y1: f64, radius: f64) -> RoundedRect {
+        let min_x = x0.min(x1);
+        let max_x = x0.max(x1);
+
+        let min_y = y0.min(y1);
+        let max_y = y0.max(y1);
+
+        let width = max_x - min_x;
+        let height = max_y - min_y;
+
+        let radius = radius.abs().min(width / 2.0).min(height / 2.0);
+
         RoundedRect {
-            rect: Rect::new(x0, y0, x1, y1),
+            rect: Rect::new(min_x, min_y, max_x, max_y),
             radius,
         }
     }
@@ -27,10 +41,7 @@ impl RoundedRect {
     /// The result will have non-negative width and height.
     #[inline]
     pub fn from_points(p0: Point, p1: Point, radius: f64) -> RoundedRect {
-        RoundedRect {
-            rect: Rect::from_points(p0, p1),
-            radius,
-        }
+        RoundedRect::new(p0.x, p0.y, p1.x, p1.y, radius)
     }
 
     /// A new rectangle from origin and size.
@@ -38,36 +49,25 @@ impl RoundedRect {
     /// The result will have non-negative width and height.
     #[inline]
     pub fn from_origin_size(origin: Point, size: Vec2, radius: f64) -> RoundedRect {
-        RoundedRect {
-            rect: Rect::from_points(origin, origin + size),
-            radius,
-        }
+        RoundedRect::from_points(origin, origin + size, radius)
     }
 
     /// The width of the rectangle.
-    ///
-    /// Note: nothing forbids negative width.
     #[inline]
     pub fn width(&self) -> f64 {
         self.rect.width()
     }
 
     /// The height of the rectangle.
-    ///
-    /// Note: nothing forbids negative height.
     #[inline]
     pub fn height(&self) -> f64 {
         self.rect.height()
     }
 
-    /// Absolute radius of the rounded corners.
-    ///
-    /// Clamped to half the size of the rectangle.
+    /// Radius of the rounded corners.
+    /// #[inline]
     pub fn radius(&self) -> f64 {
         self.radius
-            .abs()
-            .min(self.width().abs() / 2.0)
-            .min(self.height().abs() / 2.0)
     }
 
     /// The origin of the vector.
@@ -83,18 +83,6 @@ impl RoundedRect {
     #[inline]
     pub fn center(&self) -> Point {
         self.rect.center()
-    }
-
-    /// Take absolute value of width, height and radius.
-    ///
-    /// The resulting rect has the same extents as the original, but is
-    /// guaranteed to have non-negative properties.
-    #[inline]
-    pub fn abs(&self) -> RoundedRect {
-        RoundedRect {
-            rect: self.rect.abs(),
-            radius: self.radius(),
-        }
     }
 }
 
@@ -176,19 +164,29 @@ impl Shape for RoundedRect {
     #[inline]
     fn perimeter(&self, _accuracy: f64) -> f64 {
         let radius = self.radius();
-        2.0 * (self.width().abs() + self.height().abs()) - 8.0 * radius + 2.0 * PI * radius
+        2.0 * (self.width() + self.height()) - 8.0 * radius + 2.0 * PI * radius
     }
 
     #[inline]
-    fn winding(&self, pt: Point) -> i32 {
-        let radius = self.radius();
-        let inside_half_width = (self.width() / 2.0 - self.radius()).max(0.0);
-        let inside_half_height = (self.height() / 2.0 - self.radius()).max(0.0);
+    fn winding(&self, mut pt: Point) -> i32 {
+        // The rounded rectangle can be seen as minkowski sum of an inner rectangle
+        // and circle specified by the radius of the corners.
 
-        // project point out of the inner rectangle (positive quadrant)
+        let center = self.center();
+        let radius = self.radius();
+        let inside_half_width = (self.width() / 2.0 - radius).max(0.0);
+        let inside_half_height = (self.height() / 2.0 - radius).max(0.0);
+
+        // 1. Translate the point relative to the center of the rectangle.
+        pt.x -= center.x;
+        pt.y -= center.y;
+
+        // 2. Project point out of the inner rectangle (positive quadrant)
+        //    This basically 'substracts' the inner rectangle.
         let px = (pt.x.abs() - inside_half_width).max(0.0);
         let py = (pt.y.abs() - inside_half_height).max(0.0);
 
+        // 3. The test reduced to calculate the winding of the circle.
         let inside = px * px + py * py <= radius * radius;
         if inside {
             1
@@ -254,16 +252,20 @@ impl Iterator for RoundedRectPathIter {
 
         // Iterate between rectangle and arc iterators.
         // Rect iterator will start and end the path.
+
+        // Initial point set by the rect iterator
         if self.idx == 0 {
             self.idx += 1;
-            self.rect.next()
-        } else {
-            match self.arcs[self.idx - 1].next() {
-                Some(elem) => Some(elem),
-                None => {
-                    self.idx += 1;
-                    self.rect.next()
-                }
+            return self.rect.next();
+        }
+
+        // Generate the arc curve elements.
+        // If we reached the end of the arc, add a line towards next arc (rect iterator).
+        match self.arcs[self.idx - 1].next() {
+            Some(elem) => Some(elem),
+            None => {
+                self.idx += 1;
+                self.rect.next()
             }
         }
     }
@@ -290,11 +292,12 @@ mod tests {
 
     #[test]
     fn winding() {
-        let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 5.0);
-        assert_eq!(rect.winding(Point::new(0.0, 0.0)), 1); // center
-        assert_eq!(rect.winding(Point::new(-10.0, 0.0)), 1); // left edge
-        assert_eq!(rect.winding(Point::new(0.0, 20.0)), 1); // top edge
+        let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, 5.0);
+        assert_eq!(rect.winding(Point::new(0.0, 0.0)), 1);
+        assert_eq!(rect.winding(Point::new(-5.0, 0.0)), 1); // left edge
+        assert_eq!(rect.winding(Point::new(0.0, 20.0)), 1); // bottom edge
         assert_eq!(rect.winding(Point::new(10.0, 20.0)), 0); // bottom-right corner
+        assert_eq!(rect.winding(Point::new(-10.0, 0.0)), 0);
 
         let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0); // rectangle
         assert_eq!(rect.winding(Point::new(10.0, 20.0)), 1); // bottom-right corner
