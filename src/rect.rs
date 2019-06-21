@@ -177,19 +177,6 @@ impl Rect {
     }
 }
 
-impl From<((f64, f64), (f64, f64))> for Rect {
-    fn from(coords: ((f64, f64), (f64, f64))) -> Rect {
-        let ((x0, y0), (x1, y1)) = coords;
-        Rect { x0, y0, x1, y1 }
-    }
-}
-
-impl From<Rect> for ((f64, f64), (f64, f64)) {
-    fn from(r: Rect) -> ((f64, f64), (f64, f64)) {
-        ((r.x0, r.y0), (r.x1, r.y1))
-    }
-}
-
 impl From<(Point, Point)> for Rect {
     fn from(points: (Point, Point)) -> Rect {
         Rect::from_points(points.0, points.1)
