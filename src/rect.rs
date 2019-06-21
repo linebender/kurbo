@@ -28,7 +28,9 @@ impl Rect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_points(p0: Point, p1: Point) -> Rect {
+    pub fn from_points(p0: impl Into<Point>, p1: impl Into<Point>) -> Rect {
+        let p0 = p0.into();
+        let p1 = p1.into();
         Rect {
             x0: p0.x,
             y0: p0.y,
@@ -42,19 +44,20 @@ impl Rect {
     ///
     /// The result will have non-negative width and height.
     #[inline]
-    pub fn from_origin_size(origin: Point, size: Size) -> Rect {
-        Rect::from_points(origin, origin + size.to_vec2())
+    pub fn from_origin_size(origin: impl Into<Point>, size: impl Into<Size>) -> Rect {
+        let origin = origin.into();
+        Rect::from_points(origin, origin + size.into().to_vec2())
     }
 
     /// Create a new `Rect` with the same size as `self` and a new origin.
     #[inline]
-    pub fn with_origin(self, origin: Point) -> Rect {
+    pub fn with_origin(self, origin: impl Into<Point>) -> Rect {
         Rect::from_origin_size(origin, self.size())
     }
 
     /// Create a new `Rect` with the same origin as `self` and a new size.
     #[inline]
-    pub fn with_size(self, size: Size) -> Rect {
+    pub fn with_size(self, size: impl Into<Size>) -> Rect {
         Rect::from_origin_size(self.origin(), size)
     }
 
