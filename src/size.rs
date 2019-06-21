@@ -59,3 +59,20 @@ impl fmt::Display for Size {
         write!(formatter, "({}×{})", self.width, self.height)
     }
 }
+
+impl From<(f64, f64)> for Size {
+    #[inline]
+    fn from(v: (f64, f64)) -> Size {
+        Size {
+            width: v.0,
+            height: v.1,
+        }
+    }
+}
+
+impl From<Size> for (f64, f64) {
+    #[inline]
+    fn from(v: Size) -> (f64, f64) {
+        (v.width, v.height)
+    }
+}
