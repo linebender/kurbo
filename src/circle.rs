@@ -23,6 +23,12 @@ impl Circle {
             radius,
         }
     }
+
+    /// Returns `true` if `point` lies within `self`.
+    #[inline]
+    pub fn contains(&self, point: Point) -> bool {
+        point.distance(self.center) < self.radius
+    }
 }
 
 impl Add<Vec2> for Circle {
