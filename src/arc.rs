@@ -1,3 +1,5 @@
+//! A circle arc.
+
 use crate::{PathEl, Point, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 

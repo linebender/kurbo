@@ -17,28 +17,30 @@ pub struct RoundedRect {
 
 impl RoundedRect {
     /// A new rectangle from minimum and maximum coordinates.
+    ///
+    /// The result will have non-negative width, height and radius.
     #[inline]
     pub fn new(x0: f64, y0: f64, x1: f64, y1: f64, radius: f64) -> RoundedRect {
-        let min_x = x0.min(x1);
-        let max_x = x0.max(x1);
+        RoundedRect::from_rect(Rect::new(x0, y0, x1, y1), radius)
+    }
 
-        let min_y = y0.min(y1);
-        let max_y = y0.max(y1);
+    /// A new rounded rectangle from a rectangle and corner radius.
+    ///
+    /// The result will have non-negative width, height and radius.
+    #[inline]
+    pub fn from_rect(rect: Rect, radius: f64) -> RoundedRect {
+        let rect = rect.abs();
+        let radius = radius
+            .abs()
+            .min(rect.width() / 2.0)
+            .min(rect.height() / 2.0);
 
-        let width = max_x - min_x;
-        let height = max_y - min_y;
-
-        let radius = radius.abs().min(width / 2.0).min(height / 2.0);
-
-        RoundedRect {
-            rect: Rect::new(min_x, min_y, max_x, max_y),
-            radius,
-        }
+        RoundedRect { rect, radius }
     }
 
     /// A new rectangle from two points.
     ///
-    /// The result will have non-negative width and height.
+    /// The result will have non-negative width, height and radius.
     #[inline]
     pub fn from_points(p0: Point, p1: Point, radius: f64) -> RoundedRect {
         RoundedRect::new(p0.x, p0.y, p1.x, p1.y, radius)
@@ -46,7 +48,7 @@ impl RoundedRect {
 
     /// A new rectangle from origin and size.
     ///
-    /// The result will have non-negative width and height.
+    /// The result will have non-negative width, height and radius.
     #[inline]
     pub fn from_origin_size(origin: Point, size: Vec2, radius: f64) -> RoundedRect {
         RoundedRect::from_points(origin, origin + size, radius)
