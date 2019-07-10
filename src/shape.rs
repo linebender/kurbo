@@ -13,11 +13,29 @@ pub trait Shape: Sized {
     /// likely to be more efficient; in the general case, this
     /// allocates.
     ///
-    /// TODO: When GAT's land, the type of this can be changed to
+    /// The `tolerance` parameter controls the accuracy of
+    /// conversion of geometric primitives to Bézier curves, as
+    /// curves such as circles cannot be represented exactly but
+    /// only approximated. For drawing as in UI elements, a value
+    /// of 0.1 is appropriate, as it is unlikely to be visible to
+    /// the eye. For scientific applications, a smaller value
+    /// might be appropriate. Note that in general the number of
+    /// cubic Bézier segments scales as `tolerance ^ (-1/6)`.
+    ///
+    /// TODO: When [GAT's] land, the type of this can be changed to
     /// contain a `&'a self` reference, which would let us take
     /// iterators from complex shapes without cloning.
+    ///
+    /// [GAT's]: https://github.com/rust-lang/rust/issues/44265
     fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter;
 
+    /// Convert into a Bézier path.
+    ///
+    /// Currently, this always allocates. It is appropriate when
+    /// the resulting path is to be retained.
+    ///
+    /// The `tolerance` parameter is the same as
+    /// [`to_bez_path()`](#tymethod.to_bez_path).
     fn into_bez_path(self, tolerance: f64) -> BezPath {
         let vec = if let Some(slice) = self.as_path_slice() {
             Vec::from(slice)
