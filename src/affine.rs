@@ -43,6 +43,8 @@ impl Affine {
     /// positive X direction into positive Y. Thus, in a Y-down coordinate
     /// system (as is common for graphics), it is a clockwise rotation, and
     /// in Y-up (traditional for math), it is anti-clockwise.
+    ///
+    /// The angle, `th`, is expressed in radians.
     #[inline]
     pub fn rotate(th: f64) -> Affine {
         let s = th.sin();

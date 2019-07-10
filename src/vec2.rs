@@ -63,6 +63,7 @@ impl Vec2 {
     /// Angle of vector.
     ///
     /// If the vector is interpreted as a complex number, this is the argument.
+    /// The angle is expressed in radians.
     #[inline]
     pub fn atan2(&self) -> f64 {
         self.y.atan2(self.x)
@@ -71,7 +72,8 @@ impl Vec2 {
     /// A unit vector of the given angle.
     ///
     /// With `th` at zero, the result is the positive X unit vector, and
-    /// at π/2, it is the positive Y unit vector.
+    /// at π/2, it is the positive Y unit vector. The angle is expressed
+    /// in radians.
     ///
     /// Thus, in a Y-down coordinate system (as is common for graphics),
     /// it is a clockwise rotation, and in Y-up (traditional for math), it
