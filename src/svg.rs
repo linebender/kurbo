@@ -1,9 +1,9 @@
 //! SVG path representation.
 
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::PI;
 use std::io::Write;
 
-use crate::{BezPath, PathEl, Point, Vec2};
+use crate::{Arc, BezPath, PathEl, Point, Vec2};
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
@@ -16,16 +16,6 @@ pub struct SvgArc {
     pub x_rotation: f64,
     pub large_arc: bool,
     pub sweep: bool,
-}
-
-/// A single arc segment.
-#[derive(Clone, Copy, Debug)]
-pub struct Arc {
-    pub center: Point,
-    pub radii: Vec2,
-    pub start_angle: f64,
-    pub sweep_angle: f64,
-    pub x_rotation: f64,
 }
 
 impl BezPath {
@@ -356,48 +346,6 @@ impl Arc {
             x_rotation: arc.x_rotation,
         })
     }
-
-    /// Converts an Arc into a series of cubic bezier segments.
-    ///
-    /// Closure will be invoked for each segment.
-    pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
-    where
-        P: FnMut(Point, Point, Point),
-    {
-        let sign = self.sweep_angle.signum();
-        let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
-        // Number of subdivisions per circle based on error tolerance.
-        // Note: this may slightly underestimate the error for quadrants.
-        let n_err = (1.1163 * scaled_err).powf(1.0 / 6.0).max(3.999_999);
-        let n = (n_err * self.sweep_angle.abs() * (1.0 / (2.0 * PI))).ceil();
-        let angle_step = self.sweep_angle / n;
-        let n = n as usize;
-        let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan() * sign;
-        let mut angle0 = self.start_angle;
-        let mut p0 = sample_ellipse(self.radii, self.x_rotation, angle0);
-        for _ in 0..n {
-            let angle1 = angle0 + angle_step;
-            let p1 = p0 + arm_len * sample_ellipse(self.radii, self.x_rotation, angle0 + FRAC_PI_2);
-            let p3 = sample_ellipse(self.radii, self.x_rotation, angle1);
-            let p2 = p3 - arm_len * sample_ellipse(self.radii, self.x_rotation, angle1 + FRAC_PI_2);
-            p(self.center + p1, self.center + p2, self.center + p3);
-            angle0 = angle1;
-            p0 = p3;
-        }
-    }
-}
-
-fn sample_ellipse(radii: Vec2, x_rotation: f64, angle: f64) -> Vec2 {
-    let u = radii.x * angle.cos();
-    let v = radii.y * angle.sin();
-    rotate_pt(Vec2::new(u, v), x_rotation)
-}
-
-fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
-    Vec2::new(
-        pt.x * angle.cos() - pt.y * angle.sin(),
-        pt.x * angle.sin() + pt.y * angle.cos(),
-    )
 }
 
 #[cfg(test)]

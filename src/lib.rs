@@ -15,6 +15,7 @@
 //! A garden of data structures for manipulating 2D curves.
 
 mod affine;
+mod arc;
 mod bezpath;
 mod circle;
 pub mod common;
@@ -24,12 +25,14 @@ mod param_curve;
 mod point;
 mod quadbez;
 mod rect;
+mod rounded_rect;
 mod shape;
 mod size;
 mod svg;
 mod vec2;
 
 pub use crate::affine::*;
+pub use crate::arc::*;
 pub use crate::bezpath::*;
 pub use crate::circle::*;
 pub use crate::cubicbez::*;
@@ -38,6 +41,7 @@ pub use crate::param_curve::*;
 pub use crate::point::*;
 pub use crate::quadbez::*;
 pub use crate::rect::*;
+pub use crate::rounded_rect::*;
 pub use crate::shape::*;
 pub use crate::size::*;
 pub use crate::svg::*;
