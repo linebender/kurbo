@@ -8,7 +8,7 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
-    ParamCurveNearest, Point, QuadBez, Rect, Shape,
+    ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale,
 };
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
@@ -198,6 +198,36 @@ impl Mul<BezPath> for Affine {
 }
 
 impl<'a> Mul<&'a BezPath> for Affine {
+    type Output = BezPath;
+
+    fn mul(self, other: &BezPath) -> BezPath {
+        BezPath(other.0.iter().map(|&el| self * el).collect())
+    }
+}
+
+impl Mul<PathEl> for TranslateScale {
+    type Output = PathEl;
+
+    fn mul(self, other: PathEl) -> PathEl {
+        match other {
+            PathEl::MoveTo(p) => PathEl::MoveTo(self * p),
+            PathEl::LineTo(p) => PathEl::LineTo(self * p),
+            PathEl::QuadTo(p1, p2) => PathEl::QuadTo(self * p1, self * p2),
+            PathEl::CurveTo(p1, p2, p3) => PathEl::CurveTo(self * p1, self * p2, self * p3),
+            PathEl::ClosePath => PathEl::ClosePath,
+        }
+    }
+}
+
+impl Mul<BezPath> for TranslateScale {
+    type Output = BezPath;
+
+    fn mul(self, other: BezPath) -> BezPath {
+        BezPath(other.0.iter().map(|&el| self * el).collect())
+    }
+}
+
+impl<'a> Mul<&'a BezPath> for TranslateScale {
     type Output = BezPath;
 
     fn mul(self, other: &BezPath) -> BezPath {

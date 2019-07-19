@@ -2,7 +2,7 @@
 
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use crate::{Affine, Circle, Point, Rect, Vec2};
+use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, Vec2};
 
 /// A transformation including scaling and translation.
 ///
@@ -27,6 +27,9 @@ use crate::{Affine, Circle, Point, Rect, Vec2};
 /// translation of (2, 0), while
 /// `TranslateScale::translate(Vec2::new(1.0, 0.0)) * 2.0` has a
 /// translation of (1, 0). (Both have a scale of 2).
+///
+/// This transformation is less powerful than `Affine`, but can be applied
+/// to more primitives, especially including [`Rect`](struct.Rect.html).
 #[derive(Clone, Copy, Debug)]
 pub struct TranslateScale {
     translation: Vec2,
@@ -195,6 +198,15 @@ impl Mul<Circle> for TranslateScale {
     }
 }
 
+impl Mul<Line> for TranslateScale {
+    type Output = Line;
+
+    #[inline]
+    fn mul(self, other: Line) -> Line {
+        Line::new(self * other.p0, self * other.p1)
+    }
+}
+
 impl Mul<Rect> for TranslateScale {
     type Output = Rect;
 
@@ -203,6 +215,38 @@ impl Mul<Rect> for TranslateScale {
         let pt0 = self * Point::new(other.x0, other.y0);
         let pt1 = self * Point::new(other.x1, other.y1);
         (pt0, pt1).into()
+    }
+}
+
+impl Mul<RoundedRect> for TranslateScale {
+    type Output = RoundedRect;
+
+    #[inline]
+    fn mul(self, other: RoundedRect) -> RoundedRect {
+        RoundedRect::from_rect(self * other.rect(), self.scale * other.radius())
+    }
+}
+
+impl Mul<QuadBez> for TranslateScale {
+    type Output = QuadBez;
+
+    #[inline]
+    fn mul(self, other: QuadBez) -> QuadBez {
+        QuadBez::new(self * other.p0, self * other.p1, self * other.p2)
+    }
+}
+
+impl Mul<CubicBez> for TranslateScale {
+    type Output = CubicBez;
+
+    #[inline]
+    fn mul(self, other: CubicBez) -> CubicBez {
+        CubicBez::new(
+            self * other.p0,
+            self * other.p1,
+            self * other.p2,
+            self * other.p3,
+        )
     }
 }
 
