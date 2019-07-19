@@ -336,6 +336,25 @@ impl ParamCurveExtrema for PathSeg {
 }
 
 impl PathSeg {
+    /// Returns a new `PathSeg` describing the same path as `self`, but with
+    /// the points reversed.
+    pub fn reverse(&self) -> PathSeg {
+        match self {
+            PathSeg::Line(Line { p0, p1 }) => PathSeg::Line(Line::new(*p1, *p0)),
+            PathSeg::Quad(q) => PathSeg::Quad(QuadBez::new(q.p2, q.p1, q.p0)),
+            PathSeg::Cubic(c) => PathSeg::Cubic(CubicBez::new(c.p3, c.p2, c.p1, c.p0)),
+        }
+    }
+
+    /// Convert this segment to a cubic bezier.
+    pub fn to_cubic(&self) -> CubicBez {
+        match *self {
+            PathSeg::Line(Line { p0, p1 }) => CubicBez::new(p0, p0, p1, p1),
+            PathSeg::Cubic(c) => c,
+            PathSeg::Quad(q) => q.raise(),
+        }
+    }
+
     // Assumes split at extrema.
     fn winding_inner(&self, p: Point) -> i32 {
         let start = self.start();
