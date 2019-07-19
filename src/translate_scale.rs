@@ -5,6 +5,28 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use crate::{Affine, Circle, Point, Rect, Vec2};
 
 /// A transformation including scaling and translation.
+///
+/// If the translation is `(x, y)` and the scale is `s`, then this
+/// transformation represents this augmented matrix:
+///
+/// ```text
+/// | s 0 x |
+/// | 0 s y |
+/// | 0 0 1 |
+/// ```
+///
+/// See [`Affine`](struct.Affine.html) for more details about the
+/// equivalence with augmented matrices.
+///
+/// Various multiplication ops are defined, and these are all defined
+/// to be consistent with matrix multiplication. Therefore,
+/// `TranslateScale * Point` is defined but not the other way around.
+///
+/// Also note that multiplication is not commutative. Thus,
+/// `2.0 * TranslateScale::translate(Vec2::new(1.0, 0.0))` has a
+/// translation of (2, 0), while
+/// `TranslateScale::translate(Vec2::new(1.0, 0.0)) * 2.0` has a
+/// translation of (1, 0). (Both have a scale of 2).
 #[derive(Clone, Copy, Debug)]
 pub struct TranslateScale {
     translation: Vec2,
@@ -14,25 +36,40 @@ pub struct TranslateScale {
 impl TranslateScale {
     /// Create a new transformation from translation and scale.
     #[inline]
-    pub fn new(translation: Vec2, scale: f64) -> TranslateScale {
+    pub const fn new(translation: Vec2, scale: f64) -> TranslateScale {
         TranslateScale { translation, scale }
     }
 
     /// Create a new transformation with scale only.
     #[inline]
-    pub fn scale(s: f64) -> TranslateScale {
+    pub const fn scale(s: f64) -> TranslateScale {
         TranslateScale::new(Vec2::ZERO, s)
     }
 
     /// Create a new transformation with translation only.
     #[inline]
-    pub fn translate(t: Vec2) -> TranslateScale {
+    pub const fn translate(t: Vec2) -> TranslateScale {
         TranslateScale::new(t, 1.0)
     }
 
     /// Decompose transformation into translation and scale.
     pub fn as_tuple(self) -> (Vec2, f64) {
         (self.translation, self.scale)
+    }
+
+    /// Compute the inverse transform.
+    ///
+    /// Multiplying a transform with its inverse (either on the
+    /// left or right) results in the identity transform
+    /// (modulo floating point rounding errors).
+    ///
+    /// Panics when scale is zero.
+    pub fn inverse(self) -> TranslateScale {
+        let scale_recip = self.scale.recip();
+        TranslateScale {
+            translation: self.translation * -scale_recip,
+            scale: scale_recip,
+        }
     }
 }
 
@@ -86,6 +123,18 @@ impl Mul<TranslateScale> for f64 {
         TranslateScale {
             translation: other.translation * self,
             scale: other.scale * self,
+        }
+    }
+}
+
+impl Mul<f64> for TranslateScale {
+    type Output = TranslateScale;
+
+    #[inline]
+    fn mul(self, other: f64) -> TranslateScale {
+        TranslateScale {
+            translation: self.translation,
+            scale: self.scale * other,
         }
     }
 }
@@ -154,5 +203,46 @@ impl Mul<Rect> for TranslateScale {
         let pt0 = self * Point::new(other.x0, other.y0);
         let pt1 = self * Point::new(other.x1, other.y1);
         (pt0, pt1).into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Affine, Point, TranslateScale, Vec2};
+
+    fn assert_near(p0: Point, p1: Point) {
+        assert!((p1 - p0).hypot() < 1e-9, "{:?} != {:?}", p0, p1);
+    }
+
+    #[test]
+    fn translate_scale() {
+        let p = Point::new(3.0, 4.0);
+        let ts = TranslateScale::new(Vec2::new(5.0, 6.0), 2.0);
+
+        assert_near(ts * p, Point::new(11.0, 14.0));
+    }
+
+    #[test]
+    fn conversions() {
+        let p = Point::new(3.0, 4.0);
+        let s = 2.0;
+        let t = Vec2::new(5.0, 6.0);
+        let ts = TranslateScale::new(t, s);
+
+        // Test that conversion to affine is consistent.
+        let a: Affine = ts.into();
+        assert_near(ts * p, a * p);
+
+        assert_near((s * p.to_vec2()).to_point(), TranslateScale::scale(s) * p);
+        assert_near(p + t, TranslateScale::translate(t) * p);
+    }
+
+    #[test]
+    fn inverse() {
+        let p = Point::new(3.0, 4.0);
+        let ts = TranslateScale::new(Vec2::new(5.0, 6.0), 2.0);
+
+        assert_near(p, (ts * ts.inverse()) * p);
+        assert_near(p, (ts.inverse() * ts) * p);
     }
 }
