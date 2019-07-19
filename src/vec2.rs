@@ -92,6 +92,15 @@ impl Vec2 {
     pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
         *self + t * (other - *self)
     }
+
+    /// Returns a vector of magnitude 1.0 with the same angle as `self`; i.e.
+    /// a unit/direction vector.
+    ///
+    /// This produces `NaN` values when the magnitutde is `0`.
+    #[inline]
+    pub fn normalize(self) -> Vec2 {
+        self / self.hypot()
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {
