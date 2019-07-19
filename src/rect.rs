@@ -184,6 +184,17 @@ impl Rect {
             y1: self.y1 + height,
         }
     }
+
+    /// A new `Rect`, with each coordinate value rounded to the nearest integer.
+    #[inline]
+    pub fn round(self) -> Rect {
+        Rect::new(
+            self.x0.round(),
+            self.y0.round(),
+            self.x1.round(),
+            self.y1.round(),
+        )
+    }
 }
 
 impl From<(Point, Point)> for Rect {

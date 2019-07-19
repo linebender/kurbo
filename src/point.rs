@@ -50,6 +50,12 @@ impl Point {
     pub fn distance(self, other: Point) -> f64 {
         (self - other).hypot()
     }
+
+    /// A new `Point`, with each of x and y rounded to the nearest integer value.
+    #[inline]
+    pub fn round(self) -> Point {
+        Point::new(self.x.round(), self.y.round())
+    }
 }
 
 impl From<(f64, f64)> for Point {

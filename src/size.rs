@@ -46,6 +46,13 @@ impl Size {
     pub fn to_vec2(self) -> Vec2 {
         Vec2::new(self.width, self.height)
     }
+
+    /// A new `Size`, with each of width and height rounded to the nearest
+    /// integer value.
+    #[inline]
+    pub fn round(self) -> Size {
+        Size::new(self.width.round(), self.height.round())
+    }
 }
 
 impl fmt::Debug for Size {
