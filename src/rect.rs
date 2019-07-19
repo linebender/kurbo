@@ -18,9 +18,12 @@ pub struct Rect {
 }
 
 impl Rect {
+    /// The empty rectangle at the origin.
+    pub const ZERO: Rect = Rect::new(0., 0., 0., 0.);
+
     /// A new rectangle from minimum and maximum coordinates.
     #[inline]
-    pub fn new(x0: f64, y0: f64, x1: f64, y1: f64) -> Rect {
+    pub const fn new(x0: f64, y0: f64, x1: f64, y1: f64) -> Rect {
         Rect { x0, y0, x1, y1 }
     }
 

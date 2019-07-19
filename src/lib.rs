@@ -29,6 +29,7 @@ mod rounded_rect;
 mod shape;
 mod size;
 mod svg;
+mod translate_scale;
 mod vec2;
 
 pub use crate::affine::*;
@@ -45,4 +46,5 @@ pub use crate::rounded_rect::*;
 pub use crate::shape::*;
 pub use crate::size::*;
 pub use crate::svg::*;
+pub use crate::translate_scale::*;
 pub use crate::vec2::*;
