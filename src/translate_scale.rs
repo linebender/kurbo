@@ -23,10 +23,13 @@ use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, V
 /// `TranslateScale * Point` is defined but not the other way around.
 ///
 /// Also note that multiplication is not commutative. Thus,
-/// `2.0 * TranslateScale::translate(Vec2::new(1.0, 0.0))` has a
-/// translation of (2, 0), while
-/// `TranslateScale::translate(Vec2::new(1.0, 0.0)) * 2.0` has a
-/// translation of (1, 0). (Both have a scale of 2).
+/// `TranslateScale::scale(2.0) * TranslateScale::translate(Vec2::new(1.0, 0.0))`
+/// has a translation of (2, 0), while
+/// `TranslateScale::translate(Vec2::new(1.0, 0.0)) * TranslateScale::scale(2.0)`
+/// has a translation of (1, 0). (Both have a scale of 2; also note that
+/// the first case can be written
+/// `2.0 * TranslateScale::translate(Vec2::new(1.0, 0.0))` as this case
+/// has an implicit conversion).
 ///
 /// This transformation is less powerful than `Affine`, but can be applied
 /// to more primitives, especially including [`Rect`](struct.Rect.html).
@@ -66,7 +69,7 @@ impl TranslateScale {
     /// left or right) results in the identity transform
     /// (modulo floating point rounding errors).
     ///
-    /// Panics when scale is zero.
+    /// Produces NaN values when scale is zero.
     pub fn inverse(self) -> TranslateScale {
         let scale_recip = self.scale.recip();
         TranslateScale {
@@ -126,18 +129,6 @@ impl Mul<TranslateScale> for f64 {
         TranslateScale {
             translation: other.translation * self,
             scale: other.scale * self,
-        }
-    }
-}
-
-impl Mul<f64> for TranslateScale {
-    type Output = TranslateScale;
-
-    #[inline]
-    fn mul(self, other: f64) -> TranslateScale {
-        TranslateScale {
-            translation: self.translation,
-            scale: self.scale * other,
         }
     }
 }
