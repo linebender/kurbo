@@ -72,6 +72,11 @@ impl RoundedRect {
         self.radius
     }
 
+    /// The (non-rounded) rectangle.
+    pub fn rect(&self) -> Rect {
+        self.rect
+    }
+
     /// The origin of the vector.
     ///
     /// This is the top left corner in a y-down space and with

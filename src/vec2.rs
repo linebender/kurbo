@@ -16,9 +16,12 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
+    /// The vector (0, 0).
+    pub const ZERO: Vec2 = Vec2::new(0., 0.);
+
     /// Create a new vector.
     #[inline]
-    pub fn new(x: f64, y: f64) -> Vec2 {
+    pub const fn new(x: f64, y: f64) -> Vec2 {
         Vec2 { x, y }
     }
 
