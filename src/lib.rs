@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A garden of data structures for manipulating 2D curves.
+//! A garden of data structures for manipulating 2D shapes and curves.
+//!
+//! The kurbo library contains data structures and algorithms for curves and
+//! vector paths. It is probably most appropriate for creative tools,
+//! but is general enough it might be useful for other applications.
 
 mod affine;
 mod arc;
