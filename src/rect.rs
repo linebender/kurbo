@@ -80,7 +80,7 @@ impl Rect {
         self.y1 - self.y0
     }
 
-    /// The origin of the vector.
+    /// The origin of the rectangle.
     ///
     /// This is the top left corner in a y-down space and with
     /// non-negative width and height.
@@ -310,5 +310,35 @@ impl Iterator for RectPathIter {
             5 => Some(PathEl::ClosePath),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Point, Rect, Shape};
+
+    fn assert_approx_eq(x: f64, y: f64) {
+        assert!((x - y).abs() < 1e-7);
+    }
+
+    #[test]
+    fn area_sign() {
+        let r = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let center = r.center();
+        assert_approx_eq(r.area(), 100.0);
+
+        assert_eq!(r.winding(center), 1);
+
+        let p = r.into_bez_path(1e-9);
+        assert_approx_eq(r.area(), p.area());
+        assert_eq!(r.winding(center), p.winding(center));
+
+        let r_flip = Rect::new(0.0, 10.0, 10.0, 0.0);
+        assert_approx_eq(r_flip.area(), -100.0);
+
+        assert_eq!(r_flip.winding(Point::new(5.0, 5.0)), -1);
+        let p_flip = r_flip.into_bez_path(1e-9);
+        assert_approx_eq(r_flip.area(), p_flip.area());
+        assert_eq!(r_flip.winding(center), p_flip.winding(center));
     }
 }

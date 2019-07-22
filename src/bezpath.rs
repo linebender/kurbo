@@ -393,12 +393,12 @@ impl PathSeg {
             if p.y < start.y || p.y >= end.y {
                 return 0;
             }
-            1
+            -1
         } else if end.y < start.y {
             if p.y < end.y || p.y >= start.y {
                 return 0;
             }
-            -1
+            1
         } else {
             return 0;
         };
@@ -490,8 +490,6 @@ impl Shape for BezPath {
     }
 
     /// Signed area.
-    ///
-    /// TODO: figure out sign convention, see #4.
     fn area(&self) -> f64 {
         self.elements().area()
     }
@@ -501,8 +499,6 @@ impl Shape for BezPath {
     }
 
     /// Winding number of point.
-    ///
-    /// TODO: figure out sign convention, see #4.
     fn winding(&self, pt: Point) -> i32 {
         self.elements().winding(pt)
     }
@@ -525,8 +521,6 @@ impl<'a> Shape for &'a [PathEl] {
     }
 
     /// Signed area.
-    ///
-    /// TODO: figure out sign convention, see #4.
     fn area(&self) -> f64 {
         BezPath::segments_of_slice(self).area()
     }
@@ -536,8 +530,6 @@ impl<'a> Shape for &'a [PathEl] {
     }
 
     /// Winding number of point.
-    ///
-    /// TODO: figure out sign convention, see #4.
     fn winding(&self, pt: Point) -> i32 {
         BezPath::segments_of_slice(self).winding(pt)
     }

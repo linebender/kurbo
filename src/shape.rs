@@ -49,7 +49,10 @@ pub trait Shape: Sized {
     ///
     /// This method only produces meaningful results with closed shapes.
     ///
-    /// TODO: figure out sign convention, see #4.
+    /// The convention for positive area is that y increases when x is
+    /// positive. Thus, it is clockwise when down is increasing y (the
+    /// usual convention for graphics), and anticlockwise when
+    /// up is increasing y (the usual convention for math).
     fn area(&self) -> f64;
 
     /// Total length of perimeter.
@@ -59,7 +62,12 @@ pub trait Shape: Sized {
     ///
     /// This method only produces meaningful results with closed shapes.
     ///
-    /// TODO: figure out sign convention, see #4.
+    /// The sign of the winding number is consistent with that of [`area`],
+    /// meaning it is +1 when the point is inside a positive area shape
+    /// and -1 when it is inside a negative area shape. Of course, greater
+    /// magnitude values are also possible when the shape is more complex.
+    ///
+    /// [`area`]: #tymethod.area
     fn winding(&self, pt: Point) -> i32;
 
     /// The smallest rectangle that encloses the shape.
