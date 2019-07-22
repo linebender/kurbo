@@ -77,10 +77,9 @@ impl RoundedRect {
         self.rect
     }
 
-    /// The origin of the vector.
+    /// The origin of the rectangle.
     ///
-    /// This is the top left corner in a y-down space and with
-    /// non-negative width and height.
+    /// This is the top left corner in a y-down space.
     #[inline]
     pub fn origin(&self) -> Point {
         self.rect.origin()
@@ -308,5 +307,15 @@ mod tests {
 
         let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0); // rectangle
         assert_eq!(rect.winding(Point::new(10.0, 20.0)), 1); // bottom-right corner
+    }
+
+    #[test]
+    fn bez_conversion() {
+        let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, 5.0);
+        let p = rect.into_bez_path(1e-9);
+        // Note: could be more systematic about tolerance tightness.
+        let epsilon = 1e-7;
+        assert!((rect.area() - p.area()).abs() < epsilon);
+        assert_eq!(p.winding(Point::new(0.0, 0.0)), 1);
     }
 }

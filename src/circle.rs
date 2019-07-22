@@ -95,7 +95,7 @@ impl Shape for Circle {
 
     fn winding(&self, pt: Point) -> i32 {
         if (pt - self.center).hypot2() < self.radius.powi(2) {
-            self.radius.signum() as i32
+            1
         } else {
             0
         }
@@ -143,5 +143,39 @@ impl Iterator for CirclePathIter {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Circle, Point, Shape};
+    use std::f64::consts::PI;
+
+    fn assert_approx_eq(x: f64, y: f64) {
+        // Note: we might want to be more rigorous in testing the accuracy
+        // of the conversion into Béziers. But this seems good enough.
+        assert!((x - y).abs() < 1e-7, "{} != {}", x, y);
+    }
+
+    #[test]
+    fn area_sign() {
+        let center = Point::new(5.0, 5.0);
+        let c = Circle::new(center, 5.0);
+        assert_approx_eq(c.area(), 25.0 * PI);
+
+        assert_eq!(c.winding(center), 1);
+
+        let p = c.into_bez_path(1e-9);
+        assert_approx_eq(c.area(), p.area());
+        assert_eq!(c.winding(center), p.winding(center));
+
+        let c_neg_radius = Circle::new(center, -5.0);
+        assert_approx_eq(c_neg_radius.area(), 25.0 * PI);
+
+        assert_eq!(c_neg_radius.winding(center), 1);
+
+        let p_neg_radius = c_neg_radius.into_bez_path(1e-9);
+        assert_approx_eq(c_neg_radius.area(), p_neg_radius.area());
+        assert_eq!(c_neg_radius.winding(center), p_neg_radius.winding(center));
     }
 }
