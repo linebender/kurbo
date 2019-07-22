@@ -141,6 +141,7 @@ impl BezPath {
     }
 }
 
+/// An error which can be returned when parsing an SVG.
 #[derive(Debug)]
 pub enum SvgParseError {
     Wrong,

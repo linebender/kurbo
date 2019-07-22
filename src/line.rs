@@ -151,6 +151,7 @@ impl Mul<Line> for Affine {
 }
 
 /// An iterator yielding the path for a single line.
+#[doc(hidden)]
 pub struct LinePathIter {
     line: Line,
     ix: usize,
