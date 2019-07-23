@@ -6,7 +6,7 @@ use std::ops::{Add, Sub};
 use crate::{PathEl, Point, Rect, Shape, Vec2};
 
 /// A circle.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Circle {
     /// The center.
     pub center: Point,

@@ -5,7 +5,7 @@ use std::ops::{Add, Sub};
 use crate::{PathEl, Point, Shape, Size, Vec2};
 
 /// A rectangle.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Rect {
     /// The minimum x coordinate (left edge).
     pub x0: f64,

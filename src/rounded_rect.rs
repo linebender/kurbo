@@ -7,7 +7,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 ///
 /// By construction the rounded rectangle will have
 /// non-negative dimensions and radius clamped to half size of the rect.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct RoundedRect {
     /// Coordinates of the rectangle.
     rect: Rect,
