@@ -63,7 +63,11 @@ impl fmt::Debug for Size {
 
 impl fmt::Display for Size {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "({}×{})", self.width, self.height)
+        write!(formatter, "(")?;
+        fmt::Display::fmt(&self.width, formatter)?;
+        write!(formatter, "×")?;
+        fmt::Display::fmt(&self.height, formatter)?;
+        write!(formatter, ")")
     }
 }
 
@@ -81,5 +85,19 @@ impl From<Size> for (f64, f64) {
     #[inline]
     fn from(v: Size) -> (f64, f64) {
         (v.width, v.height)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let s = Size::new(-0.12345, 9.87654);
+        assert_eq!(format!("{}", s), "(-0.12345×9.87654)");
+
+        let s = Size::new(-0.12345, 9.87654);
+        assert_eq!(format!("{:+6.2}", s), "( -0.12× +9.88)");
     }
 }

@@ -121,7 +121,11 @@ impl fmt::Debug for Point {
 
 impl fmt::Display for Point {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "({}, {})", self.x, self.y)
+        write!(formatter, "(")?;
+        fmt::Display::fmt(&self.x, formatter)?;
+        write!(formatter, ", ")?;
+        fmt::Display::fmt(&self.y, formatter)?;
+        write!(formatter, ")")
     }
 }
 
@@ -149,6 +153,15 @@ mod tests {
         let p1 = Point::new(-11., 1.);
         let p2 = Point::new(-7., -2.);
         assert_eq!(p1.distance(p2), 5.);
+    }
+
+    #[test]
+    fn display() {
+        let p = Point::new(0.12345, 9.87654);
+        assert_eq!(format!("{}", p), "(0.12345, 9.87654)");
+
+        let p = Point::new(0.12345, 9.87654);
+        assert_eq!(format!("{:.2}", p), "(0.12, 9.88)");
     }
 }
 
