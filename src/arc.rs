@@ -18,6 +18,7 @@ impl Arc {
     ///
     /// The generated elemets can be append to an existing bezier path.
     pub fn append_iter(&self, tolerance: f64) -> ArcAppendIter {
+        let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
         // Number of subdivisions per circle based on error tolerance.
         // Note: this may slightly underestimate the error for quadrants.
@@ -25,7 +26,7 @@ impl Arc {
         let n = (n_err * self.sweep_angle.abs() * (1.0 / (2.0 * PI))).ceil();
         let angle_step = self.sweep_angle / n;
         let n = n as usize;
-        let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan();
+        let arm_len = (4.0 / 3.0) * (0.25 * angle_step).abs().tan() * sign;
         let angle0 = self.start_angle;
         let p0 = sample_ellipse(self.radii, self.x_rotation, angle0);
 
