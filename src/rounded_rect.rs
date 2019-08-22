@@ -1,6 +1,9 @@
 //! A rectangle with rounded corners.
 
 use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, Shape, Vec2};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A rectangle with equally rounded corners.
@@ -8,6 +11,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 /// By construction the rounded rectangle will have
 /// non-negative dimensions and radius clamped to half size of the rect.
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RoundedRect {
     /// Coordinates of the rectangle.
     rect: Rect,

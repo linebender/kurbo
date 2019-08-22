@@ -1,5 +1,8 @@
 //! SVG path representation.
 
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::io::Write;
 
@@ -9,6 +12,7 @@ use crate::{Arc, BezPath, PathEl, Point, Vec2};
 
 /// A single SVG arc segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SvgArc {
     pub from: Point,
     pub to: Point,

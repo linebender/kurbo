@@ -1,5 +1,8 @@
 //! Quadratic Bézier segments.
 
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
@@ -13,6 +16,7 @@ use crate::{
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct QuadBez {
     pub p0: Point,
     pub p1: Point,

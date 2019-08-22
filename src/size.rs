@@ -1,10 +1,14 @@
 //! A 2d size.
 
 use crate::Vec2;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// A 2d size.
 #[derive(Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Size {
     /// The width.
     pub width: f64,

@@ -15,6 +15,7 @@ features = ["mint"]
 
 [dependencies]
 arrayvec = "0.4.11"
+serde = { version = "1.0.99", optional = true, features = ["derive"] }
 
 [dependencies.mint]
 version = "0.5.1"

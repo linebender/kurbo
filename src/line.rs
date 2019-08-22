@@ -1,8 +1,10 @@
 //! Lines.
 
-use std::ops::{Mul, Range};
-
 use arrayvec::ArrayVec;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
 use crate::{
@@ -12,6 +14,7 @@ use crate::{
 
 /// A single line.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Line {
     pub p0: Point,
     pub p1: Point,

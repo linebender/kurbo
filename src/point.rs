@@ -1,5 +1,7 @@
 //! A 2d point.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -7,6 +9,7 @@ use crate::Vec2;
 
 /// A 2d point.
 #[derive(Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Point {
     /// The x coordinate.
     pub x: f64,

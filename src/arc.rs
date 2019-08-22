@@ -1,10 +1,14 @@
 //! A circle arc.
 
 use crate::{PathEl, Point, Vec2};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Arc {
     pub center: Point,
     pub radii: Vec2,

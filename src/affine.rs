@@ -1,11 +1,14 @@
 //! Affine transforms.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::ops::{Mul, MulAssign};
 
 use crate::{Point, Vec2};
 
 /// A 2D affine transform.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Affine([f64; 6]);
 
 impl Affine {
@@ -125,6 +128,7 @@ impl Mul<Affine> for f64 {
 }
 
 // Conversions to and from mint
+
 #[cfg(feature = "mint")]
 impl From<Affine> for mint::ColumnMatrix2x3<f64> {
     #[inline]

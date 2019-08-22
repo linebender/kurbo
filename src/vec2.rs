@@ -1,5 +1,8 @@
 //! A simple 2D vector.
 
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::{Point, Size};
@@ -10,6 +13,7 @@ use crate::{Point, Size};
 /// but it can be interpreted as a translation, and converted to and
 /// from a point (vector relative to the origin) and size.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
@@ -227,6 +231,8 @@ impl Neg for Vec2 {
 }
 
 // Conversions to and from mint
+
+
 #[cfg(feature = "mint")]
 impl From<Vec2> for mint::Vector2<f64> {
     #[inline]
@@ -234,6 +240,7 @@ impl From<Vec2> for mint::Vector2<f64> {
         mint::Vector2 { x: p.x, y: p.y }
     }
 }
+
 
 #[cfg(feature = "mint")]
 impl From<mint::Vector2<f64>> for Vec2 {

@@ -1,8 +1,10 @@
 //! Bézier paths (up to cubic).
 
-use std::ops::{Mul, Range};
-
 use arrayvec::ArrayVec;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::ops::{Mul, Range};
 
 use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
@@ -13,12 +15,14 @@ use crate::{
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
 ///
 /// A valid path has `Moveto` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PathEl {
     MoveTo(Point),
     LineTo(Point),

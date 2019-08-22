@@ -1,5 +1,7 @@
 //! A transformation that includes both scale and translation.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, Vec2};
@@ -34,6 +36,7 @@ use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, V
 /// This transformation is less powerful than `Affine`, but can be applied
 /// to more primitives, especially including [`Rect`](struct.Rect.html).
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TranslateScale {
     translation: Vec2,
     scale: f64,

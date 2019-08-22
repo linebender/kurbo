@@ -5,6 +5,10 @@ use std::ops::{Mul, Range};
 use crate::MAX_EXTREMA;
 use arrayvec::ArrayVec;
 
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::common::solve_quadratic;
 use crate::common::GAUSS_LEGENDRE_COEFFS_9;
 use crate::{
@@ -14,6 +18,7 @@ use crate::{
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CubicBez {
     pub p0: Point,
     pub p1: Point,

@@ -1,11 +1,14 @@
 //! A rectangle.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
 
 use crate::{PathEl, Point, Shape, Size, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Rect {
     /// The minimum x coordinate (left edge).
     pub x0: f64,

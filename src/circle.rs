@@ -1,5 +1,7 @@
 //! Implementation of circle shape.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::ops::{Add, Sub};
 
@@ -7,6 +9,7 @@ use crate::{PathEl, Point, Rect, Shape, Vec2};
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Circle {
     /// The center.
     pub center: Point,
