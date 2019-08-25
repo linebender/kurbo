@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// A single cubic Bézier segment.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CubicBez {
     pub p0: Point,
     pub p1: Point,
