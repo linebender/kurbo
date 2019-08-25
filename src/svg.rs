@@ -3,7 +3,7 @@
 use std::f64::consts::PI;
 use std::io::Write;
 
-use crate::{Arc, BezPath, PathEl, PathSeg, Point, Vec2, ParamCurve};
+use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
@@ -19,9 +19,9 @@ pub struct SvgArc {
 }
 
 impl BezPath {
-	/// Create a BezPath with segments corresponding to the sequence of
+    /// Create a BezPath with segments corresponding to the sequence of
     /// `PathSeg`s
-    pub fn from_path_segments(segments: impl Iterator<Item=PathSeg>) -> BezPath {
+    pub fn from_path_segments(segments: impl Iterator<Item = PathSeg>) -> BezPath {
         let mut path_elements = Vec::new();
         let mut current_pos = None;
 
@@ -31,14 +31,14 @@ impl BezPath {
                 path_elements.push(PathEl::MoveTo(start));
             };
             path_elements.push(match segment {
-				    PathSeg::Line(l) => PathEl::LineTo(l.p1),
-				    PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
-				    PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3)
-			});
+                PathSeg::Line(l) => PathEl::LineTo(l.p1),
+                PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
+                PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3),
+            });
 
             current_pos = Some(segment.end());
         }
-        
+
         BezPath::from_vec(path_elements)
     }
 
@@ -174,7 +174,7 @@ impl BezPath {
                 last_cmd = c;
             } else if c == b'z' || c == b'Z' {
                 path.close_path();
-                // TODO: implicit moveto
+            // TODO: implicit moveto
             } else {
                 return Err(SvgParseError::UnknownCommand(c as char));
             };
@@ -394,7 +394,7 @@ impl Arc {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BezPath, Shape, Point, PathSeg, Line, QuadBez, CubicBez};
+    use crate::{BezPath, CubicBez, Line, ParamCurve, PathSeg, Point, QuadBez, Shape};
 
     #[test]
     fn test_parse_svg() {
@@ -419,14 +419,13 @@ mod tests {
 
     #[test]
     fn test_write_svg_single() {
-        let segments = [
-            CubicBez::new(
-                Point::new(10., 10.),
-                Point::new(20., 20.),
-                Point::new(30., 30.),
-                Point::new(40., 40.),
-            ).into()
-        ];
+        let segments = [CubicBez::new(
+            Point::new(10., 10.),
+            Point::new(20., 20.),
+            Point::new(30., 30.),
+            Point::new(40., 40.),
+        )
+        .into()];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
         assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40");
@@ -440,14 +439,15 @@ mod tests {
                 Point::new(20., 20.),
                 Point::new(30., 30.),
                 Point::new(40., 40.),
-            ).into(),
-
+            )
+            .into(),
             CubicBez::new(
                 Point::new(40., 40.),
                 Point::new(30., 30.),
                 Point::new(20., 20.),
                 Point::new(10., 10.),
-            ).into(),
+            )
+            .into(),
         ];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
@@ -462,18 +462,22 @@ mod tests {
                 Point::new(20., 20.),
                 Point::new(30., 30.),
                 Point::new(40., 40.),
-            ).into(),
-
+            )
+            .into(),
             CubicBez::new(
                 Point::new(50., 50.),
                 Point::new(30., 30.),
                 Point::new(20., 20.),
                 Point::new(10., 10.),
-            ).into(),
+            )
+            .into(),
         ];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
-        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40M50 50C30 30 20 20 10 10");
+        assert_eq!(
+            path.to_svg(),
+            "M10 10C20 20 30 30 40 40M50 50C30 30 20 20 10 10"
+        );
     }
 
     use rand::prelude::*;
@@ -482,8 +486,8 @@ mod tests {
         const MAX_LENGTH: u32 = 10;
 
         let mut elements = vec![];
-
         let mut position = None;
+
         let length = rng.gen_range(0, MAX_LENGTH);
         for _ in 0..length {
             let should_follow: bool = rand::random();
@@ -495,30 +499,30 @@ mod tests {
                 Point::new(rng.gen(), rng.gen())
             };
 
-            let element = match kind {
-                0 => Line::new(
-                    first, 
-                    Point::new(rng.gen(), rng.gen()),
-                ).into(),
+            let element: PathSeg = match kind {
+                0 => Line::new(first, Point::new(rng.gen(), rng.gen())).into(),
 
                 1 => QuadBez::new(
                     first,
                     Point::new(rng.gen(), rng.gen()),
                     Point::new(rng.gen(), rng.gen()),
-                ).into(),
+                )
+                .into(),
 
                 2 => CubicBez::new(
                     first,
                     Point::new(rng.gen(), rng.gen()),
                     Point::new(rng.gen(), rng.gen()),
                     Point::new(rng.gen(), rng.gen()),
-                ).into(),
+                )
+                .into(),
 
                 _ => unreachable!(),
             };
 
+            position = Some(element.end());
             elements.push(element);
-        };
+        }
 
         elements
     }
