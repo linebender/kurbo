@@ -4,7 +4,7 @@ use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::common::solve_cubic;
+use crate::common::solve_poly_3;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
@@ -187,7 +187,7 @@ impl ParamCurveNearest for QuadBez {
         let c1 = 2.0 * d0.hypot2() + d.dot(d1);
         let c2 = 3.0 * d1.dot(d0);
         let c3 = d1.hypot2();
-        let roots = solve_cubic(c0, c1, c2, c3);
+        let roots = solve_poly_3(c0, c1, c2, c3);
         let mut r_best = None;
         let mut t_best = 0.0;
         let mut need_ends = false;
@@ -359,6 +359,24 @@ mod tests {
         verify(q.nearest((-1.1, 1.1).into(), 1e-3), 0.0);
         let a = Affine::rotate(0.5);
         verify((a * q).nearest(a * Point::new(0.5, 0.25), 1e-3), 0.75);
+    }
+
+    // this test results in an attempt to solve a polynomial of order less than
+    // 3, which was previously buggy
+    #[test]
+    fn quadbez_nearest_low_order() {
+        let quad = QuadBez {
+            p0: (0.0, 0.0).into(),
+            p1: (32.5, 20.0).into(),
+            p2: (65.0, 40.0).into(),
+        };
+
+        let p: Point = (90., 30.).into();
+
+        let (t, d) = quad.nearest(p, 1e-6);
+
+        assert!(!t.is_nan());
+        assert!(!d.is_nan());
     }
 
     #[test]

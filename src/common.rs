@@ -2,6 +2,29 @@
 
 use arrayvec::ArrayVec;
 
+/// Find real roots of a polynomial up to order of 3.
+/// Returns values of x for which c0 + c1 x + c2 x² + c3 x³ = 0, allowing for the coefficients
+/// to be equal to 0.
+pub(crate) fn solve_poly_3(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
+    if c3 != 0. {
+        return solve_cubic(c0, c1, c2, c3);
+    };
+
+    let mut roots = ArrayVec::new();
+
+    if c2 != 0. {
+        for root in solve_quadratic(c0, c1, c2) {
+            roots.push(root);
+        }
+    } else if c1 != 0. {
+        roots.push(-c0 / c1);
+    } else if c0 == 0. {
+        roots.push(0.);
+    };
+
+    return roots;
+}
+
 /// Find real roots of cubic equation.
 ///
 /// Assumes c3 is nonzero.
