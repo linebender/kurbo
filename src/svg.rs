@@ -3,7 +3,7 @@
 use std::f64::consts::PI;
 use std::io::Write;
 
-use crate::{Arc, BezPath, PathEl, Point, Vec2};
+use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
@@ -19,6 +19,29 @@ pub struct SvgArc {
 }
 
 impl BezPath {
+    /// Create a BezPath with segments corresponding to the sequence of
+    /// `PathSeg`s
+    pub fn from_path_segments(segments: impl Iterator<Item = PathSeg>) -> BezPath {
+        let mut path_elements = Vec::new();
+        let mut current_pos = None;
+
+        for segment in segments {
+            let start = segment.start();
+            if Some(start) != current_pos {
+                path_elements.push(PathEl::MoveTo(start));
+            };
+            path_elements.push(match segment {
+                PathSeg::Line(l) => PathEl::LineTo(l.p1),
+                PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
+                PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3),
+            });
+
+            current_pos = Some(segment.end());
+        }
+
+        BezPath::from_vec(path_elements)
+    }
+
     /// Convert the path to an SVG path string representation.
     ///
     /// The current implementation doesn't take any special care to produce a
@@ -81,6 +104,23 @@ impl BezPath {
                 path.line_to(pt);
                 lexer.last_pt = pt;
                 last_cmd = c;
+            } else if c == b'q' || c == b'Q' {
+                let p1 = lexer.get_maybe_relative(c)?;
+                let p2 = lexer.get_maybe_relative(c)?;
+                path.quad_to(p1, p2);
+                last_ctrl = Some(p1);
+                lexer.last_pt = p2;
+                last_cmd = c;
+            } else if c == b't' || c == b'T' {
+                let p1 = match last_ctrl {
+                    Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
+                    None => lexer.last_pt,
+                };
+                let p2 = lexer.get_maybe_relative(c)?;
+                path.quad_to(p1, p2);
+                last_ctrl = Some(p1);
+                lexer.last_pt = p2;
+                last_cmd = c;
             } else if c == b'c' || c == b'C' {
                 let p1 = lexer.get_maybe_relative(c)?;
                 let p2 = lexer.get_maybe_relative(c)?;
@@ -134,8 +174,10 @@ impl BezPath {
                 last_cmd = c;
             } else if c == b'z' || c == b'Z' {
                 path.close_path();
-                // TODO: implicit moveto
-            }
+            // TODO: implicit moveto
+            } else {
+                return Err(SvgParseError::UnknownCommand(c as char));
+            };
         }
         Ok(path)
     }
@@ -146,6 +188,7 @@ impl BezPath {
 pub enum SvgParseError {
     Wrong,
     UnexpectedEof,
+    UnknownCommand(char),
 }
 
 struct SvgLexer<'a> {
@@ -351,7 +394,7 @@ impl Arc {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BezPath, Shape};
+    use crate::{BezPath, CubicBez, Line, ParamCurve, PathSeg, Point, QuadBez, Shape};
 
     #[test]
     fn test_parse_svg() {
@@ -372,5 +415,131 @@ mod tests {
         // Approximate figures, but useful for regression testing
         assert_eq!(path.area().round(), -1473.0);
         assert_eq!(path.perimeter(1e-6).round(), 168.0);
+    }
+
+    #[test]
+    fn test_write_svg_single() {
+        let segments = [CubicBez::new(
+            Point::new(10., 10.),
+            Point::new(20., 20.),
+            Point::new(30., 30.),
+            Point::new(40., 40.),
+        )
+        .into()];
+        let path = BezPath::from_path_segments(segments.iter().cloned());
+
+        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40");
+    }
+
+    #[test]
+    fn test_write_svg_two_nomove() {
+        let segments = [
+            CubicBez::new(
+                Point::new(10., 10.),
+                Point::new(20., 20.),
+                Point::new(30., 30.),
+                Point::new(40., 40.),
+            )
+            .into(),
+            CubicBez::new(
+                Point::new(40., 40.),
+                Point::new(30., 30.),
+                Point::new(20., 20.),
+                Point::new(10., 10.),
+            )
+            .into(),
+        ];
+        let path = BezPath::from_path_segments(segments.iter().cloned());
+
+        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40C30 30 20 20 10 10");
+    }
+
+    #[test]
+    fn test_write_svg_two_move() {
+        let segments = [
+            CubicBez::new(
+                Point::new(10., 10.),
+                Point::new(20., 20.),
+                Point::new(30., 30.),
+                Point::new(40., 40.),
+            )
+            .into(),
+            CubicBez::new(
+                Point::new(50., 50.),
+                Point::new(30., 30.),
+                Point::new(20., 20.),
+                Point::new(10., 10.),
+            )
+            .into(),
+        ];
+        let path = BezPath::from_path_segments(segments.iter().cloned());
+
+        assert_eq!(
+            path.to_svg(),
+            "M10 10C20 20 30 30 40 40M50 50C30 30 20 20 10 10"
+        );
+    }
+
+    use rand::prelude::*;
+
+    fn gen_random_path_sequence(rng: &mut impl Rng) -> Vec<PathSeg> {
+        const MAX_LENGTH: u32 = 10;
+
+        let mut elements = vec![];
+        let mut position = None;
+
+        let length = rng.gen_range(0, MAX_LENGTH);
+        for _ in 0..length {
+            let should_follow: bool = rand::random();
+            let kind = rng.gen_range(0, 3);
+
+            let first = if should_follow && position.is_some() {
+                position.unwrap()
+            } else {
+                Point::new(rng.gen(), rng.gen())
+            };
+
+            let element: PathSeg = match kind {
+                0 => Line::new(first, Point::new(rng.gen(), rng.gen())).into(),
+
+                1 => QuadBez::new(
+                    first,
+                    Point::new(rng.gen(), rng.gen()),
+                    Point::new(rng.gen(), rng.gen()),
+                )
+                .into(),
+
+                2 => CubicBez::new(
+                    first,
+                    Point::new(rng.gen(), rng.gen()),
+                    Point::new(rng.gen(), rng.gen()),
+                    Point::new(rng.gen(), rng.gen()),
+                )
+                .into(),
+
+                _ => unreachable!(),
+            };
+
+            position = Some(element.end());
+            elements.push(element);
+        }
+
+        elements
+    }
+
+    #[test]
+    fn test_serialize_deserialize() {
+        const N_TESTS: u32 = 100;
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..N_TESTS {
+            let vec = gen_random_path_sequence(&mut rng);
+            let ser = BezPath::from_path_segments(vec.iter().cloned()).to_svg();
+            let deser = BezPath::from_svg(&ser).expect("failed deserialization");
+
+            let deser_vec = deser.segments().collect::<Vec<PathSeg>>();
+
+            assert_eq!(vec, deser_vec);
+        }
     }
 }

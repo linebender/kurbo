@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// A single line.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Line {
     pub p0: Point,
     pub p1: Point,

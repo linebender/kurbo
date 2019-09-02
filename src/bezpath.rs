@@ -28,7 +28,7 @@ pub enum PathEl {
 }
 
 /// A segment of a Bézier path.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PathSeg {
     Line(Line),
     Quad(QuadBez),
@@ -479,6 +479,24 @@ impl PathSeg {
             .into_iter()
             .map(|range| self.subsegment(range).winding_inner(p))
             .sum()
+    }
+}
+
+impl From<CubicBez> for PathSeg {
+    fn from(cubic_bez: CubicBez) -> PathSeg {
+        PathSeg::Cubic(cubic_bez)
+    }
+}
+
+impl From<Line> for PathSeg {
+    fn from(line: Line) -> PathSeg {
+        PathSeg::Line(line)
+    }
+}
+
+impl From<QuadBez> for PathSeg {
+    fn from(quad_bez: QuadBez) -> PathSeg {
+        PathSeg::Quad(quad_bez)
     }
 }
 
