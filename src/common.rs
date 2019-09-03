@@ -45,24 +45,54 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
 /// Find real roots of quadratic equation.
 ///
 /// Returns values of x for which c0 + c1 x + c2 x² = 0.
+///
+/// This function tries to be quite numerically robust. If the equation
+/// is nearly linear, it will return the root ignoring the quadratic term;
+/// the other root might be out of representable range. In the degenerate
+/// case where all coefficients are zero, so that all values of x satisfy
+/// the equation, a single `0.0` is returned.
 pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
     let mut result = ArrayVec::new();
-    // TODO: make this more robust to very small values.
-    if c2 == 0.0 {
-        if c1 == 0.0 {
-            return result;
+    let sc0 = c0 * c2.recip();
+    let sc1 = c1 * c2.recip();
+    if !sc0.is_finite() || !sc1.is_finite() {
+        // c2 is zero or very small, treat as linear eqn
+        let root = -c0 / c1;
+        if root.is_finite() {
+            result.push(root);
+        } else if c0 == 0.0 && c1 == 0.0 {
+            // Degenerate case
+            result.push(0.0);
         }
-        result.push(-c0 / c1);
         return result;
     }
-    let d = c1 * c1 - 4.0 * c2 * c0;
-    let denom = -0.5 / c2;
-    if d == 0.0 {
-        result.push(c1 * denom);
-    } else if d > 0.0 {
-        let q = d.sqrt();
-        result.push((c1 - q) * denom);
-        result.push((c1 + q) * denom);
+    let arg = sc1 * sc1 - 4. * sc0;
+    let root1 = if !arg.is_finite() {
+        // Likely, calculation of sc1 * sc1 overflowed. Find one root
+        // using sc1 x + x² = 0, other root as sc0 / root1.
+        -sc1
+    } else {
+        if arg < 0.0 {
+            return result;
+        } else if arg == 0.0 {
+            result.push(-0.5 * sc1);
+            return result;
+        }
+        // See https://math.stackexchange.com/questions/866331
+        -0.5 * (sc1 + arg.sqrt().copysign(sc1))
+    };
+    let root2 = sc0 / root1;
+    if root2.is_finite() {
+        // Sort just to be friendly and make results deterministic.
+        if root2 > root1 {
+            result.push(root1);
+            result.push(root2);
+        } else {
+            result.push(root2);
+            result.push(root1);
+        }
+    } else {
+        result.push(root1);
     }
     result
 }
