@@ -4,7 +4,8 @@ use arrayvec::ArrayVec;
 
 /// Find real roots of cubic equation.
 ///
-/// Assumes c3 is nonzero.
+/// The implementation is not (yet) fully robust, but it does handle the case
+/// where `c3` is zero (in that case, solving the quadratic equation).
 ///
 /// See: <http://mathworld.wolfram.com/CubicFormula.html>
 ///
@@ -12,13 +13,22 @@ use arrayvec::ArrayVec;
 pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
     let mut result = ArrayVec::new();
     let c3_recip = c3.recip();
-    let c2 = c2 * c3_recip;
-    let c1 = c1 * c3_recip;
-    let c0 = c0 * c3_recip;
+    let scaled_c2 = c2 * c3_recip;
+    let scaled_c1 = c1 * c3_recip;
+    let scaled_c0 = c0 * c3_recip;
+    if !(scaled_c0.is_finite() && scaled_c1.is_finite() && scaled_c2.is_finite()) {
+        // cubic coefficient is zero or nearly so.
+        for root in solve_quadratic(c0, c1, c2) {
+            result.push(root);
+        }
+        return result;
+    }
+    let (c0, c1, c2) = (scaled_c0, scaled_c1, scaled_c2);
     let q = c1 * (1.0 / 3.0) - c2 * c2 * (1.0 / 9.0); // Q
     let r = (1.0 / 6.0) * c2 * c1 - (1.0 / 27.0) * c2.powi(3) - c0 * 0.5; // R
     let d = q.powi(3) + r * r; // D
     let x0 = c2 * (1.0 / 3.0);
+    // TODO: handle the cases where these intermediate results overflow.
     if d > 0.0 {
         let sq = d.sqrt();
         let t1 = (r + sq).cbrt() + (r - sq).cbrt();

@@ -361,6 +361,25 @@ mod tests {
         verify((a * q).nearest(a * Point::new(0.5, 0.25), 1e-3), 0.75);
     }
 
+    // This test exposes a degenerate case in the solver used internally
+    // by the "nearest" calculation - the cubic term is zero.
+    #[test]
+    fn quadbez_nearest_low_order() {
+        fn verify(result: (f64, f64), expected: f64) {
+            assert!(
+                (result.0 - expected).abs() < 1e-6,
+                "got {:?} expected {}",
+                result,
+                expected
+            );
+        }
+
+        let q = QuadBez::new((-1.0, 0.0), (0.0, 0.0), (1.0, 0.0));
+
+        verify(q.nearest((0.0, 0.0).into(), 1e-3), 0.5);
+        verify(q.nearest((0.0, 1.0).into(), 1e-3), 0.5);
+    }
+
     #[test]
     fn quadbez_extrema() {
         // y = x^2
