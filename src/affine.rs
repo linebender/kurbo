@@ -71,6 +71,8 @@ impl Affine {
     }
 
     /// Compute the inverse transform.
+    ///
+    /// Produces NaN values when the determinant is zero.
     pub fn inverse(self) -> Affine {
         let inv_det = self.determinant().recip();
         Affine([
