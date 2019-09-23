@@ -64,6 +64,26 @@ impl Affine {
     pub fn as_coeffs(self) -> [f64; 6] {
         self.0
     }
+
+    /// Compute the determinant of this transform.
+    pub fn determinant(self) -> f64 {
+        self.0[0] * self.0[3] - self.0[1] * self.0[2]
+    }
+
+    /// Compute the inverse transform.
+    ///
+    /// Produces NaN values when the determinant is zero.
+    pub fn inverse(self) -> Affine {
+        let inv_det = self.determinant().recip();
+        Affine([
+            inv_det * self.0[3],
+            -inv_det * self.0[1],
+            -inv_det * self.0[2],
+            inv_det * self.0[0],
+            inv_det * (self.0[2] * self.0[5] - self.0[3] * self.0[4]),
+            inv_det * (self.0[1] * self.0[4] - self.0[0] * self.0[5]),
+        ])
+    }
 }
 
 impl Default for Affine {
@@ -185,5 +205,21 @@ mod tests {
         assert_near(a1 * (a2 * px), (a1 * a2) * px);
         assert_near(a1 * (a2 * py), (a1 * a2) * py);
         assert_near(a1 * (a2 * pxy), (a1 * a2) * pxy);
+    }
+
+    #[test]
+    fn affine_inv() {
+        let a = Affine::new([0.1, 1.2, 2.3, 3.4, 4.5, 5.6]);
+        let a_inv = a.inverse();
+
+        let px = Point::new(1.0, 0.0);
+        let py = Point::new(0.0, 1.0);
+        let pxy = Point::new(1.0, 1.0);
+        assert_near(a * (a_inv * px), px);
+        assert_near(a * (a_inv * py), py);
+        assert_near(a * (a_inv * pxy), pxy);
+        assert_near(a_inv * (a * px), px);
+        assert_near(a_inv * (a * py), py);
+        assert_near(a_inv * (a * pxy), pxy);
     }
 }
