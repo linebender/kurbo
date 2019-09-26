@@ -66,7 +66,7 @@ impl BezPath {
         self.push(PathEl::QuadTo(p1.into(), p2.into()));
     }
 
-    /// Push a "curPe to" element onto the path.
+    /// Push a "curve to" element onto the path.
     pub fn curve_to<P: Into<Point>>(&mut self, p1: P, p2: P, p3: P) {
         self.push(PathEl::CurveTo(p1.into(), p2.into(), p3.into()));
     }
