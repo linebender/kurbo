@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Sub};
 
-use crate::{PathEl, Point, Shape, Size, Vec2};
+use crate::{Insets, PathEl, Point, Shape, Size, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, Debug)]
@@ -64,6 +64,26 @@ impl Rect {
         Rect::from_origin_size(self.origin(), size)
     }
 
+    /// Create a new `Rect` by applying the [`Insets`].
+    ///
+    /// This will not preserve negative width and height.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    /// let inset_rect = Rect::new(0., 0., 10., 10.,).inset(2.);
+    /// assert_eq!(inset_rect.width(), 14.0);
+    /// assert_eq!(inset_rect.x0, -2.0);
+    /// assert_eq!(inset_rect.x1, 12.0);
+    /// ```
+    ///
+    /// [`Insets`]: struct.Insets.html
+    #[inline]
+    pub fn inset(self, insets: impl Into<Insets>) -> Rect {
+        self + insets.into()
+    }
+
     /// The width of the rectangle.
     ///
     /// Note: nothing forbids negative width.
@@ -89,7 +109,7 @@ impl Rect {
         Point::new(self.x0, self.y0)
     }
 
-    /// The size of the rectangle, as a vector.
+    /// The size of the rectangle.
     #[inline]
     pub fn size(&self) -> Size {
         Size::new(self.width(), self.height())
