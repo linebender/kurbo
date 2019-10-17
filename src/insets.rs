@@ -14,7 +14,7 @@
 
 //! A description of the distances between the edges of two rectangles.
 
-use std::ops::Add;
+use std::ops::{Add, Neg, Sub};
 
 use crate::Rect;
 
@@ -23,44 +23,42 @@ use crate::Rect;
 ///
 /// The inset value for each edge can be thought of as a delta computed from
 /// the center of the rect to that edge. For instance, with an inset of `2.0` on
-/// the x-axis, a rectange at `(0.0, 0.0)` with that inset added will be at
-/// `(-2.0, 0.0)`
+/// the x-axis, a rectange with the origin `(0.0, 0.0)` with that inset added
+/// will have the new origin at `(-2.0, 0.0)`.
 ///
 /// Put alternatively, a positive inset represents increased distance from center,
 /// and a negative inset represents decreased distance from center.
 ///
 /// # Examples
 ///
-/// Positive insets produce larger rectangles:
+/// Positive insets added to a [`Rect`] produce a larger [`Rect`]:
 /// ```
-/// use kurbo::{Insets, Rect};
-///
+/// # use kurbo::{Insets, Rect};
 /// let rect = Rect::from_origin_size((0., 0.,), (10., 10.,));
 /// let insets = Insets::uniform_xy(3., 0.,);
 ///
 /// let inset_rect = rect + insets;
-/// assert_eq!(inset_rect.width(), 16.0, "10.0 + 3.0 * 2");
+/// assert_eq!(inset_rect.width(), 16.0, "10.0 + 3.0 × 2");
 /// assert_eq!(inset_rect.x0, -3.0);
 /// ```
 ///
-/// Negative insets produce smaller rectangles:
+/// Negative insets added to a [`Rect`] produce a smaller [`Rect`]:
 ///
 /// ```
-/// use kurbo::{Insets, Rect};
-///
+/// # use kurbo::{Insets, Rect};
 /// let rect = Rect::from_origin_size((0., 0.,), (10., 10.,));
 /// let insets = Insets::uniform_xy(-3., 0.,);
 ///
 /// let inset_rect = rect + insets;
-/// assert_eq!(inset_rect.width(), 4.0, "10.0 - 3.0 * 2");
+/// assert_eq!(inset_rect.width(), 4.0, "10.0 - 3.0 × 2");
 /// assert_eq!(inset_rect.x0, 3.0);
 /// ```
 ///
-/// Insets ignore negative width & height when computing new rectangles.
+/// [`Insets`] operate on the absolute rectangle [`Rect::abs`], and so ignore
+/// existing negative widths and heights.
 ///
 /// ```
-/// use kurbo::{Insets, Rect};
-///
+/// # use kurbo::{Insets, Rect};
 /// let rect = Rect::new(7., 11., 0., 0.,);
 /// let insets = Insets::uniform_xy(0., 1.,);
 ///
@@ -71,6 +69,39 @@ use crate::Rect;
 /// assert_eq!(inset_rect.x0, 0.0);
 /// assert_eq!(inset_rect.height(), 13.0);
 /// ```
+///
+/// The width and height of an inset operation can still be negative if the
+/// [`Insets`]' dimensions are greater than the dimensions of the original [`Rect`].
+///
+/// ```
+/// # use kurbo::{Insets, Rect};
+/// let rect = Rect::new(0., 0., 3., 5.);
+/// let insets = Insets::uniform_xy(0., 7.,);
+///
+/// let inset_rect = rect - insets;
+/// assert_eq!(inset_rect.height(), -9., "5 - 7 × 2")
+/// ```
+///
+/// `Rect - Rect = Insets`:
+///
+///
+/// ```
+/// # use kurbo::{Insets, Rect};
+/// let rect = Rect::new(0., 0., 5., 11.);
+/// let insets = Insets::uniform_xy(1., 7.,);
+///
+/// let inset_rect = rect + insets;
+/// let insets2 = inset_rect - rect;
+///
+/// assert_eq!(insets2.x0, insets.x0);
+/// assert_eq!(insets2.y1, insets.y1);
+/// assert_eq!(insets2.x_value(), insets.x_value());
+/// assert_eq!(insets2.y_value(), insets.y_value());
+/// ```
+///
+/// [`Rect`]: struct.Rect.html
+/// [`Insets`]: struct.Insets.html
+/// [`Rect::abs`]: struct.Rect.html#method.abs
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Insets {
     /// The minimum x coordinate (left edge).
@@ -153,9 +184,19 @@ impl Insets {
     }
 }
 
+impl Neg for Insets {
+    type Output = Insets;
+
+    #[inline]
+    fn neg(self) -> Insets {
+        Insets::new(-self.x0, -self.y0, -self.x1, -self.y1)
+    }
+}
+
 impl Add<Rect> for Insets {
     type Output = Rect;
 
+    #[inline]
     fn add(self, other: Rect) -> Rect {
         let other = other.abs();
         Rect::new(
@@ -170,8 +211,27 @@ impl Add<Rect> for Insets {
 impl Add<Insets> for Rect {
     type Output = Rect;
 
+    #[inline]
     fn add(self, other: Insets) -> Rect {
         other + self
+    }
+}
+
+impl Sub<Rect> for Insets {
+    type Output = Rect;
+
+    #[inline]
+    fn sub(self, other: Rect) -> Rect {
+        other + -self
+    }
+}
+
+impl Sub<Insets> for Rect {
+    type Output = Rect;
+
+    #[inline]
+    fn sub(self, other: Insets) -> Rect {
+        other - self
     }
 }
 
