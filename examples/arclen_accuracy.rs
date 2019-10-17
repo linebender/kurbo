@@ -151,7 +151,7 @@ fn calc_l0(q: QuadBez) -> f64 {
     (2.0 / 3.0) * lc + (1.0 / 3.0) * lp
 }
 
-fn with_subdiv(q: QuadBez, f: &Fn(QuadBez) -> f64, depth: usize) -> f64 {
+fn with_subdiv(q: QuadBez, f: &dyn Fn(QuadBez) -> f64, depth: usize) -> f64 {
     if depth == 0 {
         f(q)
     } else {
@@ -190,7 +190,7 @@ fn run_simple() {
 /// Generate map data suitable for plotting in Gnuplot.
 fn main() {
     let mut n_subdiv = 0;
-    let mut func: &Fn(QuadBez) -> f64 = &gauss_arclen_3;
+    let mut func: &dyn Fn(QuadBez) -> f64 = &gauss_arclen_3;
     for arg in env::args().skip(1) {
         if arg == "gauss3" {
             func = &gauss_arclen_3;
