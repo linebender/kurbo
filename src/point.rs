@@ -29,7 +29,7 @@ impl Point {
 
     /// Convert this point into a `Vec2`.
     #[inline]
-    pub fn to_vec2(self) -> Vec2 {
+    pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
 

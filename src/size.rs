@@ -43,7 +43,7 @@ impl Size {
     /// Convert this size into a `Vec2`, with `width` mapped to `x` and `height`
     /// mapped to `y`.
     #[inline]
-    pub fn to_vec2(self) -> Vec2 {
+    pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.width, self.height)
     }
 

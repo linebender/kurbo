@@ -27,13 +27,13 @@ impl Vec2 {
 
     /// Convert this vector into a `Point`.
     #[inline]
-    pub fn to_point(self) -> Point {
+    pub const fn to_point(self) -> Point {
         Point::new(self.x, self.y)
     }
 
     /// Convert this vector into a `Size`.
     #[inline]
-    pub fn to_size(self) -> Size {
+    pub const fn to_size(self) -> Size {
         Size::new(self.x, self.y)
     }
 

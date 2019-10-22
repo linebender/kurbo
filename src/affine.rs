@@ -9,6 +9,13 @@ use crate::{Point, Vec2};
 pub struct Affine([f64; 6]);
 
 impl Affine {
+    /// A transform that is flipped on the y-axis. Useful for converting between
+    /// y-up and y-down spaces.
+    pub const FLIP_Y: Affine = Affine::new([1.0, 0., 0., -1.0, 0., 0.]);
+
+    /// A transform that is flipped on the x-axis.
+    pub const FLIP_X: Affine = Affine::new([-1.0, 0., 0., 1.0, 0., 0.]);
+
     /// Construct an affine transform from coefficients.
     ///
     /// If the coefficients are `(a, b, c, d, e, f)`, then the resulting
@@ -27,13 +34,13 @@ impl Affine {
     /// idea is that `(A * B) * v == A * (B * v)`, where `*` is the
     /// [`Mul`](https://doc.rust-lang.org/std/ops/trait.Mul.html) trait.
     #[inline]
-    pub fn new(c: [f64; 6]) -> Affine {
+    pub const fn new(c: [f64; 6]) -> Affine {
         Affine(c)
     }
 
     /// An affine transform representing uniform scaling.
     #[inline]
-    pub fn scale(s: f64) -> Affine {
+    pub const fn scale(s: f64) -> Affine {
         Affine([s, 0.0, 0.0, s, 0.0, 0.0])
     }
 
