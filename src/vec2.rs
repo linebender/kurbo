@@ -1,5 +1,6 @@
 //! A simple 2D vector.
 
+use std::fmt;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::{Point, Size};
@@ -226,6 +227,16 @@ impl Neg for Vec2 {
     }
 }
 
+impl fmt::Display for Vec2 {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "𝐯=(")?;
+        fmt::Display::fmt(&self.x, formatter)?;
+        write!(formatter, ", ")?;
+        fmt::Display::fmt(&self.y, formatter)?;
+        write!(formatter, ")")
+    }
+}
+
 // Conversions to and from mint
 #[cfg(feature = "mint")]
 impl From<Vec2> for mint::Vector2<f64> {
@@ -240,5 +251,16 @@ impl From<mint::Vector2<f64>> for Vec2 {
     #[inline]
     fn from(p: mint::Vector2<f64>) -> Vec2 {
         Vec2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn display() {
+        let v = Vec2::new(1.2332421, 532.10721213123);
+        let s = format!("{:.2}", v);
+        assert_eq!(s.as_str(), "𝐯=(1.23, 532.11)");
     }
 }
