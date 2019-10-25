@@ -2,6 +2,7 @@
 
 use crate::Vec2;
 use std::fmt;
+use std::ops::{Mul, MulAssign};
 
 /// A 2d size.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -68,6 +69,37 @@ impl fmt::Display for Size {
         write!(formatter, "×")?;
         fmt::Display::fmt(&self.height, formatter)?;
         write!(formatter, ")")
+    }
+}
+
+impl MulAssign<f64> for Size {
+    #[inline]
+    fn mul_assign(&mut self, other: f64) {
+        *self = Size {
+            width: self.width * other,
+            height: self.height * other,
+        };
+    }
+}
+
+impl Mul<Size> for f64 {
+    type Output = Size;
+
+    #[inline]
+    fn mul(self, other: Size) -> Size {
+        other * self
+    }
+}
+
+impl Mul<f64> for Size {
+    type Output = Size;
+
+    #[inline]
+    fn mul(self, other: f64) -> Size {
+        Size {
+            width: self.width * other,
+            height: self.height * other,
+        }
     }
 }
 
