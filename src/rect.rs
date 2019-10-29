@@ -100,6 +100,30 @@ impl Rect {
         self.y1 - self.y0
     }
 
+    /// Returns the minimum value for the x-coordinate of the rectangle.
+    #[inline]
+    pub fn min_x(&self) -> f64 {
+        self.x0.min(self.x1)
+    }
+
+    /// Returns the maximum value for the x-coordinate of the rectangle.
+    #[inline]
+    pub fn max_x(&self) -> f64 {
+        self.x0.max(self.x1)
+    }
+
+    /// Returns the minimum value for the y-coordinate of the rectangle.
+    #[inline]
+    pub fn min_y(&self) -> f64 {
+        self.y0.min(self.y1)
+    }
+
+    /// Returns the maximum value for the y-coordinate of the rectangle.
+    #[inline]
+    pub fn max_y(&self) -> f64 {
+        self.y0.max(self.y1)
+    }
+
     /// The origin of the rectangle.
     ///
     /// This is the top left corner in a y-down space and with
