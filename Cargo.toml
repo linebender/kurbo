@@ -14,7 +14,7 @@ categories = ["graphics"]
 features = ["mint"]
 
 [dependencies]
-arrayvec = "0.4.11"
+arrayvec = "0.5.1"
 
 [dependencies.mint]
 version = "0.5.1"
@@ -22,4 +22,4 @@ optional = true
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
-rand = "0.6"
+rand = "0.7.2"
