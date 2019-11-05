@@ -2,7 +2,7 @@
 
 use std::ops::{Mul, MulAssign};
 
-use crate::{Point, Vec2};
+use crate::{Point, Rect, Vec2};
 
 /// A 2D affine transform.
 #[derive(Clone, Copy, Debug)]
@@ -90,6 +90,21 @@ impl Affine {
             inv_det * (self.0[2] * self.0[5] - self.0[3] * self.0[4]),
             inv_det * (self.0[1] * self.0[4] - self.0[0] * self.0[5]),
         ])
+    }
+
+    /// Compute the bounding box of a transformed rectangle.
+    ///
+    /// Returns the minimal `Rect` that encloses given `Rect` after affine transformation.
+    /// If the transform is axis-aligned, then this bounding box is "tight", in other words the
+    /// returned `Rect` is the transformed rectangle.
+    ///
+    /// The returned rectangle always has non-negative width and height.
+    pub fn transform_rect_bbox(self, rect: Rect) -> Rect {
+        let p00 = self * Point::new(rect.x0, rect.y0);
+        let p01 = self * Point::new(rect.x0, rect.y1);
+        let p10 = self * Point::new(rect.x1, rect.y0);
+        let p11 = self * Point::new(rect.x1, rect.y1);
+        Rect::from_points(p00, p01).union(Rect::from_points(p10, p11))
     }
 }
 
