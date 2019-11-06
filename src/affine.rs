@@ -94,7 +94,7 @@ impl Affine {
 
     /// Compute the bounding box of a transformed rectangle.
     ///
-    /// Returns the minimal `Rect` that encloses given `Rect` after affine transformation.
+    /// Returns the minimal `Rect` that encloses the given `Rect` after affine transformation.
     /// If the transform is axis-aligned, then this bounding box is "tight", in other words the
     /// returned `Rect` is the transformed rectangle.
     ///
