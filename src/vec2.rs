@@ -105,6 +105,46 @@ impl Vec2 {
     pub fn normalize(self) -> Vec2 {
         self / self.hypot()
     }
+
+    /// Returns a new `Vec2` with each of `x` and `y` rounded to the nearest integer.
+    #[inline]
+    pub fn round(self) -> Vec2 {
+        Vec2::new(self.x.round(), self.y.round())
+    }
+
+    /// Returns a new `Vec2` where each of `x` and `y`, with a non-zero fractional
+    /// part is rounded up to the nearest integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    ///
+    /// let v = Vec2::new(5.0, -1.1);
+    /// let ceil_v = v.ceil();
+    /// assert_eq!((ceil_v.x, ceil_v.y), (5.0, -1.0));
+    /// ```
+    #[inline]
+    pub fn ceil(self) -> Vec2 {
+        Vec2::new(self.x.ceil(), self.y.ceil())
+    }
+
+    /// Returns a new `Vec2` where each of `x` and `y`, with a non-zero fractional
+    /// part is rounded down to the nearest integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    ///
+    /// let v = Vec2::new(4.9, -1.1);
+    /// let floor_v = v.floor();
+    /// assert_eq!((floor_v.x, floor_v.y), (4.0, -2.0));
+    /// ```
+    #[inline]
+    pub fn floor(self) -> Vec2 {
+        Vec2::new(self.x.floor(), self.y.floor())
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {
