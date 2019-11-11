@@ -2,7 +2,7 @@
 
 use std::ops::{Add, Sub};
 
-use crate::{Insets, PathEl, Point, Shape, Size, Vec2};
+use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, Debug)]
@@ -241,6 +241,15 @@ impl Rect {
             self.x1.round(),
             self.y1.round(),
         )
+    }
+
+    /// Creates a new [`RoundedRect`] from this `Rect` and the provided
+    /// corner radius.
+    ///
+    /// [`RoundedRect`]: struct.RoundedRect.html
+    #[inline]
+    pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
+        RoundedRect::from_rect(self, radius)
     }
 }
 
