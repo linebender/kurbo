@@ -42,6 +42,17 @@ impl BezPath {
     }
 
     /// Create a path from a vector of path elements.
+    ///
+    /// `BezPath` also implements `FromIterator<PathEl>`, so it works with `collect`:
+    ///
+    /// ```
+    /// // a very contrived example:
+    /// use kurbo::{BezPath, PathEl};
+    ///
+    /// let path = BezPath::new();
+    /// let as_vec: Vec<PathEl> = path.into_iter().collect();
+    /// let back_to_path: BezPath = as_vec.into_iter().collect();
+    /// ```
     pub fn from_vec(v: Vec<PathEl>) -> BezPath {
         BezPath(v)
     }
@@ -81,8 +92,13 @@ impl BezPath {
         &self.0
     }
 
+    /// Returns an iterator over the path's elements.
+    pub fn iter(&self) -> impl Iterator<Item = PathEl> + '_ {
+        self.0.iter().map(|e| *e)
+    }
+
     /// Iterate over the path segments.
-    pub fn segments<'a>(&'a self) -> impl Iterator<Item = PathSeg> + 'a {
+    pub fn segments(&self) -> impl Iterator<Item = PathSeg> + '_ {
         BezPath::segments_of_slice(&self.0)
     }
 
@@ -166,6 +182,17 @@ impl BezPath {
     }
 }
 
+impl std::iter::FromIterator<PathEl> for BezPath {
+    fn from_iter<T: IntoIterator<Item = PathEl>>(iter: T) -> Self {
+        let el_vec: Vec<_> = iter.into_iter().collect();
+        BezPath::from_vec(el_vec)
+    }
+}
+
+// this has weird semantics; signature assumes taking ownership but impl'd on a reference
+// NOTE: after removing this, we should impl IntoIterator for BezPath (with no reference)
+// and that impl should just call `self.0.into_iter()`
+#[deprecated(since = "0.5.6", note = "use BezPath::iter instead")]
 impl<'a> IntoIterator for &'a BezPath {
     type Item = PathEl;
     type IntoIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
