@@ -1,10 +1,10 @@
-//! A 2d size.
+//! A 2D size.
 
 use crate::Vec2;
 use std::fmt;
 use std::ops::{Mul, MulAssign};
 
-/// A 2d size.
+/// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct Size {
     /// The width.

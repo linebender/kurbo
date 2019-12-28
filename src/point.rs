@@ -1,11 +1,11 @@
-//! A 2d point.
+//! A 2D point.
 
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 use crate::Vec2;
 
-/// A 2d point.
+/// A 2D point.
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct Point {
     /// The x coordinate.
