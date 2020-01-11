@@ -83,6 +83,7 @@ impl BezPath {
                 let pt = lexer.get_maybe_relative(c)?;
                 path.line_to(pt);
                 lexer.last_pt = pt;
+                last_ctrl = Some(pt);
                 last_cmd = c;
             } else if c == b'h' || c == b'H' {
                 let mut x = lexer.get_number()?;
@@ -93,6 +94,7 @@ impl BezPath {
                 let pt = Point::new(x, lexer.last_pt.y);
                 path.line_to(pt);
                 lexer.last_pt = pt;
+                last_ctrl = Some(pt);
                 last_cmd = c;
             } else if c == b'v' || c == b'V' {
                 let mut y = lexer.get_number()?;
@@ -103,6 +105,7 @@ impl BezPath {
                 let pt = Point::new(lexer.last_pt.x, y);
                 path.line_to(pt);
                 lexer.last_pt = pt;
+                last_ctrl = Some(pt);
                 last_cmd = c;
             } else if c == b'q' || c == b'Q' {
                 let p1 = lexer.get_maybe_relative(c)?;
@@ -170,6 +173,7 @@ impl BezPath {
                     }
                 }
 
+                last_ctrl = Some(p);
                 lexer.last_pt = p;
                 last_cmd = c;
             } else if c == b'z' || c == b'Z' {
