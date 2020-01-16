@@ -44,6 +44,13 @@ impl Affine {
         Affine([s, 0.0, 0.0, s, 0.0, 0.0])
     }
 
+    /// An affine transform representing non-uniform scaling
+    /// with different scale values for x and y
+    #[inline]
+    pub const fn scale_non_uniform(s_x: f64, s_y: f64) -> Affine {
+        Affine([s_x, 0.0, 0.0, s_y, 0.0, 0.0])
+    }
+
     /// An affine transform representing rotation.
     ///
     /// The convention for rotation is that a positive angle rotates a
