@@ -1,9 +1,9 @@
 //! SVG path representation.
 
+use std::error::Error;
 use std::f64::consts::PI;
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Write};
-use std::error::Error;
 
 use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
@@ -60,9 +60,7 @@ impl BezPath {
             match *el {
                 PathEl::MoveTo(p) => write!(writer, "M{} {}", p.x, p.y)?,
                 PathEl::LineTo(p) => write!(writer, "L{} {}", p.x, p.y)?,
-                PathEl::QuadTo(p1, p2) => {
-                    write!(writer, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y)?
-                }
+                PathEl::QuadTo(p1, p2) => write!(writer, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y)?,
                 PathEl::CurveTo(p1, p2, p3) => write!(
                     writer,
                     "C{} {} {} {} {} {}",
@@ -96,7 +94,7 @@ impl BezPath {
                     last_ctrl = Some(pt);
                     last_cmd = c;
                 }
-                b'h' | b'H'  => {
+                b'h' | b'H' => {
                     let mut x = lexer.get_number()?;
                     lexer.opt_comma();
                     if c == b'h' {

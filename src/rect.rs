@@ -254,12 +254,7 @@ impl Add<Vec2> for Rect {
 
     #[inline]
     fn add(self, v: Vec2) -> Rect {
-        Rect::new(
-            self.x0 + v.x,
-            self.y0 + v.y,
-            self.x1 + v.x,
-            self.y1 + v.y,
-        )
+        Rect::new(self.x0 + v.x, self.y0 + v.y, self.x1 + v.x, self.y1 + v.y)
     }
 }
 
@@ -268,12 +263,7 @@ impl Sub<Vec2> for Rect {
 
     #[inline]
     fn sub(self, v: Vec2) -> Rect {
-        Rect::new(
-            self.x0 - v.x,
-            self.y0 - v.y,
-            self.x1 - v.x,
-            self.y1 - v.y,
-        )
+        Rect::new(self.x0 - v.x, self.y0 - v.y, self.x1 - v.x, self.y1 - v.y)
     }
 }
 
