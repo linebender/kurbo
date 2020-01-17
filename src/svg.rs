@@ -1,7 +1,7 @@
 //! SVG path representation.
 
 use std::f64::consts::PI;
-use std::io::Write;
+use std::io::{self, Write};
 
 use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
@@ -47,24 +47,30 @@ impl BezPath {
     /// The current implementation doesn't take any special care to produce a
     /// short string (reducing precision, using relative movement).
     pub fn to_svg(&self) -> String {
-        let mut result = Vec::new();
+        let mut buffer = Vec::new();
+        self.write_to(&mut buffer).unwrap();
+        String::from_utf8(buffer).unwrap()
+    }
+
+    /// Write the SVG representation of this path to the provided buffer.
+    pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
         for el in self.elements() {
             match *el {
-                PathEl::MoveTo(p) => write!(result, "M{} {}", p.x, p.y).unwrap(),
-                PathEl::LineTo(p) => write!(result, "L{} {}", p.x, p.y).unwrap(),
+                PathEl::MoveTo(p) => write!(writer, "M{} {}", p.x, p.y)?,
+                PathEl::LineTo(p) => write!(writer, "L{} {}", p.x, p.y)?,
                 PathEl::QuadTo(p1, p2) => {
-                    write!(result, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y).unwrap()
+                    write!(writer, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y)?
                 }
                 PathEl::CurveTo(p1, p2, p3) => write!(
-                    result,
+                    writer,
                     "C{} {} {} {} {} {}",
                     p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
-                )
-                .unwrap(),
-                PathEl::ClosePath => write!(result, "Z").unwrap(),
+                )?,
+                PathEl::ClosePath => write!(writer, "Z")?,
             }
         }
-        String::from_utf8(result).unwrap()
+
+        Ok(())
     }
 
     pub fn from_svg(data: &str) -> Result<BezPath, SvgParseError> {
