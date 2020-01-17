@@ -73,115 +73,125 @@ impl BezPath {
         let mut last_cmd = 0;
         let mut last_ctrl = None;
         while let Some(c) = lexer.get_cmd(last_cmd) {
-            if c == b'm' || c == b'M' {
-                let pt = lexer.get_maybe_relative(c)?;
-                path.move_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c - (b'M' - b'L');
-            } else if c == b'l' || c == b'L' {
-                let pt = lexer.get_maybe_relative(c)?;
-                path.line_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c;
-            } else if c == b'h' || c == b'H' {
-                let mut x = lexer.get_number()?;
-                lexer.opt_comma();
-                if c == b'h' {
-                    x += lexer.last_pt.x;
+            match c {
+                b'm' | b'M' => {
+                    let pt = lexer.get_maybe_relative(c)?;
+                    path.move_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c - (b'M' - b'L');
                 }
-                let pt = Point::new(x, lexer.last_pt.y);
-                path.line_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c;
-            } else if c == b'v' || c == b'V' {
-                let mut y = lexer.get_number()?;
-                lexer.opt_comma();
-                if c == b'v' {
-                    y += lexer.last_pt.y;
+                b'l' | b'L' => {
+                    let pt = lexer.get_maybe_relative(c)?;
+                    path.line_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c;
                 }
-                let pt = Point::new(lexer.last_pt.x, y);
-                path.line_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c;
-            } else if c == b'q' || c == b'Q' {
-                let p1 = lexer.get_maybe_relative(c)?;
-                let p2 = lexer.get_maybe_relative(c)?;
-                path.quad_to(p1, p2);
-                last_ctrl = Some(p1);
-                lexer.last_pt = p2;
-                last_cmd = c;
-            } else if c == b't' || c == b'T' {
-                let p1 = match last_ctrl {
-                    Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
-                    None => lexer.last_pt,
-                };
-                let p2 = lexer.get_maybe_relative(c)?;
-                path.quad_to(p1, p2);
-                last_ctrl = Some(p1);
-                lexer.last_pt = p2;
-                last_cmd = c;
-            } else if c == b'c' || c == b'C' {
-                let p1 = lexer.get_maybe_relative(c)?;
-                let p2 = lexer.get_maybe_relative(c)?;
-                let p3 = lexer.get_maybe_relative(c)?;
-                path.curve_to(p1, p2, p3);
-                last_ctrl = Some(p2);
-                lexer.last_pt = p3;
-                last_cmd = c;
-            } else if c == b's' || c == b'S' {
-                let p1 = match last_ctrl {
-                    Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
-                    None => lexer.last_pt,
-                };
-                let p2 = lexer.get_maybe_relative(c)?;
-                let p3 = lexer.get_maybe_relative(c)?;
-                path.curve_to(p1, p2, p3);
-                last_ctrl = Some(p2);
-                lexer.last_pt = p3;
-                last_cmd = c;
-            } else if c == b'a' || c == b'A' {
-                let radii = lexer.get_number_pair()?;
-                let x_rotation = lexer.get_number()?.to_radians();
-                lexer.opt_comma();
-                let large_arc = lexer.get_number()?;
-                lexer.opt_comma();
-                let sweep = lexer.get_number()?;
-                lexer.opt_comma();
-                let p = lexer.get_maybe_relative(c)?;
-                let svg_arc = SvgArc {
-                    from: lexer.last_pt,
-                    to: p,
-                    radii: radii.to_vec2(),
-                    x_rotation,
-                    large_arc: large_arc != 0.0,
-                    sweep: sweep != 0.0,
-                };
-
-                match Arc::from_svg_arc(&svg_arc) {
-                    Some(arc) => {
-                        // TODO: consider making tolerance configurable
-                        arc.to_cubic_beziers(0.1, |p1, p2, p3| {
-                            path.curve_to(p1, p2, p3);
-                        });
+                b'h' | b'H'  => {
+                    let mut x = lexer.get_number()?;
+                    lexer.opt_comma();
+                    if c == b'h' {
+                        x += lexer.last_pt.x;
                     }
-                    None => {
-                        path.line_to(p);
-                    }
+                    let pt = Point::new(x, lexer.last_pt.y);
+                    path.line_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c;
                 }
+                b'v' | b'V' => {
+                    let mut y = lexer.get_number()?;
+                    lexer.opt_comma();
+                    if c == b'v' {
+                        y += lexer.last_pt.y;
+                    }
+                    let pt = Point::new(lexer.last_pt.x, y);
+                    path.line_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c;
+                }
+                b'q' | b'Q' => {
+                    let p1 = lexer.get_maybe_relative(c)?;
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    path.quad_to(p1, p2);
+                    last_ctrl = Some(p1);
+                    lexer.last_pt = p2;
+                    last_cmd = c;
+                }
+                b't' | b'T' => {
+                    let p1 = match last_ctrl {
+                        Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
+                        None => lexer.last_pt,
+                    };
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    path.quad_to(p1, p2);
+                    last_ctrl = Some(p1);
+                    lexer.last_pt = p2;
+                    last_cmd = c;
+                }
+                b'c' | b'C' => {
+                    let p1 = lexer.get_maybe_relative(c)?;
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    let p3 = lexer.get_maybe_relative(c)?;
+                    path.curve_to(p1, p2, p3);
+                    last_ctrl = Some(p2);
+                    lexer.last_pt = p3;
+                    last_cmd = c;
+                }
+                b's' | b'S' => {
+                    let p1 = match last_ctrl {
+                        Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
+                        None => lexer.last_pt,
+                    };
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    let p3 = lexer.get_maybe_relative(c)?;
+                    path.curve_to(p1, p2, p3);
+                    last_ctrl = Some(p2);
+                    lexer.last_pt = p3;
+                    last_cmd = c;
+                }
+                b'a' | b'A' => {
+                    let radii = lexer.get_number_pair()?;
+                    let x_rotation = lexer.get_number()?.to_radians();
+                    lexer.opt_comma();
+                    let large_arc = lexer.get_number()?;
+                    lexer.opt_comma();
+                    let sweep = lexer.get_number()?;
+                    lexer.opt_comma();
+                    let p = lexer.get_maybe_relative(c)?;
+                    let svg_arc = SvgArc {
+                        from: lexer.last_pt,
+                        to: p,
+                        radii: radii.to_vec2(),
+                        x_rotation,
+                        large_arc: large_arc != 0.0,
+                        sweep: sweep != 0.0,
+                    };
 
-                last_ctrl = Some(p);
-                lexer.last_pt = p;
-                last_cmd = c;
-            } else if c == b'z' || c == b'Z' {
-                path.close_path();
-            // TODO: implicit moveto
-            } else {
-                return Err(SvgParseError::UnknownCommand(c as char));
-            };
+                    match Arc::from_svg_arc(&svg_arc) {
+                        Some(arc) => {
+                            // TODO: consider making tolerance configurable
+                            arc.to_cubic_beziers(0.1, |p1, p2, p3| {
+                                path.curve_to(p1, p2, p3);
+                            });
+                        }
+                        None => {
+                            path.line_to(p);
+                        }
+                    }
+
+                    last_ctrl = Some(p);
+                    lexer.last_pt = p;
+                    last_cmd = c;
+                }
+                b'z' | b'Z' => {
+                    path.close_path();
+                    // TODO: implicit moveto
+                }
+                _ => return Err(SvgParseError::UnknownCommand(c as char)),
+            }
         }
         Ok(path)
     }
