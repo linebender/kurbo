@@ -195,7 +195,6 @@ mod tests {
     use arrayvec::{Array, ArrayVec};
 
     fn verify<T: Array<Item = f64>>(mut roots: ArrayVec<T>, expected: &[f64]) {
-        //println!("{:?} {:?}", roots, expected);
         assert!(expected.len() == roots.len());
         let epsilon = 1e-6;
         roots.sort_by(|a, b| a.partial_cmp(b).unwrap());

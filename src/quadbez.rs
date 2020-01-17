@@ -279,7 +279,6 @@ mod tests {
             let accuracy = 0.1f64.powi(i);
             let est = q.arclen(accuracy);
             let error = est - true_arclen;
-            //println!("{:e}: {:e}", accuracy, error);
             assert!(error.abs() < accuracy, "{} != {}", est, true_arclen);
         }
     }

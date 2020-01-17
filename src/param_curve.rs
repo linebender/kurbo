@@ -98,7 +98,6 @@ pub trait ParamCurveArclen: ParamCurve {
             };
             let range_size = range.end - range.start;
             let arc = self.subsegment(range).arclen(inner_accuracy);
-            //println!("tm={}, arc={}, remaining={}", tm, arc, remaining);
             remaining -= arc * dir;
             if i == n - 1 || (remaining).abs() < accuracy {
                 // Allocate remaining arc evenly.

@@ -224,6 +224,5 @@ mod tests {
 
         let t = l.inv_arclen(true_len / 3.0, epsilon);
         assert!((t - 1.0 / 3.0).abs() < epsilon);
-        //println!("{}", t);
     }
 }
