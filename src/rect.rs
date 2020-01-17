@@ -34,13 +34,7 @@ impl Rect {
     pub fn from_points(p0: impl Into<Point>, p1: impl Into<Point>) -> Rect {
         let p0 = p0.into();
         let p1 = p1.into();
-        Rect {
-            x0: p0.x,
-            y0: p0.y,
-            x1: p1.x,
-            y1: p1.y,
-        }
-        .abs()
+        Rect::new(p0.x, p0.y, p1.x, p1.y).abs()
     }
 
     /// A new rectangle from origin and size.
@@ -164,12 +158,7 @@ impl Rect {
     #[inline]
     pub fn abs(&self) -> Rect {
         let Rect { x0, y0, x1, y1 } = *self;
-        Rect {
-            x0: x0.min(x1),
-            y0: y0.min(y1),
-            x1: x0.max(x1),
-            y1: y0.max(y1),
-        }
+        Rect::new(x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1))
     }
 
     /// The smallest rectangle enclosing two rectangles.
@@ -177,12 +166,12 @@ impl Rect {
     /// Results are valid only if width and height are non-negative.
     #[inline]
     pub fn union(&self, other: Rect) -> Rect {
-        Rect {
-            x0: self.x0.min(other.x0),
-            y0: self.y0.min(other.y0),
-            x1: self.x1.max(other.x1),
-            y1: self.y1.max(other.y1),
-        }
+        Rect::new(
+            self.x0.min(other.x0),
+            self.y0.min(other.y0),
+            self.x1.max(other.x1),
+            self.y1.max(other.y1),
+        )
     }
 
     /// Compute the union with one point.
@@ -211,12 +200,7 @@ impl Rect {
         let y0 = self.y0.max(other.y0);
         let x1 = self.x1.min(other.x1);
         let y1 = self.y1.min(other.y1);
-        Rect {
-            x0,
-            y0,
-            x1: x1.max(x0),
-            y1: y1.max(y0),
-        }
+        Rect::new(x0, y0, x1.max(x0), y1.max(y0))
     }
 
     /// Expand a rectangle by a constant amount in both directions.
@@ -224,12 +208,12 @@ impl Rect {
     /// The logic simply applies the amount in each direction. If rectangle
     /// area or added dimensions are negative, this could give odd results.
     pub fn inflate(&self, width: f64, height: f64) -> Rect {
-        Rect {
-            x0: self.x0 - width,
-            y0: self.y0 - height,
-            x1: self.x1 + width,
-            y1: self.y1 + height,
-        }
+        Rect::new(
+            self.x0 - width,
+            self.y0 - height,
+            self.x1 + width,
+            self.y1 + height,
+        )
     }
 
     /// A new `Rect`, with each coordinate value rounded to the nearest integer.
@@ -270,12 +254,12 @@ impl Add<Vec2> for Rect {
 
     #[inline]
     fn add(self, v: Vec2) -> Rect {
-        Rect {
-            x0: self.x0 + v.x,
-            y0: self.y0 + v.y,
-            x1: self.x1 + v.x,
-            y1: self.y1 + v.y,
-        }
+        Rect::new(
+            self.x0 + v.x,
+            self.y0 + v.y,
+            self.x1 + v.x,
+            self.y1 + v.y,
+        )
     }
 }
 
@@ -284,12 +268,12 @@ impl Sub<Vec2> for Rect {
 
     #[inline]
     fn sub(self, v: Vec2) -> Rect {
-        Rect {
-            x0: self.x0 - v.x,
-            y0: self.y0 - v.y,
-            x1: self.x1 - v.x,
-            y1: self.y1 - v.y,
-        }
+        Rect::new(
+            self.x0 - v.x,
+            self.y0 - v.y,
+            self.x1 - v.x,
+            self.y1 - v.y,
+        )
     }
 }
 
