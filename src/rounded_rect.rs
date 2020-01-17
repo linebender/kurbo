@@ -67,7 +67,7 @@ impl RoundedRect {
     }
 
     /// Radius of the rounded corners.
-    // #[inline]
+    #[inline]
     pub fn radius(&self) -> f64 {
         self.radius
     }
