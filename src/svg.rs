@@ -1,7 +1,9 @@
 //! SVG path representation.
 
 use std::f64::consts::PI;
+use std::fmt::{self, Display, Formatter};
 use std::io::{self, Write};
+use std::error::Error;
 
 use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
@@ -210,6 +212,18 @@ pub enum SvgParseError {
     UnexpectedEof,
     UnknownCommand(char),
 }
+
+impl Display for SvgParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            SvgParseError::Wrong => unimplemented!(),
+            SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
+            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{}\"", letter),
+        }
+    }
+}
+
+impl Error for SvgParseError {}
 
 struct SvgLexer<'a> {
     data: &'a str,
