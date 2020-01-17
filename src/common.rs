@@ -1,5 +1,7 @@
 //! Common mathematical operations
 
+#![allow(missing_docs)]
+
 use arrayvec::ArrayVec;
 
 /// Find real roots of cubic equation.
@@ -107,8 +109,8 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
     result
 }
 
-/// Tables of Legendre-Gauss quadrature coefficients, adapted from:
-/// <https://pomax.github.io/bezierinfo/legendre-gauss.html>
+// Tables of Legendre-Gauss quadrature coefficients, adapted from:
+// <https://pomax.github.io/bezierinfo/legendre-gauss.html>
 
 pub const GAUSS_LEGENDRE_COEFFS_3: &[(f64, f64)] = &[
     (0.8888888888888888, 0.0000000000000000),

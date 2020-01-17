@@ -40,6 +40,7 @@ pub trait ParamCurve: Sized {
 
 /// A differentiable parametrized curve.
 pub trait ParamCurveDeriv {
+    /// The parametric curve obtained by taking the derivative of this one.
     type DerivResult: ParamCurve;
 
     /// The derivative of the curve.

@@ -13,11 +13,14 @@ use crate::{
 /// A single line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Line {
+    /// The line's start point.
     pub p0: Point,
+    /// The line's end point.
     pub p1: Point,
 }
 
 impl Line {
+    /// Create a new line.
     #[inline]
     pub fn new<P: Into<Point>>(p0: P, p1: P) -> Line {
         Line {
@@ -152,6 +155,7 @@ impl Mul<Line> for Affine {
 
 /// An iterator yielding the path for a single line.
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct LinePathIter {
     line: Line,
     ix: usize,

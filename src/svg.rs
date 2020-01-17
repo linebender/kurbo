@@ -12,11 +12,18 @@ use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 /// A single SVG arc segment.
 #[derive(Clone, Copy, Debug)]
 pub struct SvgArc {
+    /// The arc's start point.
     pub from: Point,
+    /// The arc's end point.
     pub to: Point,
+    /// The arc's radii, where the vector's x-component is the radius in the
+    /// positive x direction after applying `x_rotation`.
     pub radii: Vec2,
+    /// How much the arc is rotated, in radians.
     pub x_rotation: f64,
+    /// Does this arc sweep through more than π radians?
     pub large_arc: bool,
+    /// Determines if the arc should begin moving at positive angles.:wq
     pub sweep: bool,
 }
 
@@ -73,6 +80,7 @@ impl BezPath {
         Ok(())
     }
 
+    /// Try to parse a bezier path from an SVG path element.
     pub fn from_svg(data: &str) -> Result<BezPath, SvgParseError> {
         let mut lexer = SvgLexer::new(data);
         let mut path = BezPath::new();
@@ -206,15 +214,18 @@ impl BezPath {
 /// An error which can be returned when parsing an SVG.
 #[derive(Debug)]
 pub enum SvgParseError {
+    /// A number was expected.
     Wrong,
+    /// The input string ended while still expecting input.
     UnexpectedEof,
+    /// Encountered an unknown command letter.
     UnknownCommand(char),
 }
 
 impl Display for SvgParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            SvgParseError::Wrong => unimplemented!(),
+            SvgParseError::Wrong => write!(f, "Unable to parse a number"),
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
             SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{}\"", letter),
         }

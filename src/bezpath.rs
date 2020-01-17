@@ -20,18 +20,26 @@ pub struct BezPath(Vec<PathEl>);
 /// A valid path has `Moveto` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug)]
 pub enum PathEl {
+    /// Move directly to the point without drawing anything.
     MoveTo(Point),
+    /// Draw a line from the current location to the point.
     LineTo(Point),
+    /// Draw a quadratic bezier using the current location and the two points.
     QuadTo(Point, Point),
+    /// Draw a cubic bezier using the current location and the three points.
     CurveTo(Point, Point, Point),
+    /// Close off the path.
     ClosePath,
 }
 
 /// A segment of a Bézier path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PathSeg {
+    /// A line segment.
     Line(Line),
+    /// A quadratic bezier segment.
     Quad(QuadBez),
+    /// A cubic bezier segment.
     Cubic(CubicBez),
 }
 

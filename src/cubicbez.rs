@@ -14,6 +14,7 @@ use crate::{
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(missing_docs)]
 pub struct CubicBez {
     pub p0: Point,
     pub p1: Point,

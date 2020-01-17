@@ -50,6 +50,7 @@ impl Sub<Vec2> for Circle {
 }
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct CirclePathIter {
     circle: Circle,
     delta_th: f64,

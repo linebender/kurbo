@@ -281,6 +281,7 @@ impl Sub for Rect {
 }
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct RectPathIter {
     rect: Rect,
     ix: usize,

@@ -18,6 +18,9 @@
 //! vector paths. It is probably most appropriate for creative tools,
 //! but is general enough it might be useful for other applications.
 
+#![forbid(unsafe_code)]
+#![deny(missing_docs, missing_debug_implementations)]
+
 mod affine;
 mod arc;
 mod bezpath;

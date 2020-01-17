@@ -13,6 +13,7 @@ use crate::{
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(missing_docs)]
 pub struct QuadBez {
     pub p0: Point,
     pub p1: Point,
