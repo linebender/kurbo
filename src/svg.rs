@@ -23,7 +23,7 @@ pub struct SvgArc {
     pub x_rotation: f64,
     /// Does this arc sweep through more than π radians?
     pub large_arc: bool,
-    /// Determines if the arc should begin moving at positive angles.:wq
+    /// Determines if the arc should begin moving at positive angles.
     pub sweep: bool,
 }
 
@@ -81,6 +81,10 @@ impl BezPath {
     }
 
     /// Try to parse a bezier path from an SVG path element.
+    ///
+    /// This is implemented on a best-effort basis, intended for cases where the
+    /// user controls the source of paths, and is not intended as a replacement
+    /// for a general, robust SVG parser.
     pub fn from_svg(data: &str) -> Result<BezPath, SvgParseError> {
         let mut lexer = SvgLexer::new(data);
         let mut path = BezPath::new();

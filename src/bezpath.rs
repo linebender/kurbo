@@ -20,7 +20,8 @@ pub struct BezPath(Vec<PathEl>);
 /// A valid path has `Moveto` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug)]
 pub enum PathEl {
-    /// Move directly to the point without drawing anything.
+    /// Move directly to the point without drawing anything, starting a new
+    /// subpath.
     MoveTo(Point),
     /// Draw a line from the current location to the point.
     LineTo(Point),
