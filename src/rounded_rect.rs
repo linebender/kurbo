@@ -93,7 +93,6 @@ impl RoundedRect {
 }
 
 #[doc(hidden)]
-#[derive(Debug)]
 pub struct RoundedRectPathIter {
     idx: usize,
     rect: RectPathIter,
@@ -213,7 +212,6 @@ impl Shape for RoundedRect {
     }
 }
 
-#[derive(Debug)]
 struct RectPathIter {
     rect: Rect,
     radius: f64,

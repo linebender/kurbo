@@ -66,7 +66,6 @@ impl Arc {
 }
 
 #[doc(hidden)]
-#[derive(Debug)]
 pub struct ArcAppendIter {
     idx: usize,
 

@@ -19,7 +19,7 @@
 //! but is general enough it might be useful for other applications.
 
 #![forbid(unsafe_code)]
-#![deny(missing_docs, missing_debug_implementations)]
+#![deny(missing_docs)]
 
 mod affine;
 mod arc;
