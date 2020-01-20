@@ -13,6 +13,7 @@ use crate::{
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(missing_docs)]
 pub struct QuadBez {
     pub p0: Point,
     pub p1: Point,
@@ -278,7 +279,6 @@ mod tests {
             let accuracy = 0.1f64.powi(i);
             let est = q.arclen(accuracy);
             let error = est - true_arclen;
-            //println!("{:e}: {:e}", accuracy, error);
             assert!(error.abs() < accuracy, "{} != {}", est, true_arclen);
         }
     }

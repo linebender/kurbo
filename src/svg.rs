@@ -1,7 +1,9 @@
 //! SVG path representation.
 
+use std::error::Error;
 use std::f64::consts::PI;
-use std::io::Write;
+use std::fmt::{self, Display, Formatter};
+use std::io::{self, Write};
 
 use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
@@ -10,11 +12,18 @@ use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 /// A single SVG arc segment.
 #[derive(Clone, Copy, Debug)]
 pub struct SvgArc {
+    /// The arc's start point.
     pub from: Point,
+    /// The arc's end point.
     pub to: Point,
+    /// The arc's radii, where the vector's x-component is the radius in the
+    /// positive x direction after applying `x_rotation`.
     pub radii: Vec2,
+    /// How much the arc is rotated, in radians.
     pub x_rotation: f64,
+    /// Does this arc sweep through more than π radians?
     pub large_arc: bool,
+    /// Determines if the arc should begin moving at positive angles.
     pub sweep: bool,
 }
 
@@ -47,141 +56,160 @@ impl BezPath {
     /// The current implementation doesn't take any special care to produce a
     /// short string (reducing precision, using relative movement).
     pub fn to_svg(&self) -> String {
-        let mut result = Vec::new();
-        for el in self.elements() {
-            match *el {
-                PathEl::MoveTo(p) => write!(result, "M{} {}", p.x, p.y).unwrap(),
-                PathEl::LineTo(p) => write!(result, "L{} {}", p.x, p.y).unwrap(),
-                PathEl::QuadTo(p1, p2) => {
-                    write!(result, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y).unwrap()
-                }
-                PathEl::CurveTo(p1, p2, p3) => write!(
-                    result,
-                    "C{} {} {} {} {} {}",
-                    p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
-                )
-                .unwrap(),
-                PathEl::ClosePath => write!(result, "Z").unwrap(),
-            }
-        }
-        String::from_utf8(result).unwrap()
+        let mut buffer = Vec::new();
+        self.write_to(&mut buffer).unwrap();
+        String::from_utf8(buffer).unwrap()
     }
 
+    /// Write the SVG representation of this path to the provided buffer.
+    pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        for el in self.elements() {
+            match *el {
+                PathEl::MoveTo(p) => write!(writer, "M{} {}", p.x, p.y)?,
+                PathEl::LineTo(p) => write!(writer, "L{} {}", p.x, p.y)?,
+                PathEl::QuadTo(p1, p2) => write!(writer, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y)?,
+                PathEl::CurveTo(p1, p2, p3) => write!(
+                    writer,
+                    "C{} {} {} {} {} {}",
+                    p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
+                )?,
+                PathEl::ClosePath => write!(writer, "Z")?,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Try to parse a bezier path from an SVG path element.
+    ///
+    /// This is implemented on a best-effort basis, intended for cases where the
+    /// user controls the source of paths, and is not intended as a replacement
+    /// for a general, robust SVG parser.
     pub fn from_svg(data: &str) -> Result<BezPath, SvgParseError> {
         let mut lexer = SvgLexer::new(data);
         let mut path = BezPath::new();
         let mut last_cmd = 0;
         let mut last_ctrl = None;
         while let Some(c) = lexer.get_cmd(last_cmd) {
-            if c == b'm' || c == b'M' {
-                let pt = lexer.get_maybe_relative(c)?;
-                path.move_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c - (b'M' - b'L');
-            } else if c == b'l' || c == b'L' {
-                let pt = lexer.get_maybe_relative(c)?;
-                path.line_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c;
-            } else if c == b'h' || c == b'H' {
-                let mut x = lexer.get_number()?;
-                lexer.opt_comma();
-                if c == b'h' {
-                    x += lexer.last_pt.x;
+            match c {
+                b'm' | b'M' => {
+                    let pt = lexer.get_maybe_relative(c)?;
+                    path.move_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c - (b'M' - b'L');
                 }
-                let pt = Point::new(x, lexer.last_pt.y);
-                path.line_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c;
-            } else if c == b'v' || c == b'V' {
-                let mut y = lexer.get_number()?;
-                lexer.opt_comma();
-                if c == b'v' {
-                    y += lexer.last_pt.y;
+                b'l' | b'L' => {
+                    let pt = lexer.get_maybe_relative(c)?;
+                    path.line_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c;
                 }
-                let pt = Point::new(lexer.last_pt.x, y);
-                path.line_to(pt);
-                lexer.last_pt = pt;
-                last_ctrl = Some(pt);
-                last_cmd = c;
-            } else if c == b'q' || c == b'Q' {
-                let p1 = lexer.get_maybe_relative(c)?;
-                let p2 = lexer.get_maybe_relative(c)?;
-                path.quad_to(p1, p2);
-                last_ctrl = Some(p1);
-                lexer.last_pt = p2;
-                last_cmd = c;
-            } else if c == b't' || c == b'T' {
-                let p1 = match last_ctrl {
-                    Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
-                    None => lexer.last_pt,
-                };
-                let p2 = lexer.get_maybe_relative(c)?;
-                path.quad_to(p1, p2);
-                last_ctrl = Some(p1);
-                lexer.last_pt = p2;
-                last_cmd = c;
-            } else if c == b'c' || c == b'C' {
-                let p1 = lexer.get_maybe_relative(c)?;
-                let p2 = lexer.get_maybe_relative(c)?;
-                let p3 = lexer.get_maybe_relative(c)?;
-                path.curve_to(p1, p2, p3);
-                last_ctrl = Some(p2);
-                lexer.last_pt = p3;
-                last_cmd = c;
-            } else if c == b's' || c == b'S' {
-                let p1 = match last_ctrl {
-                    Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
-                    None => lexer.last_pt,
-                };
-                let p2 = lexer.get_maybe_relative(c)?;
-                let p3 = lexer.get_maybe_relative(c)?;
-                path.curve_to(p1, p2, p3);
-                last_ctrl = Some(p2);
-                lexer.last_pt = p3;
-                last_cmd = c;
-            } else if c == b'a' || c == b'A' {
-                let radii = lexer.get_number_pair()?;
-                let x_rotation = lexer.get_number()?.to_radians();
-                lexer.opt_comma();
-                let large_arc = lexer.get_number()?;
-                lexer.opt_comma();
-                let sweep = lexer.get_number()?;
-                lexer.opt_comma();
-                let p = lexer.get_maybe_relative(c)?;
-                let svg_arc = SvgArc {
-                    from: lexer.last_pt,
-                    to: p,
-                    radii: radii.to_vec2(),
-                    x_rotation,
-                    large_arc: large_arc != 0.0,
-                    sweep: sweep != 0.0,
-                };
-
-                match Arc::from_svg_arc(&svg_arc) {
-                    Some(arc) => {
-                        // TODO: consider making tolerance configurable
-                        arc.to_cubic_beziers(0.1, |p1, p2, p3| {
-                            path.curve_to(p1, p2, p3);
-                        });
+                b'h' | b'H' => {
+                    let mut x = lexer.get_number()?;
+                    lexer.opt_comma();
+                    if c == b'h' {
+                        x += lexer.last_pt.x;
                     }
-                    None => {
-                        path.line_to(p);
-                    }
+                    let pt = Point::new(x, lexer.last_pt.y);
+                    path.line_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c;
                 }
+                b'v' | b'V' => {
+                    let mut y = lexer.get_number()?;
+                    lexer.opt_comma();
+                    if c == b'v' {
+                        y += lexer.last_pt.y;
+                    }
+                    let pt = Point::new(lexer.last_pt.x, y);
+                    path.line_to(pt);
+                    lexer.last_pt = pt;
+                    last_ctrl = Some(pt);
+                    last_cmd = c;
+                }
+                b'q' | b'Q' => {
+                    let p1 = lexer.get_maybe_relative(c)?;
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    path.quad_to(p1, p2);
+                    last_ctrl = Some(p1);
+                    lexer.last_pt = p2;
+                    last_cmd = c;
+                }
+                b't' | b'T' => {
+                    let p1 = match last_ctrl {
+                        Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
+                        None => lexer.last_pt,
+                    };
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    path.quad_to(p1, p2);
+                    last_ctrl = Some(p1);
+                    lexer.last_pt = p2;
+                    last_cmd = c;
+                }
+                b'c' | b'C' => {
+                    let p1 = lexer.get_maybe_relative(c)?;
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    let p3 = lexer.get_maybe_relative(c)?;
+                    path.curve_to(p1, p2, p3);
+                    last_ctrl = Some(p2);
+                    lexer.last_pt = p3;
+                    last_cmd = c;
+                }
+                b's' | b'S' => {
+                    let p1 = match last_ctrl {
+                        Some(ctrl) => (2.0 * lexer.last_pt.to_vec2() - ctrl.to_vec2()).to_point(),
+                        None => lexer.last_pt,
+                    };
+                    let p2 = lexer.get_maybe_relative(c)?;
+                    let p3 = lexer.get_maybe_relative(c)?;
+                    path.curve_to(p1, p2, p3);
+                    last_ctrl = Some(p2);
+                    lexer.last_pt = p3;
+                    last_cmd = c;
+                }
+                b'a' | b'A' => {
+                    let radii = lexer.get_number_pair()?;
+                    let x_rotation = lexer.get_number()?.to_radians();
+                    lexer.opt_comma();
+                    let large_arc = lexer.get_number()?;
+                    lexer.opt_comma();
+                    let sweep = lexer.get_number()?;
+                    lexer.opt_comma();
+                    let p = lexer.get_maybe_relative(c)?;
+                    let svg_arc = SvgArc {
+                        from: lexer.last_pt,
+                        to: p,
+                        radii: radii.to_vec2(),
+                        x_rotation,
+                        large_arc: large_arc != 0.0,
+                        sweep: sweep != 0.0,
+                    };
 
-                last_ctrl = Some(p);
-                lexer.last_pt = p;
-                last_cmd = c;
-            } else if c == b'z' || c == b'Z' {
-                path.close_path();
-            // TODO: implicit moveto
-            } else {
-                return Err(SvgParseError::UnknownCommand(c as char));
-            };
+                    match Arc::from_svg_arc(&svg_arc) {
+                        Some(arc) => {
+                            // TODO: consider making tolerance configurable
+                            arc.to_cubic_beziers(0.1, |p1, p2, p3| {
+                                path.curve_to(p1, p2, p3);
+                            });
+                        }
+                        None => {
+                            path.line_to(p);
+                        }
+                    }
+
+                    last_ctrl = Some(p);
+                    lexer.last_pt = p;
+                    last_cmd = c;
+                }
+                b'z' | b'Z' => {
+                    path.close_path();
+                    // TODO: implicit moveto
+                }
+                _ => return Err(SvgParseError::UnknownCommand(c as char)),
+            }
         }
         Ok(path)
     }
@@ -190,10 +218,25 @@ impl BezPath {
 /// An error which can be returned when parsing an SVG.
 #[derive(Debug)]
 pub enum SvgParseError {
+    /// A number was expected.
     Wrong,
+    /// The input string ended while still expecting input.
     UnexpectedEof,
+    /// Encountered an unknown command letter.
     UnknownCommand(char),
 }
+
+impl Display for SvgParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            SvgParseError::Wrong => write!(f, "Unable to parse a number"),
+            SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
+            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{}\"", letter),
+        }
+    }
+}
+
+impl Error for SvgParseError {}
 
 struct SvgLexer<'a> {
     data: &'a str,

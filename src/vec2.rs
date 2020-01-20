@@ -12,7 +12,9 @@ use crate::{Point, Size};
 /// from a point (vector relative to the origin) and size.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Vec2 {
+    /// The x-coordinate.
     pub x: f64,
+    /// The y-coordinate.
     pub y: f64,
 }
 

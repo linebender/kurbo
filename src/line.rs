@@ -13,11 +13,14 @@ use crate::{
 /// A single line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Line {
+    /// The line's start point.
     pub p0: Point,
+    /// The line's end point.
     pub p1: Point,
 }
 
 impl Line {
+    /// Create a new line.
     #[inline]
     pub fn new<P: Into<Point>>(p0: P, p1: P) -> Line {
         Line {
@@ -220,6 +223,5 @@ mod tests {
 
         let t = l.inv_arclen(true_len / 3.0, epsilon);
         assert!((t - 1.0 / 3.0).abs() < epsilon);
-        //println!("{}", t);
     }
 }

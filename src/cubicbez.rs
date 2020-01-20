@@ -14,6 +14,7 @@ use crate::{
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(missing_docs)]
 pub struct CubicBez {
     pub p0: Point,
     pub p1: Point,
@@ -242,7 +243,6 @@ impl Iterator for ToQuads {
             let p1x2 = 3.0 * seg.p1.to_vec2() - seg.p0.to_vec2();
             let p2x2 = 3.0 * seg.p2.to_vec2() - seg.p3.to_vec2();
             let err = (p2x2 - p1x2).hypot2();
-            //println!("{:?} {} {}", t0..t1, err, if err < self.max_hypot2 { "ok" } else { "" });
             if err < self.max_hypot2 {
                 let result = QuadBez::new(seg.p0, ((p1x2 + p2x2) / 4.0).to_point(), seg.p3);
                 self.t = t1;
@@ -302,7 +302,6 @@ mod tests {
         for i in 0..12 {
             let accuracy = 0.1f64.powi(i);
             let error = c.arclen(accuracy) - true_arclen;
-            //println!("{:e}: {:e}", accuracy, error);
             assert!(error.abs() < accuracy);
         }
     }
@@ -425,7 +424,6 @@ mod tests {
                     assert!(err < accuracy, "got {} wanted {}", err, accuracy);
                 }
             }
-            //println!("accuracy {:e}: got {:e}, {} quads", accuracy, worst, _count);
         }
     }
 }

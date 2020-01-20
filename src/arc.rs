@@ -6,10 +6,16 @@ use std::f64::consts::{FRAC_PI_2, PI};
 /// A single arc segment.
 #[derive(Clone, Copy, Debug)]
 pub struct Arc {
+    /// The arc's centre point.
     pub center: Point,
+    /// The arc's radii, where the vector's x-component is the radius in the
+    /// positive x direction after applying `x_rotation`.
     pub radii: Vec2,
+    /// The start angle in radians.
     pub start_angle: f64,
+    /// The angle between the start and end of the arc, in radians.
     pub sweep_angle: f64,
+    /// How much the arc is rotated, in radians.
     pub x_rotation: f64,
 }
 
