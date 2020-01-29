@@ -182,6 +182,37 @@ impl Insets {
     pub fn y_value(self) -> f64 {
         self.y0 + self.y1
     }
+
+    /// Return `true` iff all values are nonnegative.
+    pub fn are_nonnegative(self) -> bool {
+        let Insets { x0, y0, x1, y1 } = self;
+        x0 >= 0.0 && y0 >= 0.0 && x1 >= 0.0 && y1 >= 0.0
+    }
+
+    /// Return new `Insets` with all negative values replaced with `0.0`.
+    ///
+    /// This is provided as a convenience for applications where negative insets
+    /// are not meaningful.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Insets;
+    ///
+    /// let insets = Insets::new(-10., 3., -0.2, 4.);
+    /// let nonnegative = insets.nonnegative();
+    /// assert_eq!(nonnegative.x_value(), 0.0);
+    /// assert_eq!(nonnegative.y_value(), 7.0);
+    /// ```
+    pub fn nonnegative(self) -> Insets {
+        let Insets { x0, y0, x1, y1 } = self;
+        Insets {
+            x0: x0.max(0.0),
+            y0: y0.max(0.0),
+            x1: x1.max(0.0),
+            y1: y1.max(0.0),
+        }
+    }
 }
 
 impl Neg for Insets {
