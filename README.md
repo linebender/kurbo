@@ -36,3 +36,4 @@ Contributions are welcome. The [Rust Code of Conduct] applies. Please feel free 
 [flo_curves]: https://crates.io/crates/flo_curves
 [vek]: https://crates.io/crates/vek
 [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
+[AUTHORS]: ./AUTHORS
