@@ -1,6 +1,6 @@
 //! A 2D size.
 
-use crate::Vec2;
+use crate::{Rect, Vec2};
 use std::fmt;
 use std::ops::{Mul, MulAssign};
 
@@ -41,8 +41,10 @@ impl Size {
         Size { width, height }
     }
 
-    /// Convert this size into a `Vec2`, with `width` mapped to `x` and `height`
+    /// Convert this size into a [`Vec2`], with `width` mapped to `x` and `height`
     /// mapped to `y`.
+    ///
+    /// [`Vec2`]: struct.Vec2.html
     #[inline]
     pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.width, self.height)
@@ -53,6 +55,14 @@ impl Size {
     #[inline]
     pub fn round(self) -> Size {
         Size::new(self.width.round(), self.height.round())
+    }
+
+    /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.
+    ///
+    /// [`Rect`]: struct.Rect.html
+    #[inline]
+    pub const fn to_rect(self) -> Rect {
+        Rect::new(0., 0., self.width, self.height)
     }
 }
 
