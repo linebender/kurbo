@@ -1,11 +1,12 @@
 //! A rectangle.
 
+use std::fmt;
 use std::ops::{Add, Sub};
 
 use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 
 /// A rectangle.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default)]
 pub struct Rect {
     /// The minimum x coordinate (left edge).
     pub x0: f64,
@@ -353,6 +354,35 @@ impl Iterator for RectPathIter {
     }
 }
 
+impl fmt::Debug for Rect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            write!(
+                f,
+                "Rect {{ origin: {:?}, size: {:?} }}",
+                self.origin(),
+                self.size()
+            )
+        } else {
+            write!(
+                f,
+                "Rect {{ x0 {:?}, y0: {:?}, x1: {:?}, y1: {:?} }}",
+                self.x0, self.y0, self.x1, self.y1
+            )
+        }
+    }
+}
+
+impl fmt::Display for Rect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Rect {{ ")?;
+        fmt::Display::fmt(&self.origin(), f)?;
+        write!(f, " ")?;
+        fmt::Display::fmt(&self.size(), f)?;
+        write!(f, " }}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Point, Rect, Shape};
@@ -380,5 +410,15 @@ mod tests {
         let p_flip = r_flip.into_bez_path(1e-9);
         assert_approx_eq(r_flip.area(), p_flip.area());
         assert_eq!(r_flip.winding(center), p_flip.winding(center));
+    }
+
+    #[test]
+    fn display() {
+        let r = Rect::from_origin_size((10., 12.23214), (22.222222222, 23.1));
+        assert_eq!(
+            format!("{}", r),
+            "Rect { (10, 12.23214) (22.222222222×23.1) }"
+        );
+        assert_eq!(format!("{:.2}", r), "Rect { (10.00, 12.23) (22.22×23.10) }");
     }
 }
