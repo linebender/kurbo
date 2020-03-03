@@ -2,7 +2,7 @@
 
 use crate::{Rect, Vec2};
 use std::fmt;
-use std::ops::{Mul, MulAssign};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -110,6 +110,42 @@ impl Mul<f64> for Size {
             width: self.width * other,
             height: self.height * other,
         }
+    }
+}
+
+impl Add<Size> for Size {
+    type Output = Size;
+    #[inline]
+    fn add(self, other: Size) -> Size {
+        Size {
+            width: self.width + other.width,
+            height: self.height + other.height,
+        }
+    }
+}
+
+impl AddAssign<Size> for Size {
+    #[inline]
+    fn add_assign(&mut self, other: Size) {
+        *self = *self + other;
+    }
+}
+
+impl Sub<Size> for Size {
+    type Output = Size;
+    #[inline]
+    fn sub(self, other: Size) -> Size {
+        Size {
+            width: self.width - other.width,
+            height: self.height - other.height,
+        }
+    }
+}
+
+impl SubAssign<Size> for Size {
+    #[inline]
+    fn sub_assign(&mut self, other: Size) {
+        *self = *self - other;
     }
 }
 
