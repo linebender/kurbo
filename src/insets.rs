@@ -16,7 +16,7 @@
 
 use std::ops::{Add, Neg, Sub};
 
-use crate::Rect;
+use crate::{Rect, Size};
 
 /// Insets from the edges of a rectangle.
 ///
@@ -181,6 +181,29 @@ impl Insets {
     #[inline]
     pub fn y_value(self) -> f64 {
         self.y0 + self.y1
+    }
+
+    /// Returns the total delta represented by these insets as a [`Size`].
+    ///
+    /// This is equivalent to creating a [`Size`] from the values returned by
+    /// [`x_value`] and [`y_value`].
+    ///
+    /// This function may return a a size with negative values.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Insets, Size};
+    ///
+    /// let insets = Insets::new(11.1, -43.3, 3.333, -0.0);
+    /// assert_eq!(insets.size(), Size::new(insets.x_value(), insets.y_value()));
+    /// ```
+    ///
+    /// [`Size`]: struct.Size.html
+    /// [`x_value`]: #method.x_value
+    /// [`y_value`]: #method.y_value
+    pub fn size(self) -> Size {
+        Size::new(self.x_value(), self.y_value())
     }
 
     /// Return `true` iff all values are nonnegative.
