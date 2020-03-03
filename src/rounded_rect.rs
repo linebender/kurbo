@@ -1,12 +1,18 @@
 //! A rectangle with rounded corners.
 
-use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, Shape, Vec2};
+use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, Shape, Size, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A rectangle with equally rounded corners.
 ///
 /// By construction the rounded rectangle will have
 /// non-negative dimensions and radius clamped to half size of the rect.
+///
+/// The easiest way to create a `RoundedRect` is often to create a [`Rect`],
+/// and then call [`to_rounded_rect`].
+///
+/// [`Rect`]: struct.Rect.html
+/// [`to_rounded_rect`]: struct.Rect.html#method.to_rounded_rect
 #[derive(Clone, Copy, Default, Debug)]
 pub struct RoundedRect {
     /// Coordinates of the rectangle.
@@ -27,6 +33,10 @@ impl RoundedRect {
     /// A new rounded rectangle from a rectangle and corner radius.
     ///
     /// The result will have non-negative width, height and radius.
+    ///
+    /// See also [`Rect::to_rounded_rect`], which offers the same utility.
+    ///
+    /// [`Rect::to_rounded_rect`]: struct.Rect.html#method.to_rounded_rect
     #[inline]
     pub fn from_rect(rect: Rect, radius: f64) -> RoundedRect {
         let rect = rect.abs();
@@ -38,20 +48,26 @@ impl RoundedRect {
         RoundedRect { rect, radius }
     }
 
-    /// A new rectangle from two points.
+    /// A new rectangle from two [`Point`]s.
     ///
     /// The result will have non-negative width, height and radius.
+    ///
+    /// [`Point`]: struct.Point.html
     #[inline]
-    pub fn from_points(p0: Point, p1: Point, radius: f64) -> RoundedRect {
-        RoundedRect::new(p0.x, p0.y, p1.x, p1.y, radius)
+    pub fn from_points(p0: impl Into<Point>, p1: impl Into<Point>, radius: f64) -> RoundedRect {
+        Rect::from_points(p0, p1).to_rounded_rect(radius)
     }
 
     /// A new rectangle from origin and size.
     ///
     /// The result will have non-negative width, height and radius.
     #[inline]
-    pub fn from_origin_size(origin: Point, size: Vec2, radius: f64) -> RoundedRect {
-        RoundedRect::from_points(origin, origin + size, radius)
+    pub fn from_origin_size(
+        origin: impl Into<Point>,
+        size: impl Into<Size>,
+        radius: f64,
+    ) -> RoundedRect {
+        Rect::from_origin_size(origin, size).to_rounded_rect(radius)
     }
 
     /// The width of the rectangle.
