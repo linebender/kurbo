@@ -22,7 +22,7 @@ pub struct Line {
 impl Line {
     /// Create a new line.
     #[inline]
-    pub fn new<P: Into<Point>>(p0: P, p1: P) -> Line {
+    pub fn new(p0: impl Into<Point>, p1: impl Into<Point>) -> Line {
         Line {
             p0: p0.into(),
             p1: p1.into(),
