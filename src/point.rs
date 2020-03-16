@@ -56,6 +56,20 @@ impl Point {
     pub fn round(self) -> Point {
         Point::new(self.x.round(), self.y.round())
     }
+
+    /// A new `Point`, with `x` and `y` rounded up to the nearest integer,
+    /// unless they are already an integer.
+    #[inline]
+    pub fn ceil(self) -> Point {
+        Point::new(self.x.ceil(), self.y.ceil())
+    }
+
+    /// A new `Point`, with `x` and `y` rounded down to the nearest integer,
+    /// unless they are already an integer.
+    #[inline]
+    pub fn floor(self) -> Point {
+        Point::new(self.x.floor(), self.y.floor())
+    }
 }
 
 impl From<(f64, f64)> for Point {

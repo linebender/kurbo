@@ -57,6 +57,20 @@ impl Size {
         Size::new(self.width.round(), self.height.round())
     }
 
+    /// A new `Size`, with `width` and `height` rounded up to the nearest integer,
+    /// unless they are already an integer.
+    #[inline]
+    pub fn ceil(self) -> Size {
+        Size::new(self.width.ceil(), self.height.ceil())
+    }
+
+    /// A new `Size`, with `width` and `height` rounded down to the nearest integer,
+    /// unless they are already an integer.
+    #[inline]
+    pub fn floor(self) -> Size {
+        Size::new(self.width.floor(), self.height.floor())
+    }
+
     /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.
     ///
     /// [`Rect`]: struct.Rect.html
