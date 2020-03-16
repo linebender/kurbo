@@ -3,6 +3,7 @@
 use std::fmt;
 use std::ops::{Add, Sub};
 
+use crate::common::FloatExt;
 use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 
 /// A rectangle.
@@ -225,6 +226,52 @@ impl Rect {
             self.y0.round(),
             self.x1.round(),
             self.y1.round(),
+        )
+    }
+
+    /// A new `Rect`, with each coordinate value rounded away from zero
+    /// to the nearest integer, unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).expand();
+    /// assert_eq!(rect.x0, 4.0);
+    /// assert_eq!(rect.y0, 4.0);
+    /// assert_eq!(rect.x1, 3.0);
+    /// assert_eq!(rect.y1, -4.0);
+    /// ```
+    #[inline]
+    pub fn expand(self) -> Rect {
+        Rect::new(
+            self.x0.expand(),
+            self.y0.expand(),
+            self.x1.expand(),
+            self.y1.expand(),
+        )
+    }
+
+    /// A new `Rect`, with each coordinate value rounded towards zero
+    /// to the nearest integer, unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).trunc();
+    /// assert_eq!(rect.x0, 3.0);
+    /// assert_eq!(rect.y0, 3.0);
+    /// assert_eq!(rect.x1, 3.0);
+    /// assert_eq!(rect.y1, -3.0);
+    /// ```
+    #[inline]
+    pub fn trunc(self) -> Rect {
+        Rect::new(
+            self.x0.trunc(),
+            self.y0.trunc(),
+            self.x1.trunc(),
+            self.y1.trunc(),
         )
     }
 
