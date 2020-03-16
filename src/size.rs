@@ -1,8 +1,10 @@
 //! A 2D size.
 
-use crate::{Rect, Vec2};
 use std::fmt;
 use std::ops::{Mul, MulAssign};
+
+use crate::common::FloatExt;
+use crate::{Rect, Vec2};
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -50,25 +52,103 @@ impl Size {
         Vec2::new(self.width, self.height)
     }
 
-    /// A new `Size`, with each of width and height rounded to the nearest
-    /// integer value.
+    /// Returns a new `Size`,
+    /// with `width` and `height` rounded to the nearest integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size_pos = Size::new(3.3, 3.6).round();
+    /// assert_eq!(size_pos.width, 3.0);
+    /// assert_eq!(size_pos.height, 4.0);
+    /// let size_neg = Size::new(-3.3, -3.6).round();
+    /// assert_eq!(size_neg.width, -3.0);
+    /// assert_eq!(size_neg.height, -4.0);
+    /// ```
     #[inline]
     pub fn round(self) -> Size {
         Size::new(self.width.round(), self.height.round())
     }
 
-    /// A new `Size`, with `width` and `height` rounded up to the nearest integer,
+    /// Returns a new `Size`,
+    /// with `width` and `height` rounded up to the nearest integer,
     /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size_pos = Size::new(3.3, 3.6).ceil();
+    /// assert_eq!(size_pos.width, 4.0);
+    /// assert_eq!(size_pos.height, 4.0);
+    /// let size_neg = Size::new(-3.3, -3.6).ceil();
+    /// assert_eq!(size_neg.width, -3.0);
+    /// assert_eq!(size_neg.height, -3.0);
+    /// ```
     #[inline]
     pub fn ceil(self) -> Size {
         Size::new(self.width.ceil(), self.height.ceil())
     }
 
-    /// A new `Size`, with `width` and `height` rounded down to the nearest integer,
+    /// Returns a new `Size`,
+    /// with `width` and `height` rounded down to the nearest integer,
     /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size_pos = Size::new(3.3, 3.6).floor();
+    /// assert_eq!(size_pos.width, 3.0);
+    /// assert_eq!(size_pos.height, 3.0);
+    /// let size_neg = Size::new(-3.3, -3.6).floor();
+    /// assert_eq!(size_neg.width, -4.0);
+    /// assert_eq!(size_neg.height, -4.0);
+    /// ```
     #[inline]
     pub fn floor(self) -> Size {
         Size::new(self.width.floor(), self.height.floor())
+    }
+
+    /// Returns a new `Size`,
+    /// with `width` and `height` rounded away from zero to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size_pos = Size::new(3.3, 3.6).expand();
+    /// assert_eq!(size_pos.width, 4.0);
+    /// assert_eq!(size_pos.height, 4.0);
+    /// let size_neg = Size::new(-3.3, -3.6).expand();
+    /// assert_eq!(size_neg.width, -4.0);
+    /// assert_eq!(size_neg.height, -4.0);
+    /// ```
+    #[inline]
+    pub fn expand(self) -> Size {
+        Size::new(self.width.expand(), self.height.expand())
+    }
+
+    /// Returns a new `Size`,
+    /// with `width` and `height` rounded down towards zero the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size_pos = Size::new(3.3, 3.6).trunc();
+    /// assert_eq!(size_pos.width, 3.0);
+    /// assert_eq!(size_pos.height, 3.0);
+    /// let size_neg = Size::new(-3.3, -3.6).trunc();
+    /// assert_eq!(size_neg.width, -3.0);
+    /// assert_eq!(size_neg.height, -3.0);
+    /// ```
+    #[inline]
+    pub fn trunc(self) -> Size {
+        Size::new(self.width.trunc(), self.height.trunc())
     }
 
     /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.

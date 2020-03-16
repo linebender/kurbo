@@ -3,6 +3,7 @@
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use crate::common::FloatExt;
 use crate::{Point, Size};
 
 /// A 2D vector.
@@ -108,44 +109,103 @@ impl Vec2 {
         self / self.hypot()
     }
 
-    /// Returns a new `Vec2` with each of `x` and `y` rounded to the nearest integer.
-    #[inline]
-    pub fn round(self) -> Vec2 {
-        Vec2::new(self.x.round(), self.y.round())
-    }
-
-    /// Returns a new `Vec2` where each of `x` and `y`, with a non-zero fractional
-    /// part is rounded up to the nearest integer.
+    /// Returns a new `Vec2`,
+    /// with `x` and `y` rounded to the nearest integer.
     ///
     /// # Examples
     ///
     /// ```
     /// use kurbo::Vec2;
+    /// let a = Vec2::new(3.3, 3.6).round();
+    /// let b = Vec2::new(3.0, -3.1).round();
+    /// assert_eq!(a.x, 3.0);
+    /// assert_eq!(a.y, 4.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -3.0);
+    /// ```
+    #[inline]
+    pub fn round(self) -> Vec2 {
+        Vec2::new(self.x.round(), self.y.round())
+    }
+
+    /// Returns a new `Vec2`,
+    /// with `x` and `y` rounded up to the nearest integer,
+    /// unless they are already an integer.
     ///
-    /// let v = Vec2::new(5.0, -1.1);
-    /// let ceil_v = v.ceil();
-    /// assert_eq!((ceil_v.x, ceil_v.y), (5.0, -1.0));
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    /// let a = Vec2::new(3.3, 3.6).ceil();
+    /// let b = Vec2::new(3.0, -3.1).ceil();
+    /// assert_eq!(a.x, 4.0);
+    /// assert_eq!(a.y, 4.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -3.0);
     /// ```
     #[inline]
     pub fn ceil(self) -> Vec2 {
         Vec2::new(self.x.ceil(), self.y.ceil())
     }
 
-    /// Returns a new `Vec2` where each of `x` and `y`, with a non-zero fractional
-    /// part is rounded down to the nearest integer.
+    /// Returns a new `Vec2`,
+    /// with `x` and `y` rounded down to the nearest integer,
+    /// unless they are already an integer.
     ///
     /// # Examples
     ///
     /// ```
     /// use kurbo::Vec2;
-    ///
-    /// let v = Vec2::new(4.9, -1.1);
-    /// let floor_v = v.floor();
-    /// assert_eq!((floor_v.x, floor_v.y), (4.0, -2.0));
+    /// let a = Vec2::new(3.3, 3.6).floor();
+    /// let b = Vec2::new(3.0, -3.1).floor();
+    /// assert_eq!(a.x, 3.0);
+    /// assert_eq!(a.y, 3.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -4.0);
     /// ```
     #[inline]
     pub fn floor(self) -> Vec2 {
         Vec2::new(self.x.floor(), self.y.floor())
+    }
+
+    /// Returns a new `Vec2`,
+    /// with `x` and `y` rounded away from zero to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    /// let a = Vec2::new(3.3, 3.6).expand();
+    /// let b = Vec2::new(3.0, -3.1).expand();
+    /// assert_eq!(a.x, 4.0);
+    /// assert_eq!(a.y, 4.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -4.0);
+    /// ```
+    #[inline]
+    pub fn expand(self) -> Vec2 {
+        Vec2::new(self.x.expand(), self.y.expand())
+    }
+
+    /// Returns a new `Vec2`,
+    /// with `x` and `y` rounded towards zero to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    /// let a = Vec2::new(3.3, 3.6).trunc();
+    /// let b = Vec2::new(3.0, -3.1).trunc();
+    /// assert_eq!(a.x, 3.0);
+    /// assert_eq!(a.y, 3.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -3.0);
+    /// ```
+    #[inline]
+    pub fn trunc(self) -> Vec2 {
+        Vec2::new(self.x.trunc(), self.y.trunc())
     }
 }
 
