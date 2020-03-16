@@ -3,6 +3,7 @@
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+use crate::common::FloatExt;
 use crate::Vec2;
 
 /// A 2D point.
@@ -51,24 +52,103 @@ impl Point {
         (self - other).hypot()
     }
 
-    /// A new `Point`, with each of x and y rounded to the nearest integer value.
+    /// Returns a new `Point`,
+    /// with `x` and `y` rounded to the nearest integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Point;
+    /// let a = Point::new(3.3, 3.6).round();
+    /// let b = Point::new(3.0, -3.1).round();
+    /// assert_eq!(a.x, 3.0);
+    /// assert_eq!(a.y, 4.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -3.0);
+    /// ```
     #[inline]
     pub fn round(self) -> Point {
         Point::new(self.x.round(), self.y.round())
     }
 
-    /// A new `Point`, with `x` and `y` rounded up to the nearest integer,
+    /// Returns a new `Point`,
+    /// with `x` and `y` rounded up to the nearest integer,
     /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Point;
+    /// let a = Point::new(3.3, 3.6).ceil();
+    /// let b = Point::new(3.0, -3.1).ceil();
+    /// assert_eq!(a.x, 4.0);
+    /// assert_eq!(a.y, 4.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -3.0);
+    /// ```
     #[inline]
     pub fn ceil(self) -> Point {
         Point::new(self.x.ceil(), self.y.ceil())
     }
 
-    /// A new `Point`, with `x` and `y` rounded down to the nearest integer,
+    /// Returns a new `Point`,
+    /// with `x` and `y` rounded down to the nearest integer,
     /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Point;
+    /// let a = Point::new(3.3, 3.6).floor();
+    /// let b = Point::new(3.0, -3.1).floor();
+    /// assert_eq!(a.x, 3.0);
+    /// assert_eq!(a.y, 3.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -4.0);
+    /// ```
     #[inline]
     pub fn floor(self) -> Point {
         Point::new(self.x.floor(), self.y.floor())
+    }
+
+    /// Returns a new `Point`,
+    /// with `x` and `y` rounded away from zero to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Point;
+    /// let a = Point::new(3.3, 3.6).expand();
+    /// let b = Point::new(3.0, -3.1).expand();
+    /// assert_eq!(a.x, 4.0);
+    /// assert_eq!(a.y, 4.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -4.0);
+    /// ```
+    #[inline]
+    pub fn expand(self) -> Point {
+        Point::new(self.x.expand(), self.y.expand())
+    }
+
+    /// Returns a new `Point`,
+    /// with `x` and `y` rounded towards zero to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Point;
+    /// let a = Point::new(3.3, 3.6).trunc();
+    /// let b = Point::new(3.0, -3.1).trunc();
+    /// assert_eq!(a.x, 3.0);
+    /// assert_eq!(a.y, 3.0);
+    /// assert_eq!(b.x, 3.0);
+    /// assert_eq!(b.y, -3.0);
+    /// ```
+    #[inline]
+    pub fn trunc(self) -> Point {
+        Point::new(self.x.trunc(), self.y.trunc())
     }
 }
 

@@ -218,7 +218,19 @@ impl Rect {
         )
     }
 
-    /// A new `Rect`, with each coordinate value rounded to the nearest integer.
+    /// Returns a new `Rect`,
+    /// with each coordinate value rounded to the nearest integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).round();
+    /// assert_eq!(rect.x0, 3.0);
+    /// assert_eq!(rect.y0, 4.0);
+    /// assert_eq!(rect.x1, 3.0);
+    /// assert_eq!(rect.y1, -3.0);
+    /// ```
     #[inline]
     pub fn round(self) -> Rect {
         Rect::new(
@@ -229,8 +241,57 @@ impl Rect {
         )
     }
 
-    /// A new `Rect`, with each coordinate value rounded away from zero
-    /// to the nearest integer, unless they are already an integer.
+    /// Returns a new `Rect`,
+    /// with each coordinate value rounded up to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).ceil();
+    /// assert_eq!(rect.x0, 4.0);
+    /// assert_eq!(rect.y0, 4.0);
+    /// assert_eq!(rect.x1, 3.0);
+    /// assert_eq!(rect.y1, -3.0);
+    /// ```
+    #[inline]
+    pub fn ceil(self) -> Rect {
+        Rect::new(
+            self.x0.ceil(),
+            self.y0.ceil(),
+            self.x1.ceil(),
+            self.y1.ceil(),
+        )
+    }
+
+    /// Returns a new `Rect`,
+    /// with each coordinate value rounded down to the nearest integer,
+    /// unless they are already an integer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).floor();
+    /// assert_eq!(rect.x0, 3.0);
+    /// assert_eq!(rect.y0, 3.0);
+    /// assert_eq!(rect.x1, 3.0);
+    /// assert_eq!(rect.y1, -4.0);
+    /// ```
+    #[inline]
+    pub fn floor(self) -> Rect {
+        Rect::new(
+            self.x0.floor(),
+            self.y0.floor(),
+            self.x1.floor(),
+            self.y1.floor(),
+        )
+    }
+
+    /// Returns a new `Rect`,
+    /// with each coordinate value rounded away from zero to the nearest integer,
+    /// unless they are already an integer.
     ///
     /// # Examples
     ///
@@ -252,8 +313,9 @@ impl Rect {
         )
     }
 
-    /// A new `Rect`, with each coordinate value rounded towards zero
-    /// to the nearest integer, unless they are already an integer.
+    /// Returns a new `Rect`,
+    /// with each coordinate value rounded towards zero to the nearest integer,
+    /// unless they are already an integer.
     ///
     /// # Examples
     ///
