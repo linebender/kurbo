@@ -4,7 +4,7 @@ use std::fmt;
 use std::ops::{Mul, MulAssign};
 
 use crate::common::FloatExt;
-use crate::{Rect, Vec2};
+use crate::{Rect, RoundedRect, Vec2};
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -157,6 +157,15 @@ impl Size {
     #[inline]
     pub const fn to_rect(self) -> Rect {
         Rect::new(0., 0., self.width, self.height)
+    }
+
+    /// Convert this `Size` into a [`RoundedRect`] with origin `(0.0, 0.0)` and
+    /// the provided corner radius.
+    ///
+    /// [`RoundedRect`]: struct.RoundedRect.html
+    #[inline]
+    pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
+        self.to_rect().to_rounded_rect(radius)
     }
 }
 
