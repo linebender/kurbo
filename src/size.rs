@@ -25,6 +25,32 @@ impl Size {
         Size { width, height }
     }
 
+    /// Returns the max of `width` and `height`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size = Size::new(-10.5, 42.0);
+    /// assert_eq!(size.max_side(), 42.0);
+    /// ```
+    pub fn max_side(self) -> f64 {
+        self.width.max(self.height)
+    }
+
+    /// Returns the min of `width` and `height`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    /// let size = Size::new(-10.5, 42.0);
+    /// assert_eq!(size.min_side(), -10.5);
+    /// ```
+    pub fn min_side(self) -> f64 {
+        self.width.min(self.height)
+    }
+
     /// Returns a new size bounded by `min` and `max.`
     ///
     /// # Examples
