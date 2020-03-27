@@ -12,6 +12,7 @@ use crate::{
 
 /// A single line.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Line {
     /// The line's start point.
     pub p0: Point,
@@ -111,6 +112,7 @@ impl ParamCurveExtrema for Line {
 
 /// A trivial "curve" that is just a constant.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConstPoint(Point);
 
 impl ParamCurve for ConstPoint {

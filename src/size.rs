@@ -8,6 +8,7 @@ use crate::{Rect, RoundedRect, Vec2};
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Size {
     /// The width.
     pub width: f64,

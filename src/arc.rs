@@ -5,6 +5,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Arc {
     /// The arc's centre point.
     pub center: Point,
