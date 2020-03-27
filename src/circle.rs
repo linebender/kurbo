@@ -7,6 +7,7 @@ use crate::{PathEl, Point, Rect, Shape, Vec2};
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Circle {
     /// The center.
     pub center: Point,

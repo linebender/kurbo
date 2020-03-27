@@ -11,6 +11,7 @@ use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
 /// A single SVG arc segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SvgArc {
     /// The arc's start point.
     pub from: Point,

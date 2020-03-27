@@ -13,12 +13,14 @@ use crate::{
 
 /// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
 ///
 /// A valid path has `Moveto` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathEl {
     /// Move directly to the point without drawing anything, starting a new
     /// subpath.
@@ -35,6 +37,7 @@ pub enum PathEl {
 
 /// A segment of a Bézier path.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathSeg {
     /// A line segment.
     Line(Line),

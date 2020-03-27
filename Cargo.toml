@@ -11,7 +11,7 @@ readme = "README.md"
 categories = ["graphics"]
 
 [package.metadata.docs.rs]
-features = ["mint"]
+features = ["mint", "serde"]
 
 [dependencies]
 arrayvec = "0.5.1"
@@ -19,6 +19,11 @@ arrayvec = "0.5.1"
 [dependencies.mint]
 version = "0.5.1"
 optional = true
+
+[dependencies.serde]
+version = "1.0.105"
+optional = true
+features = ["derive"]
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
