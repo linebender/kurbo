@@ -8,8 +8,8 @@ use arrayvec::ArrayVec;
 use crate::common::solve_quadratic;
 use crate::common::GAUSS_LEGENDRE_COEFFS_9;
 use crate::{
-    Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
+    Affine, CurveTooShort, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveDistanceEval, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
 };
 
 /// A single cubic Bézier segment.
@@ -215,6 +215,102 @@ impl ParamCurveExtrema for CubicBez {
     }
 }
 
+impl ParamCurveDistanceEval for CubicBez {
+    fn find_t_at_distance(
+        &self,
+        distance_from_start: f64,
+        accuracy: f64,
+    ) -> Result<f64, CurveTooShort> {
+        // Squared L2 norm of the second derivative of the cubic.
+        fn cubic_errnorm(c: &CubicBez) -> f64 {
+            let d = c.deriv().deriv();
+            let dd = d.end() - d.start();
+            d.start().to_vec2().hypot2() + d.start().to_vec2().dot(dd) + dd.hypot2() * (1.0 / 3.0)
+        }
+        fn est_gauss9_error(c: &CubicBez) -> f64 {
+            let lc2 = (c.p3 - c.p0).hypot2();
+            let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
+
+            2.56e-8 * (cubic_errnorm(c) / lc2).powi(8) * lp
+        }
+        const MAX_DEPTH: usize = 16;
+        fn rec(
+            c: &CubicBez,
+            distance_from_start: f64,
+            accuracy: f64,
+            depth: usize,
+            t_range: std::ops::Range<f64>,
+        ) -> Result<f64, CurveTooShort> {
+            if depth == MAX_DEPTH || est_gauss9_error(c) < accuracy {
+                let length = c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_9);
+                if distance_from_start > length {
+                    Err(CurveTooShort {
+                        remaining: distance_from_start - length,
+                    })
+                } else {
+                    // Run a binary search to find the t value which corresponds to a given arclength from the start.
+                    // Note that in this part the gauss_arclen can be used to estimate arc length.
+                    // The binary search can be used to implement the whole find_t_at_distance function, but that is slower
+                    // as it then has to call the full arclen function multiple times.
+                    let mut mx_t = 1.0;
+                    let mut mx_d = length;
+                    let mut mn_t = 0.0;
+                    let mut mn_d = 0.0;
+
+                    loop {
+                        // Do a first degree estimate of where the desired point should be
+                        let t =
+                            ((distance_from_start - mn_d) / (mx_d - mn_d)) * (mx_t - mn_t) + mn_t;
+                        // Calculate arclength from 0.0 to t
+                        let d = c.subsegment(0.0..t).gauss_arclen(GAUSS_LEGENDRE_COEFFS_9);
+
+                        // The loop is guaranteed to exit since we have that
+                        // 1. gauss_arclen for t=0 is 0
+                        // 2. (gauss_arclen for t=1.0) >= distance_from_start
+                        // 3. gauss_arclen is a continuous function
+                        // Due to the intermediate value theorem a value 0.0 <= t <= 1.0 exists such that d = distance_from_start
+                        if (d - distance_from_start).abs() < accuracy {
+                            return Ok(t * (t_range.end - t_range.start) + t_range.start);
+                        } else if distance_from_start > d {
+                            mn_t = t;
+                            mn_d = d;
+                        } else {
+                            mx_t = t;
+                            mx_d = d;
+                        }
+                    }
+                }
+            } else {
+                let (c0, c1) = c.subdivide();
+                let t_mid = (t_range.start + t_range.end) * 0.5;
+                let r0 = rec(
+                    &c0,
+                    distance_from_start,
+                    accuracy * 0.5,
+                    depth + 1,
+                    t_range.start..t_mid,
+                );
+                match r0 {
+                    Err(CurveTooShort { remaining }) => {
+                        // First part of the curve was too short, recurse into the second part
+                        rec(
+                            &c1,
+                            remaining,
+                            accuracy * 0.5,
+                            depth + 1,
+                            t_mid..t_range.end,
+                        )
+                    }
+                    x => x,
+                }
+            }
+        }
+
+        assert!(distance_from_start >= 0.0);
+        rec(self, distance_from_start, accuracy, 0, 0.0..1.0)
+    }
+}
+
 impl Mul<CubicBez> for Affine {
     type Output = CubicBez;
 
@@ -264,7 +360,7 @@ impl Iterator for ToQuads {
 mod tests {
     use crate::{
         Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, Point,
+        ParamCurveDistanceEval, ParamCurveExtrema, ParamCurveNearest, Point,
     };
 
     #[test]
@@ -401,6 +497,44 @@ mod tests {
         let q = CubicBez::new((0.4, 0.5), (0.0, 1.0), (1.0, 0.0), (0.5, 0.4));
         let extrema = q.extrema();
         assert_eq!(extrema.len(), 4);
+    }
+
+    #[test]
+    fn cubicbez_find_t_at_distance() {
+        let b = CubicBez::new((0.0, 0.0), (10.0, 10.0), (20.0, -10.0), (30.0, 0.0));
+        let len = b.arclen(0.001);
+        let precision = 0.001;
+
+        fn assert_within_tolerance(b: &CubicBez, t: f64, target: f64, precision: f64) {
+            let error = (b.subsegment(0.0..t).arclen(precision)
+                - b.subsegment(0.0..target).arclen(precision))
+            .abs();
+            if error > precision {
+                panic!(
+                    "Not within required tolerance: t: {}, target: {}. Error {} > {}",
+                    t, target, error, precision
+                );
+            }
+        }
+
+        assert_eq!(b.find_t_at_distance(0.0, 0.001), Ok(0.0));
+        assert_within_tolerance(
+            &b,
+            b.find_t_at_distance(len, precision).unwrap(),
+            1.0,
+            precision,
+        );
+
+        for i in 0..10 {
+            let t = 0.1 * (i as f64);
+            let len = b.subsegment(0.0..t).arclen(precision);
+            assert_within_tolerance(
+                &b,
+                b.find_t_at_distance(len, precision).unwrap(),
+                t,
+                precision,
+            );
+        }
     }
 
     #[test]

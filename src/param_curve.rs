@@ -195,3 +195,42 @@ pub trait ParamCurveExtrema: ParamCurve {
         bbox
     }
 }
+
+/// Error indicating that the curve had a too short arc length
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct CurveTooShort {
+    /// Remaining distance after the end of the curve
+    pub remaining: f64,
+}
+
+/// A parametrized curve that can be evaluated based on the distance from the start of the curve
+pub trait ParamCurveDistanceEval: ParamCurve {
+    /// Evaluates the curve at a given arc length distance from the start of the curve.
+    ///
+    /// # Arguments
+    /// * `distance_from_start` - Distance from the start of the curve. Should be greater or equal to 0.0.
+    /// * `accuracy` - Maximum allowed error in the arc length.
+    ///
+    /// Returns an error if the curve is shorter than `distance_from_start`.
+    fn eval_at_distance(
+        &self,
+        distance_from_start: f64,
+        accuracy: f64,
+    ) -> Result<Point, CurveTooShort> {
+        let t = self.find_t_at_distance(distance_from_start, accuracy)?;
+        Ok(self.eval(t))
+    }
+
+    /// Finds the `t` value for a given arc length distance from the start of the curve.
+    ///
+    /// # Arguments
+    /// * `distance_from_start` - Distance from the start of the curve. Should be greater or equal to 0.0.
+    /// * `accuracy` - Maximum allowed error in the arc length.
+    ///
+    /// Returns an error if the curve is shorter than `distance_from_start`.
+    fn find_t_at_distance(
+        &self,
+        distance_from_start: f64,
+        accuracy: f64,
+    ) -> Result<f64, CurveTooShort>;
+}
