@@ -143,10 +143,10 @@ impl ParamCurveArclen for CubicBez {
             d.start().to_vec2().hypot2() + d.start().to_vec2().dot(dd) + dd.hypot2() * (1.0 / 3.0)
         }
         fn est_gauss9_error(c: &CubicBez) -> f64 {
-            let lc = (c.p3 - c.p0).hypot();
+            let lc2 = (c.p3 - c.p0).hypot2();
             let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
 
-            2.56e-8 * (cubic_errnorm(c) / (lc * lc)).powi(8) * lp
+            2.56e-8 * (cubic_errnorm(c) / lc2).powi(8) * lp
         }
         const MAX_DEPTH: usize = 16;
         fn rec(c: &CubicBez, accuracy: f64, depth: usize) -> f64 {
