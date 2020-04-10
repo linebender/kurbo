@@ -157,7 +157,19 @@ impl ParamCurveArclen for CubicBez {
                 rec(&c0, accuracy * 0.5, depth + 1) + rec(&c1, accuracy * 0.5, depth + 1)
             }
         }
-        rec(self, accuracy, 0)
+
+        // Check if the bezier curve is degenerate, or almost degenerate
+        // A degenerate curve where all points are identical will cause infinite recursion in the rec function (well, until MAX_DEPTH at least) in all branches.
+        // This test will in addition be true if the bezier curve is just a simple line (i.e. p0=p1 and p2=p3).
+        // The constant 0.5 has not been mathematically proven to be small enough, but from empirical tests
+        // a value of about 0.87 should be enough. Thus 0.5 is a conservative value.
+        // See https://github.com/linebender/kurbo/pull/100 for more info.
+        if (self.p1 - self.p0).hypot2() + (self.p2 - self.p3).hypot2() <= 0.5 * accuracy * accuracy
+        {
+            (self.p0 - self.p3).hypot()
+        } else {
+            rec(self, accuracy, 0)
+        }
     }
 }
 

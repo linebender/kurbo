@@ -25,6 +25,12 @@ fn bench_cubic_arclen_1e_6(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_cubic_arclen_degenerate(b: &mut Bencher) {
+    let c = CubicBez::new((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0));
+    b.iter(|| test::black_box(c).arclen(1e-6))
+}
+
+#[bench]
 fn bench_cubic_arclen_1e_7(b: &mut Bencher) {
     let c = CubicBez::new((0.0, 0.0), (1.0 / 3.0, 0.0), (2.0 / 3.0, 1.0), (1.0, 1.0));
     b.iter(|| test::black_box(c).arclen(1e-7))
