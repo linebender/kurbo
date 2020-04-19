@@ -49,6 +49,19 @@ impl Rect {
         Rect::from_points(origin, origin + size.into().to_vec2())
     }
 
+    /// A new rectangle from center and size.
+    #[inline]
+    pub fn from_center_size(center: impl Into<Point>, size: impl Into<Size>) -> Rect {
+        let center = center.into();
+        let size = 0.5 * size.into();
+        Rect::new(
+            center.x - size.width,
+            center.y - size.height,
+            center.x + size.width,
+            center.y + size.height,
+        )
+    }
+
     /// Create a new `Rect` with the same size as `self` and a new origin.
     #[inline]
     pub fn with_origin(self, origin: impl Into<Point>) -> Rect {
@@ -531,4 +544,14 @@ mod tests {
         );
         assert_eq!(format!("{:.2}", r), "Rect { (10.00, 12.23) (22.22×23.10) }");
     }
+
+    /* TODO uncomment when a (possibly approximate) equality test has been decided on
+    #[test]
+    fn rect_from_center_size() {
+        assert_eq!(
+            Rect::from_center_size(Point::new(3.0, 2.0), Size::new(2.0, 4.0)),
+            Rect::new(2.0, 0.0, 4.0, 4.0)
+        );
+    }
+    */
 }
