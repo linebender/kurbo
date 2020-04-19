@@ -9,6 +9,7 @@ use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 /// A rectangle.
 #[derive(Clone, Copy, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Rect {
     /// The minimum x coordinate (left edge).
     pub x0: f64,
@@ -47,6 +48,19 @@ impl Rect {
     pub fn from_origin_size(origin: impl Into<Point>, size: impl Into<Size>) -> Rect {
         let origin = origin.into();
         Rect::from_points(origin, origin + size.into().to_vec2())
+    }
+
+    /// A new rectangle from center and size.
+    #[inline]
+    pub fn from_center_size(center: impl Into<Point>, size: impl Into<Size>) -> Rect {
+        let center = center.into();
+        let size = 0.5 * size.into();
+        Rect::new(
+            center.x - size.width,
+            center.y - size.height,
+            center.x + size.width,
+            center.y + size.height,
+        )
     }
 
     /// Create a new `Rect` with the same size as `self` and a new origin.
@@ -495,7 +509,7 @@ impl fmt::Display for Rect {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Point, Rect, Shape};
+    use crate::{Point, Rect, Shape, Size};
 
     fn assert_approx_eq(x: f64, y: f64) {
         assert!((x - y).abs() < 1e-7);
@@ -530,5 +544,13 @@ mod tests {
             "Rect { (10, 12.23214) (22.222222222×23.1) }"
         );
         assert_eq!(format!("{:.2}", r), "Rect { (10.00, 12.23) (22.22×23.10) }");
+    }
+
+    #[test]
+    fn rect_from_center_size() {
+        assert_eq!(
+            Rect::from_center_size(Point::new(3.0, 2.0), Size::new(2.0, 4.0)),
+            Rect::new(2.0, 0.0, 4.0, 4.0)
+        );
     }
 }
