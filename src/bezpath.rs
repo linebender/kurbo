@@ -1,5 +1,6 @@
 //! Bézier paths (up to cubic).
 
+use std::iter::FromIterator;
 use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
@@ -114,6 +115,27 @@ impl BezPath {
         BezPath::segments_of_slice(&self.0)
     }
 
+    /// Flatten the path, invoking the callback repeatedly.
+    ///
+    /// The callback is only invoked with lines.
+    ///
+    /// This algorithm is based on the blog post [Flattening quadratic Béziers]
+    /// but with some refinements. For one, there is a more careful approximation
+    /// at cusps. For two, the algorithm is extended to work with cubic Béziers
+    /// as well, by first subdividing into quadratics and then computing the
+    /// subdivision of each quadratic. However, as a clever trick, these quadratics
+    /// are subdivided fractionally, and their endpoints are not included.
+    ///
+    /// TODO: write a paper explaining this in more detail.
+    ///
+    /// Note: the [`flatten`](fn.flatten.html) function provides the same
+    /// functionality but works with slices and other [`PathEl`] iterators.
+    ///
+    /// [Flattening quadratic Béziers]: https://raphlinus.github.io/graphics/curves/2019/12/23/flatten-quadbez.html
+    pub fn flatten(&self, tolerance: f64, callback: impl FnMut(PathEl)) {
+        flatten(self, tolerance, callback);
+    }
+
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
     fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
         let first = match slice.get(0) {
@@ -194,23 +216,127 @@ impl BezPath {
     }
 }
 
-impl std::iter::FromIterator<PathEl> for BezPath {
+impl FromIterator<PathEl> for BezPath {
     fn from_iter<T: IntoIterator<Item = PathEl>>(iter: T) -> Self {
         let el_vec: Vec<_> = iter.into_iter().collect();
         BezPath::from_vec(el_vec)
     }
 }
 
-// this has weird semantics; signature assumes taking ownership but impl'd on a reference
-// NOTE: after removing this, we should impl IntoIterator for BezPath (with no reference)
-// and that impl should just call `self.0.into_iter()`
-#[deprecated(since = "0.5.6", note = "use BezPath::iter instead")]
+/// Allow iteration over references to `BezPath`.
+///
+/// Note: the semantics are slightly different than simply iterating over the
+/// slice, as it returns `PathEl` items, rather than references.
 impl<'a> IntoIterator for &'a BezPath {
     type Item = PathEl;
     type IntoIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements().iter().cloned()
+    }
+}
+
+impl IntoIterator for BezPath {
+    type Item = PathEl;
+    type IntoIter = std::vec::IntoIter<PathEl>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+/// Proportion of tolerance budget that goes to cubic to quadratic conversion.
+const TO_QUAD_TOL: f64 = 0.1;
+
+/// Flatten the path, invoking the callback repeatedly.
+///
+/// See [`BezPath::flatten`](struct.BezPath.html#method.flatten) for more discussion.
+/// This signature is a bit more general, allowing flattening of `&[PathEl]` slices
+/// and other iterators yielding `PathEl`.
+pub fn flatten(
+    path: impl IntoIterator<Item = PathEl>,
+    tolerance: f64,
+    mut callback: impl FnMut(PathEl),
+) {
+    let sqrt_tol = tolerance.sqrt();
+    let mut last_pt = None;
+    let mut quad_buf = Vec::new();
+    for el in path {
+        match el {
+            PathEl::MoveTo(p) => {
+                last_pt = Some(p);
+                callback(PathEl::MoveTo(p));
+            }
+            PathEl::LineTo(p) => {
+                last_pt = Some(p);
+                callback(PathEl::LineTo(p));
+            }
+            PathEl::QuadTo(p1, p2) => {
+                if let Some(p0) = last_pt {
+                    let q = QuadBez::new(p0, p1, p2);
+                    let params = q.estimate_subdiv(sqrt_tol);
+                    let n = ((0.5 * params.val / sqrt_tol).ceil() as usize).max(1);
+                    let step = 1.0 / (n as f64);
+                    for i in 1..(n - 1) {
+                        let u = (i as f64) * step;
+                        let t = q.determine_subdiv_t(&params, u);
+                        let p = q.eval(t);
+                        callback(PathEl::LineTo(p));
+                    }
+                    callback(PathEl::LineTo(p2));
+                }
+                last_pt = Some(p2);
+            }
+            PathEl::CurveTo(p1, p2, p3) => {
+                if let Some(p0) = last_pt {
+                    let c = CubicBez::new(p0, p1, p2, p3);
+
+                    // Subdivide into quadratics, and estimate the number of
+                    // subdivisions required for each, summing to arrive at an
+                    // estimate for the number of subdivisions for the cubic.
+                    // Also retain these parameters for later.
+                    let iter = c.to_quads(tolerance * TO_QUAD_TOL);
+                    quad_buf.reserve(iter.size_hint().0);
+                    let sqrt_remain_tol = sqrt_tol * (1.0 - TO_QUAD_TOL).sqrt();
+                    let mut sum = 0.0;
+                    for (_, _, q) in iter {
+                        let params = q.estimate_subdiv(sqrt_remain_tol);
+                        sum += params.val;
+                        quad_buf.push((q, params));
+                    }
+                    let n = ((0.5 * sum / sqrt_remain_tol).ceil() as usize).max(1);
+
+                    // Iterate through the quadratics, outputting the points of
+                    // subdivisions that fall within that quadratic.
+                    let step = sum / (n as f64);
+                    let mut i = 1;
+                    let mut val_sum = 0.0;
+                    for (q, params) in &quad_buf {
+                        let mut target = (i as f64) * step;
+                        let recip_val = params.val.recip();
+                        while target < val_sum + params.val {
+                            let u = (target - val_sum) * recip_val;
+                            let t = q.determine_subdiv_t(&params, u);
+                            let p = q.eval(t);
+                            callback(PathEl::LineTo(p));
+                            i += 1;
+                            if i == n + 1 {
+                                break;
+                            }
+                            target = (i as f64) * step;
+                        }
+                        val_sum += params.val;
+                    }
+                    quad_buf.clear();
+                    callback(PathEl::LineTo(p3));
+                }
+                last_pt = Some(p3);
+            }
+            PathEl::ClosePath => {
+                last_pt = None;
+                callback(PathEl::ClosePath);
+            }
+        }
     }
 }
 

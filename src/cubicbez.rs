@@ -49,6 +49,9 @@ impl CubicBez {
     ///
     /// Note that the resulting quadratic Béziers are not in general G1 continuous;
     /// they are optimized for minimizing distance error.
+    ///
+    /// Also note that this iterator may produce zero quadratics when the control points
+    /// are equally spaced and co-linear.
     #[inline]
     pub fn to_quads(&self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
         // The maximum error, as a vector from the cubic to the best approximating
@@ -266,6 +269,11 @@ impl Iterator for ToQuads {
         let result = QuadBez::new(seg.p0, ((p1x2 + p2x2) / 4.0).to_point(), seg.p3);
         self.i += 1;
         Some((t0, t1, result))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.n - self.i;
+        (remaining, Some(remaining))
     }
 }
 

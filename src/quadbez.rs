@@ -44,6 +44,75 @@ impl QuadBez {
             self.p2,
         )
     }
+
+    /// Estimate the number of subdivisions for flattening.
+    pub(crate) fn estimate_subdiv(&self, sqrt_tol: f64) -> FlattenParams {
+        // Determine transformation to $y = x^2$ parabola.
+        let d01 = self.p1 - self.p0;
+        let d12 = self.p2 - self.p1;
+        let dd = d01 - d12;
+        let cross = (self.p2 - self.p0).cross(dd);
+        let x0 = d01.dot(dd) * cross.recip();
+        let x2 = d12.dot(dd) * cross.recip();
+        let scale = (cross / (dd.hypot() * (x2 - x0))).abs();
+
+        // Compute number of subdivisions needed.
+        let a0 = approx_parabola_integral(x0);
+        let a2 = approx_parabola_integral(x2);
+        let val = if scale.is_finite() {
+            let da = (a2 - a0).abs();
+            let sqrt_scale = scale.sqrt();
+            if x0.signum() == x2.signum() {
+                da * sqrt_scale
+            } else {
+                // Handle cusp case (segment contains curvature maximum)
+                let xmin = sqrt_tol / sqrt_scale;
+                sqrt_tol * da / approx_parabola_integral(xmin)
+            }
+        } else {
+            0.0
+        };
+        let u0 = approx_parabola_inv_integral(a0);
+        let u2 = approx_parabola_inv_integral(a2);
+        let uscale = (u2 - u0).recip();
+        FlattenParams {
+            a0,
+            a2,
+            u0,
+            uscale,
+            val,
+        }
+    }
+
+    // Maps a value from 0..1 to 0..1.
+    pub(crate) fn determine_subdiv_t(&self, params: &FlattenParams, x: f64) -> f64 {
+        let a = params.a0 + (params.a2 - params.a0) * x;
+        let u = approx_parabola_inv_integral(a);
+        (u - params.u0) * params.uscale
+    }
+}
+
+pub(crate) struct FlattenParams {
+    a0: f64,
+    a2: f64,
+    u0: f64,
+    uscale: f64,
+    /// The number of subdivisions * 2 * sqrt_tol.
+    pub(crate) val: f64,
+}
+
+/// An approximation to $\int (1 + 4x^2) ^ -0.25 dx$
+///
+/// This is used for flattening curves.
+fn approx_parabola_integral(x: f64) -> f64 {
+    const D: f64 = 0.67;
+    x / (1.0 - D + (D.powi(4) + 0.25 * x * x).sqrt().sqrt())
+}
+
+/// An approximation to the inverse parabola integral.
+fn approx_parabola_inv_integral(x: f64) -> f64 {
+    const B: f64 = 0.39;
+    x * (1.0 - B + (B * B + 0.25 * x * x).sqrt())
 }
 
 impl ParamCurve for QuadBez {
