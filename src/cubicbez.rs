@@ -26,8 +26,8 @@ pub struct CubicBez {
 /// An iterator which produces quadratic Bézier segments.
 struct ToQuads {
     c: CubicBez,
-    max_hypot2: f64,
-    t: f64,
+    i: usize,
+    n: usize,
 }
 
 impl CubicBez {
@@ -49,16 +49,29 @@ impl CubicBez {
     ///
     /// Note that the resulting quadratic Béziers are not in general G1 continuous;
     /// they are optimized for minimizing distance error.
+    ///
+    /// Also note that this iterator may produce zero quadratics when the control points
+    /// are equally spaced and co-linear.
     #[inline]
     pub fn to_quads(&self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
+        // The maximum error, as a vector from the cubic to the best approximating
+        // quadratic, is proportional to the third derivative, which is constant
+        // across the segment. Thus, the error scales down as the third power of
+        // the number of subdivisions. Our strategy then is to subdivide `t` evenly.
+        //
+        // This is an overestimate of the error because only the component
+        // perpendicular to the first derivative is important. But the simplicity is
+        // appealing.
+
         // This magic number is the square of 36 / sqrt(3).
         // See: http://caffeineowl.com/graphics/2d/vectorial/cubic2quad01.html
         let max_hypot2 = 432.0 * accuracy * accuracy;
-        ToQuads {
-            c: *self,
-            max_hypot2,
-            t: 0.0,
-        }
+        let p1x2 = 3.0 * self.p1.to_vec2() - self.p0.to_vec2();
+        let p2x2 = 3.0 * self.p2.to_vec2() - self.p3.to_vec2();
+        let err = (p2x2 - p1x2).hypot2();
+        let n = (err / max_hypot2).powf(1. / 6.0).ceil() as usize;
+
+        ToQuads { c: *self, n, i: 0 }
     }
 }
 
@@ -245,30 +258,22 @@ impl Iterator for ToQuads {
     type Item = (f64, f64, QuadBez);
 
     fn next(&mut self) -> Option<(f64, f64, QuadBez)> {
-        let t0 = self.t;
-        let mut t1 = 1.0;
-        if t0 == t1 {
+        if self.i == self.n {
             return None;
         }
-        loop {
-            let seg = self.c.subsegment(t0..t1);
-            // Compute error for candidate quadratic.
-            let p1x2 = 3.0 * seg.p1.to_vec2() - seg.p0.to_vec2();
-            let p2x2 = 3.0 * seg.p2.to_vec2() - seg.p3.to_vec2();
-            let err = (p2x2 - p1x2).hypot2();
-            if err < self.max_hypot2 {
-                let result = QuadBez::new(seg.p0, ((p1x2 + p2x2) / 4.0).to_point(), seg.p3);
-                self.t = t1;
-                return Some((t0, t1, result));
-            } else {
-                let shrink = if t1 == 1.0 && err < 64.0 * self.max_hypot2 {
-                    0.5
-                } else {
-                    0.999_999 * (self.max_hypot2 / err).powf(1. / 6.0)
-                };
-                t1 = t0 + shrink * (t1 - t0);
-            }
-        }
+        let t0 = self.i as f64 / self.n as f64;
+        let t1 = (self.i + 1) as f64 / self.n as f64;
+        let seg = self.c.subsegment(t0..t1);
+        let p1x2 = 3.0 * seg.p1.to_vec2() - seg.p0.to_vec2();
+        let p2x2 = 3.0 * seg.p2.to_vec2() - seg.p3.to_vec2();
+        let result = QuadBez::new(seg.p0, ((p1x2 + p2x2) / 4.0).to_point(), seg.p3);
+        self.i += 1;
+        Some((t0, t1, result))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.n - self.i;
+        (remaining, Some(remaining))
     }
 }
 

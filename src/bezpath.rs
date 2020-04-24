@@ -1,5 +1,6 @@
 //! Bézier paths (up to cubic).
 
+use std::iter::FromIterator;
 use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
@@ -114,6 +115,79 @@ impl BezPath {
         BezPath::segments_of_slice(&self.0)
     }
 
+    /// Flatten the path, invoking the callback repeatedly.
+    ///
+    /// Flattening is the action of approximating a curve with a succession of line segments.
+    ///
+    /// <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 30" height="30mm" width="120mm">
+    ///   <path d="M26.7 24.94l.82-11.15M44.46 5.1L33.8 7.34" fill="none" stroke="#55d400" stroke-width=".5"/>
+    ///   <path d="M26.7 24.94c.97-11.13 7.17-17.6 17.76-19.84M75.27 24.94l1.13-5.5 2.67-5.48 4-4.42L88 6.7l5.02-1.6" fill="none" stroke="#000"/>
+    ///   <path d="M77.57 19.37a1.1 1.1 0 0 1-1.08 1.08 1.1 1.1 0 0 1-1.1-1.08 1.1 1.1 0 0 1 1.08-1.1 1.1 1.1 0 0 1 1.1 1.1" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M77.57 19.37a1.1 1.1 0 0 1-1.08 1.08 1.1 1.1 0 0 1-1.1-1.08 1.1 1.1 0 0 1 1.08-1.1 1.1 1.1 0 0 1 1.1 1.1" color="#000" fill="#fff"/>
+    ///   <path d="M80.22 13.93a1.1 1.1 0 0 1-1.1 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.1-1.08 1.1 1.1 0 0 1 1.08 1.08" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M80.22 13.93a1.1 1.1 0 0 1-1.1 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.1-1.08 1.1 1.1 0 0 1 1.08 1.08" color="#000" fill="#fff"/>
+    ///   <path d="M84.08 9.55a1.1 1.1 0 0 1-1.08 1.1 1.1 1.1 0 0 1-1.1-1.1 1.1 1.1 0 0 1 1.1-1.1 1.1 1.1 0 0 1 1.08 1.1" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M84.08 9.55a1.1 1.1 0 0 1-1.08 1.1 1.1 1.1 0 0 1-1.1-1.1 1.1 1.1 0 0 1 1.1-1.1 1.1 1.1 0 0 1 1.08 1.1" color="#000" fill="#fff"/>
+    ///   <path d="M89.1 6.66a1.1 1.1 0 0 1-1.08 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.08-1.08 1.1 1.1 0 0 1 1.1 1.08" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M89.1 6.66a1.1 1.1 0 0 1-1.08 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.08-1.08 1.1 1.1 0 0 1 1.1 1.08" color="#000" fill="#fff"/>
+    ///   <path d="M94.4 5a1.1 1.1 0 0 1-1.1 1.1A1.1 1.1 0 0 1 92.23 5a1.1 1.1 0 0 1 1.08-1.08A1.1 1.1 0 0 1 94.4 5" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M94.4 5a1.1 1.1 0 0 1-1.1 1.1A1.1 1.1 0 0 1 92.23 5a1.1 1.1 0 0 1 1.08-1.08A1.1 1.1 0 0 1 94.4 5" color="#000" fill="#fff"/>
+    ///   <path d="M76.44 25.13a1.1 1.1 0 0 1-1.1 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.1-1.1 1.1 1.1 0 0 1 1.08 1.1" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M76.44 25.13a1.1 1.1 0 0 1-1.1 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.1-1.1 1.1 1.1 0 0 1 1.08 1.1" color="#000" fill="#fff"/>
+    ///   <path d="M27.78 24.9a1.1 1.1 0 0 1-1.08 1.08 1.1 1.1 0 0 1-1.1-1.08 1.1 1.1 0 0 1 1.1-1.1 1.1 1.1 0 0 1 1.08 1.1" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M27.78 24.9a1.1 1.1 0 0 1-1.08 1.08 1.1 1.1 0 0 1-1.1-1.08 1.1 1.1 0 0 1 1.1-1.1 1.1 1.1 0 0 1 1.08 1.1" color="#000" fill="#fff"/>
+    ///   <path d="M45.4 5.14a1.1 1.1 0 0 1-1.08 1.1 1.1 1.1 0 0 1-1.1-1.1 1.1 1.1 0 0 1 1.1-1.08 1.1 1.1 0 0 1 1.1 1.08" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M45.4 5.14a1.1 1.1 0 0 1-1.08 1.1 1.1 1.1 0 0 1-1.1-1.1 1.1 1.1 0 0 1 1.1-1.08 1.1 1.1 0 0 1 1.1 1.08" color="#000" fill="#fff"/>
+    ///   <path d="M28.67 13.8a1.1 1.1 0 0 1-1.1 1.08 1.1 1.1 0 0 1-1.08-1.08 1.1 1.1 0 0 1 1.08-1.1 1.1 1.1 0 0 1 1.1 1.1" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M28.67 13.8a1.1 1.1 0 0 1-1.1 1.08 1.1 1.1 0 0 1-1.08-1.08 1.1 1.1 0 0 1 1.08-1.1 1.1 1.1 0 0 1 1.1 1.1" color="#000" fill="#fff"/>
+    ///   <path d="M35 7.32a1.1 1.1 0 0 1-1.1 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.1-1.1A1.1 1.1 0 0 1 35 7.33" color="#000" fill="none" stroke="#030303" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M35 7.32a1.1 1.1 0 0 1-1.1 1.1 1.1 1.1 0 0 1-1.08-1.1 1.1 1.1 0 0 1 1.1-1.1A1.1 1.1 0 0 1 35 7.33" color="#000" fill="#fff"/>
+    ///   <text style="line-height:6.61458302px" x="35.74" y="284.49" font-size="5.29" font-family="Sans" letter-spacing="0" word-spacing="0" fill="#b3b3b3" stroke-width=".26" transform="translate(19.595 -267)">
+    ///     <tspan x="35.74" y="284.49" font-size="10.58">→</tspan>
+    ///   </text>
+    /// </svg>
+    ///
+    /// The tolerance value controls the maximum distance between the curved input
+    /// segments and their polyline approximations. (In technical terms, this is the
+    /// Hausdorff distance). The algorithm attempts to bound this distance between
+    /// by `tolerance` but this is not absolutely guaranteed. The appropriate value
+    /// depends on the use, but for antialiasted rendering, a value of 0.25 has been
+    /// determined to give good results. The number of segments tends to scale as the
+    /// inverse square root of tolerance.
+    ///
+    /// <svg viewBox="0 0 47.5 13.2" height="100" width="350" xmlns="http://www.w3.org/2000/svg">
+    ///   <path d="M-2.44 9.53c16.27-8.5 39.68-7.93 52.13 1.9" fill="none" stroke="#dde9af" stroke-width="4.6"/>
+    ///   <path d="M-1.97 9.3C14.28 1.03 37.36 1.7 49.7 11.4" fill="none" stroke="#00d400" stroke-width=".57" stroke-linecap="round" stroke-dasharray="4.6, 2.291434"/>
+    ///   <path d="M-1.94 10.46L6.2 6.08l28.32-1.4 15.17 6.74" fill="none" stroke="#000" stroke-width=".6"/>
+    ///   <path d="M6.83 6.57a.9.9 0 0 1-1.25.15.9.9 0 0 1-.15-1.25.9.9 0 0 1 1.25-.15.9.9 0 0 1 .15 1.25" color="#000" stroke="#000" stroke-width=".57" stroke-linecap="round" stroke-opacity=".5"/>
+    ///   <path d="M35.35 5.3a.9.9 0 0 1-1.25.15.9.9 0 0 1-.15-1.25.9.9 0 0 1 1.25-.15.9.9 0 0 1 .15 1.24" color="#000" stroke="#000" stroke-width=".6" stroke-opacity=".5"/>
+    ///   <g fill="none" stroke="#ff7f2a" stroke-width=".26">
+    ///     <path d="M20.4 3.8l.1 1.83M19.9 4.28l.48-.56.57.52M21.02 5.18l-.5.56-.6-.53" stroke-width=".2978872"/>
+    ///   </g>
+    /// </svg>
+    ///
+    /// The callback will be called in order with each element of the generated
+    /// path. Because the result is made of polylines, these will be straight-line
+    /// path elements only, no curves.
+    ///
+    /// This algorithm is based on the blog post [Flattening quadratic Béziers]
+    /// but with some refinements. For one, there is a more careful approximation
+    /// at cusps. For two, the algorithm is extended to work with cubic Béziers
+    /// as well, by first subdividing into quadratics and then computing the
+    /// subdivision of each quadratic. However, as a clever trick, these quadratics
+    /// are subdivided fractionally, and their endpoints are not included.
+    ///
+    /// TODO: write a paper explaining this in more detail.
+    ///
+    /// Note: the [`flatten`](fn.flatten.html) function provides the same
+    /// functionality but works with slices and other [`PathEl`] iterators.
+    ///
+    /// [Flattening quadratic Béziers]: https://raphlinus.github.io/graphics/curves/2019/12/23/flatten-quadbez.html
+    /// [`PathEl`]: enum.PathEl.html
+    pub fn flatten(&self, tolerance: f64, callback: impl FnMut(PathEl)) {
+        flatten(self, tolerance, callback);
+    }
+
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
     fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
         let first = match slice.get(0) {
@@ -194,23 +268,127 @@ impl BezPath {
     }
 }
 
-impl std::iter::FromIterator<PathEl> for BezPath {
+impl FromIterator<PathEl> for BezPath {
     fn from_iter<T: IntoIterator<Item = PathEl>>(iter: T) -> Self {
         let el_vec: Vec<_> = iter.into_iter().collect();
         BezPath::from_vec(el_vec)
     }
 }
 
-// this has weird semantics; signature assumes taking ownership but impl'd on a reference
-// NOTE: after removing this, we should impl IntoIterator for BezPath (with no reference)
-// and that impl should just call `self.0.into_iter()`
-#[deprecated(since = "0.5.6", note = "use BezPath::iter instead")]
+/// Allow iteration over references to `BezPath`.
+///
+/// Note: the semantics are slightly different than simply iterating over the
+/// slice, as it returns `PathEl` items, rather than references.
 impl<'a> IntoIterator for &'a BezPath {
     type Item = PathEl;
     type IntoIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements().iter().cloned()
+    }
+}
+
+impl IntoIterator for BezPath {
+    type Item = PathEl;
+    type IntoIter = std::vec::IntoIter<PathEl>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+/// Proportion of tolerance budget that goes to cubic to quadratic conversion.
+const TO_QUAD_TOL: f64 = 0.1;
+
+/// Flatten the path, invoking the callback repeatedly.
+///
+/// See [`BezPath::flatten`](struct.BezPath.html#method.flatten) for more discussion.
+/// This signature is a bit more general, allowing flattening of `&[PathEl]` slices
+/// and other iterators yielding `PathEl`.
+pub fn flatten(
+    path: impl IntoIterator<Item = PathEl>,
+    tolerance: f64,
+    mut callback: impl FnMut(PathEl),
+) {
+    let sqrt_tol = tolerance.sqrt();
+    let mut last_pt = None;
+    let mut quad_buf = Vec::new();
+    for el in path {
+        match el {
+            PathEl::MoveTo(p) => {
+                last_pt = Some(p);
+                callback(PathEl::MoveTo(p));
+            }
+            PathEl::LineTo(p) => {
+                last_pt = Some(p);
+                callback(PathEl::LineTo(p));
+            }
+            PathEl::QuadTo(p1, p2) => {
+                if let Some(p0) = last_pt {
+                    let q = QuadBez::new(p0, p1, p2);
+                    let params = q.estimate_subdiv(sqrt_tol);
+                    let n = ((0.5 * params.val / sqrt_tol).ceil() as usize).max(1);
+                    let step = 1.0 / (n as f64);
+                    for i in 1..(n - 1) {
+                        let u = (i as f64) * step;
+                        let t = q.determine_subdiv_t(&params, u);
+                        let p = q.eval(t);
+                        callback(PathEl::LineTo(p));
+                    }
+                    callback(PathEl::LineTo(p2));
+                }
+                last_pt = Some(p2);
+            }
+            PathEl::CurveTo(p1, p2, p3) => {
+                if let Some(p0) = last_pt {
+                    let c = CubicBez::new(p0, p1, p2, p3);
+
+                    // Subdivide into quadratics, and estimate the number of
+                    // subdivisions required for each, summing to arrive at an
+                    // estimate for the number of subdivisions for the cubic.
+                    // Also retain these parameters for later.
+                    let iter = c.to_quads(tolerance * TO_QUAD_TOL);
+                    quad_buf.clear();
+                    quad_buf.reserve(iter.size_hint().0);
+                    let sqrt_remain_tol = sqrt_tol * (1.0 - TO_QUAD_TOL).sqrt();
+                    let mut sum = 0.0;
+                    for (_, _, q) in iter {
+                        let params = q.estimate_subdiv(sqrt_remain_tol);
+                        sum += params.val;
+                        quad_buf.push((q, params));
+                    }
+                    let n = ((0.5 * sum / sqrt_remain_tol).ceil() as usize).max(1);
+
+                    // Iterate through the quadratics, outputting the points of
+                    // subdivisions that fall within that quadratic.
+                    let step = sum / (n as f64);
+                    let mut i = 1;
+                    let mut val_sum = 0.0;
+                    for (q, params) in &quad_buf {
+                        let mut target = (i as f64) * step;
+                        let recip_val = params.val.recip();
+                        while target < val_sum + params.val {
+                            let u = (target - val_sum) * recip_val;
+                            let t = q.determine_subdiv_t(&params, u);
+                            let p = q.eval(t);
+                            callback(PathEl::LineTo(p));
+                            i += 1;
+                            if i == n + 1 {
+                                break;
+                            }
+                            target = (i as f64) * step;
+                        }
+                        val_sum += params.val;
+                    }
+                    callback(PathEl::LineTo(p3));
+                }
+                last_pt = Some(p3);
+            }
+            PathEl::ClosePath => {
+                last_pt = None;
+                callback(PathEl::ClosePath);
+            }
+        }
     }
 }
 
