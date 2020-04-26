@@ -191,8 +191,11 @@ impl BezPath {
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
     fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
         let first = match slice.get(0) {
-            Some(PathEl::MoveTo(ref p)) => *p,
-            Some(_) => panic!("First element has to be a PathEl::Moveto!"),
+            Some(PathEl::MoveTo(p)) => *p,
+            Some(PathEl::LineTo(p)) => *p,
+            Some(PathEl::QuadTo(_, p2)) => *p2,
+            Some(PathEl::CurveTo(_, _, p3)) => *p3,
+            Some(PathEl::ClosePath) => panic!("Can't start a segment on a ClosePath"),
             None => Default::default(),
         };
 
@@ -747,6 +750,10 @@ impl Shape for BezPath {
     }
 }
 
+/// Implements [`Shape`] for a slice of [`PathEl`], provided that the first element of the slice is
+/// not a `PathEl::ClosePath`. If it is, several of these functions will panic.
+///
+/// If the slice starts with `LineTo`, `QuadTo`, or `CurveTo`, it will be treated as a `MoveTo`.
 impl<'a> Shape for &'a [PathEl] {
     type BezPathIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
 
