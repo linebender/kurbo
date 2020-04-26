@@ -117,10 +117,10 @@ impl BezPath {
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
     fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
         let first = match slice.get(0) {
-            Some(PathEl::MoveTo(ref p)) => *p,
-            Some(PathEl::LineTo(ref p)) => *p,
-            Some(PathEl::QuadTo(_, ref p2)) => *p2,
-            Some(PathEl::CurveTo(_, _, ref p3)) => *p3,
+            Some(PathEl::MoveTo(p)) => *p,
+            Some(PathEl::LineTo(p)) => *p,
+            Some(PathEl::QuadTo(_, p2)) => *p2,
+            Some(PathEl::CurveTo(_, _, p3)) => *p3,
             Some(PathEl::ClosePath) => panic!("Can't start a segment on a ClosePath"),
             None => Default::default(),
         };
