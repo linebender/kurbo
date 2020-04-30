@@ -1,6 +1,6 @@
 //! Bézier paths (up to cubic).
 
-use std::iter::FromIterator;
+use std::iter::{Extend, FromIterator};
 use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
@@ -297,6 +297,12 @@ impl IntoIterator for BezPath {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl Extend<PathEl> for BezPath {
+    fn extend<I: IntoIterator<Item = PathEl>>(&mut self, iter: I) {
+        self.0.extend(iter);
     }
 }
 
