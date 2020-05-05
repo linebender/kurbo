@@ -3,7 +3,6 @@
 use std::fmt;
 use std::ops::{Add, Sub};
 
-use crate::common::FloatExt;
 use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 
 /// A rectangle.
@@ -304,51 +303,113 @@ impl Rect {
     }
 
     /// Returns a new `Rect`,
-    /// with each coordinate value rounded away from zero to the nearest integer,
-    /// unless they are already an integer.
+    /// with each coordinate value rounded away from the center of the `Rect`
+    /// to the nearest integer, unless they are already an integer.
+    /// That is to say this function will return the smallest possible `Rect`
+    /// with integer coordinates that is a superset of `self`.
     ///
     /// # Examples
     ///
     /// ```
     /// use kurbo::Rect;
-    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).expand();
-    /// assert_eq!(rect.x0, 4.0);
-    /// assert_eq!(rect.y0, 4.0);
+    ///
+    /// // In positive space
+    /// let rect = Rect::new(3.3, 3.6, 5.6, 4.1).expand();
+    /// assert_eq!(rect.x0, 3.0);
+    /// assert_eq!(rect.y0, 3.0);
+    /// assert_eq!(rect.x1, 6.0);
+    /// assert_eq!(rect.y1, 5.0);
+    ///
+    /// // In both positive and negative space
+    /// let rect = Rect::new(-3.3, -3.6, 5.6, 4.1).expand();
+    /// assert_eq!(rect.x0, -4.0);
+    /// assert_eq!(rect.y0, -4.0);
+    /// assert_eq!(rect.x1, 6.0);
+    /// assert_eq!(rect.y1, 5.0);
+    ///
+    /// // In negative space
+    /// let rect = Rect::new(-5.6, -4.1, -3.3, -3.6).expand();
+    /// assert_eq!(rect.x0, -6.0);
+    /// assert_eq!(rect.y0, -5.0);
+    /// assert_eq!(rect.x1, -3.0);
+    /// assert_eq!(rect.y1, -3.0);
+    ///
+    /// // Inverse orientation
+    /// let rect = Rect::new(5.6, -3.6, 3.3, -4.1).expand();
+    /// assert_eq!(rect.x0, 6.0);
+    /// assert_eq!(rect.y0, -3.0);
     /// assert_eq!(rect.x1, 3.0);
-    /// assert_eq!(rect.y1, -4.0);
+    /// assert_eq!(rect.y1, -5.0);
     /// ```
     #[inline]
     pub fn expand(self) -> Rect {
-        Rect::new(
-            self.x0.expand(),
-            self.y0.expand(),
-            self.x1.expand(),
-            self.y1.expand(),
-        )
+        // The compiler optimizer will remove the if branching.
+        let (x0, x1) = if self.x0 < self.x1 {
+            (self.x0.floor(), self.x1.ceil())
+        } else {
+            (self.x0.ceil(), self.x1.floor())
+        };
+        let (y0, y1) = if self.y0 < self.y1 {
+            (self.y0.floor(), self.y1.ceil())
+        } else {
+            (self.y0.ceil(), self.y1.floor())
+        };
+        Rect::new(x0, y0, x1, y1)
     }
 
     /// Returns a new `Rect`,
-    /// with each coordinate value rounded towards zero to the nearest integer,
-    /// unless they are already an integer.
+    /// with each coordinate value rounded towards the center of the `Rect`
+    /// to the nearest integer, unless they are already an integer.
+    /// That is to say this function will return the biggest possible `Rect`
+    /// with integer coordinates that is a subset of `self`.
     ///
     /// # Examples
     ///
     /// ```
     /// use kurbo::Rect;
-    /// let rect = Rect::new(3.3, 3.6, 3.0, -3.1).trunc();
-    /// assert_eq!(rect.x0, 3.0);
-    /// assert_eq!(rect.y0, 3.0);
-    /// assert_eq!(rect.x1, 3.0);
-    /// assert_eq!(rect.y1, -3.0);
+    ///
+    /// // In positive space
+    /// let rect = Rect::new(3.3, 3.6, 5.6, 4.1).trunc();
+    /// assert_eq!(rect.x0, 4.0);
+    /// assert_eq!(rect.y0, 4.0);
+    /// assert_eq!(rect.x1, 5.0);
+    /// assert_eq!(rect.y1, 4.0);
+    ///
+    /// // In both positive and negative space
+    /// let rect = Rect::new(-3.3, -3.6, 5.6, 4.1).trunc();
+    /// assert_eq!(rect.x0, -3.0);
+    /// assert_eq!(rect.y0, -3.0);
+    /// assert_eq!(rect.x1, 5.0);
+    /// assert_eq!(rect.y1, 4.0);
+    ///
+    /// // In negative space
+    /// let rect = Rect::new(-5.6, -4.1, -3.3, -3.6).trunc();
+    /// assert_eq!(rect.x0, -5.0);
+    /// assert_eq!(rect.y0, -4.0);
+    /// assert_eq!(rect.x1, -4.0);
+    /// assert_eq!(rect.y1, -4.0);
+    ///
+    /// // Inverse orientation
+    /// let rect = Rect::new(5.6, -3.6, 3.3, -4.1).trunc();
+    /// assert_eq!(rect.x0, 5.0);
+    /// assert_eq!(rect.y0, -4.0);
+    /// assert_eq!(rect.x1, 4.0);
+    /// assert_eq!(rect.y1, -4.0);
     /// ```
     #[inline]
     pub fn trunc(self) -> Rect {
-        Rect::new(
-            self.x0.trunc(),
-            self.y0.trunc(),
-            self.x1.trunc(),
-            self.y1.trunc(),
-        )
+        // The compiler optimizer will remove the if branching.
+        let (x0, x1) = if self.x0 < self.x1 {
+            (self.x0.ceil(), self.x1.floor())
+        } else {
+            (self.x0.floor(), self.x1.ceil())
+        };
+        let (y0, y1) = if self.y0 < self.y1 {
+            (self.y0.ceil(), self.y1.floor())
+        } else {
+            (self.y0.floor(), self.y1.ceil())
+        };
+        Rect::new(x0, y0, x1, y1)
     }
 
     /// Creates a new [`RoundedRect`] from this `Rect` and the provided
