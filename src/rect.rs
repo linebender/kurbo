@@ -7,7 +7,7 @@ use crate::common::FloatExt;
 use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 
 /// A rectangle.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     /// The minimum x coordinate (left edge).

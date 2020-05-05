@@ -102,7 +102,7 @@ use crate::{Rect, Size};
 /// [`Rect`]: struct.Rect.html
 /// [`Insets`]: struct.Insets.html
 /// [`Rect::abs`]: struct.Rect.html#method.abs
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Insets {
     /// The minimum x coordinate (left edge).
