@@ -1,7 +1,7 @@
 //! A 2D size.
 
 use std::fmt;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::{Rect, RoundedRect, Vec2};
@@ -239,6 +239,28 @@ impl Mul<f64> for Size {
         Size {
             width: self.width * other,
             height: self.height * other,
+        }
+    }
+}
+
+impl DivAssign<f64> for Size {
+    #[inline]
+    fn div_assign(&mut self, other: f64) {
+        *self = Size {
+            width: self.width / other,
+            height: self.height / other,
+        };
+    }
+}
+
+impl Div<f64> for Size {
+    type Output = Size;
+
+    #[inline]
+    fn div(self, other: f64) -> Size {
+        Size {
+            width: self.width / other,
+            height: self.height / other,
         }
     }
 }
