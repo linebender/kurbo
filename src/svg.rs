@@ -309,6 +309,25 @@ impl<'a> SvgLexer<'a> {
                 break;
             }
         }
+        if let Some(c) = self.get_byte() {
+            if c == b'e' || c == b'E' {
+                let mut c = self.get_byte().ok_or(SvgParseError::Wrong)?;
+                if c == b'-' || c == b'+' {
+                    c = self.get_byte().ok_or(SvgParseError::Wrong)?
+                }
+                if !(c >= b'0' && c <= b'9') {
+                    return Err(SvgParseError::Wrong);
+                }
+                while let Some(c) = self.get_byte() {
+                    if !(c >= b'0' && c <= b'9') {
+                        self.unget();
+                        break;
+                    }
+                }
+            } else {
+                self.unget();
+            }
+        }
         if digit_count > 0 {
             self.data[start..self.ix]
                 .parse()
