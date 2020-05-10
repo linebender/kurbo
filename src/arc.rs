@@ -1,6 +1,6 @@
 //! A circle arc.
 
-use crate::{PathEl, Point, Vec2};
+use crate::{PathEl, Point, Rect, Shape, Vec2};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// A single arc segment.
@@ -109,15 +109,78 @@ impl Iterator for ArcAppendIter {
     }
 }
 
+/// Take the ellipse radii, how the radii are rotated and the sweep angle, and return a point on
+/// the ellipse.
 fn sample_ellipse(radii: Vec2, x_rotation: f64, angle: f64) -> Vec2 {
     let u = radii.x * angle.cos();
     let v = radii.y * angle.sin();
     rotate_pt(Vec2::new(u, v), x_rotation)
 }
 
+/// Rotate `pt` about the origin by `angle` radians.
 fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
     Vec2::new(
         pt.x * angle.cos() - pt.y * angle.sin(),
         pt.x * angle.sin() + pt.y * angle.cos(),
     )
+}
+
+impl Shape for Arc {
+    type BezPathIter = ArcIter;
+
+    fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter {
+        ArcIter {
+            moved: false,
+            inner: self.append_iter(tolerance),
+        }
+    }
+
+    /// Note: shape isn't closed so area is not well defined.
+    #[inline]
+    fn area(&self) -> f64 {
+        let Vec2 { x, y } = self.radii;
+        PI * x * y
+    }
+
+    /// Note: Finding the perimiter of an ellipse is fairly involved, so for now just approximate
+    /// by using the bezier curve representation. (See
+    /// https://en.wikipedia.org/wiki/Ellipse#Circumference)
+    #[inline]
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        self.clone()
+            .into_bez_path(0.1)
+            .elements()
+            .perimeter(accuracy)
+    }
+
+    /// Note: shape isn't closed so a point's winding number is not well defined.
+    #[inline]
+    fn winding(&self, pt: Point) -> i32 {
+        self.clone().into_bez_path(0.1).elements().winding(pt)
+    }
+
+    #[inline]
+    fn bounding_box(&self) -> Rect {
+        self.clone().into_bez_path(0.1).elements().bounding_box()
+    }
+}
+
+#[doc(hidden)]
+pub struct ArcIter {
+    moved: bool,
+    inner: ArcAppendIter,
+}
+
+impl Iterator for ArcIter {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // prepend a MoveTo to the ArcAppendIter.
+        if self.moved {
+            self.inner.next()
+        } else {
+            self.moved = true;
+            Some(PathEl::MoveTo(self.inner.center + self.inner.p0))
+        }
+    }
 }
