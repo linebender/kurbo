@@ -175,9 +175,9 @@ impl BezPath {
                     let radii = lexer.get_number_pair()?;
                     let x_rotation = lexer.get_number()?.to_radians();
                     lexer.opt_comma();
-                    let large_arc = lexer.get_number()?;
+                    let large_arc = lexer.get_flag()?;
                     lexer.opt_comma();
-                    let sweep = lexer.get_number()?;
+                    let sweep = lexer.get_flag()?;
                     lexer.opt_comma();
                     let p = lexer.get_maybe_relative(c)?;
                     let svg_arc = SvgArc {
@@ -185,8 +185,8 @@ impl BezPath {
                         to: p,
                         radii: radii.to_vec2(),
                         x_rotation,
-                        large_arc: large_arc != 0.0,
-                        sweep: sweep != 0.0,
+                        large_arc,
+                        sweep,
                     };
 
                     match Arc::from_svg_arc(&svg_arc) {
@@ -315,6 +315,15 @@ impl<'a> SvgLexer<'a> {
                 .map_err(|_| SvgParseError::Wrong)
         } else {
             Err(SvgParseError::Wrong)
+        }
+    }
+
+    fn get_flag(&mut self) -> Result<bool, SvgParseError> {
+        self.skip_ws();
+        match self.get_byte().ok_or(SvgParseError::UnexpectedEof)? {
+            b'0' => Ok(false),
+            b'1' => Ok(true),
+            _ => Err(SvgParseError::Wrong),
         }
     }
 
@@ -448,6 +457,13 @@ mod tests {
     fn test_parse_svg() {
         let path = BezPath::from_svg("m10 10 100 0 0 100 -100 0z").unwrap();
         assert_eq!(path.segments().count(), 4);
+    }
+
+    #[test]
+    fn test_parse_svg2() {
+        let path =
+            BezPath::from_svg("M3.5 8a.5.5 0 01.5-.5h8a.5.5 0 010 1H4a.5.5 0 01-.5-.5z").unwrap();
+        assert_eq!(path.segments().count(), 6);
     }
 
     #[test]
