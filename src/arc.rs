@@ -1,7 +1,10 @@
 //! A circle arc.
 
 use crate::{PathEl, Point, Rect, Shape, Vec2};
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::{
+    f64::consts::{FRAC_PI_2, PI},
+    iter,
+};
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -126,13 +129,11 @@ fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
 }
 
 impl Shape for Arc {
-    type BezPathIter = ArcIter;
+    type BezPathIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
     fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter {
-        ArcIter {
-            moved: false,
-            inner: self.append_iter(tolerance),
-        }
+        let p0 = sample_ellipse(self.radii, self.x_rotation, self.start_angle);
+        iter::once(PathEl::MoveTo(self.center + p0)).chain(self.append_iter(tolerance))
     }
 
     /// Note: shape isn't closed so area is not well defined.
@@ -162,25 +163,5 @@ impl Shape for Arc {
     #[inline]
     fn bounding_box(&self) -> Rect {
         self.clone().into_bez_path(0.1).elements().bounding_box()
-    }
-}
-
-#[doc(hidden)]
-pub struct ArcIter {
-    moved: bool,
-    inner: ArcAppendIter,
-}
-
-impl Iterator for ArcIter {
-    type Item = PathEl;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // prepend a MoveTo to the ArcAppendIter.
-        if self.moved {
-            self.inner.next()
-        } else {
-            self.moved = true;
-            Some(PathEl::MoveTo(self.inner.center + self.inner.p0))
-        }
     }
 }
