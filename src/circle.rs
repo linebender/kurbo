@@ -1,9 +1,12 @@
 //! Implementation of circle shape.
 
 use std::f64::consts::{FRAC_PI_2, PI};
-use std::ops::{Add, Sub};
+use std::{
+    iter,
+    ops::{Add, Sub},
+};
 
-use crate::{PathEl, Point, Rect, Shape, Vec2};
+use crate::{Arc, ArcAppendIter, PathEl, Point, Rect, Shape, Vec2};
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -147,6 +150,132 @@ impl Iterator for CirclePathIter {
     }
 }
 
+/// A segment of a circle.
+///
+/// If `inner_radius > 0`, then the shape will be a doughnut segment.
+pub struct CircleSegment {
+    /// The center.
+    pub center: Point,
+    /// The outer radius.
+    pub outer_radius: f64,
+    /// The inner radius.
+    pub inner_radius: f64,
+    /// The angle to start drawing the segment (in radians).
+    pub start_angle: f64,
+    /// The arc length of the segment (in radians).
+    pub sweep_angle: f64,
+}
+
+impl Add<Vec2> for CircleSegment {
+    type Output = CircleSegment;
+
+    #[inline]
+    fn add(self, v: Vec2) -> Self {
+        Self {
+            center: self.center + v,
+            ..self
+        }
+    }
+}
+
+impl Sub<Vec2> for CircleSegment {
+    type Output = CircleSegment;
+
+    #[inline]
+    fn sub(self, v: Vec2) -> Self {
+        Self {
+            center: self.center - v,
+            ..self
+        }
+    }
+}
+
+type CircleSegmentPathIter = std::iter::Chain<
+    iter::Chain<
+        iter::Chain<iter::Chain<iter::Once<PathEl>, iter::Once<PathEl>>, ArcAppendIter>,
+        iter::Once<PathEl>,
+    >,
+    ArcAppendIter,
+>;
+
+impl Shape for CircleSegment {
+    type BezPathIter = CircleSegmentPathIter;
+
+    fn to_bez_path(&self, tolerance: f64) -> CircleSegmentPathIter {
+        iter::once(PathEl::MoveTo(point_on_circle(
+            self.center,
+            self.inner_radius,
+            self.start_angle,
+        )))
+        // First radius
+        .chain(iter::once(PathEl::LineTo(point_on_circle(
+            self.center,
+            self.outer_radius,
+            self.start_angle,
+        ))))
+        // outer arc
+        .chain(
+            Arc {
+                center: self.center,
+                radii: Vec2::new(self.outer_radius, self.outer_radius),
+                start_angle: self.start_angle,
+                sweep_angle: self.sweep_angle,
+                x_rotation: 0.0,
+            }
+            .append_iter(tolerance),
+        )
+        // second radius
+        .chain(iter::once(PathEl::LineTo(point_on_circle(
+            self.center,
+            self.inner_radius,
+            self.start_angle + self.sweep_angle,
+        ))))
+        // inner arc
+        .chain(
+            Arc {
+                center: self.center,
+                radii: Vec2::new(self.inner_radius, self.inner_radius),
+                start_angle: self.start_angle + self.sweep_angle,
+                sweep_angle: -self.sweep_angle,
+                x_rotation: 0.0,
+            }
+            .append_iter(tolerance),
+        )
+    }
+
+    #[inline]
+    fn area(&self) -> f64 {
+        0.5 * (self.outer_radius.powi(2) - self.inner_radius.powi(2)) * self.sweep_angle
+    }
+
+    #[inline]
+    fn perimeter(&self, _accuracy: f64) -> f64 {
+        2.0 * (self.outer_radius - self.inner_radius)
+            + self.sweep_angle * (self.inner_radius + self.outer_radius)
+    }
+
+    fn winding(&self, pt: Point) -> i32 {
+        let angle = (pt - self.center).atan2();
+        if angle < self.start_angle || angle > self.start_angle + self.sweep_angle {
+            return 0;
+        }
+        let dist2 = (pt - self.center).hypot2();
+        if dist2 < self.outer_radius.powi(2) && dist2 < self.inner_radius.powi(2) {
+            1
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    fn bounding_box(&self) -> Rect {
+        // todo this is currently not tight
+        let r = self.outer_radius.abs();
+        let (x, y) = self.center.into();
+        Rect::new(x - r, y - r, x + r, y + r)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Circle, Point, Shape};
@@ -179,4 +308,13 @@ mod tests {
         assert_approx_eq(c_neg_radius.area(), p_neg_radius.area());
         assert_eq!(c_neg_radius.winding(center), p_neg_radius.winding(center));
     }
+}
+
+#[inline]
+fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
+    center
+        + Vec2 {
+            x: angle.cos() * radius,
+            y: angle.sin() * radius,
+        }
 }
