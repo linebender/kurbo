@@ -420,6 +420,50 @@ impl Rect {
     pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
         RoundedRect::from_rect(self, radius)
     }
+
+    /// Returns the largest possible `Rect` that is fully contained in `self` with the given
+    /// `aspect_ratio`.
+    ///
+    /// The aspect ratio is specified fractionally, as `height / width`.
+    ///
+    /// The resulting rectangle will be centered if it is smaller than the input rectangle.
+    ///
+    /// For the special case where the aspect ratio is `1.0`, the resulting `Rect` will be square.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kurbo::Rect;
+    /// let outer = Rect::new(0.0, 0.0, 10.0, 20.0);
+    /// let inner = outer.contained_rect_with_aspect_ratio(1.0);
+    /// // The new `Rect` is a square centered at the center of `outer`.
+    /// assert_eq!(inner, Rect::new(0.0, 5.0, 10.0, 15.0));
+    /// ```
+    ///
+    pub fn contained_rect_with_aspect_ratio(&self, aspect_ratio: f64) -> Rect {
+        let (width, height) = (self.width(), self.height());
+        let self_aspect = height / width;
+
+        // TODO the parameter `1e-9` was chosen quickly and may not be optimal.
+        if (self_aspect - aspect_ratio).abs() < 1e-9 {
+            // short circuit
+            *self
+        } else if self_aspect.abs() < aspect_ratio.abs() {
+            // shrink x to fit
+            let new_width = height * aspect_ratio.recip();
+            let gap = (width - new_width) * 0.5;
+            let x0 = self.x0 + gap;
+            let x1 = self.x1 - gap;
+            Rect::new(x0, self.y0, x1, self.y1)
+        } else {
+            // shrink y to fit
+            let new_height = width * aspect_ratio;
+            let gap = (height - new_height) * 0.5;
+            let y0 = self.y0 + gap;
+            let y1 = self.y1 - gap;
+            Rect::new(self.x0, y0, self.x1, y1)
+        }
+    }
 }
 
 impl From<(Point, Point)> for Rect {
@@ -615,4 +659,39 @@ mod tests {
         );
     }
     */
+
+    #[test]
+    fn contained_rect_with_aspect_ratio() {
+        use std::f64;
+
+        fn case(outer: [f64; 4], aspect_ratio: f64, expected: [f64; 4]) {
+            let outer = Rect::new(outer[0], outer[1], outer[2], outer[3]);
+            let expected = Rect::new(expected[0], expected[1], expected[2], expected[3]);
+            assert_eq!(
+                outer.contained_rect_with_aspect_ratio(aspect_ratio),
+                expected
+            );
+        }
+        // squares (different point orderings)
+        case([0.0, 0.0, 10.0, 20.0], 1.0, [0.0, 5.0, 10.0, 15.0]);
+        case([0.0, 20.0, 10.0, 0.0], 1.0, [0.0, 5.0, 10.0, 15.0]);
+        case([10.0, 0.0, 0.0, 20.0], 1.0, [10.0, 15.0, 0.0, 5.0]);
+        case([10.0, 20.0, 0.0, 0.0], 1.0, [10.0, 15.0, 0.0, 5.0]);
+        // non-square
+        case([0.0, 0.0, 10.0, 20.0], 0.5, [0.0, 7.5, 10.0, 12.5]);
+        // same aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], 2.0, [0.0, 0.0, 10.0, 20.0]);
+        // negative aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], -1.0, [0.0, 15.0, 10.0, 5.0]);
+        // infinite aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], f64::INFINITY, [5.0, 0.0, 5.0, 20.0]);
+        // zero aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], 0.0, [0.0, 10.0, 10.0, 10.0]);
+        // zero width rect
+        case([0.0, 0.0, 0.0, 20.0], 1.0, [0.0, 10.0, 0.0, 10.0]);
+        // many zeros
+        case([0.0, 0.0, 0.0, 20.0], 0.0, [0.0, 10.0, 0.0, 10.0]);
+        // everything zero
+        case([0.0, 0.0, 0.0, 0.0], 0.0, [0.0, 0.0, 0.0, 0.0]);
+    }
 }
