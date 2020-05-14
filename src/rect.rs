@@ -550,7 +550,7 @@ impl fmt::Debug for Rect {
         } else {
             write!(
                 f,
-                "Rect {{ x0 {:?}, y0: {:?}, x1: {:?}, y1: {:?} }}",
+                "Rect {{ x0: {:?}, y0: {:?}, x1: {:?}, y1: {:?} }}",
                 self.x0, self.y0, self.x1, self.y1
             )
         }
