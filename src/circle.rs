@@ -3,10 +3,10 @@
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::{
     iter,
-    ops::{Add, Sub},
+    ops::{Add, Mul, Sub},
 };
 
-use crate::{Arc, ArcAppendIter, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Arc, ArcAppendIter, Ellipse, PathEl, Point, Rect, Shape, Vec2};
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -50,6 +50,13 @@ impl Sub<Vec2> for Circle {
             center: self.center - v,
             radius: self.radius,
         }
+    }
+}
+
+impl Mul<Circle> for Affine {
+    type Output = Ellipse;
+    fn mul(self, other: Circle) -> Self::Output {
+        self * Ellipse::from(other)
     }
 }
 
