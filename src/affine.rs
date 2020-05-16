@@ -114,6 +114,67 @@ impl Affine {
         let p11 = self * Point::new(rect.x1, rect.y1);
         Rect::from_points(p00, p01).union(Rect::from_points(p10, p11))
     }
+
+    /// Compute the singular value decomposition of the linear transformation (ignoring the
+    /// translation).
+    ///
+    /// All non-degenerate linear transformations can be represented as
+    ///
+    ///  1. a rotation about the origin.
+    ///  2. a scaling along the x and y axes
+    ///  3. another rotation about the origin
+    ///
+    /// composed together. Decomposing a 2x2 matrix in this way is called a "singular value
+    /// decomposition" and is written `U Σ V^T`, where U and V^T are orthogonal (rotations) and Σ
+    /// is a diagonal matrix (a scaling).
+    ///
+    /// Since currently this function is used to calculate ellipse radii and rotation from an
+    /// affine map on the unit circle, we don't calculate V^T, since a rotation of the unit (or
+    /// any) circle always results in the same circle. This is the reason that an ellipse mapped
+    /// using an affine map is always an ellipse.
+    ///
+    /// Will return NaNs if the matrix (or equivalently the linear map) is singular.
+    ///
+    /// First part of the return tuple is the scaling, second part is the angle of rotation (in
+    /// radians)
+    pub(crate) fn svd(self) -> (Vec2, f64) {
+        let a = self.0[0];
+        let a2 = a * a;
+        let b = self.0[1];
+        let b2 = b * b;
+        let c = self.0[2];
+        let c2 = c * c;
+        let d = self.0[3];
+        let d2 = d * d;
+        let ab = a * b;
+        let cd = c * d;
+        let angle = 0.5 * (2.0 * (ab + cd)).atan2(a2 - b2 + c2 - d2);
+        let s1 = a2 + b2 + c2 + d2;
+        let s2 = ((a2 - b2 + c2 - d2).powi(2) + 4.0 * (ab + cd).powi(2)).sqrt();
+        (
+            Vec2 {
+                x: (0.5 * (s1 + s2)).sqrt(),
+                y: (0.5 * (s1 - s2)).sqrt(),
+            },
+            angle,
+        )
+    }
+
+    /// Returns the translation part of this affine map (`(self.0[4], self.0[5])`).
+    pub(crate) fn get_translation(self) -> Vec2 {
+        Vec2 {
+            x: self.0[4],
+            y: self.0[5],
+        }
+    }
+
+    /// Replaces the translation portion of this affine map
+    #[must_use]
+    pub(crate) fn set_translation(mut self, trans: Vec2) -> Affine {
+        self.0[4] = trans.x;
+        self.0[5] = trans.y;
+        self
+    }
 }
 
 impl Default for Affine {

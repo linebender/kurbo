@@ -42,6 +42,11 @@ impl Vec2 {
         Size::new(self.x, self.y)
     }
 
+    /// Create a `Vec2` with the same value for x and y
+    pub(crate) const fn splat(v: f64) -> Self {
+        Vec2 { x: v, y: v }
+    }
+
     /// Dot product of two vectors.
     #[inline]
     pub fn dot(&self, other: Vec2) -> f64 {
