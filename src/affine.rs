@@ -130,14 +130,18 @@ impl Affine {
     ///
     /// Since currently this function is used to calculate ellipse radii and rotation from an
     /// affine map on the unit circle, we don't calculate V^T, since a rotation of the unit (or
-    /// any) circle always results in the same circle. This is the reason that an ellipse mapped
-    /// using an affine map is always an ellipse.
+    /// any) circle about its center always results in the same circle. This is the reason that an
+    /// ellipse mapped using an affine map is always an ellipse.
     ///
     /// Will return NaNs if the matrix (or equivalently the linear map) is singular.
     ///
     /// First part of the return tuple is the scaling, second part is the angle of rotation (in
     /// radians)
+    #[inline(always)]
     pub(crate) fn svd(self) -> (Vec2, f64) {
+        // I've put inline(always) here because we want to give the compiler the opportunity to
+        // discard parts of the SVD that the caller doesn't need. Are there cases where this
+        // function should not be inlined? If so the (always) should be removed.
         let a = self.0[0];
         let a2 = a * a;
         let b = self.0[1];
@@ -161,6 +165,7 @@ impl Affine {
     }
 
     /// Returns the translation part of this affine map (`(self.0[4], self.0[5])`).
+    #[inline]
     pub(crate) fn get_translation(self) -> Vec2 {
         Vec2 {
             x: self.0[4],

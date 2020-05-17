@@ -9,7 +9,7 @@ use std::{
 use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Vec2};
 
 /// An ellipse.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ellipse {
     /// All ellipses can be represented as an affine map of the unit circle, centred at (0, 0).
@@ -22,7 +22,9 @@ pub struct Ellipse {
 impl Ellipse {
     /// A new ellipse from center, radii, and x_rotation.
     ///
-    /// TODO explain how these parameters form a specific ellipse.
+    /// The returned ellipse will be the result of taking a circle, stretching it by the `radii`
+    /// along the x and y axes, then rotating it clockwise by `x_rotation` radians, before finally
+    /// translating the center to `center`.
     #[inline]
     pub fn new(center: impl Into<Point>, radii: impl Into<Vec2>, x_rotation: f64) -> Ellipse {
         let Point { x: cx, y: cy } = center.into();
@@ -64,8 +66,6 @@ impl Ellipse {
         }
     }
 
-    // NOTE: I'm not 100% sure about stability if you repeatedly do SVDs, which these methods
-    // rely on.
     /// Returns the two radii of this ellipse.
     ///
     /// The first number is the horizontal radius and the second is the vertical radius, before
@@ -95,6 +95,15 @@ impl Ellipse {
         let scale = self.inner.svd().0;
         let translation = self.inner.get_translation();
         Ellipse::private_new(translation, scale.x, scale.y, new_x_rotation)
+    }
+}
+
+// We need to implement this ourselves as multiple affine maps represent the same ellipse. If `==`
+// on floats formed an equivalence relation (it doesn't), then the last parts of the SVD would form
+// an equivalence relation on affine maps.
+impl PartialEq for Ellipse {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.svd() == other.inner.svd()
     }
 }
 
@@ -137,12 +146,11 @@ impl From<Circle> for Ellipse {
     }
 }
 
-// Delegate to an bezier path approximation for all measurements, except for area, since the
-// formula there is simple.
 impl Shape for Ellipse {
     type BezPathIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
     fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter {
+        // TODO is there a better way of doing this?
         let (radii, x_rotation) = self.inner.svd();
         Arc {
             center: self.center(),
@@ -169,16 +177,47 @@ impl Shape for Ellipse {
     }
 
     fn winding(&self, pt: Point) -> i32 {
-        self.clone().into_bez_path(0.1).elements().winding(pt)
+        // Strategy here is to apply the inverse map to the point and see if it is in the unit
+        // circle.
+        let inv = self.inner.inverse();
+        if (inv * pt).to_vec2().hypot2() < 1.0 {
+            1
+        } else {
+            0
+        }
     }
 
+    // Compute a tight bounding box of the ellipse.
+    //
+    // See https://www.iquilezles.org/www/articles/ellipses/ellipses.htm. We can get the two
+    // radius vectors by applying the affine map to the two impulses (1, 0) and (0, 1) which gives
+    // (a, b) and (c, d) if the affine map is
+    //
+    //  a | c | e
+    // -----------
+    //  b | d | f
+    //
+    //  We can then use the method in the link with the translation to get the bounding box.
     #[inline]
     fn bounding_box(&self) -> Rect {
-        self.clone().into_bez_path(0.1).elements().bounding_box()
+        let aff = self.inner.as_coeffs();
+        let a2 = aff[0] * aff[0];
+        let b2 = aff[1] * aff[1];
+        let c2 = aff[2] * aff[2];
+        let d2 = aff[3] * aff[3];
+        let cx = aff[4];
+        let cy = aff[5];
+        let range_x = (a2 + c2).sqrt();
+        let range_y = (b2 + d2).sqrt();
+        Rect {
+            x0: cx - range_x,
+            y0: cy - range_y,
+            x1: cx + range_x,
+            y1: cy + range_y,
+        }
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use crate::{Ellipse, Point, Shape};
@@ -193,23 +232,24 @@ mod tests {
     #[test]
     fn area_sign() {
         let center = Point::new(5.0, 5.0);
-        let c = Ellipse::new(center, 5.0);
-        assert_approx_eq(c.area(), 25.0 * PI);
+        let e = Ellipse::new(center, (5.0, 5.0), 1.0);
+        assert_approx_eq(e.area(), 25.0 * PI);
+        let e = Ellipse::new(center, (5.0, 10.0), 1.0);
+        assert_approx_eq(e.area(), 50.0 * PI);
 
-        assert_eq!(c.winding(center), 1);
+        assert_eq!(e.winding(center), 1);
 
-        let p = c.into_bez_path(1e-9);
-        assert_approx_eq(c.area(), p.area());
-        assert_eq!(c.winding(center), p.winding(center));
+        let p = e.into_bez_path(1e-9);
+        assert_approx_eq(e.area(), p.area());
+        assert_eq!(e.winding(center), p.winding(center));
 
-        let c_neg_radius = Ellipse::new(center, -5.0);
-        assert_approx_eq(c_neg_radius.area(), 25.0 * PI);
+        let e_neg_radius = Ellipse::new(center, (-5.0, 10.0), 1.0);
+        assert_approx_eq(e_neg_radius.area(), 50.0 * PI);
 
-        assert_eq!(c_neg_radius.winding(center), 1);
+        assert_eq!(e_neg_radius.winding(center), 1);
 
-        let p_neg_radius = c_neg_radius.into_bez_path(1e-9);
-        assert_approx_eq(c_neg_radius.area(), p_neg_radius.area());
-        assert_eq!(c_neg_radius.winding(center), p_neg_radius.winding(center));
+        let p_neg_radius = e_neg_radius.into_bez_path(1e-9);
+        assert_approx_eq(e_neg_radius.area(), p_neg_radius.area());
+        assert_eq!(e_neg_radius.winding(center), p_neg_radius.winding(center));
     }
 }
-*/
