@@ -170,6 +170,12 @@ impl Shape for Ellipse {
 
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
+        // TODO rather than delegate to the bezier path, it is possible to use various series
+        // expansions to compute the perimeter to any accuracy. I believe Ramanujan authored the
+        // quickest to converge. See
+        // https://www.mathematica-journal.com/2009/11/23/on-the-perimeter-of-an-ellipse/
+        // and https://en.wikipedia.org/wiki/Ellipse#Circumference
+        //
         self.clone()
             .into_bez_path(0.1)
             .elements()
