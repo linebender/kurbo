@@ -1,7 +1,7 @@
 //! Implementation of circle shape.
 
-use std::f64::consts::{FRAC_PI_2, PI};
 use std::{
+    f64::consts::{FRAC_PI_2, PI},
     iter,
     ops::{Add, Mul, Sub},
 };
@@ -25,6 +25,17 @@ impl Circle {
         Circle {
             center: center.into(),
             radius,
+        }
+    }
+
+    /// Create a circle segment by cutting out parts of this circle.
+    pub fn segment(self, inner_radius: f64, start_angle: f64, sweep_angle: f64) -> CircleSegment {
+        CircleSegment {
+            center: self.center,
+            outer_radius: self.radius,
+            inner_radius,
+            start_angle,
+            sweep_angle,
         }
     }
 }
@@ -173,6 +184,25 @@ pub struct CircleSegment {
     pub sweep_angle: f64,
 }
 
+impl CircleSegment {
+    /// Create a `CircleSegment` out of its constituent parts.
+    pub fn new(
+        center: impl Into<Point>,
+        outer_radius: f64,
+        inner_radius: f64,
+        start_angle: f64,
+        sweep_angle: f64,
+    ) -> Self {
+        CircleSegment {
+            center: center.into(),
+            outer_radius,
+            inner_radius,
+            start_angle,
+            sweep_angle,
+        }
+    }
+}
+
 impl Add<Vec2> for CircleSegment {
     type Output = CircleSegment;
 
@@ -252,12 +282,12 @@ impl Shape for CircleSegment {
 
     #[inline]
     fn area(&self) -> f64 {
-        0.5 * (self.outer_radius.powi(2) - self.inner_radius.powi(2)) * self.sweep_angle
+        0.5 * (self.outer_radius.powi(2) - self.inner_radius.powi(2)).abs() * self.sweep_angle
     }
 
     #[inline]
     fn perimeter(&self, _accuracy: f64) -> f64 {
-        2.0 * (self.outer_radius - self.inner_radius)
+        2.0 * (self.outer_radius - self.inner_radius).abs()
             + self.sweep_angle * (self.inner_radius + self.outer_radius)
     }
 
@@ -267,7 +297,10 @@ impl Shape for CircleSegment {
             return 0;
         }
         let dist2 = (pt - self.center).hypot2();
-        if dist2 < self.outer_radius.powi(2) && dist2 < self.inner_radius.powi(2) {
+        if dist2 < self.outer_radius.powi(2) && dist2 > self.inner_radius.powi(2) {
+            1
+        } else if dist2 < self.inner_radius.powi(2) && dist2 > self.outer_radius.powi(2) {
+            // case where outer_radius < inner_radius
             1
         } else {
             0
@@ -277,7 +310,7 @@ impl Shape for CircleSegment {
     #[inline]
     fn bounding_box(&self) -> Rect {
         // todo this is currently not tight
-        let r = self.outer_radius.abs();
+        let r = self.inner_radius.max(self.outer_radius);
         let (x, y) = self.center.into();
         Rect::new(x - r, y - r, x + r, y + r)
     }
