@@ -137,11 +137,8 @@ impl Affine {
     ///
     /// First part of the return tuple is the scaling, second part is the angle of rotation (in
     /// radians)
-    #[inline(always)]
+    #[inline]
     pub(crate) fn svd(self) -> (Vec2, f64) {
-        // I've put inline(always) here because we want to give the compiler the opportunity to
-        // discard parts of the SVD that the caller doesn't need. Are there cases where this
-        // function should not be inlined? If so the (always) should be removed.
         let a = self.0[0];
         let a2 = a * a;
         let b = self.0[1];

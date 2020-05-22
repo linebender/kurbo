@@ -9,7 +9,7 @@ use std::{
 use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Vec2};
 
 /// An ellipse.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ellipse {
     /// All ellipses can be represented as an affine map of the unit circle, centred at (0, 0).
@@ -18,7 +18,6 @@ pub struct Ellipse {
     inner: Affine,
 }
 
-// TODO check all the descriptions match actual behavior.
 impl Ellipse {
     /// A new ellipse from center, radii, and x_rotation.
     ///
@@ -35,10 +34,12 @@ impl Ellipse {
     /// This gives us an internal method without any type conversions.
     #[inline]
     fn private_new(center: Vec2, scale_x: f64, scale_y: f64, x_rotation: f64) -> Ellipse {
+        // Since the circle is symmetric about the x and y axes, using absolute values for the
+        // radii results in the same ellipse. For simplicity we make this change here.
         Ellipse {
             inner: Affine::translate(center)
                 * Affine::rotate(x_rotation)
-                * Affine::scale_non_uniform(scale_x, scale_y),
+                * Affine::scale_non_uniform(scale_x.abs(), scale_y.abs()),
         }
     }
 
@@ -98,15 +99,6 @@ impl Ellipse {
     }
 }
 
-// We need to implement this ourselves as multiple affine maps represent the same ellipse. If `==`
-// on floats formed an equivalence relation (it doesn't), then the last parts of the SVD would form
-// an equivalence relation on affine maps.
-impl PartialEq for Ellipse {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner.svd() == other.inner.svd()
-    }
-}
-
 impl Add<Vec2> for Ellipse {
     type Output = Ellipse;
 
@@ -150,7 +142,6 @@ impl Shape for Ellipse {
     type BezPathIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
     fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter {
-        // TODO is there a better way of doing this?
         let (radii, x_rotation) = self.inner.svd();
         Arc {
             center: self.center(),
