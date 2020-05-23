@@ -91,12 +91,21 @@ impl BezPath {
         let mut path = BezPath::new();
         let mut last_cmd = 0;
         let mut last_ctrl = None;
+        let mut first_pt = Point::ORIGIN;
+        let mut implicit_moveto = None;
         while let Some(c) = lexer.get_cmd(last_cmd) {
+            if c != b'm' && c != b'M' {
+                if let Some(pt) = implicit_moveto.take() {
+                    path.move_to(pt);
+                }
+            }
             match c {
                 b'm' | b'M' => {
+                    implicit_moveto = None;
                     let pt = lexer.get_maybe_relative(c)?;
                     path.move_to(pt);
                     lexer.last_pt = pt;
+                    first_pt = pt;
                     last_ctrl = Some(pt);
                     last_cmd = c - (b'M' - b'L');
                 }
@@ -207,7 +216,8 @@ impl BezPath {
                 }
                 b'z' | b'Z' => {
                     path.close_path();
-                    // TODO: implicit moveto
+                    lexer.last_pt = first_pt;
+                    implicit_moveto = Some(first_pt);
                 }
                 _ => return Err(SvgParseError::UnknownCommand(c as char)),
             }
