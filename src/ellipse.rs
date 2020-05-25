@@ -104,6 +104,7 @@ impl Add<Vec2> for Ellipse {
 
     /// In this context adding a `Vec2` applies the corresponding translation to the eliipse.
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, v: Vec2) -> Ellipse {
         Ellipse {
             inner: Affine::translate(v) * self.inner,

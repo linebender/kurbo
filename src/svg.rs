@@ -427,7 +427,7 @@ impl Arc {
         let rypx = ry * p.x;
         let sum_of_sq = rxpy * rxpy + rypx * rypx;
 
-        debug_assert_ne!(sum_of_sq, 0.0);
+        debug_assert!(sum_of_sq != 0.0);
 
         // F6.5.2
         let sign_coe = if arc.large_arc == arc.sweep {
@@ -493,6 +493,7 @@ mod tests {
 
     // Regression test for #51
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_parse_svg_arc_pie() {
         let path = BezPath::from_svg("M 100 100 h 25 a 25 25 0 1 0 -25 25 z").unwrap();
         // Approximate figures, but useful for regression testing
@@ -576,11 +577,9 @@ mod tests {
             let should_follow: bool = rand::random();
             let kind = rng.gen_range(0, 3);
 
-            let first = if should_follow && position.is_some() {
-                position.unwrap()
-            } else {
-                Point::new(rng.gen(), rng.gen())
-            };
+            let first = position
+                .filter(|_| should_follow)
+                .unwrap_or_else(|| Point::new(rng.gen(), rng.gen()));
 
             let element: PathSeg = match kind {
                 0 => Line::new(first, Point::new(rng.gen(), rng.gen())).into(),

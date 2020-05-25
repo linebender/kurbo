@@ -2,6 +2,8 @@
 
 // Lots of stuff is commented out or was just something to try.
 #![allow(unused)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::many_single_char_names)]
 
 // TODO: make more functionality accessible from command line rather than uncommenting.
 
@@ -241,6 +243,6 @@ fn main() {
             println!("{} {} {}", x, y, (est_err/error.abs() + 1e-15).log10());
             */
         }
-        println!("");
+        println!();
     }
 }

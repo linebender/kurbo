@@ -299,10 +299,10 @@ impl Shape for CircleSegment {
             return 0;
         }
         let dist2 = (pt - self.center).hypot2();
-        if dist2 < self.outer_radius.powi(2) && dist2 > self.inner_radius.powi(2) {
-            1
-        } else if dist2 < self.inner_radius.powi(2) && dist2 > self.outer_radius.powi(2) {
+        if (dist2 < self.outer_radius.powi(2) && dist2 > self.inner_radius.powi(2)) ||
             // case where outer_radius < inner_radius
+            (dist2 < self.inner_radius.powi(2) && dist2 > self.outer_radius.powi(2))
+        {
             1
         } else {
             0

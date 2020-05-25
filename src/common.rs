@@ -257,7 +257,7 @@ mod tests {
     fn test_solve_quadratic() {
         verify(
             solve_quadratic(-5.0, 0.0, 1.0),
-            &[-5.0f64.sqrt(), 5.0f64.sqrt()],
+            &[-(5.0f64.sqrt()), 5.0f64.sqrt()],
         );
         verify(solve_quadratic(5.0, 0.0, 1.0), &[]);
         verify(solve_quadratic(5.0, 1.0, 0.0), &[-5.0]);
