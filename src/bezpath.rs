@@ -735,8 +735,9 @@ impl PathSeg {
                 // t = position on self
                 let t = t / det;
                 if t >= -EPSILON && t <= 1.0 + EPSILON {
-                // u = position on probe line
-                    let u = (l.p0.x - p0.x) * (l.p1.y - l.p0.y) - (l.p0.y - p0.y) * (l.p1.x - l.p0.x);
+                    // u = position on probe line
+                    let u =
+                        (l.p0.x - p0.x) * (l.p1.y - l.p0.y) - (l.p0.y - p0.y) * (l.p1.x - l.p0.x);
                     let u = u / det;
                     if u >= 0.0 && u <= 1.0 {
                         result.push((t, u));
@@ -894,7 +895,7 @@ impl<'a> Shape for &'a [PathEl] {
 #[cfg(test)]
 mod tests {
     use super::{CubicBez, Line, PathSeg, QuadBez};
-    
+
     fn assert_approx_eq(x: f64, y: f64) {
         assert!((x - y).abs() < 1e-8, "{} != {}", x, y);
     }
