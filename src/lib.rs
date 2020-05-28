@@ -20,6 +20,9 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::many_single_char_names)]
+#![allow(clippy::excessive_precision)]
 
 mod affine;
 mod arc;

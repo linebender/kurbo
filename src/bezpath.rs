@@ -107,7 +107,7 @@ impl BezPath {
 
     /// Returns an iterator over the path's elements.
     pub fn iter(&self) -> impl Iterator<Item = PathEl> + '_ {
-        self.0.iter().map(|e| *e)
+        self.0.iter().copied()
     }
 
     /// Iterate over the path segments.
@@ -189,7 +189,7 @@ impl BezPath {
     }
 
     // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
-    fn segments_of_slice<'a>(slice: &'a [PathEl]) -> BezPathSegs<'a> {
+    fn segments_of_slice(slice: &[PathEl]) -> BezPathSegs {
         let first = match slice.get(0) {
             Some(PathEl::MoveTo(p)) => *p,
             Some(PathEl::LineTo(p)) => *p,

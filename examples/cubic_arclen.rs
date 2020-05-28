@@ -2,6 +2,8 @@
 
 // Lots of stuff is commented out or was just something to try.
 #![allow(unused)]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::many_single_char_names)]
 
 use kurbo::common::*;
 use kurbo::{
@@ -108,6 +110,7 @@ fn est_gauss11_error_2(c: CubicBez) -> f64 {
         .sum::<f64>()
 }
 
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn est_max_curvature(c: CubicBez) -> f64 {
     let n = 100;
     let mut max = 0.0;

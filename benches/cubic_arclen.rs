@@ -1,5 +1,6 @@
 //! Benchmarks of cubic arclength approaches.
 
+#![cfg(nightly)]
 #![feature(test)]
 extern crate test;
 use test::Bencher;

@@ -49,7 +49,7 @@ impl Vec2 {
 
     /// Dot product of two vectors.
     #[inline]
-    pub fn dot(&self, other: Vec2) -> f64 {
+    pub fn dot(self, other: Vec2) -> f64 {
         self.x * other.x + self.y * other.y
     }
 
@@ -57,20 +57,20 @@ impl Vec2 {
     ///
     /// This is signed so that (0, 1) × (1, 0) = 1.
     #[inline]
-    pub fn cross(&self, other: Vec2) -> f64 {
+    pub fn cross(self, other: Vec2) -> f64 {
         self.x * other.y - self.y * other.x
     }
 
     /// Magnitude of vector.
     #[inline]
-    pub fn hypot(&self) -> f64 {
+    pub fn hypot(self) -> f64 {
         self.x.hypot(self.y)
     }
 
     /// Magnitude squared of vector.
     #[inline]
-    pub fn hypot2(&self) -> f64 {
-        self.dot(*self)
+    pub fn hypot2(self) -> f64 {
+        self.dot(self)
     }
 
     /// Angle of vector.
@@ -78,7 +78,7 @@ impl Vec2 {
     /// If the vector is interpreted as a complex number, this is the argument.
     /// The angle is expressed in radians.
     #[inline]
-    pub fn atan2(&self) -> f64 {
+    pub fn atan2(self) -> f64 {
         self.y.atan2(self.x)
     }
 
@@ -102,8 +102,8 @@ impl Vec2 {
 
     /// Linearly interpolate between two vectors.
     #[inline]
-    pub fn lerp(&self, other: Vec2, t: f64) -> Vec2 {
-        *self + t * (other - *self)
+    pub fn lerp(self, other: Vec2, t: f64) -> Vec2 {
+        self + t * (other - self)
     }
 
     /// Returns a vector of magnitude 1.0 with the same angle as `self`; i.e.
@@ -311,6 +311,7 @@ impl Div<f64> for Vec2 {
     ///
     /// This is more efficient but has different roundoff behavior than division.
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, other: f64) -> Vec2 {
         self * other.recip()
     }

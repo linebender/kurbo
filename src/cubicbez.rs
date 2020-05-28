@@ -353,6 +353,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn cubicbez_signed_area_linear() {
         // y = 1 - x
         let c = CubicBez::new(
@@ -426,10 +427,8 @@ mod tests {
         let c = CubicBez::new((0.0, 0.0), (1.0 / 3.0, 0.0), (2.0 / 3.0, 0.0), (1.0, 1.0));
         for i in 0..10 {
             let accuracy = 0.1f64.powi(i);
-            let mut _count = 0;
             let mut worst: f64 = 0.0;
-            for (t0, t1, q) in c.to_quads(accuracy) {
-                _count += 1;
+            for (_count, (t0, t1, q)) in c.to_quads(accuracy).enumerate() {
                 let epsilon = 1e-12;
                 assert!((q.start() - c.eval(t0)).hypot() < epsilon);
                 assert!((q.end() - c.eval(t1)).hypot() < epsilon);

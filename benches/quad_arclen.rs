@@ -2,6 +2,7 @@
 
 // TODO: organize so there's less cut'n'paste from arclen_accuracy example.
 
+#![cfg(nightly)]
 #![feature(test)]
 extern crate test;
 use test::Bencher;
