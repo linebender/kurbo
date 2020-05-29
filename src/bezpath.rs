@@ -48,6 +48,27 @@ pub enum PathSeg {
     Cubic(CubicBez),
 }
 
+/// An intersection of a [`Line`] and a [`PathSeg`].
+///
+/// This can be generated with the [`PathSeg::intersect_line`] method.
+///
+/// [`Line`]: struct.Line.html
+/// [`PathSeg`]: enum.PathSeg.html
+/// [`PathSeg::intersect_line`]: enum.PathSeg.html#method.intersect_line
+#[derive(Debug, Clone, Copy)]
+pub struct LineIntersection {
+    /// The 'time' that the intersection occurs, on the line.
+    ///
+    /// This value is in the range 0..1.
+    pub line_t: f64,
+
+    /// The 'time' that the intersection occurs, on the path segment.
+    ///
+    /// This value is nominally in the range 0..1, although it may slightly exceed
+    /// that range at the boundaries of segments.
+    pub segment_t: f64,
+}
+
 impl BezPath {
     /// Create a new path.
     pub fn new() -> BezPath {
@@ -717,7 +738,23 @@ impl PathSeg {
     /// of a path will be guaranteed to catch at least one of them. In such cases, use
     /// higher level logic to coalesce the hits (the `t` value may be slightly outside
     /// the range of 0..1).
-    pub fn intersect_line(&self, line: Line) -> ArrayVec<[(f64, f64); 3]> {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kurbo::*;
+    /// let seg = PathSeg::Line(Line::new((0.0, 0.0), (2.0, 0.0)));
+    /// let line = Line::new((1.0, 2.0), (1.0, -2.0));
+    /// let intersection = seg.intersect_line(line);
+    /// assert_eq!(intersection.len(), 1);
+    /// let intersection = intersection[0];
+    /// assert_eq!(intersection.segment_t, 0.5);
+    /// assert_eq!(intersection.line_t, 0.5);
+    ///
+    /// let point = seg.eval(intersection.segment_t);
+    /// assert_eq!(point, Point::new(1.0, 0.0));
+    /// ```
+    pub fn intersect_line(&self, line: Line) -> ArrayVec<[LineIntersection; 3]> {
         const EPSILON: f64 = 1e-9;
         let p0 = line.p0;
         let p1 = line.p1;
@@ -740,7 +777,7 @@ impl PathSeg {
                         (l.p0.x - p0.x) * (l.p1.y - l.p0.y) - (l.p0.y - p0.y) * (l.p1.x - l.p0.x);
                     let u = u / det;
                     if u >= 0.0 && u <= 1.0 {
-                        result.push((t, u));
+                        result.push(LineIntersection::new(u, t));
                     }
                 }
             }
@@ -761,7 +798,7 @@ impl PathSeg {
                         let y = py0 + t * py1 + t * t * py2;
                         let u = ((x - p0.x) * dx + (y - p0.y) * dy) * invlen2;
                         if u >= 0.0 && u <= 1.0 {
-                            result.push((t, u));
+                            result.push(LineIntersection::new(u, t));
                         }
                     }
                 }
@@ -781,13 +818,19 @@ impl PathSeg {
                         let y = py0 + t * py1 + t * t * py2 + t * t * t * py3;
                         let u = ((x - p0.x) * dx + (y - p0.y) * dy) * invlen2;
                         if u >= 0.0 && u <= 1.0 {
-                            result.push((t, u));
+                            result.push(LineIntersection::new(u, t));
                         }
                     }
                 }
             }
         }
         result
+    }
+}
+
+impl LineIntersection {
+    fn new(line_t: f64, segment_t: f64) -> Self {
+        LineIntersection { line_t, segment_t }
     }
 }
 
@@ -904,9 +947,9 @@ mod tests {
     fn test_intersect_line() {
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         let v_line = Line::new((10.0, -10.0), (10.0, 10.0));
-        let (u, t) = PathSeg::Line(h_line).intersect_line(v_line)[0];
-        assert_approx_eq(u, 0.1);
-        assert_approx_eq(t, 0.5);
+        let intersection = PathSeg::Line(h_line).intersect_line(v_line)[0];
+        assert_approx_eq(intersection.segment_t, 0.1);
+        assert_approx_eq(intersection.line_t, 0.5);
 
         let v_line = Line::new((-10.0, -10.0), (-10.0, 10.0));
         assert!(PathSeg::Line(h_line).intersect_line(v_line).is_empty());
@@ -920,9 +963,9 @@ mod tests {
         let q = QuadBez::new((0.0, -10.0), (10.0, 20.0), (20.0, -10.0));
         let v_line = Line::new((10.0, -10.0), (10.0, 10.0));
         assert_eq!(PathSeg::Quad(q).intersect_line(v_line).len(), 1);
-        let (u, t) = PathSeg::Quad(q).intersect_line(v_line)[0];
-        assert_approx_eq(u, 0.5);
-        assert_approx_eq(t, 0.75);
+        let intersection = PathSeg::Quad(q).intersect_line(v_line)[0];
+        assert_approx_eq(intersection.segment_t, 0.5);
+        assert_approx_eq(intersection.line_t, 0.75);
 
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         assert_eq!(PathSeg::Quad(q).intersect_line(h_line).len(), 2);
@@ -933,9 +976,9 @@ mod tests {
         let c = CubicBez::new((0.0, -10.0), (10.0, 20.0), (20.0, -20.0), (30.0, 10.0));
         let v_line = Line::new((10.0, -10.0), (10.0, 10.0));
         assert_eq!(PathSeg::Cubic(c).intersect_line(v_line).len(), 1);
-        let (u, t) = PathSeg::Cubic(c).intersect_line(v_line)[0];
-        assert_approx_eq(u, 0.333333333);
-        assert_approx_eq(t, 0.592592592);
+        let intersection = PathSeg::Cubic(c).intersect_line(v_line)[0];
+        assert_approx_eq(intersection.segment_t, 0.333333333);
+        assert_approx_eq(intersection.line_t, 0.592592592);
 
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         assert_eq!(PathSeg::Cubic(c).intersect_line(h_line).len(), 3);
