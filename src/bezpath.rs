@@ -706,6 +706,106 @@ impl PathSeg {
             .map(|range| self.subsegment(range).winding_inner(p))
             .sum()
     }
+
+    /// Compute intersections against a line.
+    ///
+    /// Returns a vector of the intersections. For each intersection, the `t` value of the
+    /// segment and line are given.
+    ///
+    /// Note: This test is designed to be inclusive of points near the endpoints of
+    /// the segment. This is so that testing a line against multiple contiguous segments
+    /// of a path will be guaranteed to catch at least one of them. In such cases, use
+    /// higher level logic to coalesce the hits (the `t` value may be slightly outside
+    /// the range of 0..1).
+    pub fn intersect_line(&self, line: Line) -> ArrayVec<[(f64, f64); 3]> {
+        const EPSILON: f64 = 1e-9;
+        let p0 = line.p0;
+        let p1 = line.p1;
+        let dx = p1.x - p0.x;
+        let dy = p1.y - p0.y;
+        let mut result = ArrayVec::new();
+        match self {
+            PathSeg::Line(l) => {
+                let det = dx * (l.p1.y - l.p0.y) - dy * (l.p1.x - l.p0.x);
+                if det.abs() < EPSILON {
+                    // Lines are coincident (or nearly so).
+                    return result;
+                }
+                let t = dx * (p0.y - l.p0.y) - dy * (p0.x - l.p0.x);
+                // t = position on self
+                let t = t / det;
+                if t >= -EPSILON && t <= 1.0 + EPSILON {
+                    // u = position on probe line
+                    let u =
+                        (l.p0.x - p0.x) * (l.p1.y - l.p0.y) - (l.p0.y - p0.y) * (l.p1.x - l.p0.x);
+                    let u = u / det;
+                    if u >= 0.0 && u <= 1.0 {
+                        result.push((t, u));
+                    }
+                }
+            }
+            PathSeg::Quad(q) => {
+                // The basic technique here is to determine x and y as a quadratic polynomial
+                // as a function of t. Then plug those values into the line equation for the
+                // probe line (giving a sort of signed distance from the probe line) and solve
+                // that for t.
+                let (px0, px1, px2) = quadratic_bez_coefs(q.p0.x, q.p1.x, q.p2.x);
+                let (py0, py1, py2) = quadratic_bez_coefs(q.p0.y, q.p1.y, q.p2.y);
+                let c0 = dy * (px0 - p0.x) - dx * (py0 - p0.y);
+                let c1 = dy * px1 - dx * py1;
+                let c2 = dy * px2 - dx * py2;
+                let invlen2 = (dx * dx + dy * dy).recip();
+                for t in crate::common::solve_quadratic(c0, c1, c2) {
+                    if t >= -EPSILON && t <= 1.0 + EPSILON {
+                        let x = px0 + t * px1 + t * t * px2;
+                        let y = py0 + t * py1 + t * t * py2;
+                        let u = ((x - p0.x) * dx + (y - p0.y) * dy) * invlen2;
+                        if u >= 0.0 && u <= 1.0 {
+                            result.push((t, u));
+                        }
+                    }
+                }
+            }
+            PathSeg::Cubic(c) => {
+                // Same technique as above, but cubic polynomial.
+                let (px0, px1, px2, px3) = cubic_bez_coefs(c.p0.x, c.p1.x, c.p2.x, c.p3.x);
+                let (py0, py1, py2, py3) = cubic_bez_coefs(c.p0.y, c.p1.y, c.p2.y, c.p3.y);
+                let c0 = dy * (px0 - p0.x) - dx * (py0 - p0.y);
+                let c1 = dy * px1 - dx * py1;
+                let c2 = dy * px2 - dx * py2;
+                let c3 = dy * px3 - dx * py3;
+                let invlen2 = (dx * dx + dy * dy).recip();
+                for t in crate::common::solve_cubic(c0, c1, c2, c3) {
+                    if t >= -EPSILON && t <= 1.0 + EPSILON {
+                        let x = px0 + t * px1 + t * t * px2 + t * t * t * px3;
+                        let y = py0 + t * py1 + t * t * py2 + t * t * t * py3;
+                        let u = ((x - p0.x) * dx + (y - p0.y) * dy) * invlen2;
+                        if u >= 0.0 && u <= 1.0 {
+                            result.push((t, u));
+                        }
+                    }
+                }
+            }
+        }
+        result
+    }
+}
+
+// Return polynomial coefficients given cubic bezier coordinates.
+fn quadratic_bez_coefs(x0: f64, x1: f64, x2: f64) -> (f64, f64, f64) {
+    let p0 = x0;
+    let p1 = 2.0 * x1 - 2.0 * x0;
+    let p2 = x2 - 2.0 * x1 + x0;
+    (p0, p1, p2)
+}
+
+// Return polynomial coefficients given cubic bezier coordinates.
+fn cubic_bez_coefs(x0: f64, x1: f64, x2: f64, x3: f64) -> (f64, f64, f64, f64) {
+    let p0 = x0;
+    let p1 = 3.0 * x1 - 3.0 * x0;
+    let p2 = 3.0 * x2 - 6.0 * x1 + 3.0 * x0;
+    let p3 = x3 - 3.0 * x2 + 3.0 * x1 - x0;
+    (p0, p1, p2, p3)
 }
 
 impl From<CubicBez> for PathSeg {
@@ -789,5 +889,55 @@ impl<'a> Shape for &'a [PathEl] {
     #[inline]
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CubicBez, Line, PathSeg, QuadBez};
+
+    fn assert_approx_eq(x: f64, y: f64) {
+        assert!((x - y).abs() < 1e-8, "{} != {}", x, y);
+    }
+
+    #[test]
+    fn test_intersect_line() {
+        let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
+        let v_line = Line::new((10.0, -10.0), (10.0, 10.0));
+        let (u, t) = PathSeg::Line(h_line).intersect_line(v_line)[0];
+        assert_approx_eq(u, 0.1);
+        assert_approx_eq(t, 0.5);
+
+        let v_line = Line::new((-10.0, -10.0), (-10.0, 10.0));
+        assert!(PathSeg::Line(h_line).intersect_line(v_line).is_empty());
+
+        let v_line = Line::new((10.0, 10.0), (10.0, 20.0));
+        assert!(PathSeg::Line(h_line).intersect_line(v_line).is_empty());
+    }
+
+    #[test]
+    fn test_intersect_qad() {
+        let q = QuadBez::new((0.0, -10.0), (10.0, 20.0), (20.0, -10.0));
+        let v_line = Line::new((10.0, -10.0), (10.0, 10.0));
+        assert_eq!(PathSeg::Quad(q).intersect_line(v_line).len(), 1);
+        let (u, t) = PathSeg::Quad(q).intersect_line(v_line)[0];
+        assert_approx_eq(u, 0.5);
+        assert_approx_eq(t, 0.75);
+
+        let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
+        assert_eq!(PathSeg::Quad(q).intersect_line(h_line).len(), 2);
+    }
+
+    #[test]
+    fn test_intersect_cubic() {
+        let c = CubicBez::new((0.0, -10.0), (10.0, 20.0), (20.0, -20.0), (30.0, 10.0));
+        let v_line = Line::new((10.0, -10.0), (10.0, 10.0));
+        assert_eq!(PathSeg::Cubic(c).intersect_line(v_line).len(), 1);
+        let (u, t) = PathSeg::Cubic(c).intersect_line(v_line)[0];
+        assert_approx_eq(u, 0.333333333);
+        assert_approx_eq(t, 0.592592592);
+
+        let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
+        assert_eq!(PathSeg::Cubic(c).intersect_line(h_line).len(), 3);
     }
 }
