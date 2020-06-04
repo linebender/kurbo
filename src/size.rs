@@ -178,6 +178,14 @@ impl Size {
         Size::new(self.width.trunc(), self.height.trunc())
     }
 
+    /// Returns the aspect ratio of a rectangle with the given size.
+    ///
+    /// If the width is `0`, the output will be `sign(self.height) * infinity`. If The width and
+    /// height are `0`, then the output will be `NaN`.
+    pub fn aspect_ratio(self) -> f64 {
+        self.height / self.width
+    }
+
     /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.
     ///
     /// [`Rect`]: struct.Rect.html
@@ -337,5 +345,11 @@ mod tests {
 
         let s = Size::new(-0.12345, 9.87654);
         assert_eq!(format!("{:+6.2}", s), "( -0.12× +9.88)");
+    }
+
+    #[test]
+    fn aspect_ratio() {
+        let s = Size::new(1.0, 1.0);
+        assert!((s.aspect_ratio() - 1.0).abs() < 1e-6);
     }
 }
