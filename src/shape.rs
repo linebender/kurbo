@@ -102,9 +102,6 @@ pub trait Shape: Sized {
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         None
     }
-
-    // TODO: we'll have as_circle and probably as_rounded_rect,
-    // as it's likely renderers will special-case on those.
 }
 
 /// Blanket implementation so `impl Shape` will accept owned or reference.
