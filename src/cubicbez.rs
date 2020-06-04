@@ -50,8 +50,7 @@ impl CubicBez {
     /// Note that the resulting quadratic Béziers are not in general G1 continuous;
     /// they are optimized for minimizing distance error.
     ///
-    /// Also note that this iterator may produce zero quadratics when the control points
-    /// are equally spaced and co-linear.
+    /// This iterator will always produce at least one `QuadBez`.
     #[inline]
     pub fn to_quads(&self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
         // The maximum error, as a vector from the cubic to the best approximating
@@ -69,7 +68,7 @@ impl CubicBez {
         let p1x2 = 3.0 * self.p1.to_vec2() - self.p0.to_vec2();
         let p2x2 = 3.0 * self.p2.to_vec2() - self.p3.to_vec2();
         let err = (p2x2 - p1x2).hypot2();
-        let n = (err / max_hypot2).powf(1. / 6.0).ceil() as usize;
+        let n = ((err / max_hypot2).powf(1. / 6.0).ceil() as usize).max(1);
 
         ToQuads { c: *self, n, i: 0 }
     }
@@ -406,6 +405,14 @@ mod tests {
         verify(c.nearest((-0.1, 0.0).into(), 1e-6), 0.0);
         let a = Affine::rotate(0.5);
         verify((a * c).nearest(a * Point::new(0.1, 0.001), 1e-6), 0.1);
+    }
+
+    // ensure to_quads returns something given colinear points
+    #[test]
+    fn degenerate_to_quads() {
+        let c = CubicBez::new((0., 9.), (6., 6.), (12., 3.0), (18., 0.0));
+        let quads = c.to_quads(1e-6).collect::<Vec<_>>();
+        assert_eq!(quads.len(), 1, "{:?}", &quads);
     }
 
     #[test]
