@@ -320,7 +320,7 @@ impl Div<f64> for Vec2 {
 impl DivAssign<f64> for Vec2 {
     #[inline]
     fn div_assign(&mut self, other: f64) {
-        *self *= other.recip();
+        self.mul_assign(other.recip());
     }
 }
 

@@ -1,5 +1,7 @@
 //! Bézier paths (up to cubic).
 
+#![allow(clippy::many_single_char_names)]
+
 use std::iter::{Extend, FromIterator};
 use std::ops::{Mul, Range};
 
