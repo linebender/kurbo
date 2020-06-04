@@ -429,6 +429,16 @@ impl Rect {
         Ellipse::from_rect(self)
     }
 
+    /// The aspect ratio of the `Rect`.
+    ///
+    /// This is defined as the height divided by the width. It measures the "squareness" of the
+    /// rectangle (a value of `1` is square). If the width is `0` the output will be `sign(y1 - y0)
+    /// * infinity`. If The width and height are `0`, the result will be `NaN`.
+    #[inline]
+    pub fn aspect_ratio(&self) -> f64 {
+        self.size().aspect_ratio()
+    }
+
     /// Returns the largest possible `Rect` that is fully contained in `self` with the given
     /// `aspect_ratio`.
     ///
@@ -701,5 +711,11 @@ mod tests {
         case([0.0, 0.0, 0.0, 20.0], 0.0, [0.0, 10.0, 0.0, 10.0]);
         // everything zero
         case([0.0, 0.0, 0.0, 0.0], 0.0, [0.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn aspect_ratio() {
+        let test = Rect::new(0.0, 0.0, 1.0, 1.0);
+        assert!((test.aspect_ratio() - 1.0).abs() < 1e-6);
     }
 }
