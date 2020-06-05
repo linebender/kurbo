@@ -4,10 +4,10 @@ use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::MAX_EXTREMA;
 use crate::{
     Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape,
+    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, DEFAULT_ACCURACY,
+    MAX_EXTREMA,
 };
 
 /// A single line.
@@ -28,6 +28,12 @@ impl Line {
             p0: p0.into(),
             p1: p1.into(),
         }
+    }
+
+    /// The length of the line.
+    #[inline]
+    pub fn length(self) -> f64 {
+        self.arclen(DEFAULT_ACCURACY)
     }
 }
 
