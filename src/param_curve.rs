@@ -6,6 +6,12 @@ use arrayvec::ArrayVec;
 
 use crate::{Point, Rect};
 
+/// A default value for methods that take an 'accuracy' argument.
+///
+/// This value is intended to be suitable for general-purpose use, such as
+/// 2d graphics.
+pub const DEFAULT_ACCURACY: f64 = 1e-6;
+
 /// A curve parametrized by a scalar.
 ///
 /// If the result is interpreted as a point, this represents a curve.
