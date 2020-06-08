@@ -3,7 +3,7 @@
 use std::fmt;
 use std::ops::{Add, Sub};
 
-use crate::{Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
+use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -419,6 +419,14 @@ impl Rect {
     #[inline]
     pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
         RoundedRect::from_rect(self, radius)
+    }
+
+    /// Returns the [`Ellipse`] that is bounded by this `Rect`.
+    ///
+    /// [`Ellipse`]: struct.Ellipse.html
+    #[inline]
+    pub fn to_ellipse(self) -> Ellipse {
+        Ellipse::from_rect(self)
     }
 
     /// Returns the largest possible `Rect` that is fully contained in `self` with the given

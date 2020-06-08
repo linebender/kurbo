@@ -6,7 +6,7 @@ use std::{
     ops::{Add, Mul, Sub},
 };
 
-use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size, Vec2};
 
 /// An ellipse.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -31,6 +31,28 @@ impl Ellipse {
         Ellipse::private_new(Vec2 { x: cx, y: cy }, rx, ry, x_rotation)
     }
 
+    /// Returns the largest ellipse that can be bounded by this [`Rect`].
+    ///
+    /// This uses the absolute width and height of the rectangle.
+    ///
+    /// This ellipse is always axis-aligned; to apply rotation you can call
+    /// [`with_x_rotation`] with the result.
+    ///
+    /// [`Rect`]: struct.Rect.html
+    /// [`with_x_rotation`]: #method.with_x_rotation
+    #[inline]
+    pub fn from_rect(rect: Rect) -> Self {
+        let center = rect.center().to_vec2();
+        let Size { width, height } = rect.size() / 2.0;
+        Ellipse::private_new(center, width, height, 0.0)
+    }
+
+    /// Create an ellipse from an affine transformation of the unit circle.
+    #[inline]
+    pub fn from_affine(affine: Affine) -> Self {
+        Ellipse { inner: affine }
+    }
+
     /// This gives us an internal method without any type conversions.
     #[inline]
     fn private_new(center: Vec2, scale_x: f64, scale_y: f64, x_rotation: f64) -> Ellipse {
@@ -41,12 +63,6 @@ impl Ellipse {
                 * Affine::rotate(x_rotation)
                 * Affine::scale_non_uniform(scale_x.abs(), scale_y.abs()),
         }
-    }
-
-    /// Create an ellipse from an affine transformation of the unit circle.
-    #[inline]
-    pub fn from_affine(affine: Affine) -> Self {
-        Ellipse { inner: affine }
     }
 
     // Getters and setters.
