@@ -23,6 +23,7 @@
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::excessive_precision)]
+#![deny(clippy::trivially_copy_pass_by_ref)]
 
 mod affine;
 mod arc;
