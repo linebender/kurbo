@@ -1,12 +1,12 @@
 //! Lines.
 
-use std::ops::{Mul, Range};
+use std::ops::{Add, Mul, Range, Sub};
 
 use arrayvec::ArrayVec;
 
 use crate::{
     Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, DEFAULT_ACCURACY,
+    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2, DEFAULT_ACCURACY,
     MAX_EXTREMA,
 };
 
@@ -158,6 +158,24 @@ impl Mul<Line> for Affine {
             p0: self * other.p0,
             p1: self * other.p1,
         }
+    }
+}
+
+impl Add<Vec2> for Line {
+    type Output = Line;
+
+    #[inline]
+    fn add(self, v: Vec2) -> Line {
+        Line::new(self.p0 + v, self.p1 + v)
+    }
+}
+
+impl Sub<Vec2> for Line {
+    type Output = Line;
+
+    #[inline]
+    fn sub(self, v: Vec2) -> Line {
+        Line::new(self.p0 - v, self.p1 - v)
     }
 }
 
