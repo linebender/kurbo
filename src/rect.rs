@@ -218,6 +218,12 @@ impl Rect {
         Rect::new(x0, y0, x1.max(x0), y1.max(y0))
     }
 
+    /// Returns `true` if `self` and `other` intersect.
+    #[inline]
+    pub fn intersects(&self, other: Rect) -> bool {
+        self.x0 < other.x1 && self.x1 > other.x0 && self.y0 < other.y1 && self.y1 > other.y0
+    }
+
     /// Expand a rectangle by a constant amount in both directions.
     ///
     /// The logic simply applies the amount in each direction. If rectangle
@@ -656,6 +662,12 @@ mod tests {
         let p_flip = r_flip.into_bez_path(1e-9);
         assert_approx_eq(r_flip.area(), p_flip.area());
         assert_eq!(r_flip.winding(center), p_flip.winding(center));
+    }
+
+    #[test]
+    fn intersects() {
+        assert!(Rect::new(0.0, 0.0, 10.0, 10.0).intersects(Rect::new(-5.0, -1.0, 1.0, 2.0)));
+        assert!(!Rect::new(5.0, 5.0, 10.0, 10.0).intersects(Rect::new(12.0, 3.0, 13.0, 4.0)));
     }
 
     #[test]
