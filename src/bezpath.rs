@@ -438,6 +438,18 @@ impl Mul<PathEl> for Affine {
     }
 }
 
+impl Mul<PathSeg> for Affine {
+    type Output = PathSeg;
+
+    fn mul(self, other: PathSeg) -> PathSeg {
+        match other {
+            PathSeg::Line(line) => PathSeg::Line(self * line),
+            PathSeg::Quad(quad) => PathSeg::Quad(self * quad),
+            PathSeg::Cubic(cubic) => PathSeg::Cubic(self * cubic),
+        }
+    }
+}
+
 impl Mul<BezPath> for Affine {
     type Output = BezPath;
 
@@ -464,6 +476,18 @@ impl Mul<PathEl> for TranslateScale {
             PathEl::QuadTo(p1, p2) => PathEl::QuadTo(self * p1, self * p2),
             PathEl::CurveTo(p1, p2, p3) => PathEl::CurveTo(self * p1, self * p2, self * p3),
             PathEl::ClosePath => PathEl::ClosePath,
+        }
+    }
+}
+
+impl Mul<PathSeg> for TranslateScale {
+    type Output = PathSeg;
+
+    fn mul(self, other: PathSeg) -> PathSeg {
+        match other {
+            PathSeg::Line(line) => PathSeg::Line(self * line),
+            PathSeg::Quad(quad) => PathSeg::Quad(self * quad),
+            PathSeg::Cubic(cubic) => PathSeg::Cubic(self * cubic),
         }
     }
 }
