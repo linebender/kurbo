@@ -52,6 +52,20 @@ impl Size {
         self.width.min(self.height)
     }
 
+    /// The area covered by this size.
+    #[inline]
+    pub fn area(self) -> f64 {
+        self.width * self.height
+    }
+
+    /// Whether this size has zero area.
+    ///
+    /// Note: a size with negative area is not considered empty.
+    #[inline]
+    pub fn is_empty(self) -> bool {
+        self.area() == 0.0
+    }
+
     /// Returns a new size bounded by `min` and `max.`
     ///
     /// # Examples
