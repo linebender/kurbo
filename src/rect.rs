@@ -154,6 +154,14 @@ impl Rect {
         self.width() * self.height()
     }
 
+    /// Whether this rectangle has zero area.
+    ///
+    /// Note: a rectangle with negative area is not considered empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.area() == 0.0
+    }
+
     /// The center point of the rectangle.
     #[inline]
     pub fn center(&self) -> Point {
