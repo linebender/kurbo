@@ -963,10 +963,55 @@ impl<'a> Shape for &'a [PathEl] {
 
 #[cfg(test)]
 mod tests {
-    use super::{CubicBez, Line, PathSeg, QuadBez};
+    use super::*;
 
     fn assert_approx_eq(x: f64, y: f64) {
         assert!((x - y).abs() < 1e-8, "{} != {}", x, y);
+    }
+
+    #[test]
+    #[should_panic(expected = "Can't start a segment on a ClosePath")]
+    fn test_elements_to_segments_starts_on_closepath() {
+        let mut path = BezPath::new();
+        path.close_path();
+        path.segments().next();
+    }
+
+    #[test]
+    fn test_elements_to_segments_closepath_refers_to_last_moveto() {
+        let mut path = BezPath::new();
+        path.move_to((5.0, 5.0));
+        path.line_to((15.0, 15.0));
+        path.move_to((10.0, 10.0));
+        path.line_to((15.0, 15.0));
+        path.close_path();
+        assert_eq!(
+            path.segments().collect::<Vec<_>>().last(),
+            Some(&Line::new((15.0, 15.0), (10.0, 10.0)).into()),
+        );
+    }
+
+    #[test]
+    fn test_elements_to_segments_starts_on_quad() {
+        let mut path = BezPath::new();
+        path.quad_to((5.0, 5.0), (10.0, 10.0));
+        path.line_to((15.0, 15.0));
+        path.close_path();
+
+        let mut segments = path.segments();
+        assert_eq!(
+            segments.next(),
+            Some(QuadBez::new((10.0, 10.0), (5.0, 5.0), (10.0, 10.0)).into()),
+        );
+        assert_eq!(
+            segments.next(),
+            Some(Line::new((10.0, 10.0), (15.0, 15.0)).into()),
+        );
+        assert_eq!(
+            segments.next(),
+            Some(Line::new((15.0, 15.0), (10.0, 10.0)).into()),
+        );
+        assert_eq!(segments.next(), None);
     }
 
     #[test]
