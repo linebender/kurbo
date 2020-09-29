@@ -184,7 +184,7 @@ impl Shape for Ellipse {
         // https://www.mathematica-journal.com/2009/11/23/on-the-perimeter-of-an-ellipse/
         // and https://en.wikipedia.org/wiki/Ellipse#Circumference
         //
-        self.to_path(0.1).perimeter(accuracy)
+        self.to_path_segments(0.1).perimeter(accuracy)
     }
 
     fn winding(&self, pt: Point) -> i32 {
