@@ -521,7 +521,7 @@ impl<I: Iterator<Item = PathEl>> Iterator for Segments<I> {
     fn next(&mut self) -> Option<PathSeg> {
         while let Some(el) = self.elements.next() {
             // We first need to check whether this is the first
-            // elements we see.
+            // path element we see to fill in the start position.
             let (start, last) = self.start_last.get_or_insert_with(|| {
                 let point = match el {
                     PathEl::MoveTo(p) => p,
@@ -565,22 +565,22 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
     /// the total error is `accuracy` times the number of Bézier segments.
 
     // TODO: pub? Or is this subsumed by method of &[PathEl]?
-    fn arclen(self, accuracy: f64) -> f64 {
+    pub(crate) fn perimeter(self, accuracy: f64) -> f64 {
         self.map(|seg| seg.arclen(accuracy)).sum()
     }
 
     // Same
-    fn area(self) -> f64 {
+    pub(crate) fn area(self) -> f64 {
         self.map(|seg| seg.signed_area()).sum()
     }
 
     // Same
-    fn winding(self, p: Point) -> i32 {
+    pub(crate) fn winding(self, p: Point) -> i32 {
         self.map(|seg| seg.winding(p)).sum()
     }
 
     // Same
-    fn bounding_box(self) -> Rect {
+    pub(crate) fn bounding_box(self) -> Rect {
         let mut bbox: Option<Rect> = None;
         for seg in self {
             let seg_bb = seg.bounding_box();
@@ -969,7 +969,7 @@ impl<'a> Shape for &'a [PathEl] {
     }
 
     fn perimeter(&self, accuracy: f64) -> f64 {
-        segments(self.iter().copied()).arclen(accuracy)
+        segments(self.iter().copied()).perimeter(accuracy)
     }
 
     /// Winding number of point.
