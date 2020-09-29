@@ -190,7 +190,7 @@ impl Shape for Line {
     type PathElementsIter = LinePathIter;
 
     #[inline]
-    fn to_path_elements(&self, _tolerance: f64) -> LinePathIter {
+    fn path_elements(&self, _tolerance: f64) -> LinePathIter {
         LinePathIter { line: *self, ix: 0 }
     }
 

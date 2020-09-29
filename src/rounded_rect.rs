@@ -119,7 +119,7 @@ pub struct RoundedRectPathIter {
 impl Shape for RoundedRect {
     type PathElementsIter = RoundedRectPathIter;
 
-    fn to_path_elements(&self, tolerance: f64) -> RoundedRectPathIter {
+    fn path_elements(&self, tolerance: f64) -> RoundedRectPathIter {
         let radius = self.radius();
         let radii = Vec2 {
             x: self.radius,

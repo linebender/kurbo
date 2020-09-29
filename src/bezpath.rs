@@ -912,7 +912,7 @@ impl From<QuadBez> for PathSeg {
 impl Shape for BezPath {
     type PathElementsIter = std::vec::IntoIter<PathEl>;
 
-    fn to_path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
+    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
         self.0.clone().into_iter()
     }
 
@@ -955,7 +955,7 @@ impl<'a> Shape for &'a [PathEl] {
     type PathElementsIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
 
     #[inline]
-    fn to_path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
+    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
         self.iter().cloned()
     }
 
