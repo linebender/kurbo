@@ -117,9 +117,9 @@ pub struct RoundedRectPathIter {
 }
 
 impl Shape for RoundedRect {
-    type BezPathIter = RoundedRectPathIter;
+    type PathElementsIter = RoundedRectPathIter;
 
-    fn to_bez_path(&self, tolerance: f64) -> RoundedRectPathIter {
+    fn to_path_elements(&self, tolerance: f64) -> RoundedRectPathIter {
         let radius = self.radius();
         let radii = Vec2 {
             x: self.radius,
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn bez_conversion() {
         let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, 5.0);
-        let p = rect.into_bez_path(1e-9);
+        let p = rect.to_path(1e-9);
         // Note: could be more systematic about tolerance tightness.
         let epsilon = 1e-7;
         assert!((rect.area() - p.area()).abs() < epsilon);

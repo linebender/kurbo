@@ -83,9 +83,9 @@ pub struct CirclePathIter {
 }
 
 impl Shape for Circle {
-    type BezPathIter = CirclePathIter;
+    type PathElementsIter = CirclePathIter;
 
-    fn to_bez_path(&self, tolerance: f64) -> CirclePathIter {
+    fn to_path_elements(&self, tolerance: f64) -> CirclePathIter {
         let scaled_err = self.radius.abs() / tolerance;
         let (n, arm_len) = if scaled_err < 1.0 / 1.9608e-4 {
             // Solution from http://spencermortensen.com/articles/bezier-circle/
@@ -238,9 +238,9 @@ type CircleSegmentPathIter = std::iter::Chain<
 >;
 
 impl Shape for CircleSegment {
-    type BezPathIter = CircleSegmentPathIter;
+    type PathElementsIter = CircleSegmentPathIter;
 
-    fn to_bez_path(&self, tolerance: f64) -> CircleSegmentPathIter {
+    fn to_path_elements(&self, tolerance: f64) -> CircleSegmentPathIter {
         iter::once(PathEl::MoveTo(point_on_circle(
             self.center,
             self.inner_radius,
@@ -337,7 +337,7 @@ mod tests {
 
         assert_eq!(c.winding(center), 1);
 
-        let p = c.into_bez_path(1e-9);
+        let p = c.to_path(1e-9);
         assert_approx_eq(c.area(), p.area());
         assert_eq!(c.winding(center), p.winding(center));
 
@@ -346,7 +346,7 @@ mod tests {
 
         assert_eq!(c_neg_radius.winding(center), 1);
 
-        let p_neg_radius = c_neg_radius.into_bez_path(1e-9);
+        let p_neg_radius = c_neg_radius.to_path(1e-9);
         assert_approx_eq(c_neg_radius.area(), p_neg_radius.area());
         assert_eq!(c_neg_radius.winding(center), p_neg_radius.winding(center));
     }
