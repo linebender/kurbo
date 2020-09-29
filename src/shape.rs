@@ -1,13 +1,13 @@
 //! A generic trait for shapes.
 
-use crate::{BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect};
+use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments};
 
 /// A generic trait for open and closed shapes.
 pub trait Shape: Sized {
-    /// The iterator resulting from `to_bez_path`.
-    type BezPathIter: Iterator<Item = PathEl>;
+    /// The iterator resulting from `to_path_elements`.
+    type PathElementsIter: Iterator<Item = PathEl>;
 
-    /// Convert to a Bézier path, as an iterator over path elements.
+    /// Convert to an iterator over Bézier path _elements_.
     ///
     /// Callers should exhaust the `as_` methods first, as those are
     /// likely to be more efficient; in the general case, this
@@ -27,22 +27,36 @@ pub trait Shape: Sized {
     /// iterators from complex shapes without cloning.
     ///
     /// [GAT's]: https://github.com/rust-lang/rust/issues/44265
-    fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter;
+    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter;
+
+    /// Convert to a Bézier path.
+    ///
+    /// This always allocates. It is appropriate when both the source
+    /// shape and the resulting path are to be retained.
+    ///
+    /// The `tolerance` parameter is the same as for
+    /// [`to_path_elements()`](#tymethod.to_path_elements).
+    fn to_path(&self, tolerance: f64) -> BezPath {
+        self.to_path_elements(tolerance).collect()
+    }
 
     /// Convert into a Bézier path.
     ///
-    /// Currently, this always allocates. It is appropriate when
-    /// the resulting path is to be retained.
+    /// This allocates in the general case, but is zero-cost if the
+    /// shape is already a [`BezPath`](struct.BezPath.html).
     ///
-    /// The `tolerance` parameter is the same as
-    /// [`to_bez_path()`](#tymethod.to_bez_path).
-    fn into_bez_path(self, tolerance: f64) -> BezPath {
-        let vec = if let Some(slice) = self.as_path_slice() {
-            Vec::from(slice)
-        } else {
-            self.to_bez_path(tolerance).collect()
-        };
-        BezPath::from_vec(vec)
+    /// The `tolerance` parameter is the same as for
+    /// [`to_path_elements()`](#tymethod.to_path_elements).
+    fn into_path(self, tolerance: f64) -> BezPath {
+        self.to_path(tolerance)
+    }
+
+    /// Convert to an iterator over Bézier path _segments_.
+    ///
+    /// The allocation behaviour and `tolerance` parameter are the
+    /// same as for [`to_path_elements()`](#tymethod.to_path_elements).
+    fn to_path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
+        segments(self.to_path_elements(tolerance))
     }
 
     /// Signed area.
@@ -106,10 +120,18 @@ pub trait Shape: Sized {
 
 /// Blanket implementation so `impl Shape` will accept owned or reference.
 impl<'a, T: Shape> Shape for &'a T {
-    type BezPathIter = T::BezPathIter;
+    type PathElementsIter = T::PathElementsIter;
 
-    fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter {
-        (*self).to_bez_path(tolerance)
+    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+        (*self).to_path_elements(tolerance)
+    }
+
+    fn to_path(&self, tolerance: f64) -> BezPath {
+        (*self).to_path(tolerance)
+    }
+
+    fn to_path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
+        (*self).to_path_segments(tolerance)
     }
 
     fn area(&self) -> f64 {

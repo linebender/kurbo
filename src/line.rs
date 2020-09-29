@@ -187,10 +187,10 @@ pub struct LinePathIter {
 }
 
 impl Shape for Line {
-    type BezPathIter = LinePathIter;
+    type PathElementsIter = LinePathIter;
 
     #[inline]
-    fn to_bez_path(&self, _tolerance: f64) -> LinePathIter {
+    fn to_path_elements(&self, _tolerance: f64) -> LinePathIter {
         LinePathIter { line: *self, ix: 0 }
     }
 

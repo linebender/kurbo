@@ -156,9 +156,9 @@ impl From<Circle> for Ellipse {
 }
 
 impl Shape for Ellipse {
-    type BezPathIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
+    type PathElementsIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
-    fn to_bez_path(&self, tolerance: f64) -> Self::BezPathIter {
+    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
         let (radii, x_rotation) = self.inner.svd();
         Arc {
             center: self.center(),
@@ -167,7 +167,7 @@ impl Shape for Ellipse {
             sweep_angle: 2.0 * PI,
             x_rotation,
         }
-        .to_bez_path(tolerance)
+        .to_path_elements(tolerance)
     }
 
     #[inline]
@@ -184,10 +184,7 @@ impl Shape for Ellipse {
         // https://www.mathematica-journal.com/2009/11/23/on-the-perimeter-of-an-ellipse/
         // and https://en.wikipedia.org/wiki/Ellipse#Circumference
         //
-        self.clone()
-            .into_bez_path(0.1)
-            .elements()
-            .perimeter(accuracy)
+        self.to_path(0.1).perimeter(accuracy)
     }
 
     fn winding(&self, pt: Point) -> i32 {
@@ -253,7 +250,7 @@ mod tests {
 
         assert_eq!(e.winding(center), 1);
 
-        let p = e.into_bez_path(1e-9);
+        let p = e.to_path(1e-9);
         assert_approx_eq(e.area(), p.area());
         assert_eq!(e.winding(center), p.winding(center));
 
@@ -262,7 +259,7 @@ mod tests {
 
         assert_eq!(e_neg_radius.winding(center), 1);
 
-        let p_neg_radius = e_neg_radius.into_bez_path(1e-9);
+        let p_neg_radius = e_neg_radius.to_path(1e-9);
         assert_approx_eq(e_neg_radius.area(), p_neg_radius.area());
         assert_eq!(e_neg_radius.winding(center), p_neg_radius.winding(center));
     }

@@ -542,9 +542,9 @@ pub struct RectPathIter {
 }
 
 impl Shape for Rect {
-    type BezPathIter = RectPathIter;
+    type PathElementsIter = RectPathIter;
 
-    fn to_bez_path(&self, _tolerance: f64) -> RectPathIter {
+    fn to_path_elements(&self, _tolerance: f64) -> RectPathIter {
         RectPathIter { rect: *self, ix: 0 }
     }
 
@@ -653,7 +653,7 @@ mod tests {
 
         assert_eq!(r.winding(center), 1);
 
-        let p = r.into_bez_path(1e-9);
+        let p = r.to_path(1e-9);
         assert_approx_eq(r.area(), p.area());
         assert_eq!(r.winding(center), p.winding(center));
 
@@ -661,7 +661,7 @@ mod tests {
         assert_approx_eq(r_flip.area(), -100.0);
 
         assert_eq!(r_flip.winding(Point::new(5.0, 5.0)), -1);
-        let p_flip = r_flip.into_bez_path(1e-9);
+        let p_flip = r_flip.to_path(1e-9);
         assert_approx_eq(r_flip.area(), p_flip.area());
         assert_eq!(r_flip.winding(center), p_flip.winding(center));
     }

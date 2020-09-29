@@ -910,10 +910,18 @@ impl From<QuadBez> for PathSeg {
 }
 
 impl Shape for BezPath {
-    type BezPathIter = std::vec::IntoIter<PathEl>;
+    type PathElementsIter = std::vec::IntoIter<PathEl>;
 
-    fn to_bez_path(&self, _tolerance: f64) -> Self::BezPathIter {
-        self.clone().0.into_iter()
+    fn to_path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
+        self.0.clone().into_iter()
+    }
+
+    fn to_path(&self, _tolerance: f64) -> BezPath {
+        self.clone()
+    }
+
+    fn into_path(self, _tolerance: f64) -> BezPath {
+        self
     }
 
     /// Signed area.
@@ -944,11 +952,15 @@ impl Shape for BezPath {
 ///
 /// If the slice starts with `LineTo`, `QuadTo`, or `CurveTo`, it will be treated as a `MoveTo`.
 impl<'a> Shape for &'a [PathEl] {
-    type BezPathIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
+    type PathElementsIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
 
     #[inline]
-    fn to_bez_path(&self, _tolerance: f64) -> Self::BezPathIter {
+    fn to_path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
         self.iter().cloned()
+    }
+
+    fn to_path(&self, _tolerance: f64) -> BezPath {
+        BezPath::from_vec(self.to_vec())
     }
 
     /// Signed area.
