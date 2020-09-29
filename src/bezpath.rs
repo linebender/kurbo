@@ -3,6 +3,7 @@
 #![allow(clippy::many_single_char_names)]
 
 use std::iter::{Extend, FromIterator};
+use std::mem;
 use std::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
@@ -135,7 +136,7 @@ impl BezPath {
 
     /// Iterate over the path segments.
     pub fn segments(&self) -> impl Iterator<Item = PathSeg> + '_ {
-        BezPath::segments_of_slice(&self.0)
+        segments(self.iter())
     }
 
     /// Flatten the path, invoking the callback repeatedly.
@@ -209,24 +210,6 @@ impl BezPath {
     /// [`PathEl`]: enum.PathEl.html
     pub fn flatten(&self, tolerance: f64, callback: impl FnMut(PathEl)) {
         flatten(self, tolerance, callback);
-    }
-
-    // TODO: expose as pub method? Maybe should be a trait so slice.segments() works?
-    fn segments_of_slice(slice: &[PathEl]) -> BezPathSegs {
-        let first = match slice.get(0) {
-            Some(PathEl::MoveTo(p)) => *p,
-            Some(PathEl::LineTo(p)) => *p,
-            Some(PathEl::QuadTo(_, p2)) => *p2,
-            Some(PathEl::CurveTo(_, _, p3)) => *p3,
-            Some(PathEl::ClosePath) => panic!("Can't start a segment on a ClosePath"),
-            None => Default::default(),
-        };
-
-        BezPathSegs {
-            c: slice.iter(),
-            start: first,
-            last: first,
-        }
     }
 
     /// Get the segment at the given element index.
@@ -508,45 +491,76 @@ impl<'a> Mul<&'a BezPath> for TranslateScale {
     }
 }
 
-struct BezPathSegs<'a> {
-    c: std::slice::Iter<'a, PathEl>,
-    start: Point,
-    last: Point,
+/// Transform an iterator over path elements into one over path
+/// segments.
+///
+/// See also [`BezPath::segments`](struct.BezPath.html#method.segments).
+/// This signature is a bit more general, allowing `&[PathEl]` slices
+/// and other iterators yielding `PathEl`.
+pub fn segments<I>(elements: I) -> Segments<I::IntoIter>
+where
+    I: IntoIterator<Item = PathEl>,
+{
+    Segments {
+        elements: elements.into_iter(),
+        start_last: None,
+    }
 }
 
-impl<'a> Iterator for BezPathSegs<'a> {
+/// An iterator that transforms path elements to path segments.
+///
+/// This struct is created by the [`segments`](fn.segments.html) function.
+pub struct Segments<I: Iterator<Item = PathEl>> {
+    elements: I,
+    start_last: Option<(Point, Point)>,
+}
+
+impl<I: Iterator<Item = PathEl>> Iterator for Segments<I> {
     type Item = PathSeg;
 
     fn next(&mut self) -> Option<PathSeg> {
-        for el in &mut self.c {
-            let (ret, last) = match *el {
+        while let Some(el) = self.elements.next() {
+            // We first need to check whether this is the first
+            // elements we see.
+            let (start, last) = self.start_last.get_or_insert_with(|| {
+                let point = match el {
+                    PathEl::MoveTo(p) => p,
+                    PathEl::LineTo(p) => p,
+                    PathEl::QuadTo(_, p2) => p2,
+                    PathEl::CurveTo(_, _, p3) => p3,
+                    PathEl::ClosePath => panic!("Can't start a segment on a ClosePath"),
+                };
+                (point, point)
+            });
+
+            return Some(match el {
                 PathEl::MoveTo(p) => {
-                    self.start = p;
-                    self.last = p;
+                    *start = p;
+                    *last = p;
                     continue;
                 }
-                PathEl::LineTo(p) => (PathSeg::Line(Line::new(self.last, p)), p),
-                PathEl::QuadTo(p1, p2) => (PathSeg::Quad(QuadBez::new(self.last, p1, p2)), p2),
+                PathEl::LineTo(p) => PathSeg::Line(Line::new(mem::replace(last, p), p)),
+                PathEl::QuadTo(p1, p2) => {
+                    PathSeg::Quad(QuadBez::new(mem::replace(last, p2), p1, p2))
+                }
                 PathEl::CurveTo(p1, p2, p3) => {
-                    (PathSeg::Cubic(CubicBez::new(self.last, p1, p2, p3)), p3)
+                    PathSeg::Cubic(CubicBez::new(mem::replace(last, p3), p1, p2, p3))
                 }
                 PathEl::ClosePath => {
-                    if self.last != self.start {
-                        (PathSeg::Line(Line::new(self.last, self.start)), self.start)
+                    if *last != *start {
+                        PathSeg::Line(Line::new(mem::replace(last, *start), *start))
                     } else {
                         continue;
                     }
                 }
-            };
-
-            self.last = last;
-            return Some(ret);
+            });
         }
+
         None
     }
 }
 
-impl<'a> BezPathSegs<'a> {
+impl<I: Iterator<Item = PathEl>> Segments<I> {
     /// Here, `accuracy` specifies the accuracy for each Bézier segment. At worst,
     /// the total error is `accuracy` times the number of Bézier segments.
 
@@ -939,20 +953,20 @@ impl<'a> Shape for &'a [PathEl] {
 
     /// Signed area.
     fn area(&self) -> f64 {
-        BezPath::segments_of_slice(self).area()
+        segments(self.iter().copied()).area()
     }
 
     fn perimeter(&self, accuracy: f64) -> f64 {
-        BezPath::segments_of_slice(self).arclen(accuracy)
+        segments(self.iter().copied()).arclen(accuracy)
     }
 
     /// Winding number of point.
     fn winding(&self, pt: Point) -> i32 {
-        BezPath::segments_of_slice(self).winding(pt)
+        segments(self.iter().copied()).winding(pt)
     }
 
     fn bounding_box(&self) -> Rect {
-        BezPath::segments_of_slice(self).bounding_box()
+        segments(self.iter().copied()).bounding_box()
     }
 
     #[inline]
