@@ -4,10 +4,11 @@ use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, S
 
 /// A generic trait for open and closed shapes.
 pub trait Shape: Sized {
-    /// The iterator resulting from `to_path_elements`.
+    /// The iterator resulting from `path_elements`.
     type PathElementsIter: Iterator<Item = PathEl>;
 
-    /// Convert to an iterator over Bézier path _elements_.
+    /// Returns an iterator over this shape expressed as Bézier path
+    /// _elements_.
     ///
     /// Callers should exhaust the `as_` methods first, as those are
     /// likely to be more efficient; in the general case, this
@@ -27,7 +28,7 @@ pub trait Shape: Sized {
     /// iterators from complex shapes without cloning.
     ///
     /// [GAT's]: https://github.com/rust-lang/rust/issues/44265
-    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter;
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter;
 
     /// Convert to a Bézier path.
     ///
@@ -35,9 +36,9 @@ pub trait Shape: Sized {
     /// shape and the resulting path are to be retained.
     ///
     /// The `tolerance` parameter is the same as for
-    /// [`to_path_elements()`](#tymethod.to_path_elements).
+    /// [`path_elements()`](#tymethod.path_elements).
     fn to_path(&self, tolerance: f64) -> BezPath {
-        self.to_path_elements(tolerance).collect()
+        self.path_elements(tolerance).collect()
     }
 
     /// Convert into a Bézier path.
@@ -46,17 +47,18 @@ pub trait Shape: Sized {
     /// shape is already a [`BezPath`](struct.BezPath.html).
     ///
     /// The `tolerance` parameter is the same as for
-    /// [`to_path_elements()`](#tymethod.to_path_elements).
+    /// [`path_elements()`](#tymethod.path_elements).
     fn into_path(self, tolerance: f64) -> BezPath {
         self.to_path(tolerance)
     }
 
-    /// Convert to an iterator over Bézier path _segments_.
+    /// Returns an iterator over this shape expressed as Bézier path
+    /// _segments_.
     ///
     /// The allocation behaviour and `tolerance` parameter are the
-    /// same as for [`to_path_elements()`](#tymethod.to_path_elements).
-    fn to_path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
-        segments(self.to_path_elements(tolerance))
+    /// same as for [`path_elements()`](#tymethod.path_elements).
+    fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
+        segments(self.path_elements(tolerance))
     }
 
     /// Signed area.
@@ -122,16 +124,16 @@ pub trait Shape: Sized {
 impl<'a, T: Shape> Shape for &'a T {
     type PathElementsIter = T::PathElementsIter;
 
-    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
-        (*self).to_path_elements(tolerance)
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+        (*self).path_elements(tolerance)
     }
 
     fn to_path(&self, tolerance: f64) -> BezPath {
         (*self).to_path(tolerance)
     }
 
-    fn to_path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
-        (*self).to_path_segments(tolerance)
+    fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
+        (*self).path_segments(tolerance)
     }
 
     fn area(&self) -> f64 {

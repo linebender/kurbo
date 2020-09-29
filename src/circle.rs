@@ -85,7 +85,7 @@ pub struct CirclePathIter {
 impl Shape for Circle {
     type PathElementsIter = CirclePathIter;
 
-    fn to_path_elements(&self, tolerance: f64) -> CirclePathIter {
+    fn path_elements(&self, tolerance: f64) -> CirclePathIter {
         let scaled_err = self.radius.abs() / tolerance;
         let (n, arm_len) = if scaled_err < 1.0 / 1.9608e-4 {
             // Solution from http://spencermortensen.com/articles/bezier-circle/
@@ -240,7 +240,7 @@ type CircleSegmentPathIter = std::iter::Chain<
 impl Shape for CircleSegment {
     type PathElementsIter = CircleSegmentPathIter;
 
-    fn to_path_elements(&self, tolerance: f64) -> CircleSegmentPathIter {
+    fn path_elements(&self, tolerance: f64) -> CircleSegmentPathIter {
         iter::once(PathEl::MoveTo(point_on_circle(
             self.center,
             self.inner_radius,

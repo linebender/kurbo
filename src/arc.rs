@@ -131,7 +131,7 @@ fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
 impl Shape for Arc {
     type PathElementsIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
-    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
         let p0 = sample_ellipse(self.radii, self.x_rotation, self.start_angle);
         iter::once(PathEl::MoveTo(self.center + p0)).chain(self.append_iter(tolerance))
     }
@@ -148,17 +148,17 @@ impl Shape for Arc {
     /// https://en.wikipedia.org/wiki/Ellipse#Circumference)
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
-        self.to_path_segments(0.1).perimeter(accuracy)
+        self.path_segments(0.1).perimeter(accuracy)
     }
 
     /// Note: shape isn't closed so a point's winding number is not well defined.
     #[inline]
     fn winding(&self, pt: Point) -> i32 {
-        self.to_path_segments(0.1).winding(pt)
+        self.path_segments(0.1).winding(pt)
     }
 
     #[inline]
     fn bounding_box(&self) -> Rect {
-        self.to_path_segments(0.1).bounding_box()
+        self.path_segments(0.1).bounding_box()
     }
 }

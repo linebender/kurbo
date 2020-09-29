@@ -158,7 +158,7 @@ impl From<Circle> for Ellipse {
 impl Shape for Ellipse {
     type PathElementsIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
-    fn to_path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
         let (radii, x_rotation) = self.inner.svd();
         Arc {
             center: self.center(),
@@ -167,7 +167,7 @@ impl Shape for Ellipse {
             sweep_angle: 2.0 * PI,
             x_rotation,
         }
-        .to_path_elements(tolerance)
+        .path_elements(tolerance)
     }
 
     #[inline]
@@ -184,7 +184,7 @@ impl Shape for Ellipse {
         // https://www.mathematica-journal.com/2009/11/23/on-the-perimeter-of-an-ellipse/
         // and https://en.wikipedia.org/wiki/Ellipse#Circumference
         //
-        self.to_path_segments(0.1).perimeter(accuracy)
+        self.path_segments(0.1).perimeter(accuracy)
     }
 
     fn winding(&self, pt: Point) -> i32 {
