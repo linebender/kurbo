@@ -12,18 +12,74 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A garden of data structures for manipulating 2D shapes and curves.
+//! 2D geometry, with a focus on curves.
 //!
 //! The kurbo library contains data structures and algorithms for curves and
-//! vector paths. It is probably most appropriate for creative tools,
-//! but is general enough it might be useful for other applications.
+//! vector paths. It was designed to serve the needs of 2D graphics applications,
+//! but it is intended to be general enough to be useful for other applications.
+//!
+//! Kurbo is designed to be used by [`Piet`], a crate for drawing 2D graphics,
+//! and is in turn used by [`Druid`], a cross-platform GUI toolkit.
+//!
+//! # Examples
+//!
+//! Basic UI-style geometry:
+//! ```
+//! use kurbo::{Insets, Point, Rect, Size, Vec2};
+//!
+//! let pt = Point::new(10.0, 10.0);
+//! let vector = Vec2::new(5.0, -5.0);
+//! let pt2 = pt + vector;
+//! assert_eq!(pt2, Point::new(15.0, 5.0));
+//!
+//! let rect = Rect::from_points(pt, pt2);
+//! assert_eq!(rect, Rect::from_origin_size((10.0, 5.0), (5.0, 5.0)));
+//!
+//! let insets = Insets::uniform(1.0);
+//! let inset_rect = rect - insets;
+//! assert_eq!(inset_rect.size(), Size::new(3.0, 3.0));
+//! ```
+//!
+//! Finding the closest position on a [`Shape`]'s perimeter to a [`Point`]:
+//!
+//! ```
+//! use kurbo::{Circle, ParamCurve, ParamCurveNearest, Point, Shape};
+//!
+//! const DESIRED_ACCURACY: f64 = 0.1;
+//!
+//! /// Given a shape and a point, returns the closest position on the shape's
+//! /// parimeter, or `None` if the shape is malformed.
+//! fn closest_perimeter_point(shape: impl Shape, pt: Point) -> Option<Point> {
+//!     let mut best: Option<(Point, f64)> = None;
+//!     for segment in shape.path_segments(DESIRED_ACCURACY) {
+//!         let (t, distance) = segment.nearest(pt, DESIRED_ACCURACY);
+//!         if best.map(|(_, best_d)| distance < best_d).unwrap_or(true) {
+//!             best = Some((segment.eval(t), distance))
+//!         }
+//!     }
+//!     best.map(|(point, _)| point)
+//! }
+//!
+//! let circle = Circle::new((5.0, 5.0), 5.0);
+//! let hit_point = Point::new(5.0, -2.0);
+//! let expectation = Point::new(5.0, 0.0);
+//! let hit = closest_perimeter_point(circle, hit_point).unwrap();
+//! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
+//! ```
+//!
+//! [`Shape`]: trait.Shape.html
+//! [`Point`]: struct.Point.html
+//! [`Piet`]: https://docs.rs/piet
+//! [`Druid`]: https://docs.rs/druid
 
 #![forbid(unsafe_code)]
-#![deny(missing_docs)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::many_single_char_names)]
-#![allow(clippy::excessive_precision)]
-#![deny(clippy::trivially_copy_pass_by_ref)]
+#![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
+#![warn(broken_intra_doc_links)]
+#![allow(
+    clippy::unreadable_literal,
+    clippy::many_single_char_names,
+    clippy::excessive_precision
+)]
 
 mod affine;
 mod arc;

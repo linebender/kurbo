@@ -3,16 +3,36 @@
 use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments};
 
 /// A generic trait for open and closed shapes.
+///
+/// This trait provides conversion from shapes to [`BezPath`]s, as well as
+/// general geometry functionality like computing [`area`], [`bounding_box`]es,
+/// and [`winding`] number.
+///
+/// [`BezPath`]: struct.BezPath.html
+/// [`area`]: #tymethod.area
+/// [`bounding_box`]: #tymethod.bounding_box
+/// [`winding`]: #tymethod.winding
 pub trait Shape: Sized {
-    /// The iterator resulting from `path_elements`.
+    /// The iterator returned by the [`path_elements`] method.
+    ///
+    /// [`path_elements`]: #tymethod.path_elements
     type PathElementsIter: Iterator<Item = PathEl>;
 
-    /// Returns an iterator over this shape expressed as Bézier path
-    /// _elements_.
+    /// Returns an iterator over this shape expressed as [`PathEl`]s;
+    /// that is, as Bézier path _elements_.
     ///
-    /// Callers should exhaust the `as_` methods first, as those are
-    /// likely to be more efficient; in the general case, this
-    /// allocates.
+    /// All shapes can be represented as Béziers, but in many situations
+    /// (such as when interfacing with a platform drawing API) there are more
+    /// efficient native types for specific concrete shapes. In this case,
+    /// the user should exhaust the `as_` methods ([`as_rect`], [`as_line`], etc)
+    /// before converting to a [`BezPath`], as those are likely to be more
+    /// efficient.
+    ///
+    /// In many cases, shapes are able to iterate their elements without
+    /// allocating; however creating a a [`BezPath`] object always allocates.
+    /// If you need an owned [`BezPath`] you can use [`to_path`] instead.
+    ///
+    /// # Tolerance
     ///
     /// The `tolerance` parameter controls the accuracy of
     /// conversion of geometric primitives to Bézier curves, as
@@ -28,6 +48,9 @@ pub trait Shape: Sized {
     /// iterators from complex shapes without cloning.
     ///
     /// [GAT's]: https://github.com/rust-lang/rust/issues/44265
+    /// [`as_rect`]: #tymethod.as_rect
+    /// [`as_line`]: #tymethod.as_line
+    /// [`to_path`]: #tymethod.to_path
     fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter;
 
     /// Convert to a Bézier path.
@@ -35,8 +58,13 @@ pub trait Shape: Sized {
     /// This always allocates. It is appropriate when both the source
     /// shape and the resulting path are to be retained.
     ///
-    /// The `tolerance` parameter is the same as for
-    /// [`path_elements()`](#tymethod.path_elements).
+    /// If you only need to iterate the elements (such as to convert them to
+    /// drawing commands for a given 2D graphics API) you should prefer
+    /// [`path_elements`], which can avoid allocating where possible.
+    ///
+    /// The `tolerance` parameter is the same as for [`path_elements`].
+    ///
+    /// [`path_elements`]: #tymethod.path_elements
     fn to_path(&self, tolerance: f64) -> BezPath {
         self.path_elements(tolerance).collect()
     }
@@ -53,10 +81,12 @@ pub trait Shape: Sized {
     }
 
     /// Returns an iterator over this shape expressed as Bézier path
-    /// _segments_.
+    /// _segments_ ([`PathSeg`]s).
     ///
     /// The allocation behaviour and `tolerance` parameter are the
     /// same as for [`path_elements()`](#tymethod.path_elements).
+    ///
+    /// [`PathSeg`]: enum.PathSeg.html
     fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
         segments(self.path_elements(tolerance))
     }
@@ -72,9 +102,10 @@ pub trait Shape: Sized {
     fn area(&self) -> f64;
 
     /// Total length of perimeter.
+    //FIXME: document the accuracy param
     fn perimeter(&self, accuracy: f64) -> f64;
 
-    /// Winding number of point.
+    /// The [winding number] of a point.
     ///
     /// This method only produces meaningful results with closed shapes.
     ///
@@ -84,6 +115,7 @@ pub trait Shape: Sized {
     /// magnitude values are also possible when the shape is more complex.
     ///
     /// [`area`]: #tymethod.area
+    /// [winding number]: https://mathworld.wolfram.com/ContourWindingNumber.html
     fn winding(&self, pt: Point) -> i32;
 
     /// Returns `true` if the [`Point`] is inside this shape.
@@ -121,7 +153,7 @@ pub trait Shape: Sized {
     /// If the shape is stored as a slice of path elements, make
     /// that available.
     ///
-    /// Note: when GAT's land, a method like `to_bez_path` would be
+    /// Note: when GAT's land, a method like `path_elements` would be
     /// able to iterate through the slice with no extra allocation,
     /// without making any assumption that storage is contiguous.
     fn as_path_slice(&self) -> Option<&[PathEl]> {
