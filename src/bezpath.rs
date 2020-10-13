@@ -262,18 +262,40 @@ impl BezPath {
     /// followed by `Lineto/Quadto/Cubicto` elements, the element index is the
     /// segment index + 1.
     ///
-    /// Returns the index of the segment, the parameter within that segment, and
-    /// the square of the distance to the point.
-    pub fn nearest(&self, p: Point, accuracy: f64) -> (usize, f64, f64) {
-        let mut best = None;
-        for (ix, seg) in self.segments().enumerate() {
-            let (t, r) = seg.nearest(p, accuracy);
-            if best.map(|(_, _, r_best)| r < r_best).unwrap_or(true) {
-                best = Some((ix, t, r));
+    //TODO: is this useful as written? Is it used anywhere?
+    // - does it make sense to return the actual segment?
+    // - does it make sense to return the actual point?
+    // - should this be defined on `Shape`, instead?
+    pub fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
+        let mut best: Option<Nearest> = None;
+        for (segment_idx, seg) in self.segments().enumerate() {
+            let (segment_t, distance) = seg.nearest(p, accuracy);
+            if best.map(|best| distance < best.distance).unwrap_or(true) {
+                best = Some(Nearest {
+                    segment_idx,
+                    segment_t,
+                    distance,
+                });
             }
         }
         best.unwrap()
     }
+}
+
+/// The result of [`BezPath::nearest`].
+///
+/// [`BezPath::nearest`]: struct.BezPath.html#method.nearest
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct Nearest {
+    /// The index of the [`PathSeg`] containing the nearest point.
+    ///
+    /// [`PathSeg`]: enum.PathSeg.html
+    pub segment_idx: usize,
+    /// The parameter within the segment.
+    pub segment_t: f64,
+    /// The square of the distance to the point.
+    pub distance: f64,
 }
 
 impl FromIterator<PathEl> for BezPath {
