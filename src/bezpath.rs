@@ -252,28 +252,6 @@ impl BezPath {
             *el = affine * (*el);
         }
     }
-
-    /// Find the nearest point.
-    ///
-    /// Panics if path is empty or invalid.
-    ///
-    /// Note that the returned index counts segments, not elements. Thus, the
-    /// initial `Moveto` is not counted. For a simple path consisting of a `Moveto`
-    /// followed by `Lineto/Quadto/Cubicto` elements, the element index is the
-    /// segment index + 1.
-    ///
-    /// Returns the index of the segment, the parameter within that segment, and
-    /// the square of the distance to the point.
-    pub fn nearest(&self, p: Point, accuracy: f64) -> (usize, f64, f64) {
-        let mut best = None;
-        for (ix, seg) in self.segments().enumerate() {
-            let (t, r) = seg.nearest(p, accuracy);
-            if best.map(|(_, _, r_best)| r < r_best).unwrap_or(true) {
-                best = Some((ix, t, r));
-            }
-        }
-        best.unwrap()
-    }
 }
 
 impl FromIterator<PathEl> for BezPath {
