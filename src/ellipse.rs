@@ -12,18 +12,25 @@ use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ellipse {
-    /// All ellipses can be represented as an affine map of the unit circle, centred at (0, 0).
-    /// Therefore we can store the ellipse as an affine map, with the implication it be applied to
-    /// the unit circle to recover the actual shape.
+    /// All ellipses can be represented as an affine map of the unit circle,
+    /// centred at (0, 0). Therefore we can store the ellipse as an affine map,
+    /// with the implication it be applied to the unit circle to recover the
+    /// actual shape.
     inner: Affine,
 }
 
 impl Ellipse {
-    /// A new ellipse from center, radii, and x_rotation.
+    /// Create A new ellipse with a given center, radii, and rotation.
     ///
-    /// The returned ellipse will be the result of taking a circle, stretching it by the `radii`
-    /// along the x and y axes, then rotating it clockwise by `x_rotation` radians, before finally
-    /// translating the center to `center`.
+    /// The returned ellipse will be the result of taking a circle, stretching
+    /// it by the `radii` along the x and y axes, then rotating it from the
+    /// x asix by `rotation` radians, before finally translating the center
+    /// to `center`.
+    ///
+    /// Rotation is clockwise in a y-down coordinate system. For more on
+    /// rotation, see [`Affine::rotate`].
+    ///
+    /// [`Affine::rotate`]: Affine::rotate
     #[inline]
     pub fn new(center: impl Into<Point>, radii: impl Into<Vec2>, x_rotation: f64) -> Ellipse {
         let Point { x: cx, y: cy } = center.into();
@@ -36,10 +43,10 @@ impl Ellipse {
     /// This uses the absolute width and height of the rectangle.
     ///
     /// This ellipse is always axis-aligned; to apply rotation you can call
-    /// [`with_x_rotation`] with the result.
+    /// [`with_rotation`] with the result.
     ///
     /// [`Rect`]: struct.Rect.html
-    /// [`with_x_rotation`]: #method.with_x_rotation
+    /// [`with_rotation`]: #method.with_rotation
     #[inline]
     pub fn from_rect(rect: Rect) -> Self {
         let center = rect.center().to_vec2();
@@ -51,6 +58,45 @@ impl Ellipse {
     #[inline]
     pub fn from_affine(affine: Affine) -> Self {
         Ellipse { inner: affine }
+    }
+
+    /// Create a new `Ellipse` centered on the provided point.
+    #[inline]
+    #[must_use]
+    pub fn with_center(self, new_center: Point) -> Ellipse {
+        let Point { x: cx, y: cy } = new_center;
+        Ellipse {
+            inner: self.inner.set_translation(Vec2 { x: cx, y: cy }),
+        }
+    }
+
+    /// Create a new `Ellipse` with the provided radii.
+    #[must_use]
+    pub fn with_radii(self, new_radii: Vec2) -> Ellipse {
+        let rotation = self.inner.svd().1;
+        let translation = self.inner.get_translation();
+        Ellipse::private_new(translation, new_radii.x, new_radii.y, rotation)
+    }
+
+    /// Create a new `Ellipse`, with the rotation replaced by `rotation`
+    /// radians.
+    ///
+    /// The rotation is clockwise, for a y-down coordinate system. For more
+    /// on rotation, See [`Affine::rotate`].
+    ///
+    /// [`Affine::rotate`]: Affine::rotate
+    #[must_use]
+    pub fn with_rotation(self, rotation: f64) -> Ellipse {
+        let scale = self.inner.svd().0;
+        let translation = self.inner.get_translation();
+        Ellipse::private_new(translation, scale.x, scale.y, rotation)
+    }
+
+    #[deprecated(since = "0.7.0", note = "use with_rotation instead")]
+    #[must_use]
+    #[doc(hidden)]
+    pub fn with_x_rotation(self, rotation_radians: f64) -> Ellipse {
+        self.with_rotation(rotation_radians)
     }
 
     /// This gives us an internal method without any type conversions.
@@ -74,44 +120,26 @@ impl Ellipse {
         Point { x: cx, y: cy }
     }
 
-    /// Sets the center of this ellipse.
-    #[inline]
-    pub fn with_center(self, new_center: Point) -> Ellipse {
-        let Point { x: cx, y: cy } = new_center;
-        Ellipse {
-            inner: self.inner.set_translation(Vec2 { x: cx, y: cy }),
-        }
-    }
-
     /// Returns the two radii of this ellipse.
     ///
-    /// The first number is the horizontal radius and the second is the vertical radius, before
-    /// rotating by `x_rotation`.
+    /// The first number is the horizontal radius and the second is the vertical
+    /// radius, before rotation.
     pub fn radii(&self) -> Vec2 {
         self.inner.svd().0
     }
 
-    /// Set the radii of this ellipse.
-    #[must_use]
-    pub fn with_radii(self, new_radii: Vec2) -> Ellipse {
-        let rotation = self.inner.svd().1;
-        let translation = self.inner.get_translation();
-        Ellipse::private_new(translation, new_radii.x, new_radii.y, rotation)
-    }
-
-    /// The amount (in radians) that the ellipse should be rotated by (clockwise).
+    /// The ellipse's rotation, in radians.
     ///
-    /// This allows all possible ellipses to be drawn by always starting with an ellipse with the
-    /// two radii on the x and y axes.
-    pub fn x_rotation(&self) -> f64 {
+    /// This allows all possible ellipses to be drawn by always starting with
+    /// an ellipse with the two radii on the x and y axes.
+    pub fn rotation(&self) -> f64 {
         self.inner.svd().1
     }
 
-    /// Set the amount (in radians) that the ellipse should be rotated by (clockwise).
-    pub fn with_x_rotation(self, new_x_rotation: f64) -> Ellipse {
-        let scale = self.inner.svd().0;
-        let translation = self.inner.get_translation();
-        Ellipse::private_new(translation, scale.x, scale.y, new_x_rotation)
+    #[doc(hidden)]
+    #[deprecated(since = "0.7.0", note = "use rotation() instead")]
+    pub fn x_rotation(&self) -> f64 {
+        self.rotation()
     }
 }
 
