@@ -86,6 +86,15 @@ pub trait Shape: Sized {
     /// [`area`]: #tymethod.area
     fn winding(&self, pt: Point) -> i32;
 
+    /// Returns `true` if the [`Point`] is inside this shape.
+    ///
+    /// This is only meaningful for closed shapes.
+    ///
+    /// [`Point`]: struct.Point.html
+    fn contains(&self, pt: Point) -> bool {
+        self.winding(pt) != 0
+    }
+
     /// The smallest rectangle that encloses the shape.
     fn bounding_box(&self) -> Rect;
 
