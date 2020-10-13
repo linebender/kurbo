@@ -15,15 +15,91 @@ use crate::{
     ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale,
 };
 
-/// A path that can Bézier segments up to cubic, possibly with multiple subpaths.
+/// A Bézier path.
+///
+/// These docs assume basic familiarity with Bézier curves; for an introduction,
+/// see Pomax's wonderful [A Primer on Bézier Curves].
+///
+/// This path can contain lines, quadratics ([`QuadBez`]) and cubics
+/// ([`CubicBez`]), and may contain multiple subpaths.
+///
+/// # Elements and Segments
+///
+/// A Bézier path can be represented in terms of either 'elements' ([`PathEl`])
+/// or 'segments' ([`PathSeg`]). Elements map closely to how Béziers are
+/// generally used in PostScript-style drawing APIs; they can be thought of as
+/// instructions for drawing the path. Segments more directly describe the
+/// path itself, with each segment being an independent line or curve.
+///
+/// These different representations are useful in different contexts.
+/// For tasks like drawing, elements are a natural fit, but when doing
+/// hit-testing or subdividing, we need to have access to the segments.
+///
+/// Internally, a `BezPath` is a list of [`PathEl`]s; as such it implements
+/// [`FromIterator<PathEl>`] and [`Extend<PathEl>`]:
+///
+/// ```
+/// use kurbo::{BezPath, Rect, Shape, Vec2};
+/// let accuracy = 0.1;
+/// let rect = Rect::from_origin_size((0., 0.,), (10., 10.));
+/// // these are equivalent
+/// let path1 = rect.to_path(accuracy);
+/// let path2: BezPath = rect.path_elements(accuracy).collect();
+///
+/// // extend a path with another path:
+/// let mut path = rect.to_path(accuracy);
+/// let shifted_rect = rect + Vec2::new(5.0, 10.0);
+/// path.extend(shifted_rect.to_path(accuracy));
+/// ```
+///
+/// You can iterate the elements of a `BezPath` with the [`iter`] method,
+/// and the segments with the [`segments`] method:
+///
+/// ```
+/// use kurbo::{BezPath, Line, PathEl, PathSeg, Point, Rect, Shape};
+/// let accuracy = 0.1;
+/// let rect = Rect::from_origin_size((0., 0.,), (10., 10.));
+/// // these are equivalent
+/// let path = rect.to_path(accuracy);
+/// let first_el = PathEl::MoveTo(Point::ZERO);
+/// let first_seg = PathSeg::Line(Line::new((0., 0.), (10., 0.)));
+/// assert_eq!(path.iter().next(), Some(first_el));
+/// assert_eq!(path.segments().next(), Some(first_seg));
+/// ```
+/// In addition, if you have some other type that implements
+/// `Iterator<Item=PathEl>`, you can adapt that to an iterator of segments with
+/// the [`segments` free function].
+///
+/// # Advanced functionality
+///
+/// In addition to the basic API, there are several useful pieces of advanced
+/// functionality available on `BezPath`:
+///
+/// - [`flatten`] does Bézier flattening, converting a curve to a series of
+/// line segments
+/// - [`intersect_line`] computes intersections of a path with a line, useful
+/// for things like subdividing
+///
+/// [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
+/// [`PathEl`]: enum.PathEl.html
+/// [`PathSeg`]: enum.PathSeg.html
+/// [`QuadBez`]: struct.QuadBez.html
+/// [`CubicBez`]: struct.CubicBez.html
+/// [`iter`]: #method.iter
+/// [`segments`]: #method.segments
+/// [`flatten`]: #method.flatten
+/// [`intersect_line`]: #method.intersect_line
+/// [`segments` free function]: function.segments.html
+/// [`FromIterator<PathEl>`]: std::iter::FromIterator
+/// [`Extend<PathEl>`]: std::iter::Extend
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
 ///
-/// A valid path has `Moveto` at the beginning of each subpath.
-#[derive(Clone, Copy, Debug)]
+/// A valid path has `MoveTo` at the beginning of each subpath.
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathEl {
     /// Move directly to the point without drawing anything, starting a new
@@ -747,14 +823,14 @@ impl PathSeg {
 
     /// Compute intersections against a line.
     ///
-    /// Returns a vector of the intersections. For each intersection, the `t` value of the
-    /// segment and line are given.
+    /// Returns a vector of the intersections. For each intersection,
+    /// the `t` value of the segment and line are given.
     ///
-    /// Note: This test is designed to be inclusive of points near the endpoints of
-    /// the segment. This is so that testing a line against multiple contiguous segments
-    /// of a path will be guaranteed to catch at least one of them. In such cases, use
-    /// higher level logic to coalesce the hits (the `t` value may be slightly outside
-    /// the range of 0..1).
+    /// Note: This test is designed to be inclusive of points near the endpoints
+    /// of the segment. This is so that testing a line against multiple
+    /// contiguous segments of a path will be guaranteed to catch at least one
+    /// of them. In such cases, use higher level logic to coalesce the hits
+    /// (the `t` value may be slightly outside the range of 0..1).
     ///
     /// # Examples
     ///
