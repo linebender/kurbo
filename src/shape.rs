@@ -69,6 +69,11 @@ pub trait Shape: Sized {
         self.path_elements(tolerance).collect()
     }
 
+    #[deprecated(since = "0.7.0", note = "Use path_elements instead")]
+    #[doc(hidden)]
+    fn to_bez_path(&self, tolerance: f64) -> Self::PathElementsIter {
+        self.path_elements(tolerance)
+    }
     /// Convert into a Bézier path.
     ///
     /// This allocates in the general case, but is zero-cost if the
@@ -78,6 +83,12 @@ pub trait Shape: Sized {
     /// [`path_elements()`](#tymethod.path_elements).
     fn into_path(self, tolerance: f64) -> BezPath {
         self.to_path(tolerance)
+    }
+
+    #[deprecated(since = "0.7.0", note = "Use into_path instead")]
+    #[doc(hidden)]
+    fn into_bez_path(self, tolerance: f64) -> BezPath {
+        self.into_path(tolerance)
     }
 
     /// Returns an iterator over this shape expressed as Bézier path
