@@ -8,7 +8,7 @@ use crate::common::solve_cubic;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape,
 };
 
 /// A single quadratic Bézier segment.
@@ -89,6 +89,55 @@ impl QuadBez {
         let a = params.a0 + (params.a2 - params.a0) * x;
         let u = approx_parabola_inv_integral(a);
         (u - params.u0) * params.uscale
+    }
+}
+
+/// An iterator for quadratic beziers.
+pub struct QuadBezIter {
+    quad: QuadBez,
+    ix: usize,
+}
+
+impl Shape for QuadBez {
+    type PathElementsIter = QuadBezIter;
+
+    #[inline]
+    fn path_elements(&self, _tolerance: f64) -> QuadBezIter {
+        QuadBezIter { quad: *self, ix: 0 }
+    }
+
+    /// The area under the curve.
+    ///
+    /// We could just return 0, but this seems more useful.
+    fn area(&self) -> f64 {
+        self.signed_area()
+    }
+
+    #[inline]
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        self.arclen(accuracy)
+    }
+
+    fn winding(&self, _pt: Point) -> i32 {
+        0
+    }
+
+    #[inline]
+    fn bounding_box(&self) -> Rect {
+        ParamCurveExtrema::bounding_box(self)
+    }
+}
+
+impl Iterator for QuadBezIter {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        self.ix += 1;
+        match self.ix {
+            1 => Some(PathEl::MoveTo(self.quad.p0)),
+            2 => Some(PathEl::QuadTo(self.quad.p1, self.quad.p2)),
+            _ => None,
+        }
     }
 }
 

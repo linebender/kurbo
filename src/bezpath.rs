@@ -636,7 +636,7 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
     pub(crate) fn bounding_box(self) -> Rect {
         let mut bbox: Option<Rect> = None;
         for seg in self {
-            let seg_bb = seg.bounding_box();
+            let seg_bb = ParamCurveExtrema::bounding_box(&seg);
             if let Some(bb) = bbox {
                 bbox = Some(bb.union(seg_bb));
             } else {
@@ -1037,6 +1037,68 @@ impl<'a> Shape for &'a [PathEl] {
     #[inline]
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(self)
+    }
+}
+
+/// An iterator for path segments.
+pub struct PathSegIter {
+    seg: PathSeg,
+    ix: usize,
+}
+
+impl Shape for PathSeg {
+    type PathElementsIter = PathSegIter;
+
+    #[inline]
+    fn path_elements(&self, _tolerance: f64) -> PathSegIter {
+        PathSegIter { seg: *self, ix: 0 }
+    }
+
+    /// The area under the curve.
+    ///
+    /// We could just return 0, but this seems more useful.
+    fn area(&self) -> f64 {
+        self.signed_area()
+    }
+
+    #[inline]
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        self.arclen(accuracy)
+    }
+
+    fn winding(&self, _pt: Point) -> i32 {
+        0
+    }
+
+    #[inline]
+    fn bounding_box(&self) -> Rect {
+        ParamCurveExtrema::bounding_box(self)
+    }
+
+    fn as_line(&self) -> Option<Line> {
+        if let PathSeg::Line(line) = self {
+            Some(*line)
+        } else {
+            None
+        }
+    }
+}
+
+impl Iterator for PathSegIter {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        self.ix += 1;
+        match (self.ix, self.seg) {
+            // yes I could do some fancy bindings thing here but... :shrug:
+            (1, PathSeg::Line(line)) => Some(PathEl::MoveTo(line.p0)),
+            (1, PathSeg::Quad(line)) => Some(PathEl::MoveTo(line.p0)),
+            (1, PathSeg::Cubic(line)) => Some(PathEl::MoveTo(line.p0)),
+            (2, PathSeg::Line(line)) => Some(PathEl::LineTo(line.p1)),
+            (2, PathSeg::Quad(line)) => Some(PathEl::QuadTo(line.p1, line.p2)),
+            (2, PathSeg::Cubic(line)) => Some(PathEl::CurveTo(line.p1, line.p2, line.p3)),
+            _ => None,
+        }
     }
 }
 
