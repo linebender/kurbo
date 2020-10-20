@@ -1091,12 +1091,12 @@ impl Iterator for PathSegIter {
         self.ix += 1;
         match (self.ix, self.seg) {
             // yes I could do some fancy bindings thing here but... :shrug:
-            (1, PathSeg::Line(line)) => Some(PathEl::MoveTo(line.p0)),
-            (1, PathSeg::Quad(line)) => Some(PathEl::MoveTo(line.p0)),
-            (1, PathSeg::Cubic(line)) => Some(PathEl::MoveTo(line.p0)),
-            (2, PathSeg::Line(line)) => Some(PathEl::LineTo(line.p1)),
-            (2, PathSeg::Quad(line)) => Some(PathEl::QuadTo(line.p1, line.p2)),
-            (2, PathSeg::Cubic(line)) => Some(PathEl::CurveTo(line.p1, line.p2, line.p3)),
+            (1, PathSeg::Line(seg)) => Some(PathEl::MoveTo(seg.p0)),
+            (1, PathSeg::Quad(seg)) => Some(PathEl::MoveTo(seg.p0)),
+            (1, PathSeg::Cubic(seg)) => Some(PathEl::MoveTo(seg.p0)),
+            (2, PathSeg::Line(seg)) => Some(PathEl::LineTo(seg.p1)),
+            (2, PathSeg::Quad(seg)) => Some(PathEl::QuadTo(seg.p1, seg.p2)),
+            (2, PathSeg::Cubic(seg)) => Some(PathEl::CurveTo(seg.p1, seg.p2, seg.p3)),
             _ => None,
         }
     }
