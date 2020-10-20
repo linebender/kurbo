@@ -1,6 +1,6 @@
 [package]
 name = "kurbo"
-version = "0.6.3"
+version = "0.7.0"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
