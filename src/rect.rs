@@ -439,22 +439,27 @@ impl Rect {
 
     /// The aspect ratio of the `Rect`.
     ///
-    /// This is defined as the height divided by the width. It measures the "squareness" of the
-    /// rectangle (a value of `1` is square). If the width is `0` the output will be `sign(y1 - y0)
-    /// * infinity`. If The width and height are `0`, the result will be `NaN`.
+    /// This is defined as the height divided by the width. It measures the
+    /// "squareness" of the rectangle (a value of `1` is square).
+    ///
+    /// If the width is `0` the output will be `sign(y1 - y0) * infinity`.
+    ///
+    /// If The width and height are `0`, the result will be `NaN`.
     #[inline]
     pub fn aspect_ratio(&self) -> f64 {
         self.size().aspect_ratio()
     }
 
-    /// Returns the largest possible `Rect` that is fully contained in `self` with the given
-    /// `aspect_ratio`.
+    /// Returns the largest possible `Rect` that is fully contained in `self`
+    /// with the given `aspect_ratio`.
     ///
     /// The aspect ratio is specified fractionally, as `height / width`.
     ///
-    /// The resulting rectangle will be centered if it is smaller than the input rectangle.
+    /// The resulting rectangle will be centered if it is smaller than the
+    /// input rectangle.
     ///
-    /// For the special case where the aspect ratio is `1.0`, the resulting `Rect` will be square.
+    /// For the special case where the aspect ratio is `1.0`, the resulting
+    /// `Rect` will be square.
     ///
     /// # Examples
     ///
