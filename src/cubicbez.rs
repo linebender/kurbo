@@ -374,14 +374,14 @@ mod tests {
 
     #[test]
     fn cubicbez_inv_arclen() {
-        // y = x^2
+        // y = x^2 / 100
         let c = CubicBez::new(
             (0.0, 0.0),
-            (1.0 / 3.0, 0.0),
-            (2.0 / 3.0, 1.0 / 3.0),
-            (1.0, 1.0),
+            (100.0 / 3.0, 0.0),
+            (200.0 / 3.0, 100.0 / 3.0),
+            (100.0, 100.0),
         );
-        let true_arclen = 0.5 * 5.0f64.sqrt() + 0.25 * (2.0 + 5.0f64.sqrt()).ln();
+        let true_arclen = 100.0 * (0.5 * 5.0f64.sqrt() + 0.25 * (2.0 + 5.0f64.sqrt()).ln());
         for i in 0..12 {
             let accuracy = 0.1f64.powi(i);
             let n = 10;
