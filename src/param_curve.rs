@@ -92,7 +92,7 @@ pub trait ParamCurveArclen: ParamCurve {
         let mut t_last = 0.0;
         let mut t0 = 0.0;
         let mut t1 = 1.0;
-        let n = (self.arclen(accuracy) / accuracy).log2().ceil();
+        let n = (self.arclen(accuracy) / accuracy).log2().ceil().max(1.0);
         let inner_accuracy = accuracy / n;
         let n = n as usize;
         for i in 0..n {
