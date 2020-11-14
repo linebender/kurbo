@@ -74,7 +74,7 @@ impl Affine {
         Affine([1.0, 0.0, 0.0, 1.0, p.x, p.y])
     }
 
-    /// Creates an affine transformation that takes the unit sqaure to the given rectangle.
+    /// Creates an affine transformation that takes the unit square to the given rectangle.
     ///
     /// Useful when you want to draw into the unit square but have your output fill any rectangle.
     /// In this case push the `Affine` onto the transform stack.
