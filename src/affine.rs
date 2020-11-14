@@ -74,6 +74,14 @@ impl Affine {
         Affine([1.0, 0.0, 0.0, 1.0, p.x, p.y])
     }
 
+    /// Creates an affine transformation that takes the unit square to the given rectangle.
+    ///
+    /// Useful when you want to draw into the unit square but have your output fill any rectangle.
+    /// In this case push the `Affine` onto the transform stack.
+    pub fn map_unit_square(rect: Rect) -> Affine {
+        Affine([rect.width(), 0., 0., rect.height(), rect.x0, rect.y0])
+    }
+
     /// Get the coefficients of the transform.
     #[inline]
     pub fn as_coeffs(self) -> [f64; 6] {
