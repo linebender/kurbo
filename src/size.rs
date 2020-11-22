@@ -216,6 +216,18 @@ impl Size {
     pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
         self.to_rect().to_rounded_rect(radius)
     }
+
+    /// Is this size finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.width.is_finite() && self.height.is_finite()
+    }
+
+    /// Is this size NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.width.is_nan() || self.height.is_nan()
+    }
 }
 
 impl fmt::Debug for Size {

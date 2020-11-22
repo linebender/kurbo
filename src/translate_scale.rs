@@ -78,6 +78,18 @@ impl TranslateScale {
             scale: scale_recip,
         }
     }
+
+    /// Is this translate/scale finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.translation.is_finite() && self.scale.is_finite()
+    }
+
+    /// Is this translate/scale NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.translation.is_nan() || self.scale.is_nan()
+    }
 }
 
 impl Default for TranslateScale {

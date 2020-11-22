@@ -237,6 +237,18 @@ impl Insets {
             y1: y1.max(0.0),
         }
     }
+
+    /// Are these insets finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.x0.is_finite() && self.y0.is_finite() && self.x1.is_finite() && self.y1.is_finite()
+    }
+
+    /// Are these insets NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.x0.is_nan() || self.y0.is_nan() || self.x1.is_nan() || self.y1.is_nan()
+    }
 }
 
 impl Neg for Insets {

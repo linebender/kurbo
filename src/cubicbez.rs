@@ -72,6 +72,18 @@ impl CubicBez {
 
         ToQuads { c: *self, n, i: 0 }
     }
+
+    /// Is this cubic Bezier curve finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.p0.is_finite() && self.p1.is_finite() && self.p2.is_finite() && self.p3.is_finite()
+    }
+
+    /// Is this cubic Bezier curve NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan() || self.p3.is_nan()
+    }
 }
 
 /// An iterator for cubic beziers.

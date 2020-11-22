@@ -40,6 +40,18 @@ impl Circle {
             sweep_angle,
         }
     }
+
+    /// Is this circle finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.center.is_finite() && self.radius.is_finite()
+    }
+
+    /// Is this circle NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.center.is_nan() || self.radius.is_nan()
+    }
 }
 
 impl Add<Vec2> for Circle {
@@ -202,6 +214,26 @@ impl CircleSegment {
             start_angle,
             sweep_angle,
         }
+    }
+
+    /// Is this circle segment finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.center.is_finite()
+            && self.outer_radius.is_finite()
+            && self.inner_radius.is_finite()
+            && self.start_angle.is_finite()
+            && self.sweep_angle.is_finite()
+    }
+
+    /// Is this circle segment NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.center.is_nan()
+            || self.outer_radius.is_nan()
+            || self.inner_radius.is_nan()
+            || self.start_angle.is_nan()
+            || self.sweep_angle.is_nan()
     }
 }
 
