@@ -86,8 +86,6 @@ impl Rect {
     /// assert_eq!(inset_rect.x0, -2.0);
     /// assert_eq!(inset_rect.x1, 12.0);
     /// ```
-    ///
-    /// [`Insets`]: struct.Insets.html
     #[inline]
     pub fn inset(self, insets: impl Into<Insets>) -> Rect {
         self + insets.into()
@@ -422,16 +420,12 @@ impl Rect {
 
     /// Creates a new [`RoundedRect`] from this `Rect` and the provided
     /// corner radius.
-    ///
-    /// [`RoundedRect`]: struct.RoundedRect.html
     #[inline]
     pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
         RoundedRect::from_rect(self, radius)
     }
 
     /// Returns the [`Ellipse`] that is bounded by this `Rect`.
-    ///
-    /// [`Ellipse`]: struct.Ellipse.html
     #[inline]
     pub fn to_ellipse(self) -> Ellipse {
         Ellipse::from_rect(self)

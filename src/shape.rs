@@ -8,14 +8,13 @@ use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, S
 /// general geometry functionality like computing [`area`], [`bounding_box`]es,
 /// and [`winding`] number.
 ///
-/// [`BezPath`]: struct.BezPath.html
-/// [`area`]: #tymethod.area
-/// [`bounding_box`]: #tymethod.bounding_box
-/// [`winding`]: #tymethod.winding
+/// [`area`]: Shape::area
+/// [`bounding_box`]: Shape::bounding_box
+/// [`winding`]: Shape::winding
 pub trait Shape: Sized {
     /// The iterator returned by the [`path_elements`] method.
     ///
-    /// [`path_elements`]: #tymethod.path_elements
+    /// [`path_elements`]: Shape::path_elements
     type PathElementsIter: Iterator<Item = PathEl>;
 
     /// Returns an iterator over this shape expressed as [`PathEl`]s;
@@ -48,9 +47,9 @@ pub trait Shape: Sized {
     /// iterators from complex shapes without cloning.
     ///
     /// [GAT's]: https://github.com/rust-lang/rust/issues/44265
-    /// [`as_rect`]: #tymethod.as_rect
-    /// [`as_line`]: #tymethod.as_line
-    /// [`to_path`]: #tymethod.to_path
+    /// [`as_rect`]: Shape::as_rect
+    /// [`as_line`]: Shape::as_line
+    /// [`to_path`]: Shape::to_path
     fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter;
 
     /// Convert to a Bézier path.
@@ -64,7 +63,7 @@ pub trait Shape: Sized {
     ///
     /// The `tolerance` parameter is the same as for [`path_elements`].
     ///
-    /// [`path_elements`]: #tymethod.path_elements
+    /// [`path_elements`]: Shape::path_elements
     fn to_path(&self, tolerance: f64) -> BezPath {
         self.path_elements(tolerance).collect()
     }
@@ -77,10 +76,11 @@ pub trait Shape: Sized {
     /// Convert into a Bézier path.
     ///
     /// This allocates in the general case, but is zero-cost if the
-    /// shape is already a [`BezPath`](struct.BezPath.html).
+    /// shape is already a [`BezPath`].
     ///
-    /// The `tolerance` parameter is the same as for
-    /// [`path_elements()`](#tymethod.path_elements).
+    /// The `tolerance` parameter is the same as for [`path_elements()`].
+    ///
+    /// [`path_elements()`]: Shape::path_elements
     fn into_path(self, tolerance: f64) -> BezPath {
         self.to_path(tolerance)
     }
@@ -95,9 +95,10 @@ pub trait Shape: Sized {
     /// _segments_ ([`PathSeg`]s).
     ///
     /// The allocation behaviour and `tolerance` parameter are the
-    /// same as for [`path_elements()`](#tymethod.path_elements).
+    /// same as for [`path_elements()`]
     ///
-    /// [`PathSeg`]: enum.PathSeg.html
+    /// [`PathSeg`]: crate::PathSeg
+    /// [`path_elements()`]: Shape::path_elements
     fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
         segments(self.path_elements(tolerance))
     }
@@ -125,15 +126,13 @@ pub trait Shape: Sized {
     /// and -1 when it is inside a negative area shape. Of course, greater
     /// magnitude values are also possible when the shape is more complex.
     ///
-    /// [`area`]: #tymethod.area
+    /// [`area`]: Shape::area
     /// [winding number]: https://mathworld.wolfram.com/ContourWindingNumber.html
     fn winding(&self, pt: Point) -> i32;
 
     /// Returns `true` if the [`Point`] is inside this shape.
     ///
     /// This is only meaningful for closed shapes.
-    ///
-    /// [`Point`]: struct.Point.html
     fn contains(&self, pt: Point) -> bool {
         self.winding(pt) != 0
     }

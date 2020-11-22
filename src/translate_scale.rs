@@ -15,7 +15,7 @@ use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, V
 /// | 0 0 1 |
 /// ```
 ///
-/// See [`Affine`](struct.Affine.html) for more details about the
+/// See [`Affine`] for more details about the
 /// equivalence with augmented matrices.
 ///
 /// Various multiplication ops are defined, and these are all defined
@@ -32,7 +32,7 @@ use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, V
 /// has an implicit conversion).
 ///
 /// This transformation is less powerful than `Affine`, but can be applied
-/// to more primitives, especially including [`Rect`](struct.Rect.html).
+/// to more primitives, especially including [`Rect`].
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TranslateScale {

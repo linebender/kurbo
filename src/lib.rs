@@ -66,9 +66,6 @@
 //! let hit = closest_perimeter_point(circle, hit_point).unwrap();
 //! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
 //! ```
-//!
-//! [`Shape`]: trait.Shape.html
-//! [`Point`]: struct.Point.html
 //! [`Piet`]: https://docs.rs/piet
 //! [`Druid`]: https://docs.rs/druid
 
