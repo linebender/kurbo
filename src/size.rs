@@ -219,13 +219,13 @@ impl Size {
 
     /// Is this size finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.width.is_finite() && self.height.is_finite()
     }
 
     /// Is this size NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub fn is_nan(self) -> bool {
         self.width.is_nan() || self.height.is_nan()
     }
 }

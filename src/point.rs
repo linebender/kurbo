@@ -154,13 +154,13 @@ impl Point {
 
     /// Is this point finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite()
     }
 
     /// Is this point NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
 }

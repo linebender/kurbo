@@ -960,13 +960,13 @@ impl LineIntersection {
 
     /// Is this line intersection finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.line_t.is_finite() && self.segment_t.is_finite()
     }
 
     /// Is this line intersection NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub fn is_nan(self) -> bool {
         self.line_t.is_nan() || self.segment_t.is_nan()
     }
 }

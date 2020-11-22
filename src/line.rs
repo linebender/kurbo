@@ -38,13 +38,13 @@ impl Line {
 
     /// Is this line finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.p0.is_finite() && self.p0.is_finite()
     }
 
     /// Is this line NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub fn is_nan(self) -> bool {
         self.p0.is_nan() || self.p1.is_nan()
     }
 }
@@ -136,13 +136,13 @@ pub struct ConstPoint(Point);
 impl ConstPoint {
     /// Is this point finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.0.is_finite()
     }
 
     /// Is this point NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub fn is_nan(self) -> bool {
         self.0.is_nan()
     }
 }
