@@ -489,6 +489,18 @@ impl Rect {
             Rect::new(self.x0, y0, self.x1, y1)
         }
     }
+
+    /// Is this rectangle finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.x0.is_finite() && self.x1.is_finite() && self.y0.is_finite() && self.y1.is_finite()
+    }
+
+    /// Is this rectangle NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.x0.is_nan() || self.y0.is_nan() || self.x1.is_nan() || self.y1.is_nan()
+    }
 }
 
 impl From<(Point, Point)> for Rect {

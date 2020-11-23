@@ -35,6 +35,18 @@ impl Line {
     pub fn length(self) -> f64 {
         self.arclen(DEFAULT_ACCURACY)
     }
+
+    /// Is this line finite?
+    #[inline]
+    pub fn is_finite(self) -> bool {
+        self.p0.is_finite() && self.p0.is_finite()
+    }
+
+    /// Is this line NaN?
+    #[inline]
+    pub fn is_nan(self) -> bool {
+        self.p0.is_nan() || self.p1.is_nan()
+    }
 }
 
 impl ParamCurve for Line {
@@ -120,6 +132,20 @@ impl ParamCurveExtrema for Line {
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConstPoint(Point);
+
+impl ConstPoint {
+    /// Is this point finite?
+    #[inline]
+    pub fn is_finite(self) -> bool {
+        self.0.is_finite()
+    }
+
+    /// Is this point NaN?
+    #[inline]
+    pub fn is_nan(self) -> bool {
+        self.0.is_nan()
+    }
+}
 
 impl ParamCurve for ConstPoint {
     #[inline]

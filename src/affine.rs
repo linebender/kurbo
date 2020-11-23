@@ -123,6 +123,28 @@ impl Affine {
         Rect::from_points(p00, p01).union(Rect::from_points(p10, p11))
     }
 
+    /// Is this map finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.0[0].is_finite()
+            && self.0[1].is_finite()
+            && self.0[2].is_finite()
+            && self.0[3].is_finite()
+            && self.0[4].is_finite()
+            && self.0[5].is_finite()
+    }
+
+    /// Is this map NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.0[0].is_nan()
+            || self.0[1].is_nan()
+            || self.0[2].is_nan()
+            || self.0[3].is_nan()
+            || self.0[4].is_nan()
+            || self.0[5].is_nan()
+    }
+
     /// Compute the singular value decomposition of the linear transformation (ignoring the
     /// translation).
     ///

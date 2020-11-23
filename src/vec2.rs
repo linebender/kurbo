@@ -215,6 +215,18 @@ impl Vec2 {
     pub fn trunc(self) -> Vec2 {
         Vec2::new(self.x.trunc(), self.y.trunc())
     }
+
+    /// Is this Vec2 finite?
+    #[inline]
+    pub fn is_finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite()
+    }
+
+    /// Is this Vec2 NaN?
+    #[inline]
+    pub fn is_nan(self) -> bool {
+        self.x.is_nan() || self.y.is_nan()
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {

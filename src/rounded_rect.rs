@@ -102,6 +102,18 @@ impl RoundedRect {
     pub fn center(&self) -> Point {
         self.rect.center()
     }
+
+    /// Is this rounded rectangle finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.rect.is_finite() && self.radius.is_finite()
+    }
+
+    /// Is this rounded rectangle NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.rect.is_nan() || self.radius.is_nan()
+    }
 }
 
 #[doc(hidden)]

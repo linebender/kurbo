@@ -131,6 +131,18 @@ impl Ellipse {
         self.inner.svd().1
     }
 
+    /// Is this ellipse finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.inner.is_finite()
+    }
+
+    /// Is this ellipse NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.inner.is_nan()
+    }
+
     #[doc(hidden)]
     #[deprecated(since = "0.7.0", note = "use rotation() instead")]
     pub fn x_rotation(&self) -> f64 {

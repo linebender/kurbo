@@ -319,6 +319,18 @@ impl BezPath {
             *el = affine * (*el);
         }
     }
+
+    /// Is this path finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.0.iter().all(|v| v.is_finite())
+    }
+
+    /// Is this path NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.0.iter().any(|v| v.is_nan())
+    }
 }
 
 impl FromIterator<PathEl> for BezPath {
@@ -910,11 +922,43 @@ impl PathSeg {
         }
         result
     }
+
+    /// Is this Bezier path finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        match self {
+            PathSeg::Line(line) => line.is_finite(),
+            PathSeg::Quad(quad_bez) => quad_bez.is_finite(),
+            PathSeg::Cubic(cubic_bez) => cubic_bez.is_finite(),
+        }
+    }
+
+    /// Is this Bezier path NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        match self {
+            PathSeg::Line(line) => line.is_nan(),
+            PathSeg::Quad(quad_bez) => quad_bez.is_nan(),
+            PathSeg::Cubic(cubic_bez) => cubic_bez.is_nan(),
+        }
+    }
 }
 
 impl LineIntersection {
     fn new(line_t: f64, segment_t: f64) -> Self {
         LineIntersection { line_t, segment_t }
+    }
+
+    /// Is this line intersection finite?
+    #[inline]
+    pub fn is_finite(self) -> bool {
+        self.line_t.is_finite() && self.segment_t.is_finite()
+    }
+
+    /// Is this line intersection NaN?
+    #[inline]
+    pub fn is_nan(self) -> bool {
+        self.line_t.is_nan() || self.segment_t.is_nan()
     }
 }
 
@@ -988,6 +1032,32 @@ impl Shape for BezPath {
 
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(&self.0)
+    }
+}
+
+impl PathEl {
+    /// Is this path element finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        match self {
+            PathEl::MoveTo(p) => p.is_finite(),
+            PathEl::LineTo(p) => p.is_finite(),
+            PathEl::QuadTo(p, p2) => p.is_finite() && p2.is_finite(),
+            PathEl::CurveTo(p, p2, p3) => p.is_finite() && p2.is_finite() && p3.is_finite(),
+            PathEl::ClosePath => true,
+        }
+    }
+
+    /// Is this path element NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        match self {
+            PathEl::MoveTo(p) => p.is_nan(),
+            PathEl::LineTo(p) => p.is_nan(),
+            PathEl::QuadTo(p, p2) => p.is_nan() || p2.is_nan(),
+            PathEl::CurveTo(p, p2, p3) => p.is_nan() || p2.is_nan() || p3.is_nan(),
+            PathEl::ClosePath => false,
+        }
     }
 }
 
