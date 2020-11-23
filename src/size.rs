@@ -86,8 +86,6 @@ impl Size {
 
     /// Convert this size into a [`Vec2`], with `width` mapped to `x` and `height`
     /// mapped to `y`.
-    ///
-    /// [`Vec2`]: struct.Vec2.html
     #[inline]
     pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.width, self.height)
@@ -201,8 +199,6 @@ impl Size {
     }
 
     /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.
-    ///
-    /// [`Rect`]: struct.Rect.html
     #[inline]
     pub const fn to_rect(self) -> Rect {
         Rect::new(0., 0., self.width, self.height)
@@ -210,8 +206,6 @@ impl Size {
 
     /// Convert this `Size` into a [`RoundedRect`] with origin `(0.0, 0.0)` and
     /// the provided corner radius.
-    ///
-    /// [`RoundedRect`]: struct.RoundedRect.html
     #[inline]
     pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
         self.to_rect().to_rounded_rect(radius)

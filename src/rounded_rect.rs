@@ -11,8 +11,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 /// The easiest way to create a `RoundedRect` is often to create a [`Rect`],
 /// and then call [`to_rounded_rect`].
 ///
-/// [`Rect`]: struct.Rect.html
-/// [`to_rounded_rect`]: struct.Rect.html#method.to_rounded_rect
+/// [`to_rounded_rect`]: Rect::to_rounded_rect
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RoundedRect {
@@ -36,8 +35,6 @@ impl RoundedRect {
     /// The result will have non-negative width, height and radius.
     ///
     /// See also [`Rect::to_rounded_rect`], which offers the same utility.
-    ///
-    /// [`Rect::to_rounded_rect`]: struct.Rect.html#method.to_rounded_rect
     #[inline]
     pub fn from_rect(rect: Rect, radius: f64) -> RoundedRect {
         let rect = rect.abs();
@@ -52,8 +49,6 @@ impl RoundedRect {
     /// A new rectangle from two [`Point`]s.
     ///
     /// The result will have non-negative width, height and radius.
-    ///
-    /// [`Point`]: struct.Point.html
     #[inline]
     pub fn from_points(p0: impl Into<Point>, p1: impl Into<Point>, radius: f64) -> RoundedRect {
         Rect::from_points(p0, p1).to_rounded_rect(radius)

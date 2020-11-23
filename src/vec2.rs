@@ -91,7 +91,9 @@ impl Vec2 {
     /// Thus, in a Y-down coordinate system (as is common for graphics),
     /// it is a clockwise rotation, and in Y-up (traditional for math), it
     /// is anti-clockwise. This convention is consistent with
-    /// [`Affine::rotate`](struct.Affine.html#method.rotate).
+    /// [`Affine::rotate`].
+    ///
+    /// [`Affine::rotate`]: crate::Affine::rotate
     #[inline]
     pub fn from_angle(th: f64) -> Vec2 {
         Vec2 {

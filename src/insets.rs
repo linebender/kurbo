@@ -98,10 +98,6 @@ use crate::{Rect, Size};
 /// assert_eq!(insets2.x_value(), insets.x_value());
 /// assert_eq!(insets2.y_value(), insets.y_value());
 /// ```
-///
-/// [`Rect`]: struct.Rect.html
-/// [`Insets`]: struct.Insets.html
-/// [`Rect::abs`]: struct.Rect.html#method.abs
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Insets {
@@ -200,9 +196,8 @@ impl Insets {
     /// assert_eq!(insets.size(), Size::new(insets.x_value(), insets.y_value()));
     /// ```
     ///
-    /// [`Size`]: struct.Size.html
-    /// [`x_value`]: #method.x_value
-    /// [`y_value`]: #method.y_value
+    /// [`x_value`]: Insets::x_value
+    /// [`y_value`]: Insets::y_value
     pub fn size(self) -> Size {
         Size::new(self.x_value(), self.y_value())
     }

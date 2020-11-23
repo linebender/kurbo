@@ -81,15 +81,11 @@ use crate::{
 /// for things like subdividing
 ///
 /// [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
-/// [`PathEl`]: enum.PathEl.html
-/// [`PathSeg`]: enum.PathSeg.html
-/// [`QuadBez`]: struct.QuadBez.html
-/// [`CubicBez`]: struct.CubicBez.html
-/// [`iter`]: #method.iter
-/// [`segments`]: #method.segments
-/// [`flatten`]: #method.flatten
-/// [`intersect_line`]: #method.intersect_line
-/// [`segments` free function]: function.segments.html
+/// [`iter`]: BezPath::iter
+/// [`segments`]: BezPath::segments
+/// [`flatten`]: BezPath::flatten
+/// [`intersect_line`]: PathSeg::intersect_line
+/// [`segments` free function]: segments
 /// [`FromIterator<PathEl>`]: std::iter::FromIterator
 /// [`Extend<PathEl>`]: std::iter::Extend
 #[derive(Clone, Default, Debug)]
@@ -130,10 +126,6 @@ pub enum PathSeg {
 /// An intersection of a [`Line`] and a [`PathSeg`].
 ///
 /// This can be generated with the [`PathSeg::intersect_line`] method.
-///
-/// [`Line`]: struct.Line.html
-/// [`PathSeg`]: enum.PathSeg.html
-/// [`PathSeg::intersect_line`]: enum.PathSeg.html#method.intersect_line
 #[derive(Debug, Clone, Copy)]
 pub struct LineIntersection {
     /// The 'time' that the intersection occurs, on the line.
@@ -279,18 +271,17 @@ impl BezPath {
     ///
     /// TODO: write a paper explaining this in more detail.
     ///
-    /// Note: the [`flatten`](fn.flatten.html) function provides the same
+    /// Note: the [`flatten`] function provides the same
     /// functionality but works with slices and other [`PathEl`] iterators.
     ///
     /// [Flattening quadratic Béziers]: https://raphlinus.github.io/graphics/curves/2019/12/23/flatten-quadbez.html
-    /// [`PathEl`]: enum.PathEl.html
     pub fn flatten(&self, tolerance: f64, callback: impl FnMut(PathEl)) {
         flatten(self, tolerance, callback);
     }
 
     /// Get the segment at the given element index.
     ///
-    /// The element index counts [`PathEl`](enum.PathEl.html) elements, so
+    /// The element index counts [`PathEl`] elements, so
     /// for example includes an initial `Moveto`.
     pub fn get_seg(&self, ix: usize) -> Option<PathSeg> {
         if ix == 0 || ix >= self.0.len() {
@@ -370,7 +361,7 @@ const TO_QUAD_TOL: f64 = 0.1;
 
 /// Flatten the path, invoking the callback repeatedly.
 ///
-/// See [`BezPath::flatten`](struct.BezPath.html#method.flatten) for more discussion.
+/// See [`BezPath::flatten`] for more discussion.
 /// This signature is a bit more general, allowing flattening of `&[PathEl]` slices
 /// and other iterators yielding `PathEl`.
 pub fn flatten(
@@ -547,7 +538,7 @@ impl<'a> Mul<&'a BezPath> for TranslateScale {
 /// Transform an iterator over path elements into one over path
 /// segments.
 ///
-/// See also [`BezPath::segments`](struct.BezPath.html#method.segments).
+/// See also [`BezPath::segments`].
 /// This signature is a bit more general, allowing `&[PathEl]` slices
 /// and other iterators yielding `PathEl`.
 pub fn segments<I>(elements: I) -> Segments<I::IntoIter>
@@ -562,7 +553,7 @@ where
 
 /// An iterator that transforms path elements to path segments.
 ///
-/// This struct is created by the [`segments`](fn.segments.html) function.
+/// This struct is created by the [`segments`] function.
 pub struct Segments<I: Iterator<Item = PathEl>> {
     elements: I,
     start_last: Option<(Point, Point)>,

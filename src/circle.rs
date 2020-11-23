@@ -29,8 +29,6 @@ impl Circle {
     }
 
     /// Create a [`CircleSegment`] by cutting out parts of this circle.
-    ///
-    /// [`CircleSegment`]: struct.CircleSegment.html
     pub fn segment(self, inner_radius: f64, start_angle: f64, sweep_angle: f64) -> CircleSegment {
         CircleSegment {
             center: self.center,
