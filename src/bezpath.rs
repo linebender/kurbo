@@ -400,7 +400,7 @@ pub fn flatten(
                     let params = q.estimate_subdiv(sqrt_tol);
                     let n = ((0.5 * params.val / sqrt_tol).ceil() as usize).max(1);
                     let step = 1.0 / (n as f64);
-                    for i in 1..(n - 1) {
+                    for i in 1..n {
                         let u = (i as f64) * step;
                         let t = q.determine_subdiv_t(&params, u);
                         let p = q.eval(t);
