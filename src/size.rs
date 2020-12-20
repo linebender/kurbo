@@ -347,10 +347,10 @@ impl From<Size> for (f64, f64) {
 }
 
 //FIXME: remove for 0.6.0 https://github.com/linebender/kurbo/issues/95
-impl Into<Size> for Vec2 {
+impl From<Vec2> for Size {
     #[inline]
-    fn into(self) -> Size {
-        self.to_size()
+    fn from(vec2: Vec2) -> Self {
+        vec2.to_size()
     }
 }
 
