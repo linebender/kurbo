@@ -303,7 +303,7 @@ impl ParamCurveNearest for QuadBez {
             r_best: &mut Option<f64>,
             t: f64,
         ) -> bool {
-            if t < 0.0 || t > 1.0 {
+            if !(0.0..=1.0).contains(&t) {
                 return true;
             }
             eval_t(p, t_best, r_best, t, q.eval(t));

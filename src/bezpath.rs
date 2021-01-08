@@ -775,7 +775,7 @@ impl PathSeg {
                 let b = 2.0 * (p1.y - start.y);
                 let c = start.y - p.y;
                 for t in solve_quadratic(c, b, a) {
-                    if t >= 0.0 && t <= 1.0 {
+                    if (0.0..=1.0).contains(&t) {
                         let x = quad.eval(t).x;
                         if p.x >= x {
                             return sign;
@@ -800,7 +800,7 @@ impl PathSeg {
                 let c = 3.0 * (p1.y - start.y);
                 let d = start.y - p.y;
                 for t in solve_cubic(d, c, b, a) {
-                    if t >= 0.0 && t <= 1.0 {
+                    if (0.0..=1.0).contains(&t) {
                         let x = cubic.eval(t).x;
                         if p.x >= x {
                             return sign;
@@ -867,12 +867,12 @@ impl PathSeg {
                 let t = dx * (p0.y - l.p0.y) - dy * (p0.x - l.p0.x);
                 // t = position on self
                 let t = t / det;
-                if t >= -EPSILON && t <= 1.0 + EPSILON {
+                if (-EPSILON..=(1.0 + EPSILON)).contains(&t) {
                     // u = position on probe line
                     let u =
                         (l.p0.x - p0.x) * (l.p1.y - l.p0.y) - (l.p0.y - p0.y) * (l.p1.x - l.p0.x);
                     let u = u / det;
-                    if u >= 0.0 && u <= 1.0 {
+                    if (0.0..=1.0).contains(&u) {
                         result.push(LineIntersection::new(u, t));
                     }
                 }
@@ -889,11 +889,11 @@ impl PathSeg {
                 let c2 = dy * px2 - dx * py2;
                 let invlen2 = (dx * dx + dy * dy).recip();
                 for t in crate::common::solve_quadratic(c0, c1, c2) {
-                    if t >= -EPSILON && t <= 1.0 + EPSILON {
+                    if (-EPSILON..=(1.0 + EPSILON)).contains(&t) {
                         let x = px0 + t * px1 + t * t * px2;
                         let y = py0 + t * py1 + t * t * py2;
                         let u = ((x - p0.x) * dx + (y - p0.y) * dy) * invlen2;
-                        if u >= 0.0 && u <= 1.0 {
+                        if (0.0..=1.0).contains(&u) {
                             result.push(LineIntersection::new(u, t));
                         }
                     }
@@ -909,11 +909,11 @@ impl PathSeg {
                 let c3 = dy * px3 - dx * py3;
                 let invlen2 = (dx * dx + dy * dy).recip();
                 for t in crate::common::solve_cubic(c0, c1, c2, c3) {
-                    if t >= -EPSILON && t <= 1.0 + EPSILON {
+                    if (-EPSILON..=(1.0 + EPSILON)).contains(&t) {
                         let x = px0 + t * px1 + t * t * px2 + t * t * t * px3;
                         let y = py0 + t * py1 + t * t * py2 + t * t * t * py3;
                         let u = ((x - p0.x) * dx + (y - p0.y) * dy) * invlen2;
-                        if u >= 0.0 && u <= 1.0 {
+                        if (0.0..=1.0).contains(&u) {
                             result.push(LineIntersection::new(u, t));
                         }
                     }
