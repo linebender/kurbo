@@ -418,6 +418,27 @@ impl Rect {
         Rect::new(x0, y0, x1, y1)
     }
 
+    /// Scales the `Rect` with respect to the origin (the point `(0, 0)`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    ///
+    /// let rect = Rect::new(2., 2., 4., 6.).scale_from_origin(2.);
+    /// assert_eq!(rect.x0, 4.);
+    /// assert_eq!(rect.x1, 8.);
+    /// ```
+    #[inline]
+    pub fn scale_from_origin(self, amount: f64) -> Rect {
+        Rect {
+            x0: self.x0 * amount,
+            y0: self.y0 * amount,
+            x1: self.x1 * amount,
+            y1: self.y1 * amount,
+        }
+    }
+
     /// Creates a new [`RoundedRect`] from this `Rect` and the provided
     /// corner radius.
     #[inline]
