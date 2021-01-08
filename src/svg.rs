@@ -276,9 +276,9 @@ impl<'a> SvgLexer<'a> {
     fn get_cmd(&mut self, last_cmd: u8) -> Option<u8> {
         self.skip_ws();
         if let Some(c) = self.get_byte() {
-            if (c >= b'a' && c <= b'z') || (c >= b'A' && c <= b'Z') {
+            if (b'a'..=b'z').contains(&c) || (b'A'..=b'Z').contains(&c) {
                 return Some(c);
-            } else if last_cmd != 0 && (c == b'-' || c == b'.' || (c >= b'0' && c <= b'9')) {
+            } else if last_cmd != 0 && (c == b'-' || c == b'.' || (b'0'..=b'9').contains(&c)) {
                 // Plausible number start
                 self.unget();
                 return Some(last_cmd);
@@ -310,7 +310,7 @@ impl<'a> SvgLexer<'a> {
         let mut digit_count = 0;
         let mut seen_period = false;
         while let Some(c) = self.get_byte() {
-            if c >= b'0' && c <= b'9' {
+            if (b'0'..=b'9').contains(&c) {
                 digit_count += 1;
             } else if c == b'.' && !seen_period {
                 seen_period = true;
@@ -325,11 +325,11 @@ impl<'a> SvgLexer<'a> {
                 if c == b'-' || c == b'+' {
                     c = self.get_byte().ok_or(SvgParseError::Wrong)?
                 }
-                if !(c >= b'0' && c <= b'9') {
+                if !(b'0'..=b'9').contains(&c) {
                     return Err(SvgParseError::Wrong);
                 }
                 while let Some(c) = self.get_byte() {
-                    if !(c >= b'0' && c <= b'9') {
+                    if !(b'0'..=b'9').contains(&c) {
                         self.unget();
                         break;
                     }
@@ -366,7 +366,7 @@ impl<'a> SvgLexer<'a> {
 
     fn get_maybe_relative(&mut self, cmd: u8) -> Result<Point, SvgParseError> {
         let pt = self.get_number_pair()?;
-        if cmd >= b'a' && cmd <= b'z' {
+        if (b'a'..=b'z').contains(&cmd) {
             Ok(self.last_pt + pt.to_vec2())
         } else {
             Ok(pt)
