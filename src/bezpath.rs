@@ -11,8 +11,8 @@ use arrayvec::ArrayVec;
 use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
-    Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema,
-    ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale,
+    Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
+    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale,
 };
 
 /// A Bézier path.
@@ -689,7 +689,7 @@ impl ParamCurveArea for PathSeg {
 }
 
 impl ParamCurveNearest for PathSeg {
-    fn nearest(&self, p: Point, accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
         match *self {
             PathSeg::Line(line) => line.nearest(p, accuracy),
             PathSeg::Quad(quad) => quad.nearest(p, accuracy),

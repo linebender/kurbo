@@ -8,8 +8,8 @@ use arrayvec::ArrayVec;
 use crate::common::solve_quadratic;
 use crate::common::GAUSS_LEGENDRE_COEFFS_9;
 use crate::{
-    Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
+    Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
 };
 
 /// A single cubic Bézier segment.
@@ -260,17 +260,23 @@ impl ParamCurveArea for CubicBez {
 
 impl ParamCurveNearest for CubicBez {
     /// Find nearest point, using subdivision.
-    fn nearest(&self, p: Point, accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
         let mut best_r = None;
         let mut best_t = 0.0;
         for (t0, t1, q) in self.to_quads(accuracy) {
-            let (t, r) = q.nearest(p, accuracy);
-            if best_r.map(|best_r| r < best_r).unwrap_or(true) {
-                best_t = t0 + t * (t1 - t0);
-                best_r = Some(r);
+            let nearest = q.nearest(p, accuracy);
+            if best_r
+                .map(|best_r| nearest.distance_sq < best_r)
+                .unwrap_or(true)
+            {
+                best_t = t0 + nearest.t * (t1 - t0);
+                best_r = Some(nearest.distance_sq);
             }
         }
-        (best_t, best_r.unwrap())
+        Nearest {
+            t: best_t,
+            distance_sq: best_r.unwrap(),
+        }
     }
 }
 
@@ -340,7 +346,7 @@ impl Iterator for ToQuads {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
+        Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
         ParamCurveExtrema, ParamCurveNearest, Point,
     };
 
@@ -454,9 +460,9 @@ mod tests {
 
     #[test]
     fn cubicbez_nearest() {
-        fn verify(result: (f64, f64), expected: f64) {
+        fn verify(result: Nearest, expected: f64) {
             assert!(
-                (result.0 - expected).abs() < 1e-6,
+                (result.t - expected).abs() < 1e-6,
                 "got {:?} expected {}",
                 result,
                 expected

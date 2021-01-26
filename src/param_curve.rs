@@ -137,12 +137,27 @@ pub trait ParamCurveArea {
     fn signed_area(&self) -> f64;
 }
 
+/// The nearest position on a curve to some point.
+///
+/// This is returned by [`ParamCurveNearest::nearest`]
+#[derive(Debug, Clone, Copy)]
+pub struct Nearest {
+    /// The square of the distance from the nearest position on the curve
+    /// to the given point.
+    pub distance_sq: f64,
+    /// The position on the curve of the nearest point, as a parameter.
+    ///
+    /// To resolve this to a [`Point`], use [`ParamCurve::eval`].
+    pub t: f64,
+}
+
 /// A parametrized curve that reports the nearest point.
 pub trait ParamCurveNearest {
-    /// Find the point on the curve nearest the given point.
+    /// Find the position on the curve that is nearest to the given point.
     ///
-    /// Returns the parameter and the square of the distance.
-    fn nearest(&self, p: Point, accuracy: f64) -> (f64, f64);
+    /// This returns a [`Nearest`] struct that contains information about
+    /// the position.
+    fn nearest(&self, p: Point, accuracy: f64) -> Nearest;
 }
 
 /// A parametrized curve that reports its curvature.

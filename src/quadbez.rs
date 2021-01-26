@@ -7,8 +7,9 @@ use arrayvec::ArrayVec;
 use crate::common::solve_cubic;
 use crate::MAX_EXTREMA;
 use crate::{
-    Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape,
+    Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
+    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
+    Rect, Shape,
 };
 
 /// A single quadratic Bézier segment.
@@ -288,7 +289,7 @@ impl ParamCurveArea for QuadBez {
 
 impl ParamCurveNearest for QuadBez {
     /// Find nearest point, using analytical algorithm based on cubic root finding.
-    fn nearest(&self, p: Point, _accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, _accuracy: f64) -> Nearest {
         fn eval_t(p: Point, t_best: &mut f64, r_best: &mut Option<f64>, t: f64, p0: Point) {
             let r = (p0 - p).hypot2();
             if r_best.map(|r_best| r < r_best).unwrap_or(true) {
@@ -327,7 +328,11 @@ impl ParamCurveNearest for QuadBez {
             eval_t(p, &mut t_best, &mut r_best, 0.0, self.p0);
             eval_t(p, &mut t_best, &mut r_best, 1.0, self.p2);
         }
-        (t_best, r_best.unwrap())
+
+        Nearest {
+            t: t_best,
+            distance_sq: r_best.unwrap(),
+        }
     }
 }
 
@@ -374,8 +379,8 @@ impl Mul<QuadBez> for Affine {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema,
-        ParamCurveNearest, Point, QuadBez,
+        Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
+        ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
     };
 
     fn assert_near(p0: Point, p1: Point, epsilon: f64) {
@@ -466,16 +471,17 @@ mod tests {
         assert!(((Affine::translate((1.0, 0.0)) * q).signed_area() - 3.5 / 3.0).abs() < epsilon);
     }
 
+    fn verify(result: Nearest, expected: f64) {
+        assert!(
+            (result.t - expected).abs() < 1e-6,
+            "got {:?} expected {}",
+            result,
+            expected
+        );
+    }
+
     #[test]
     fn quadbez_nearest() {
-        fn verify(result: (f64, f64), expected: f64) {
-            assert!(
-                (result.0 - expected).abs() < 1e-6,
-                "got {:?} expected {}",
-                result,
-                expected
-            );
-        }
         // y = x^2
         let q = QuadBez::new((-1.0, 1.0), (0.0, -1.0), (1.0, 1.0));
         verify(q.nearest((0.0, 0.0).into(), 1e-3), 0.5);
@@ -493,15 +499,6 @@ mod tests {
     // by the "nearest" calculation - the cubic term is zero.
     #[test]
     fn quadbez_nearest_low_order() {
-        fn verify(result: (f64, f64), expected: f64) {
-            assert!(
-                (result.0 - expected).abs() < 1e-6,
-                "got {:?} expected {}",
-                result,
-                expected
-            );
-        }
-
         let q = QuadBez::new((-1.0, 0.0), (0.0, 0.0), (1.0, 0.0));
 
         verify(q.nearest((0.0, 0.0).into(), 1e-3), 0.5);
