@@ -5,9 +5,9 @@ use std::ops::{Add, Mul, Range, Sub};
 use arrayvec::ArrayVec;
 
 use crate::{
-    Affine, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2, DEFAULT_ACCURACY,
-    MAX_EXTREMA,
+    Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2,
+    DEFAULT_ACCURACY, MAX_EXTREMA,
 };
 
 /// A single line.
@@ -98,11 +98,11 @@ impl ParamCurveArea for Line {
 }
 
 impl ParamCurveNearest for Line {
-    fn nearest(&self, p: Point, _accuracy: f64) -> (f64, f64) {
+    fn nearest(&self, p: Point, _accuracy: f64) -> Nearest {
         let d = self.p1 - self.p0;
         let dotp = d.dot(p - self.p0);
         let d_squared = d.dot(d);
-        if dotp <= 0.0 {
+        let (t, distance_sq) = if dotp <= 0.0 {
             (0.0, (p - self.p0).hypot2())
         } else if dotp >= d_squared {
             (1.0, (p - self.p1).hypot2())
@@ -110,7 +110,8 @@ impl ParamCurveNearest for Line {
             let t = dotp / d_squared;
             let dist = (p - self.eval(t)).hypot2();
             (t, dist)
-        }
+        };
+        Nearest { t, distance_sq }
     }
 }
 
