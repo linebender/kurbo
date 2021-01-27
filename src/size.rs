@@ -346,14 +346,6 @@ impl From<Size> for (f64, f64) {
     }
 }
 
-//FIXME: remove for 0.6.0 https://github.com/linebender/kurbo/issues/95
-impl Into<Size> for Vec2 {
-    #[inline]
-    fn into(self) -> Size {
-        self.to_size()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
