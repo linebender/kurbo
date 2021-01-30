@@ -231,28 +231,19 @@ impl Shape for RoundedRect {
 
         let radii = self.radii();
 
-        // Start with the area of the bounding rect
-        let mut area = self.rect.area();
-
-        // Do for each corner
-        for radius in [
-            radii.top_left,
-            radii.top_right,
-            radii.bottom_right,
-            radii.bottom_left,
-        ]
-        .iter()
-        {
-            // The following would subtract the square and add the quarter-
-            // circle...
-            // area -= radius * radius;
-            // area += FRAC_PI_4 * radius * radius;
-
-            // ...but it can be simplified as:
-            area += (FRAC_PI_4 - 1.0) * radius * radius;
-        }
-
-        area
+        // Start with the area of the bounding rectangle. For each corner,
+        // subtract the area of the corner under the quarter-circle, and add
+        // back the area of the quarter-circle.
+        self.rect.area()
+            + [
+                radii.top_left,
+                radii.top_right,
+                radii.bottom_right,
+                radii.bottom_left,
+            ]
+            .iter()
+            .map(|radius| (FRAC_PI_4 - 1.0) * radius * radius)
+            .sum::<f64>()
     }
 
     #[inline]
@@ -273,24 +264,19 @@ impl Shape for RoundedRect {
 
         let radii = self.radii();
 
-        // Start with the perimeter of the bounding rect
-        let mut perimeter = self.rect.perimeter(1.0);
-
-        // Do for each corner
-        for radius in [
-            radii.top_left,
-            radii.top_right,
-            radii.bottom_right,
-            radii.bottom_left,
-        ]
-        .iter()
-        {
-            // Simplified version of subtracting the square border and adding
-            // the quarter-circle radius.
-            perimeter += (-2.0 + FRAC_PI_2) * radius;
-        }
-
-        perimeter
+        // Start with the full perimeter. For each corner, subtract the
+        // border surrounding the rounded corner and add the quarter-circle
+        // perimeter.
+        self.rect.perimeter(1.0)
+            + ([
+                radii.top_left,
+                radii.top_right,
+                radii.bottom_right,
+                radii.bottom_left,
+            ])
+            .iter()
+            .map(|radius| (-2.0 + FRAC_PI_2) * radius)
+            .sum::<f64>()
     }
 
     #[inline]
