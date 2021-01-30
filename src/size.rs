@@ -207,7 +207,7 @@ impl Size {
     /// Convert this `Size` into a [`RoundedRect`] with origin `(0.0, 0.0)` and
     /// the provided corner radius.
     #[inline]
-    pub fn to_rounded_rect(self, radii: RoundedRectRadii) -> RoundedRect {
+    pub fn to_rounded_rect(self, radii: impl Into<RoundedRectRadii>) -> RoundedRect {
         self.to_rect().to_rounded_rect(radii)
     }
 

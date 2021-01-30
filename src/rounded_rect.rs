@@ -11,18 +11,14 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 /// The easiest way to create a `RoundedRect` is often to create a [`Rect`],
 /// and then call [`to_rounded_rect`].
 ///
-/// Corner radius values can be set by directly passing a [`RoundedRectRadii`]
-/// to [`RoundedRect::new`] or [`Rect::to_rounded_rect`]. [`RoundedRectRadii`]
-/// also provides type conversion from `f64` and `(f64, f64, f64, f64)`:
-///
 /// ```
 /// use kurbo::{RoundedRect, RoundedRectRadii};
 ///
 /// // Create a rounded rectangle with a single radius for all corners:
-/// RoundedRect::new(0.0, 0.0, 10.0, 10.0, 5.0.into());
+/// RoundedRect::new(0.0, 0.0, 10.0, 10.0, 5.0);
 ///
 /// // Or, specify different radii for each corner, clockwise from the top-left:
-/// RoundedRect::new(0.0, 0.0, 10.0, 10.0, (1.0, 2.0, 3.0, 4.0).into());
+/// RoundedRect::new(0.0, 0.0, 10.0, 10.0, (1.0, 2.0, 3.0, 4.0));
 /// ```
 ///
 /// [`to_rounded_rect`]: Rect::to_rounded_rect
@@ -40,7 +36,13 @@ impl RoundedRect {
     ///
     /// The result will have non-negative width, height and radii.
     #[inline]
-    pub fn new(x0: f64, y0: f64, x1: f64, y1: f64, radii: RoundedRectRadii) -> RoundedRect {
+    pub fn new(
+        x0: f64,
+        y0: f64,
+        x1: f64,
+        y1: f64,
+        radii: impl Into<RoundedRectRadii>,
+    ) -> RoundedRect {
         RoundedRect::from_rect(Rect::new(x0, y0, x1, y1), radii)
     }
 
@@ -50,10 +52,10 @@ impl RoundedRect {
     ///
     /// See also [`Rect::to_rounded_rect`], which offers the same utility.
     #[inline]
-    pub fn from_rect(rect: Rect, radii: RoundedRectRadii) -> RoundedRect {
+    pub fn from_rect(rect: Rect, radii: impl Into<RoundedRectRadii>) -> RoundedRect {
         let rect = rect.abs();
         let shortest_side_length = (rect.width()).min(rect.height());
-        let radii = radii.abs().clamp(shortest_side_length / 2.0);
+        let radii = radii.into().abs().clamp(shortest_side_length / 2.0);
 
         RoundedRect { rect, radii }
     }
@@ -65,7 +67,7 @@ impl RoundedRect {
     pub fn from_points(
         p0: impl Into<Point>,
         p1: impl Into<Point>,
-        radii: RoundedRectRadii,
+        radii: impl Into<RoundedRectRadii>,
     ) -> RoundedRect {
         Rect::from_points(p0, p1).to_rounded_rect(radii)
     }
@@ -77,7 +79,7 @@ impl RoundedRect {
     pub fn from_origin_size(
         origin: impl Into<Point>,
         size: impl Into<Size>,
-        radii: RoundedRectRadii,
+        radii: impl Into<RoundedRectRadii>,
     ) -> RoundedRect {
         Rect::from_origin_size(origin, size).to_rounded_rect(radii)
     }
@@ -427,18 +429,18 @@ mod tests {
 
         // Extremum: 0.0 radius corner -> rectangle
         let rect = Rect::new(0.0, 0.0, 100.0, 100.0);
-        let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 0.0.into());
+        let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 0.0);
         assert!((rect.area() - rounded_rect.area()).abs() < epsilon);
 
         // Extremum: half-size radius corner -> circle
         let circle = Circle::new((0.0, 0.0), 50.0);
-        let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 50.0.into());
+        let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 50.0);
         assert!((circle.area() - rounded_rect.area()).abs() < epsilon);
     }
 
     #[test]
     fn winding() {
-        let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, (5.0, 5.0, 5.0, 0.0).into());
+        let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, (5.0, 5.0, 5.0, 0.0));
         assert_eq!(rect.winding(Point::new(0.0, 0.0)), 1);
         assert_eq!(rect.winding(Point::new(-5.0, 0.0)), 1); // left edge
         assert_eq!(rect.winding(Point::new(0.0, 20.0)), 1); // bottom edge
@@ -446,13 +448,13 @@ mod tests {
         assert_eq!(rect.winding(Point::new(-5.0, 20.0)), 1); // bottom-left corner (has a radius of 0)
         assert_eq!(rect.winding(Point::new(-10.0, 0.0)), 0);
 
-        let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0.into()); // rectangle
+        let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0); // rectangle
         assert_eq!(rect.winding(Point::new(10.0, 20.0)), 1); // bottom-right corner
     }
 
     #[test]
     fn bez_conversion() {
-        let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, 5.0.into());
+        let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, 5.0);
         let p = rect.to_path(1e-9);
         // Note: could be more systematic about tolerance tightness.
         let epsilon = 1e-7;

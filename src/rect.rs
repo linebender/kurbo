@@ -442,7 +442,7 @@ impl Rect {
     /// Creates a new [`RoundedRect`] from this `Rect` and the provided
     /// corner radius.
     #[inline]
-    pub fn to_rounded_rect(self, radii: RoundedRectRadii) -> RoundedRect {
+    pub fn to_rounded_rect(self, radii: impl Into<RoundedRectRadii>) -> RoundedRect {
         RoundedRect::from_rect(self, radii)
     }
 
