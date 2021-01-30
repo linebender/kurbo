@@ -53,6 +53,42 @@ impl RoundedRectRadii {
             bottom_left: radius,
         }
     }
+
+    /// Takes the absolute value of all corner radii.
+    pub fn abs(&self) -> Self {
+        RoundedRectRadii::new(
+            self.top_left.abs(),
+            self.top_right.abs(),
+            self.bottom_right.abs(),
+            self.bottom_left.abs(),
+        )
+    }
+
+    /// For each corner, takes the min of that corner's radius and `max`.
+    pub fn clamp(&self, max: f64) -> Self {
+        RoundedRectRadii::new(
+            self.top_left.min(max),
+            self.top_right.min(max),
+            self.bottom_right.min(max),
+            self.bottom_left.min(max),
+        )
+    }
+
+    /// Returns true if all radius values are finite.
+    pub fn is_finite(&self) -> bool {
+        self.top_left.is_finite()
+            && self.top_right.is_finite()
+            && self.bottom_right.is_finite()
+            && self.bottom_left.is_finite()
+    }
+
+    /// Returns true if any corner radius value is NaN.
+    pub fn is_nan(&self) -> bool {
+        self.top_left.is_nan()
+            || self.top_right.is_nan()
+            || self.bottom_right.is_nan()
+            || self.bottom_left.is_nan()
+    }
 }
 
 impl From<f64> for RoundedRectRadii {

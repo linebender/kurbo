@@ -1,4 +1,4 @@
-//! A circle arc.
+//! An ellipse arc.
 
 use crate::{PathEl, Point, Rect, Shape, Vec2};
 use std::{
@@ -30,7 +30,7 @@ impl Arc {
     pub fn append_iter(&self, tolerance: f64) -> ArcAppendIter {
         let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
-        // Number of subdivisions per circle based on error tolerance.
+        // Number of subdivisions per ellipse based on error tolerance.
         // Note: this may slightly underestimate the error for quadrants.
         let n_err = (1.1163 * scaled_err).powf(1.0 / 6.0).max(3.999_999);
         let n = (n_err * self.sweep_angle.abs() * (1.0 / (2.0 * PI))).ceil();

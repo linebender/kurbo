@@ -3,7 +3,7 @@
 use std::fmt;
 use std::ops::{Add, Sub};
 
-use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, Shape, Size, Vec2};
+use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape, Size, Vec2};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -442,8 +442,8 @@ impl Rect {
     /// Creates a new [`RoundedRect`] from this `Rect` and the provided
     /// corner radius.
     #[inline]
-    pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
-        RoundedRect::from_rect(self, radius)
+    pub fn to_rounded_rect(self, radii: RoundedRectRadii) -> RoundedRect {
+        RoundedRect::from_rect(self, radii)
     }
 
     /// Returns the [`Ellipse`] that is bounded by this `Rect`.
