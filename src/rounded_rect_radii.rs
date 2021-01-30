@@ -17,7 +17,7 @@
 use std::convert::From;
 
 /// Radii for each corner of a rounded rectangle.
-/// 
+///
 /// The use of `top` as in `top_left` assumes a y-down coordinate space. Piet
 /// (and Druid by extension) uses a y-down coordinate space, but Kurbo also
 /// supports a y-up coordinate space, in which case `top_left` would actually
@@ -95,6 +95,21 @@ impl RoundedRectRadii {
             || self.top_right.is_nan()
             || self.bottom_right.is_nan()
             || self.bottom_left.is_nan()
+    }
+
+    /// If all radii are equal, returns the value of the radii. Otherwise,
+    /// returns `None`.
+    pub fn as_single_radius(&self) -> Option<f64> {
+        let epsilon = 1e-9;
+
+        if (self.top_left - self.top_right).abs() < epsilon
+            && (self.top_right - self.bottom_right).abs() < epsilon
+            && (self.bottom_right - self.bottom_left).abs() < epsilon
+        {
+            Some(self.top_left)
+        } else {
+            None
+        }
     }
 }
 
