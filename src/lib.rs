@@ -118,3 +118,8 @@ pub use crate::size::*;
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;
+
+#[cfg(feature = "euler")]
+mod euler;
+#[cfg(feature = "euler")]
+pub use crate::euler::*;
