@@ -2,7 +2,9 @@
 
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use crate::{Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, Vec2};
+use crate::{
+    Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, RoundedRectRadii, Vec2,
+};
 
 /// A transformation including scaling and translation.
 ///
@@ -227,7 +229,21 @@ impl Mul<RoundedRect> for TranslateScale {
 
     #[inline]
     fn mul(self, other: RoundedRect) -> RoundedRect {
-        RoundedRect::from_rect(self * other.rect(), self.scale * other.radius())
+        RoundedRect::from_rect(self * other.rect(), self * other.radii())
+    }
+}
+
+impl Mul<RoundedRectRadii> for TranslateScale {
+    type Output = RoundedRectRadii;
+
+    #[inline]
+    fn mul(self, other: RoundedRectRadii) -> RoundedRectRadii {
+        RoundedRectRadii::new(
+            self.scale * other.top_left,
+            self.scale * other.top_right,
+            self.scale * other.bottom_right,
+            self.scale * other.bottom_left,
+        )
     }
 }
 

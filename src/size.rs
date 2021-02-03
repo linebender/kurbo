@@ -4,7 +4,7 @@ use std::fmt;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
-use crate::{Rect, RoundedRect, Vec2};
+use crate::{Rect, RoundedRect, RoundedRectRadii, Vec2};
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -207,8 +207,8 @@ impl Size {
     /// Convert this `Size` into a [`RoundedRect`] with origin `(0.0, 0.0)` and
     /// the provided corner radius.
     #[inline]
-    pub fn to_rounded_rect(self, radius: f64) -> RoundedRect {
-        self.to_rect().to_rounded_rect(radius)
+    pub fn to_rounded_rect(self, radii: impl Into<RoundedRectRadii>) -> RoundedRect {
+        self.to_rect().to_rounded_rect(radii)
     }
 
     /// Is this size finite?
