@@ -1,9 +1,9 @@
-use kurbo::{Affine, CubicBez, FitEulerResult, Point, Shape, fit_euler};
-use rand::random;
+use kurbo::{Affine, CubicBez, FitEulerResult, Point, Shape};
 
+#[allow(unused)]
 fn check_euler_int_accuracy() {
     for _ in 0..1000000 {
-        let k0= 8.0 * rand::random::<f64>();
+        let k0 = 8.0 * rand::random::<f64>();
         let k1 = 8.0 * rand::random::<f64>();
         let accurate = kurbo::integ_euler_12n(k0, k1, 8);
         let est = kurbo::integ_euler_12n(k0, k1, 4);
@@ -27,8 +27,14 @@ fn check_euler_int_accuracy() {
 
 fn rand_cubic() -> CubicBez {
     let p0 = Point::new(0., 0.);
-    let p1 = Point::new(rand::random::<f64>() * 0.5, rand::random::<f64>() * 2.0 - 1.0);
-    let p2 = Point::new(rand::random::<f64>() * 0.5 + 0.5, rand::random::<f64>() * 2.0 - 1.0);
+    let p1 = Point::new(
+        rand::random::<f64>() * 0.5,
+        rand::random::<f64>() * 2.0 - 1.0,
+    );
+    let p2 = Point::new(
+        rand::random::<f64>() * 0.5 + 0.5,
+        rand::random::<f64>() * 2.0 - 1.0,
+    );
     let p3 = Point::new(1., 0.);
     CubicBez::new(p0, p1, p2, p3)
 }
@@ -39,7 +45,8 @@ fn cubic_err_scatter() {
 <html>
     <body>
     <svg height="800" width="1000">
-    <line x1="0" y1="0" x2="800" y2="800" stroke="blue" />"##);
+    <line x1="0" y1="0" x2="800" y2="800" stroke="blue" />"##
+    );
     for _ in 0..100000 {
         let c = rand_cubic();
         let es = from_cubic(c);
@@ -52,7 +59,8 @@ fn cubic_err_scatter() {
         if y < 750. {
             let a = Affine::new([20., 0., 0., 20., x, y]);
             let path = (a * c).into_path(1e-6);
-            println!(r##"<path d="{}" fill="none" stroke="#000" />"##,
+            println!(
+                r##"<path d="{}" fill="none" stroke="#000" />"##,
                 path.to_svg()
             );
         }
@@ -71,5 +79,5 @@ fn main() {
 fn from_cubic(c: CubicBez) -> FitEulerResult {
     let th0 = (c.p1 - c.p0).atan2();
     let th1 = -(c.p3 - c.p2).atan2();
-    fit_euler(th0, th1)
+    FitEulerResult::fit_euler(th0, th1)
 }

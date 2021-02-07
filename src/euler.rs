@@ -1,4 +1,36 @@
-use crate::{CubicBez, ParamCurve, ParamCurveArclen, Point};
+use crate::{CubicBez, Line, ParamCurve, ParamCurveArclen, Point};
+
+/// An Euler spiral segment.
+pub struct EulerSeg {
+    p0: Point,
+    p1: Point,
+    es: FitEulerResult,
+}
+/// Parameters for an Euler spiral segment. Does not include endpoint geometry.
+///
+/// This is something of an internal detail for `EulerSeg` and might not make
+/// it to the public interface. It's public here for experimentation.
+pub struct FitEulerResult {
+    k0: f64,
+    k1: f64,
+    chord: f64,
+    chth: f64,
+}
+
+/// A path consisting of piecewise Euler spiral segments.
+pub struct EulerPath(Vec<EulerPathEl>);
+
+/// An element of a piecewise Euler spiral path.
+pub enum EulerPathEl {
+    /// Start a new subpath at the given point.
+    MoveTo(Point),
+    /// A line segment to the given point.
+    LineTo(Point),
+    /// An Euler spiral segment to the given point.
+    EulerTo(FitEulerResult, Point),
+    /// Close the subpath.
+    ClosePath,
+}
 
 fn integ_euler_12(k0: f64, k1: f64) -> (f64, f64) {
     let t1_1 = k0;
@@ -29,19 +61,22 @@ fn integ_euler_12(k0: f64, k1: f64) -> (f64, f64) {
     let t9_10 = t8_8 * t1_2 + t8_9 * t1_1;
     let t10_10 = t8_8 * t2_2;
     let mut u = 1.;
-    u -= (1./24.) * t2_2 + (1./160.) * t2_4;
-    u += (1./1920.) * t4_4 + (1./10752.) * t4_6 + (1./55296.) * t4_8;
-    u -= (1./322560.) * t6_6 + (1./1658880.) * t6_8 + (1./8110080.) * t6_10;
-    u += (1./92897280.) * t8_8 + (1./454164480.) * t8_10;
+    u -= (1. / 24.) * t2_2 + (1. / 160.) * t2_4;
+    u += (1. / 1920.) * t4_4 + (1. / 10752.) * t4_6 + (1. / 55296.) * t4_8;
+    u -= (1. / 322560.) * t6_6 + (1. / 1658880.) * t6_8 + (1. / 8110080.) * t6_10;
+    u += (1. / 92897280.) * t8_8 + (1. / 454164480.) * t8_10;
     u -= 2.4464949595157930e-11 * t10_10;
-    let mut v = (1./12.) * t1_2;
-    v -= (1./480.) * t3_4 + (1./2688.) * t3_6;
-    v += (1./53760.) * t5_6 + (1./276480.) * t5_8 + (1./1351680.) * t5_10;
-    v -= (1./11612160.) * t7_8 + (1./56770560.) * t7_10;
+    let mut v = (1. / 12.) * t1_2;
+    v -= (1. / 480.) * t3_4 + (1. / 2688.) * t3_6;
+    v += (1. / 53760.) * t5_6 + (1. / 276480.) * t5_8 + (1. / 1351680.) * t5_10;
+    v -= (1. / 11612160.) * t7_8 + (1. / 56770560.) * t7_10;
     v += 2.4464949595157932e-10 * t9_10;
     (u, v)
 }
 
+/// A cheaper approximation to the Euler spiral integral. This might be useful
+/// if we have lots of low-deflection segments, but it's not clear it'll be a
+/// whole lot faster.
 /*
 pub fn integ_euler_8(k0: f64, k1: f64) -> (f64, f64) {
     let t1_1 = k0;
@@ -68,19 +103,21 @@ pub fn integ_euler_8(k0: f64, k1: f64) -> (f64, f64) {
 */
 
 #[doc(hidden)]
+/// Computation of the Euler spiral integral using subdivision.
 pub fn integ_euler_12n(mut k0: f64, mut k1: f64, n: usize) -> (f64, f64) {
     let th1 = k0;
     let th2 = 0.5 * k1;
-    let ds =  (n as f64).recip();
+    let ds = (n as f64).recip();
 
     k0 *= ds;
     k1 *= ds;
 
     let mut x = 0.0;
     let mut y = 0.0;
-    let mut s = 0.5 * ds - 0.5;
+    let s0 = 0.5 * ds - 0.5;
 
     for i in 0..n {
+        let s = s0 + ds * (i as f64);
         let km0 = k1 * s + k0;
         let km1 = k1 * ds;
 
@@ -92,11 +129,19 @@ pub fn integ_euler_12n(mut k0: f64, mut k1: f64, n: usize) -> (f64, f64) {
 
         x += cth * u - sth * v;
         y += cth * v + sth * u;
-        s += ds;
     }
     (x * ds, y * ds)
 }
 
+/// The Euler spiral integral.
+///
+/// This approximates Equation 8.1 of the thesis.
+///
+/// Discussion question: should this take an accuracy parameter?
+/// This version basically hardcodes 1e-9. The cost of accuracy is
+/// expected to be modest; the polynomial approximation converges
+/// very rapidly and we expect small deflections, especially for
+/// piecewise Euler spiral representations of other curves.
 fn integ_euler(k0: f64, k1: f64) -> (f64, f64) {
     let est_err_raw = 0.2 * k0 * k0 + k1.abs();
     if est_err_raw < 1.01 {
@@ -111,57 +156,73 @@ fn integ_euler(k0: f64, k1: f64) -> (f64, f64) {
         } else {
             // Maybe determine the formula?
             // Also, for these huge deflections, cephes-style computation
-            // of the fresnel integrals is probably the winning strategy.
+            // of the Fresnel integrals is probably the winning strategy.
             8
         };
         integ_euler_12n(k0, k1, n)
     }
 }
 
-/// Parameters for an Euler spiral segment. Does not include endpoint geometry.
-pub struct FitEulerResult {
-    // These can be recovered from k0, k1, and chth, but it's annoying.
-    th0: f64,
-    th1: f64,
-    k0: f64,
-    k1: f64,
-    chord: f64,
-    chth: f64,
-}
+impl FitEulerResult {
+    /// Find the Euler spiral parameters for the given deflection.
+    ///
+    /// TODO: use research for direct solution.
+    ///
+    /// Discussion question: should this take an accuracy parameter?
+    /// This version basically hardcodes 1e-9.
+    pub fn fit_euler(th0: f64, th1: f64) -> FitEulerResult {
+        // Note: we could skip the solving for very small deflection
+        let mut k1_old = 0.0;
+        let dth = th1 - th0;
+        let k0 = th0 + th1;
+        let mut k1 = (6.0 - (1. / 70.) * dth * dth - 0.1 * k0 * k0) * dth;
+        let mut error_old = dth;
+        for _ in 0..10 {
+            let (u, v) = integ_euler(k0, k1);
+            let chth = v.atan2(u);
+            let error = dth - (0.25 * k1 - 2.0 * chth);
+            if error.abs() < 1e-9 {
+                let chord = u.hypot(v);
+                return FitEulerResult {
+                    k0,
+                    k1,
+                    chord,
+                    chth,
+                };
+            }
+            let new_k1 = k1 + (k1_old - k1) * error / (error - error_old);
+            k1_old = k1;
+            error_old = error;
+            k1 = new_k1;
+        }
+        panic!("fit_euler diverged on {}, {}", th0, th1);
+    }
 
-/// Find the Euler spiral parameters for the given deflection.
-pub fn fit_euler(th0: f64, th1: f64) -> FitEulerResult {
-    // Note: we could skip the solving for very small deflection
-    let mut k1_old = 0.0;
-    let dth = th1 - th0;
-    let k0 = th0 + th1;
-    let mut k1 = (6.0 - (1./70.) * dth * dth - 0.1 * k0 * k0) * dth;
-    let mut error_old = dth;
-    for _ in 0..10 {
+    /// Create a `FitEulerResult` from k0 and k1 parameters.
+    pub fn from_k0_k1(k0: f64, k1: f64) -> FitEulerResult {
         let (u, v) = integ_euler(k0, k1);
         let chth = v.atan2(u);
-        let error = dth - (0.25 * k1 - 2.0 * chth);
-        if error.abs() < 1e-9 {
-            let chord = u.hypot(v);
-            return FitEulerResult { th0, th1, k0, k1, chord, chth };
+        let chord = u.hypot(v);
+        FitEulerResult {
+            k0,
+            k1,
+            chord,
+            chth,
         }
-        let new_k1 = k1 + (k1_old - k1) * error / (error - error_old);
-        k1_old = k1;
-        error_old = error;
-        k1 = new_k1;
     }
-    panic!("fit_euler diverged on {}, {}", th0, th1);
-}
 
-impl FitEulerResult {
+    /// Determine tangent angle at the given parameter.
+    ///
+    /// The sign may be confusing, but it matches the spiro code. When `t = 0`,
+    /// the result is `-th0`, and when `t = 1`, the result is `th1`.
     fn th(&self, t: f64) -> f64 {
         let u = t - 0.5;
-        // Maybe sign of following is wrong; this is confusing. But it matches spiro code.
         (0.5 * self.k1 * u + self.k0) * u - self.chth
     }
 
-    /// TODO
-    // Param t in [0, 1]. Return value assumes chord (0, 0) - (1, 0)
+    /// Evaluate the curve at the given parameter.
+    ///
+    /// The parameter is in the range 0..1, and the result goes from (0, 0) to (1, 0).
     pub fn xy(&self, t: f64) -> Point {
         let thm = self.th(t * 0.5);
         let k0 = self.k0;
@@ -203,11 +264,91 @@ impl FitEulerResult {
     /// It's an experiment to see how useful arclength is. It correlates fairly well,
     /// but can both underestimate and overestimate, so it's better to just make
     /// cubic_euler_err better.
+    ///
+    /// This is an experiment and will probably be removed.
     pub fn est_cubic_err(&self, cubic: CubicBez) -> f64 {
         let cubic_len = cubic.arclen(1e-9);
         let err_arclen = cubic_len * self.chord - 1.0;
 
         let err = self.cubic_euler_err(cubic, 3);
         err.max(err_arclen)
+    }
+}
+
+impl EulerSeg {
+    /// Create a new Euler segment.
+    ///
+    /// TODO: document the conventions. An SVG would be especially nice.
+    pub fn new(p0: Point, p1: Point, th0: f64, th1: f64) -> EulerSeg {
+        let es = FitEulerResult::fit_euler(th0, th1);
+        EulerSeg { p0, p1, es }
+    }
+
+    /// Report whether the segment is a straight line.
+    pub fn is_line(&self) -> bool {
+        self.es.k0 == 0.0 && self.es.k1 == 0.0
+    }
+}
+
+impl ParamCurve for EulerSeg {
+    fn eval(&self, t: f64) -> Point {
+        let Point { x, y } = self.es.xy(t);
+        let chord = self.p1 - self.p0;
+        Point::new(
+            self.p0.x + chord.x * x - chord.y * y,
+            self.p0.y + chord.x * y + chord.y * x,
+        )
+    }
+
+    fn subsegment(&self, range: std::ops::Range<f64>) -> Self {
+        let p0 = self.eval(range.start);
+        let p1 = self.eval(range.end);
+        let dt = range.end - range.start;
+        let k0 = dt * (self.es.k0 + 0.5 * (range.start + range.end - 1.0) * self.es.k1);
+        let k1 = dt * dt * self.es.k1;
+        let es = FitEulerResult::from_k0_k1(k0, k1);
+        EulerSeg { p0, p1, es }
+    }
+
+    fn start(&self) -> Point {
+        self.p0
+    }
+
+    fn end(&self) -> Point {
+        self.p1
+    }
+}
+
+impl ParamCurveArclen for EulerSeg {
+    /// The arc length of the curve.
+    ///
+    /// Note that this implementation is fast and accurate.
+    fn arclen(&self, _accuracy: f64) -> f64 {
+        (self.p1 - self.p0).hypot() / self.es.chord
+    }
+
+    /// The parameter that results in the given arc length.
+    ///
+    /// This implementation is also fast and accurate.
+    fn inv_arclen(&self, arclen: f64, _accuracy: f64) -> f64 {
+        arclen * self.es.chord / (self.p1 - self.p0).hypot()
+    }
+}
+
+// TODO: other ParamCurve traits. The derivative is pretty straightforward but will
+// need a struct.
+
+impl From<Line> for EulerSeg {
+    fn from(l: Line) -> EulerSeg {
+        EulerSeg {
+            p0: l.p0,
+            p1: l.p1,
+            es: FitEulerResult {
+                k0: 0.,
+                k1: 0.,
+                chord: 1.,
+                chth: 0.,
+            },
+        }
     }
 }
