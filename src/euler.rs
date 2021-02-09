@@ -1,15 +1,35 @@
-use crate::{CubicBez, Line, ParamCurve, ParamCurveArclen, Point};
+use crate::{
+    CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Point, Vec2,
+};
 
 /// An Euler spiral segment.
+#[derive(Clone, Copy, Debug)]
 pub struct EulerSeg {
     p0: Point,
     p1: Point,
     es: FitEulerResult,
 }
+
+/// The derivative of an Euler spiral segment.
+#[derive(Clone, Copy)]
+pub struct EulerSegDeriv {
+    c0: f64,
+    c1: f64,
+    c2: f64,
+    scale: f64,
+}
+
+/// The second derivative of an Euler spiral segment.
+pub struct EulerSegDeriv2(EulerSegDeriv);
+
 /// Parameters for an Euler spiral segment. Does not include endpoint geometry.
 ///
 /// This is something of an internal detail for `EulerSeg` and might not make
 /// it to the public interface. It's public here for experimentation.
+///
+/// It's entirely possible the disposition of this is to be inlined into `EulerSeg`.
+/// I'm not sure it's useful by itself, or isn
+#[derive(Clone, Copy, Debug)]
 pub struct FitEulerResult {
     k0: f64,
     k1: f64,
@@ -30,6 +50,16 @@ pub enum EulerPathEl {
     EulerTo(FitEulerResult, Point),
     /// Close the subpath.
     ClosePath,
+}
+
+/// An iterator producing euler segments from a cubic bezier.
+pub struct CubicToEulerIter {
+    c: CubicBez,
+    tolerance: f64,
+    // [t0 * dt .. (t0 + 1) * dt] is the range we're
+    // currently considering.
+    t0: u64,
+    dt: f64,
 }
 
 fn integ_euler_12(k0: f64, k1: f64) -> (f64, f64) {
@@ -284,6 +314,14 @@ impl EulerSeg {
         EulerSeg { p0, p1, es }
     }
 
+    /// Create an Euler segment from a cubic Bézier.
+    ///
+    /// The curve is fit according to G1 geometric Hermite interpolation, in
+    /// other words the endpoints and tangents match the given curve.
+    pub fn from_cubic(c: CubicBez) -> EulerSeg {
+        todo!()
+    }
+
     /// Report whether the segment is a straight line.
     pub fn is_line(&self) -> bool {
         self.es.k0 == 0.0 && self.es.k1 == 0.0
@@ -335,6 +373,65 @@ impl ParamCurveArclen for EulerSeg {
     }
 }
 
+impl ParamCurveDeriv for EulerSeg {
+    type DerivResult = EulerSegDeriv;
+
+    fn deriv(&self) -> Self::DerivResult {
+        let FitEulerResult { k0, k1, chth, .. } = self.es;
+        EulerSegDeriv {
+            c0: 0.5 * k0 - 0.125 * k1 + chth + (self.p1 - self.p0).atan2(),
+            c1: -k0 + 0.5 * k1,
+            c2: -0.5 * k1,
+            scale: self.arclen(0.0),
+        }
+    }
+}
+
+impl ParamCurveCurvature for EulerSeg {
+    fn curvature(&self, t: f64) -> f64 {
+        (self.es.k0 + (t - 0.5) * self.es.k1) * self.es.chord / (self.p1 - self.p0).hypot()
+    }
+}
+
+impl ParamCurve for EulerSegDeriv {
+    fn eval(&self, t: f64) -> Point {
+        let theta = self.c0 + t * self.c1 + t * t * self.c2;
+        (self.scale * Vec2::from_angle(theta)).to_point()
+    }
+
+    fn subsegment(&self, range: std::ops::Range<f64>) -> Self {
+        let t0 = range.start;
+        let t1 = range.end;
+        let dt = t1 - t0;
+        EulerSegDeriv {
+            c0: self.c0 + t0 * self.c1 + t0 * t0 * self.c2,
+            c1: dt * (self.c1 + t0 * self.c2),
+            c2: dt * dt * self.c2,
+            scale: dt * self.scale,
+        }
+    }
+}
+
+impl ParamCurveDeriv for EulerSegDeriv {
+    type DerivResult = EulerSegDeriv2;
+
+    fn deriv(&self) -> Self::DerivResult {
+        EulerSegDeriv2(self.clone())
+    }
+}
+
+impl ParamCurve for EulerSegDeriv2 {
+    fn eval(&self, t: f64) -> Point {
+        let p = self.0.eval(t);
+        let scale = self.0.c1 + 2.0 * t * self.0.c2;
+        Point::new(-p.y * scale, p.x * scale)
+    }
+
+    fn subsegment(&self, range: std::ops::Range<f64>) -> Self {
+        EulerSegDeriv2(self.0.subsegment(range))
+    }
+}
+
 // TODO: other ParamCurve traits. The derivative is pretty straightforward but will
 // need a struct.
 
@@ -349,6 +446,74 @@ impl From<Line> for EulerSeg {
                 chord: 1.,
                 chth: 0.,
             },
+        }
+    }
+}
+
+impl Iterator for CubicToEulerIter {
+    type Item = EulerPathEl;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let t0 = (self.t0 as f64) * self.dt;
+        if t0 == 1.0 {
+            return None;
+        }
+        loop {
+            let t1 = t0 + self.dt;
+            let cubic = self.c.subsegment(t0..t1);
+            let es: EulerSeg = todo!("from cubic");
+            let err: f64 = todo!("compute error");
+            if err <= self.tolerance {
+                self.t0 += 1;
+                let shift = self.t0.trailing_zeros();
+                self.t0 >>= shift;
+                self.dt *= (1 << shift) as f64;
+                return Some(EulerPathEl::EulerTo(es.es, es.p1))
+            }
+            self.dt *= 0.5;
+            // TODO: should probably limit recursion here.
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{EulerSeg, ParamCurve, ParamCurveCurvature, ParamCurveDeriv, Point};
+
+    #[test]
+    fn euler_deriv() {
+        let es = EulerSeg::new(Point::ORIGIN, Point::new(1., 1.), 0.2, 0.3);
+        let esd = es.deriv();
+        const DELTA: f64 = 0.001;
+        for i in 0..11 {
+            let t = (i as f64) * 0.1;
+            let est_deriv = (es.eval(t + 0.5 * DELTA) - es.eval(t - 0.5 * DELTA)) * DELTA.recip();
+            let computed_deriv = esd.eval(t);
+            assert!((est_deriv.to_point() - computed_deriv).hypot() < 1e-7);
+        }
+    }
+
+    #[test]
+    fn euler_deriv_2() {
+        let es = EulerSeg::new(Point::ORIGIN, Point::new(1., 1.), 0.2, 0.3);
+        let esd = es.deriv();
+        let esd2 = esd.deriv();
+        const DELTA: f64 = 0.001;
+        for i in 0..11 {
+            let t = (i as f64) * 0.1;
+            let est_deriv = (esd.eval(t + 0.5 * DELTA) - esd.eval(t - 0.5 * DELTA)) * DELTA.recip();
+            let computed_deriv = esd2.eval(t);
+            assert!((est_deriv.to_point() - computed_deriv).hypot() < 1e-7);
+        }
+    }
+
+    #[test]
+    fn euler_curvature() {
+        let th = std::f64::consts::FRAC_PI_2;
+        let es = EulerSeg::new(Point::ORIGIN, Point::new(0., 1.), th, th);
+        for i in 0..11 {
+            let t = (i as f64) * 0.1;
+            assert!((es.curvature(t) - 2.0).abs() < 1e-9);
         }
     }
 }
