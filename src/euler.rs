@@ -28,7 +28,7 @@ pub struct EulerSegDeriv2(EulerSegDeriv);
 /// it to the public interface. It's public here for experimentation.
 ///
 /// It's entirely possible the disposition of this is to be inlined into `EulerSeg`.
-/// I'm not sure it's useful by itself, or isn
+/// I'm not sure it's useful by itself.
 #[derive(Clone, Copy, Debug)]
 pub struct FitEulerResult {
     k0: f64,
@@ -41,6 +41,7 @@ pub struct FitEulerResult {
 pub struct EulerPath(Vec<EulerPathEl>);
 
 /// An element of a piecewise Euler spiral path.
+#[derive(Clone, Copy, Debug)]
 pub enum EulerPathEl {
     /// Start a new subpath at the given point.
     MoveTo(Point),
@@ -53,6 +54,8 @@ pub enum EulerPathEl {
 }
 
 /// An iterator producing euler segments from a cubic bezier.
+///
+/// Discussion: should this be an anonymous (`from_fn`) type?
 pub struct CubicToEulerIter {
     c: CubicBez,
     tolerance: f64,
@@ -253,7 +256,7 @@ impl FitEulerResult {
     /// Evaluate the curve at the given parameter.
     ///
     /// The parameter is in the range 0..1, and the result goes from (0, 0) to (1, 0).
-    pub fn xy(&self, t: f64) -> Point {
+    pub fn eval(&self, t: f64) -> Point {
         let thm = self.th(t * 0.5);
         let k0 = self.k0;
         let k1 = self.k1;
@@ -263,45 +266,6 @@ impl FitEulerResult {
         let x = u * c - v * s;
         let y = -v * c - u * s;
         Point::new(x, y)
-    }
-
-    /// Calculate error from cubic bezier.
-    ///
-    /// This is a fairly brute-force technique, finely sampling the bezier and
-    /// reporting RMS distance error.
-    pub fn cubic_euler_err(&self, cubic: CubicBez, n: usize) -> f64 {
-        // One way to improve this would be compute arclengths for each segment
-        // and cumulative sum them, rather than from 0 each time.
-        //
-        // We can also consider Legendre-Gauss quadrature.
-        //
-        // It's likely a rough approximation to arclength will be effective
-        // here, for example LGQ with a low order.
-        let cubic_len = cubic.arclen(1e-9);
-        let mut err = 0.0;
-        for i in 0..n {
-            let t = (i + 1) as f64 / ((n + 1) as f64);
-            let norm_len = cubic.subsegment(0.0..t).arclen(1e-9) / cubic_len;
-            let cubic_xy = cubic.eval(t);
-            let euler_xy = self.xy(norm_len);
-            err += (cubic_xy - euler_xy).hypot2();
-        }
-        (err / (n as f64)).sqrt()
-    }
-
-    /// Estimate the error wrt the cubic.
-    ///
-    /// It's an experiment to see how useful arclength is. It correlates fairly well,
-    /// but can both underestimate and overestimate, so it's better to just make
-    /// cubic_euler_err better.
-    ///
-    /// This is an experiment and will probably be removed.
-    pub fn est_cubic_err(&self, cubic: CubicBez) -> f64 {
-        let cubic_len = cubic.arclen(1e-9);
-        let err_arclen = cubic_len * self.chord - 1.0;
-
-        let err = self.cubic_euler_err(cubic, 3);
-        err.max(err_arclen)
     }
 }
 
@@ -319,7 +283,45 @@ impl EulerSeg {
     /// The curve is fit according to G1 geometric Hermite interpolation, in
     /// other words the endpoints and tangents match the given curve.
     pub fn from_cubic(c: CubicBez) -> EulerSeg {
-        todo!()
+        let d01 = c.p1 - c.p0;
+        let d23 = c.p3 - c.p2;
+        let d03 = c.p3 - c.p0;
+        let th0 = d03.cross(d01).atan2(d03.dot(d01));
+        let th1 = d23.cross(d03).atan2(d23.dot(d03));
+        let es = FitEulerResult::fit_euler(th0, th1);
+        EulerSeg {
+            p0: c.p0,
+            p1: c.p3,
+            es,
+        }
+    }
+
+    /// Calculate error from cubic bezier.
+    ///
+    /// This is a fairly brute-force technique, sampling the bezier and
+    /// reporting RMS distance error.
+    ///
+    /// Note: experimentation suggests that n = 4 is enough to estimate the
+    /// error fairly accurately. A future evolution may get rid of that
+    /// parameter, and possibly also a tolerance parameter.
+    pub fn cubic_euler_err(&self, cubic: CubicBez, n: usize) -> f64 {
+        // One way to improve this would be compute arclengths for each segment
+        // and cumulative sum them, rather than from 0 each time.
+        //
+        // We can also consider Legendre-Gauss quadrature.
+        //
+        // It's likely a rough approximation to arclength will be effective
+        // here, for example LGQ with a low order.
+        let cubic_len = cubic.arclen(1e-9);
+        let mut err = 0.0;
+        for i in 0..n {
+            let t = (i + 1) as f64 / ((n + 1) as f64);
+            let norm_len = cubic.subsegment(0.0..t).arclen(1e-9) / cubic_len;
+            let cubic_xy = cubic.eval(t);
+            let euler_xy = self.eval(norm_len);
+            err += (cubic_xy - euler_xy).hypot2();
+        }
+        (err / (n as f64)).sqrt()
     }
 
     /// Report whether the segment is a straight line.
@@ -330,7 +332,7 @@ impl EulerSeg {
 
 impl ParamCurve for EulerSeg {
     fn eval(&self, t: f64) -> Point {
-        let Point { x, y } = self.es.xy(t);
+        let Point { x, y } = self.es.eval(t);
         let chord = self.p1 - self.p0;
         Point::new(
             self.p0.x + chord.x * x - chord.y * y,
@@ -432,8 +434,7 @@ impl ParamCurve for EulerSegDeriv2 {
     }
 }
 
-// TODO: other ParamCurve traits. The derivative is pretty straightforward but will
-// need a struct.
+// TODO: other ParamCurve traits.
 
 impl From<Line> for EulerSeg {
     fn from(l: Line) -> EulerSeg {
@@ -450,8 +451,20 @@ impl From<Line> for EulerSeg {
     }
 }
 
+impl CubicToEulerIter {
+    /// Subdivide a cubic Bézier into piecewise Euler spirals.
+    pub fn new(c: CubicBez, tolerance: f64) -> CubicToEulerIter {
+        CubicToEulerIter {
+            c,
+            tolerance,
+            t0: 0,
+            dt: 1.0,
+        }
+    }
+}
+
 impl Iterator for CubicToEulerIter {
-    type Item = EulerPathEl;
+    type Item = EulerSeg;
 
     fn next(&mut self) -> Option<Self::Item> {
         let t0 = (self.t0 as f64) * self.dt;
@@ -461,15 +474,16 @@ impl Iterator for CubicToEulerIter {
         loop {
             let t1 = t0 + self.dt;
             let cubic = self.c.subsegment(t0..t1);
-            let es: EulerSeg = todo!("from cubic");
-            let err: f64 = todo!("compute error");
+            let es = EulerSeg::from_cubic(cubic);
+            let err: f64 = es.cubic_euler_err(cubic, 4);
             if err <= self.tolerance {
                 self.t0 += 1;
                 let shift = self.t0.trailing_zeros();
                 self.t0 >>= shift;
                 self.dt *= (1 << shift) as f64;
-                return Some(EulerPathEl::EulerTo(es.es, es.p1))
+                return Some(es);
             }
+            self.t0 *= 2;
             self.dt *= 0.5;
             // TODO: should probably limit recursion here.
         }
@@ -478,7 +492,10 @@ impl Iterator for CubicToEulerIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{EulerSeg, ParamCurve, ParamCurveCurvature, ParamCurveDeriv, Point};
+    use crate::{
+        CubicBez, CubicToEulerIter, EulerSeg, ParamCurve, ParamCurveCurvature, ParamCurveDeriv,
+        ParamCurveNearest, Point,
+    };
 
     #[test]
     fn euler_deriv() {
@@ -514,6 +531,32 @@ mod tests {
         for i in 0..11 {
             let t = (i as f64) * 0.1;
             assert!((es.curvature(t) - 2.0).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn euler_from_cubic() {
+        let c = CubicBez::new((0., 0.), (1., 1.1), (2., 2.2), (3., 3.));
+        let es = EulerSeg::from_cubic(c);
+        // Check endpoints match. These should actually be bit-identical.
+        assert!((es.p0 - c.p0).hypot() < 1e-15);
+        assert!((es.p1 - c.p3).hypot() < 1e-15);
+        // Check tangents match. This can have some error but should be small.
+        let des = es.deriv();
+        let dc = c.deriv();
+        assert!(dc.eval(0.0).to_vec2().atan2() - des.eval(0.0).to_vec2().atan2() < 1e-9);
+        assert!(dc.eval(1.0).to_vec2().atan2() - des.eval(1.0).to_vec2().atan2() < 1e-9);
+    }
+
+    #[test]
+    fn cubic_to_euler() {
+        const TOLERANCE: f64 = 1e-4;
+        let c = CubicBez::new((0., 0.), (1., 1.1), (2., 2.2), (3., 3.));
+        for es in CubicToEulerIter::new(c, TOLERANCE) {
+            for i in 0..11 {
+                let t = (i as f64) * 0.1;
+                assert!(c.nearest(es.eval(t), 1e-9).distance_sq < TOLERANCE.powi(2));
+            }
         }
     }
 }

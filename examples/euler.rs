@@ -1,4 +1,4 @@
-use kurbo::{Affine, CubicBez, FitEulerResult, Point, Shape};
+use kurbo::{Affine, CubicBez, EulerSeg, Point, Shape};
 
 #[allow(unused)]
 fn check_euler_int_accuracy() {
@@ -49,12 +49,12 @@ fn cubic_err_scatter() {
     );
     for _ in 0..100000 {
         let c = rand_cubic();
-        let es = from_cubic(c);
-        let err = es.cubic_euler_err(c, 100);
+        let es = EulerSeg::from_cubic(c);
+        let err = es.cubic_euler_err(c, 20);
         //println!("{:?} {}", c, es.cubic_euler_err(c));
         const ERR_SCALE: f64 = 100.0;
         let x = 950. * (err * ERR_SCALE).min(1.0);
-        let est_err = es.est_cubic_err(c);
+        let est_err = es.cubic_euler_err(c, 4);
         let y = 750. * (est_err * ERR_SCALE).min(1.0);
         if y < 750. {
             let a = Affine::new([20., 0., 0., 20., x, y]);
@@ -74,10 +74,4 @@ fn cubic_err_scatter() {
 
 fn main() {
     cubic_err_scatter()
-}
-
-fn from_cubic(c: CubicBez) -> FitEulerResult {
-    let th0 = (c.p1 - c.p0).atan2();
-    let th1 = -(c.p3 - c.p2).atan2();
-    FitEulerResult::fit_euler(th0, th1)
 }
