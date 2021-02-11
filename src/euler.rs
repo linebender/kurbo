@@ -1,5 +1,6 @@
 use crate::{
-    CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Point, Vec2,
+    Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv,
+    PathEl, Point, Vec2,
 };
 
 /// An Euler spiral segment.
@@ -328,6 +329,65 @@ impl EulerSeg {
     pub fn is_line(&self) -> bool {
         self.es.k0 == 0.0 && self.es.k1 == 0.0
     }
+
+    /// Convert to cubic beziers.
+    pub fn to_cubics(&self, accuracy: f64) -> impl Iterator<Item = PathEl> {
+        let this = *self;
+        let mut t0_int = 0usize;
+        let mut dt = 1.0;
+        let mut p0 = self.p0;
+        let chord_atan = (self.p1 - self.p0).atan2();
+        let thresh = accuracy * self.es.chord / (self.p1 - self.p0).hypot();
+        std::iter::from_fn(move || {
+            let t0 = (t0_int as f64) * dt;
+            if t0 == 1.0 {
+                return None;
+            }
+            loop {
+                let t1 = t0 + dt;
+                let k0 = dt * (this.es.k0 + 0.5 * (t0 + t1 - 1.0) * this.es.k1);
+                let k1 = dt * dt * this.es.k1;
+                let a0 = k0.abs();
+                let a1 = k1.abs();
+                // Error metric empirically determined. I can make a Python notebook available.
+                let err = 1.5e-5 * a0.powi(5)
+                    + 6e-4 * a0 * a0 * a1
+                    + 1e-4 * a0 * a1 * a1
+                    + 3e-6 * a1.powi(3);
+                // TODO: scale error by arc length
+                if err * dt <= thresh {
+                    let p1 = if t1 == 1.0 { this.p1 } else { this.eval(t1) };
+
+                    let dp = p1 - p0;
+                    // Transform to take (0, 0) - (1, 0) chord to p0 - p1.
+                    let a = Affine::new([dp.x, dp.y, -dp.y, dp.x, p0.x, p0.y]);
+
+                    // Note: it's possible to this with rotation and normalization,
+                    // avoiding the trig.
+                    let d_atan = chord_atan - dp.atan2();
+                    let th0 = d_atan - this.es.th(t0);
+                    let th1 = -d_atan + this.es.th(t1);
+                    let v0 = Vec2::from_angle(th0);
+                    let c0 = Point::new(0., 0.);
+                    let c1 = c0 + 2. / 3. / (1. + v0.x) * v0;
+                    let c3 = Point::new(1., 0.);
+                    let v1 = Vec2::from_angle(-th1);
+                    let c2 = c3 - 2. / 3. / (1. + v1.x) * v1;
+
+                    // Advance subdivision parameters
+                    t0_int += 1;
+                    let shift = t0_int.trailing_zeros();
+                    t0_int >>= shift;
+                    dt *= (1 << shift) as f64;
+                    p0 = p1;
+
+                    return Some(PathEl::CurveTo(a * c1, a * c2, p1));
+                }
+                t0_int *= 2;
+                dt *= 0.5;
+            }
+        })
+    }
 }
 
 impl ParamCurve for EulerSeg {
@@ -492,10 +552,7 @@ impl Iterator for CubicToEulerIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        CubicBez, CubicToEulerIter, EulerSeg, ParamCurve, ParamCurveCurvature, ParamCurveDeriv,
-        ParamCurveNearest, Point,
-    };
+    use crate::{CubicBez, CubicToEulerIter, EulerSeg, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, ParamCurveNearest, PathEl, Point};
 
     #[test]
     fn euler_deriv() {
@@ -558,5 +615,22 @@ mod tests {
                 assert!(c.nearest(es.eval(t), 1e-9).distance_sq < TOLERANCE.powi(2));
             }
         }
+    }
+
+    #[test]
+    fn euler_to_cubic() {
+        const TOLERANCE: f64 = 1e-4;
+        let es = EulerSeg::new(Point::new(0., 0.), Point::new(10., 0.), 0.5, -0.5);
+        let arclen = es.arclen(1e-9);
+        let mut approx_arclen = 0.0;
+        let mut p0 = es.p0;
+        for seg in es.to_cubics(TOLERANCE) {
+            if let PathEl::CurveTo(p1, p2, p3) = seg {
+                let seg = CubicBez::new(p0, p1, p2, p3);
+                approx_arclen += seg.arclen(1e-9);
+                p0 = p3;
+            }
+        }
+        assert!((arclen - approx_arclen).abs() < TOLERANCE);
     }
 }
