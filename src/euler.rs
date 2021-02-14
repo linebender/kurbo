@@ -1,3 +1,17 @@
+// Copyright 2021 The kurbo Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::{
     Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv,
     PathEl, Point, Vec2,
@@ -167,32 +181,32 @@ pub fn integ_euler_12n(mut k0: f64, mut k1: f64, n: usize) -> (f64, f64) {
     (x * ds, y * ds)
 }
 
-/// The Euler spiral integral.
+/// Evaulate the Euler spiral integral.
 ///
-/// This approximates Equation 8.1 of the thesis.
+/// Compute the following integral to the desired accuracy.
 ///
-/// Discussion question: should this take an accuracy parameter?
-/// This version basically hardcodes 1e-9. The cost of accuracy is
-/// expected to be modest; the polynomial approximation converges
-/// very rapidly and we expect small deflections, especially for
-/// piecewise Euler spiral representations of other curves.
-fn integ_euler(k0: f64, k1: f64) -> (f64, f64) {
-    let est_err_raw = 0.2 * k0 * k0 + k1.abs();
-    if est_err_raw < 1.01 {
+/// $$
+/// \int_{-0.5}^{0.5} \exp(i(k_0 s + 1/2 k_1 s^2)) ds
+/// $$
+///
+/// This is discussed in section 8.1 of [Raph's thesis], and the error bounds
+/// are validated in the notebook attached to the parallel curve blog post.
+///
+/// [Raph's thesis]: https://www.levien.com/phd/thesis.pdf
+#[inline]
+pub fn integ_euler(k0: f64, k1: f64, accuracy: f64) -> (f64, f64) {
+    let thresh = accuracy.powf(1.0 / 6.0);
+    integ_euler_thresh(k0, k1, thresh)
+}
+
+fn integ_euler_thresh(k0: f64, k1: f64, thresh: f64) -> (f64, f64) {
+    let c1 = k1.abs();
+    let c0 = k0.abs() + 0.5 * c1;
+    let est_err_raw = 0.006 * c0 * c0 + 0.029 * c1;
+    if est_err_raw < thresh {
         integ_euler_12(k0, k1)
     } else {
-        let n = if est_err_raw < 3.96 {
-            2
-        } else if est_err_raw < 8.23 {
-            3
-        } else if est_err_raw < 14.2 {
-            4
-        } else {
-            // Maybe determine the formula?
-            // Also, for these huge deflections, cephes-style computation
-            // of the Fresnel integrals is probably the winning strategy.
-            8
-        };
+        let n = (est_err_raw / thresh).ceil() as usize;
         integ_euler_12n(k0, k1, n)
     }
 }
@@ -212,7 +226,7 @@ impl FitEulerResult {
         let mut k1 = (6.0 - (1. / 70.) * dth * dth - 0.1 * k0 * k0) * dth;
         let mut error_old = dth;
         for _ in 0..10 {
-            let (u, v) = integ_euler(k0, k1);
+            let (u, v) = integ_euler(k0, k1, 1e-12);
             let chth = v.atan2(u);
             let error = dth - (0.25 * k1 - 2.0 * chth);
             if error.abs() < 1e-9 {
@@ -234,7 +248,7 @@ impl FitEulerResult {
 
     /// Create a `FitEulerResult` from k0 and k1 parameters.
     pub fn from_k0_k1(k0: f64, k1: f64) -> FitEulerResult {
-        let (u, v) = integ_euler(k0, k1);
+        let (u, v) = integ_euler(k0, k1, 1e-12);
         let chth = v.atan2(u);
         let chord = u.hypot(v);
         FitEulerResult {
@@ -257,11 +271,11 @@ impl FitEulerResult {
     /// Evaluate the curve at the given parameter.
     ///
     /// The parameter is in the range 0..1, and the result goes from (0, 0) to (1, 0).
-    pub fn eval(&self, t: f64) -> Point {
+    pub fn eval(&self, t: f64, accuracy: f64) -> Point {
         let thm = self.th(t * 0.5);
         let k0 = self.k0;
         let k1 = self.k1;
-        let (u, v) = integ_euler((k0 + k1 * 0.5 * (t - 1.0)) * t, k1 * t * t);
+        let (u, v) = integ_euler((k0 + k1 * 0.5 * (t - 1.0)) * t, k1 * t * t, accuracy);
         let s = t / self.chord * thm.sin();
         let c = t / self.chord * thm.cos();
         let x = u * c - v * s;
@@ -392,7 +406,9 @@ impl EulerSeg {
 
 impl ParamCurve for EulerSeg {
     fn eval(&self, t: f64) -> Point {
-        let Point { x, y } = self.es.eval(t);
+        // The accuracy here is somewhat arbitrary, but should be adequate
+        // for most work, and not entail loss of efficiency.
+        let Point { x, y } = self.es.eval(t, 1e-9);
         let chord = self.p1 - self.p0;
         Point::new(
             self.p0.x + chord.x * x - chord.y * y,
@@ -400,6 +416,8 @@ impl ParamCurve for EulerSeg {
         )
     }
 
+    // TODO: I'm not sure this is right, possibly chord needs to be taken into
+    // account too? Need to test.
     fn subsegment(&self, range: std::ops::Range<f64>) -> Self {
         let p0 = self.eval(range.start);
         let p1 = self.eval(range.end);
@@ -478,7 +496,7 @@ impl ParamCurveDeriv for EulerSegDeriv {
     type DerivResult = EulerSegDeriv2;
 
     fn deriv(&self) -> Self::DerivResult {
-        EulerSegDeriv2(self.clone())
+        EulerSegDeriv2(*self)
     }
 }
 
@@ -552,7 +570,10 @@ impl Iterator for CubicToEulerIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CubicBez, CubicToEulerIter, EulerSeg, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, ParamCurveNearest, PathEl, Point};
+    use crate::{
+        CubicBez, CubicToEulerIter, EulerSeg, ParamCurve, ParamCurveArclen, ParamCurveCurvature,
+        ParamCurveDeriv, ParamCurveNearest, PathEl, Point,
+    };
 
     #[test]
     fn euler_deriv() {
