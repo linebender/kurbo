@@ -122,34 +122,6 @@ fn integ_euler_12(k0: f64, k1: f64) -> (f64, f64) {
     (u, v)
 }
 
-/// A cheaper approximation to the Euler spiral integral. This might be useful
-/// if we have lots of low-deflection segments, but it's not clear it'll be a
-/// whole lot faster.
-/*
-pub fn integ_euler_8(k0: f64, k1: f64) -> (f64, f64) {
-    let t1_1 = k0;
-    let t1_2 = 0.5 * k1;
-    let t2_2 = t1_1 * t1_1;
-    let t2_3 = 2. * (t1_1 * t1_2);
-    let t2_4 = t1_2 * t1_2;
-    let t3_4 = t2_2 * t1_2 + t2_3 * t1_1;
-    let t3_6 = t2_4 * t1_2;
-    let t4_4 = t2_2 * t2_2;
-    let t4_5 = 2. * (t2_2 * t2_3);
-    let t4_6 = 2. * (t2_2 * t2_4) + t2_3 * t2_3;
-    let t5_6 = t4_4 * t1_2 + t4_5 * t1_1;
-    let t6_6 = t4_4 * t2_2;
-    let mut u = 1.;
-    u -= (1./24.) * t2_2 + (1./160.) * t2_4;
-    u += (1./1920.) * t4_4 + (1./10752.) * t4_6;
-    u -= (1./322560.) * t6_6;
-    let mut v = (1./12.) * t1_2;
-    v -= (1./480.) * t3_4 + (1./2688.) * t3_6;
-    v += (1./53760.) * t5_6;
-    (u, v)
-}
-*/
-
 #[doc(hidden)]
 /// Computation of the Euler spiral integral using subdivision.
 pub fn integ_euler_12n(mut k0: f64, mut k1: f64, n: usize) -> (f64, f64) {
@@ -193,20 +165,19 @@ pub fn integ_euler_12n(mut k0: f64, mut k1: f64, n: usize) -> (f64, f64) {
 /// are validated in the notebook attached to the parallel curve blog post.
 ///
 /// [Raph's thesis]: https://www.levien.com/phd/thesis.pdf
-#[inline]
 pub fn integ_euler(k0: f64, k1: f64, accuracy: f64) -> (f64, f64) {
-    let thresh = accuracy.powf(1.0 / 6.0);
-    integ_euler_thresh(k0, k1, thresh)
-}
-
-fn integ_euler_thresh(k0: f64, k1: f64, thresh: f64) -> (f64, f64) {
     let c1 = k1.abs();
     let c0 = k0.abs() + 0.5 * c1;
     let est_err_raw = 0.006 * c0 * c0 + 0.029 * c1;
-    if est_err_raw < thresh {
+    // Fun performance note: if the accuracy were always known at compile time,
+    // it would be theoretically cheaper to compare against accuracy^(1/6), which
+    // is computed anyway in the subdivision case. But the cost of the powi(6) is
+    // basically not measurable, and the cost of the ^(1/6) is ballpark double
+    // the integration itself.
+    if est_err_raw.powi(6) < accuracy {
         integ_euler_12(k0, k1)
     } else {
-        let n = (est_err_raw / thresh).ceil() as usize;
+        let n = (est_err_raw / accuracy.powf(1.0 / 6.0)).ceil() as usize;
         integ_euler_12n(k0, k1, n)
     }
 }
