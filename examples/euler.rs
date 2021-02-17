@@ -11,8 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-use kurbo::{Affine, CubicBez, EulerSeg, Point, Shape};
+use kurbo::{Affine, CubicBez, EulerParams, EulerSeg, Point, Shape, Vec2};
 
 #[allow(unused)]
 fn check_euler_int_accuracy() {
@@ -28,16 +27,6 @@ fn check_euler_int_accuracy() {
         }
     }
 }
-
-// errors for 1e-9 threshold
-// n == 1: 1.01
-// n == 2: 3.96
-// n == 3: 8.23
-// n == 4: 14.2
-
-// integ_euler_8
-// est = 0.112: 1e-9
-// 0.62: 1e-6
 
 fn rand_cubic() -> CubicBez {
     let p0 = Point::new(0., 0.);
@@ -86,6 +75,73 @@ fn cubic_err_scatter() {
     );
 }
 
+fn fit_cubic_plot() {
+    const N: usize = 513;
+    println!("P3");
+    println!("{} {}", N, N);
+    println!("255");
+    const KMAX: f64 = 0.1;
+    for y in 0..N {
+        let k1 = KMAX * ((y as f64) * (2.0 / ((N - 1) as f64)) - 1.0);
+        let k1 = 4. * k1;
+        for x in 0..N {
+            let k0 = KMAX * ((x as f64) * (2.0 / ((N - 1) as f64)) - 1.0);
+            let params = EulerParams::from_k0_k1(k0, k1);
+            let es = EulerSeg::from_params(Point::new(0., 0.), Point::new(1., 0.), params);
+            let th0 = -params.th(0.0);
+            let th1 = params.th(1.0);
+            let v0 = Vec2::from_angle(th0);
+            let p0 = Point::new(0., 0.);
+            let p1 = p0 + 2. / 3. / (1. + v0.x) * v0;
+            let p3 = Point::new(1., 0.);
+            let v1 = Vec2::from_angle(-th1);
+            let p2 = p3 - 2. / 3. / (1. + v1.x) * v1;
+            let c = CubicBez::new(p0, p1, p2, p3);
+            let err = es.cubic_euler_err(c, 10);
+            let mut est = 0.0;
+            est += 1.5e-5 * k0.powi(5).abs();
+            est += 3e-6 * k1.powi(3).abs();
+            est += 6e-4 * (k0 * k0 * k1).abs();
+            est += 10e-5 * (k0 * k1 * k1).abs();
+            //est += 5e-3 * (k0 * k0 * k1 * k1).abs();
+            let err = err.powf(0.33);
+            let est = est.powf(0.33);
+            let escale = 1.5e4;
+            let r = escale * err;
+            let g = escale * est;
+            let b = g;
+            println!(
+                "{} {} {}",
+                (r.round() as u32).min(255),
+                (g.round() as u32).min(255),
+                (b.round() as u32).min(255)
+            );
+            //println!("{} {}: {} {}", k0, k1, err, est);
+        }
+    }
+}
+
+fn arc_toy() {
+    let k0 = 0.2;
+    let k1 = 0.0;
+    let params = EulerParams::from_k0_k1(k0, k1);
+    let es = EulerSeg::from_params(Point::new(0., 0.), Point::new(1., 0.), params);
+    let th0 = -params.th(0.0);
+    let th1 = params.th(1.0);
+    let v0 = Vec2::from_angle(th0);
+    let p0 = Point::new(0., 0.);
+    let p1 = p0 + 2. / 3. / (1. + v0.x) * v0;
+    let p3 = Point::new(1., 0.);
+    let v1 = Vec2::from_angle(-th1);
+    let p2 = p3 - 2. / 3. / (1. + v1.x) * v1;
+    let c = CubicBez::new(p0, p1, p2, p3);
+    println!("{:?}", c);
+    let err = es.cubic_euler_err(c, 10);
+    println!("err = {:e}", err);
+}
+
 fn main() {
-    cubic_err_scatter()
+    //cubic_err_scatter()
+    fit_cubic_plot();
+    //arc_toy();
 }

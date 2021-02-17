@@ -22,7 +22,7 @@ use crate::{
 pub struct EulerSeg {
     p0: Point,
     p1: Point,
-    es: FitEulerResult,
+    params: EulerParams,
 }
 
 /// The derivative of an Euler spiral segment.
@@ -45,7 +45,7 @@ pub struct EulerSegDeriv2(EulerSegDeriv);
 /// It's entirely possible the disposition of this is to be inlined into `EulerSeg`.
 /// I'm not sure it's useful by itself.
 #[derive(Clone, Copy, Debug)]
-pub struct FitEulerResult {
+pub struct EulerParams {
     k0: f64,
     k1: f64,
     chord: f64,
@@ -63,7 +63,7 @@ pub enum EulerPathEl {
     /// A line segment to the given point.
     LineTo(Point),
     /// An Euler spiral segment to the given point.
-    EulerTo(FitEulerResult, Point),
+    EulerTo(EulerParams, Point),
     /// Close the subpath.
     ClosePath,
 }
@@ -182,14 +182,14 @@ pub fn integ_euler(k0: f64, k1: f64, accuracy: f64) -> (f64, f64) {
     }
 }
 
-impl FitEulerResult {
+impl EulerParams {
     /// Find the Euler spiral parameters for the given deflection.
     ///
     /// TODO: use research for direct solution.
     ///
     /// Discussion question: should this take an accuracy parameter?
     /// This version basically hardcodes 1e-9.
-    pub fn fit_euler(th0: f64, th1: f64) -> FitEulerResult {
+    pub fn fit_euler(th0: f64, th1: f64) -> EulerParams {
         // Note: we could skip the solving for very small deflection
         let mut k1_old = 0.0;
         let dth = th1 - th0;
@@ -202,7 +202,7 @@ impl FitEulerResult {
             let error = dth - (0.25 * k1 - 2.0 * chth);
             if error.abs() < 1e-9 {
                 let chord = u.hypot(v);
-                return FitEulerResult {
+                return EulerParams {
                     k0,
                     k1,
                     chord,
@@ -217,12 +217,12 @@ impl FitEulerResult {
         panic!("fit_euler diverged on {}, {}", th0, th1);
     }
 
-    /// Create a `FitEulerResult` from k0 and k1 parameters.
-    pub fn from_k0_k1(k0: f64, k1: f64) -> FitEulerResult {
+    /// Create a `EulerParams` from k0 and k1 parameters.
+    pub fn from_k0_k1(k0: f64, k1: f64) -> EulerParams {
         let (u, v) = integ_euler(k0, k1, 1e-12);
         let chth = v.atan2(u);
         let chord = u.hypot(v);
-        FitEulerResult {
+        EulerParams {
             k0,
             k1,
             chord,
@@ -234,7 +234,7 @@ impl FitEulerResult {
     ///
     /// The sign may be confusing, but it matches the spiro code. When `t = 0`,
     /// the result is `-th0`, and when `t = 1`, the result is `th1`.
-    fn th(&self, t: f64) -> f64 {
+    pub fn th(&self, t: f64) -> f64 {
         let u = t - 0.5;
         (0.5 * self.k1 * u + self.k0) * u - self.chth
     }
@@ -260,8 +260,8 @@ impl EulerSeg {
     ///
     /// TODO: document the conventions. An SVG would be especially nice.
     pub fn new(p0: Point, p1: Point, th0: f64, th1: f64) -> EulerSeg {
-        let es = FitEulerResult::fit_euler(th0, th1);
-        EulerSeg { p0, p1, es }
+        let params = EulerParams::fit_euler(th0, th1);
+        EulerSeg { p0, p1, params }
     }
 
     /// Create an Euler segment from a cubic Bézier.
@@ -274,11 +274,21 @@ impl EulerSeg {
         let d03 = c.p3 - c.p0;
         let th0 = d03.cross(d01).atan2(d03.dot(d01));
         let th1 = d23.cross(d03).atan2(d23.dot(d03));
-        let es = FitEulerResult::fit_euler(th0, th1);
+        let params = EulerParams::fit_euler(th0, th1);
         EulerSeg {
             p0: c.p0,
             p1: c.p3,
-            es,
+            params,
+        }
+    }
+
+    /// Create a segment from params and endpoints.
+    ///
+    /// Mostly used for experimentation.
+    #[doc(hidden)]
+    pub fn from_params(p0: Point, p1: Point, params: EulerParams) -> EulerSeg {
+        EulerSeg {
+            p0, p1, params
         }
     }
 
@@ -312,7 +322,7 @@ impl EulerSeg {
 
     /// Report whether the segment is a straight line.
     pub fn is_line(&self) -> bool {
-        self.es.k0 == 0.0 && self.es.k1 == 0.0
+        self.params.k0 == 0.0 && self.params.k1 == 0.0
     }
 
     /// Convert to cubic beziers.
@@ -322,7 +332,7 @@ impl EulerSeg {
         let mut dt = 1.0;
         let mut p0 = self.p0;
         let chord_atan = (self.p1 - self.p0).atan2();
-        let thresh = accuracy * self.es.chord / (self.p1 - self.p0).hypot();
+        let thresh = accuracy * self.params.chord / (self.p1 - self.p0).hypot();
         std::iter::from_fn(move || {
             let t0 = (t0_int as f64) * dt;
             if t0 == 1.0 {
@@ -330,11 +340,11 @@ impl EulerSeg {
             }
             loop {
                 let t1 = t0 + dt;
-                let k0 = dt * (this.es.k0 + 0.5 * (t0 + t1 - 1.0) * this.es.k1);
-                let k1 = dt * dt * this.es.k1;
+                let k0 = dt * (this.params.k0 + 0.5 * (t0 + t1 - 1.0) * this.params.k1);
+                let k1 = dt * dt * this.params.k1;
                 let a0 = k0.abs();
                 let a1 = k1.abs();
-                // Error metric empirically determined. I can make a Python notebook available.
+                // Error metric empirically determined, using `fit_cubic_plot` in example.
                 let err = 1.5e-5 * a0.powi(5)
                     + 6e-4 * a0 * a0 * a1
                     + 1e-4 * a0 * a1 * a1
@@ -350,8 +360,8 @@ impl EulerSeg {
                     // Note: it's possible to this with rotation and normalization,
                     // avoiding the trig.
                     let d_atan = chord_atan - dp.atan2();
-                    let th0 = d_atan - this.es.th(t0);
-                    let th1 = -d_atan + this.es.th(t1);
+                    let th0 = d_atan - this.params.th(t0);
+                    let th1 = -d_atan + this.params.th(t1);
                     let v0 = Vec2::from_angle(th0);
                     let c0 = Point::new(0., 0.);
                     let c1 = c0 + 2. / 3. / (1. + v0.x) * v0;
@@ -379,7 +389,7 @@ impl ParamCurve for EulerSeg {
     fn eval(&self, t: f64) -> Point {
         // The accuracy here is somewhat arbitrary, but should be adequate
         // for most work, and not entail loss of efficiency.
-        let Point { x, y } = self.es.eval(t, 1e-9);
+        let Point { x, y } = self.params.eval(t, 1e-9);
         let chord = self.p1 - self.p0;
         Point::new(
             self.p0.x + chord.x * x - chord.y * y,
@@ -393,10 +403,10 @@ impl ParamCurve for EulerSeg {
         let p0 = self.eval(range.start);
         let p1 = self.eval(range.end);
         let dt = range.end - range.start;
-        let k0 = dt * (self.es.k0 + 0.5 * (range.start + range.end - 1.0) * self.es.k1);
-        let k1 = dt * dt * self.es.k1;
-        let es = FitEulerResult::from_k0_k1(k0, k1);
-        EulerSeg { p0, p1, es }
+        let k0 = dt * (self.params.k0 + 0.5 * (range.start + range.end - 1.0) * self.params.k1);
+        let k1 = dt * dt * self.params.k1;
+        let params = EulerParams::from_k0_k1(k0, k1);
+        EulerSeg { p0, p1, params }
     }
 
     fn start(&self) -> Point {
@@ -413,14 +423,14 @@ impl ParamCurveArclen for EulerSeg {
     ///
     /// Note that this implementation is fast and accurate.
     fn arclen(&self, _accuracy: f64) -> f64 {
-        (self.p1 - self.p0).hypot() / self.es.chord
+        (self.p1 - self.p0).hypot() / self.params.chord
     }
 
     /// The parameter that results in the given arc length.
     ///
     /// This implementation is also fast and accurate.
     fn inv_arclen(&self, arclen: f64, _accuracy: f64) -> f64 {
-        arclen * self.es.chord / (self.p1 - self.p0).hypot()
+        arclen * self.params.chord / (self.p1 - self.p0).hypot()
     }
 }
 
@@ -428,7 +438,7 @@ impl ParamCurveDeriv for EulerSeg {
     type DerivResult = EulerSegDeriv;
 
     fn deriv(&self) -> Self::DerivResult {
-        let FitEulerResult { k0, k1, chth, .. } = self.es;
+        let EulerParams { k0, k1, chth, .. } = self.params;
         EulerSegDeriv {
             c0: 0.5 * k0 - 0.125 * k1 + chth + (self.p1 - self.p0).atan2(),
             c1: -k0 + 0.5 * k1,
@@ -440,7 +450,7 @@ impl ParamCurveDeriv for EulerSeg {
 
 impl ParamCurveCurvature for EulerSeg {
     fn curvature(&self, t: f64) -> f64 {
-        (self.es.k0 + (t - 0.5) * self.es.k1) * self.es.chord / (self.p1 - self.p0).hypot()
+        (self.params.k0 + (t - 0.5) * self.params.k1) * self.params.chord / (self.p1 - self.p0).hypot()
     }
 }
 
@@ -490,7 +500,7 @@ impl From<Line> for EulerSeg {
         EulerSeg {
             p0: l.p0,
             p1: l.p1,
-            es: FitEulerResult {
+            params: EulerParams {
                 k0: 0.,
                 k1: 0.,
                 chord: 1.,
