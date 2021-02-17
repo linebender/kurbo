@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+//! A few test programs and experiments to exercise Euler segments.
+
 use kurbo::{Affine, CubicBez, EulerParams, EulerSeg, Point, Shape, Vec2};
 
 #[allow(unused)]
@@ -141,7 +144,18 @@ fn arc_toy() {
 }
 
 fn main() {
-    //cubic_err_scatter()
-    fit_cubic_plot();
-    //arc_toy();
+    if let Some(cmd) = std::env::args().skip(1).next() {
+        match cmd.as_str() {
+            "cubic_err_scatter" => cubic_err_scatter(),
+            "fit_cubic_plot" => fit_cubic_plot(),
+            "arc_toy" => arc_toy(),
+            _ => println!("unknown cmd"),
+        }
+        println!("arg = {}", cmd);
+    } else {
+        println!("usage: euler <cmd>");
+        println!("  cubic_err_scatter: scatter plot of cubic->ES error estimates");
+        println!("  fit_cubic_plot: 2d image of ES->cubic error");
+        println!("  arc_toy: something that prints single ES->cubic fit");
+    }
 }

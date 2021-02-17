@@ -11,7 +11,7 @@ readme = "README.md"
 categories = ["graphics"]
 
 [package.metadata.docs.rs]
-features = ["mint", "serde"]
+features = ["mint", "serde", "euler"]
 
 [dependencies]
 arrayvec = "0.5.1"

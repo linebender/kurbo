@@ -18,6 +18,8 @@ use crate::{
 };
 
 /// An Euler spiral segment.
+///
+/// This is only enabled when the `euler` feature is selected.
 #[derive(Clone, Copy, Debug)]
 pub struct EulerSeg {
     p0: Point,
@@ -39,7 +41,7 @@ pub struct EulerSegDeriv2(EulerSegDeriv);
 
 /// Parameters for an Euler spiral segment. Does not include endpoint geometry.
 ///
-/// This is something of an internal detail for `EulerSeg` and might not make
+/// This is something of an internal detail for [`EulerSeg`] and might not make
 /// it to the public interface. It's public here for experimentation.
 ///
 /// It's entirely possible the disposition of this is to be inlined into `EulerSeg`.
@@ -53,6 +55,10 @@ pub struct EulerParams {
 }
 
 /// A path consisting of piecewise Euler spiral segments.
+///
+/// TODO: develop this further, including implementing the [`Shape`][crate::Shape] trait.
+///
+/// This is only enabled when the `euler` feature is selected.
 pub struct EulerPath(Vec<EulerPathEl>);
 
 /// An element of a piecewise Euler spiral path.
@@ -217,7 +223,7 @@ impl EulerParams {
         panic!("fit_euler diverged on {}, {}", th0, th1);
     }
 
-    /// Create a `EulerParams` from k0 and k1 parameters.
+    /// Create `EulerParams` from k0 and k1 parameters.
     pub fn from_k0_k1(k0: f64, k1: f64) -> EulerParams {
         let (u, v) = integ_euler(k0, k1, 1e-12);
         let chth = v.atan2(u);
