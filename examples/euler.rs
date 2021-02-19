@@ -214,7 +214,7 @@ fn parallel_multi() {
 }
 
 fn main() {
-    if let Some(cmd) = std::env::args().skip(1).next() {
+    if let Some(cmd) = std::env::args().nth(1) {
         match cmd.as_str() {
             "cubic_err_scatter" => cubic_err_scatter(),
             "fit_cubic_plot" => fit_cubic_plot(),
