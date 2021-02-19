@@ -447,27 +447,20 @@ impl EulerSeg {
         let a = this.params.k0 * this.params.chord + chord / offset;
         let dir = a.signum() * offset.signum();
         let est_err = 0.005 * (this.params.k1.powi(2) / a).abs() * arc;
-        let b = 0.5 * this.params.k1 * this.params.chord;
-        let u0 = a - b;
-        let u1 = a + b;
-        let u0 = u0.abs();
-        let u1 = u1.abs();
-        let (n, c0, dc, du_recip);
-        if est_err < accuracy {
-            n = 1;
-            c0 = 0.0;
-            dc = 0.0;
-            du_recip = 0.0;
-        } else {
+        let mut n = 1;
+        let mut c0 = 0.0;
+        let mut dc = 0.0;
+        let mut u0 = 0.0;
+        let mut du_recip = 0.0;
+        if est_err > accuracy {
+            let b = 0.5 * this.params.k1 * this.params.chord;
+            u0 = (a - b).abs();
+            let u1 = (a + b).abs();
             n = (est_err * predict_rel(u0, u1) / accuracy).powf(0.25).ceil() as usize;
             c0 = u0.powf(0.75);
             dc = (u1.powf(0.75) - c0) / (n as f64);
             du_recip = (u1 - u0).recip();
         };
-        println!(
-            "<!--err = {}, u0 = {}, u1 = {}, n = {}-->",
-            est_err, u0, u1, n
-        );
         let mut t0 = 0.0;
         let mut i = 0;
         std::iter::from_fn(move || {

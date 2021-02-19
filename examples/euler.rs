@@ -148,26 +148,26 @@ fn print_svg_path(bp: &BezPath, color: &str) {
     );
 }
 
-fn print_euler_seg(es: &EulerSeg, color: &str) {
+fn print_euler_seg(es: &EulerSeg, color: &str, accuracy: f64) {
     let mut bp = BezPath::new();
     bp.move_to(es.start());
-    bp.extend(es.to_cubics(0.1));
+    bp.extend(es.to_cubics(accuracy));
     print_svg_path(&bp, color);
 }
 
-fn parallel() {
-    println!(
-        r##"<!DOCTYPE html>
-<html>
-    <body>
-    <svg width="1000" height="800">"##
-    );
-    let es = EulerSeg::new(Point::new(100., 300.), Point::new(500., 300.), 0.9, 1.1);
-    print_euler_seg(&es, "black");
+// Note: this is the code that procedurally draws the figures in the
+// "Cleaner parallel curves with Euler spirals" blog post.
 
-    let offset = -250.0;
-    let es_par = es.parallel_approx(offset, -1.);
-    print_euler_seg(&es_par, "#c00");
+fn parallel_1() {
+    println!(
+        "<svg width='450' height='250' viewBox='0 0 450 250' xmlns='http://www.w3.org/2000/svg'>"
+    );
+    let es = EulerSeg::new(Point::new(25., 140.), Point::new(425., 140.), 0.7, 1.1);
+    print_euler_seg(&es, "black", 0.1);
+
+    let offset = -150.0;
+    let es_par = es.parallel_approx(offset, 1.);
+    print_euler_seg(&es_par, "#c00", 0.1);
 
     let mut bp = BezPath::new();
     for seg in es.parallel_curve(offset, 1e-1) {
@@ -178,39 +178,76 @@ fn parallel() {
     }
     print_svg_path(&bp, "#00c");
 
+    println!("</svg>");
+}
+
+fn parallel_2() {
     println!(
-        r#"    </svg>
-    </body>
-</html>"#
+        "<svg width='450' height='400' viewBox='0 0 450 400' xmlns='http://www.w3.org/2000/svg'>"
     );
+    let es = EulerSeg::from_params(
+        Point::new(180., 270.),
+        Point::new(330., 70.),
+        EulerParams::from_k0_k1(0.0, 40.0),
+    );
+    print_euler_seg(&es, "black", 0.1);
+
+    let offset = -60.0;
+
+    let mut bp = BezPath::new();
+    for seg in es.parallel_curve(offset, 1e-1) {
+        if bp.is_empty() {
+            bp.move_to(seg.start());
+        }
+        bp.extend(seg.to_cubics(0.1));
+    }
+    print_svg_path(&bp, "#00c");
+
+    println!("</svg>");
 }
 
 const COLORS: &[&str] = &["#00f", "#aaf"];
 
-fn parallel_multi() {
+fn parallel_multi_1() {
     println!(
-        r##"<!DOCTYPE html>
-<html>
-    <body>
-    <svg width="1000" height="800">"##
+        "<svg width='620' height='620' viewBox='0 0 620 620' xmlns='http://www.w3.org/2000/svg'>"
     );
-    let es = EulerSeg::new(Point::new(300., 600.), Point::new(700., 600.), 0.7, 1.1);
+    let es = EulerSeg::new(Point::new(200., 515.), Point::new(600., 515.), 0.7, 1.1);
     //let es = EulerSeg::from_params(Point::new(300., 400.), Point::new(700., 400.), EulerParams::from_k0_k1(5.0, 10.0));
-    print_euler_seg(&es, "black");
+    print_euler_seg(&es, "black", 0.1);
 
     for i in 1..25 {
         let offset = -25.0 * i as f64;
 
         for (j, seg) in es.parallel_curve(offset, 1e-1).enumerate() {
-            print_euler_seg(&seg, COLORS[j % COLORS.len()]);
+            print_euler_seg(&seg, COLORS[j % COLORS.len()], 0.1);
         }
     }
 
+    println!("</svg>");
+}
+
+fn parallel_multi_2() {
     println!(
-        r#"    </svg>
-    </body>
-</html>"#
+        "<svg width='900' height='770' viewBox='0 0 900 770' xmlns='http://www.w3.org/2000/svg'>"
     );
+    let es = EulerSeg::from_params(
+        Point::new(10., 370.),
+        Point::new(410., 370.),
+        EulerParams::from_k0_k1(5.0, 10.0),
+    );
+    let accuracy = 1e-5;
+    print_euler_seg(&es, "black", accuracy);
+
+    for i in 1..25 {
+        let offset = -25.0 * i as f64;
+
+        for (j, seg) in es.parallel_curve(offset, accuracy).enumerate() {
+            print_euler_seg(&seg, COLORS[j % COLORS.len()], accuracy);
+        }
+    }
+
+    println!("</svg>");
 }
 
 fn main() {
@@ -219,8 +256,10 @@ fn main() {
             "cubic_err_scatter" => cubic_err_scatter(),
             "fit_cubic_plot" => fit_cubic_plot(),
             "arc_toy" => arc_toy(),
-            "parallel" => parallel(),
-            "parallel_multi" => parallel_multi(),
+            "parallel_1" => parallel_1(),
+            "parallel_2" => parallel_2(),
+            "parallel_multi_1" => parallel_multi_1(),
+            "parallel_multi_2" => parallel_multi_2(),
             _ => println!("unknown cmd"),
         }
     } else {
@@ -228,7 +267,7 @@ fn main() {
         println!("  cubic_err_scatter: scatter plot of cubic->ES error estimates");
         println!("  fit_cubic_plot: 2d image of ES->cubic error");
         println!("  arc_toy: something that prints single ES->cubic fit");
-        println!("  parallel: experiment with parallel curves");
-        println!("  parallel_multi: multiple offsets from one ES");
+        println!("  parallel_[12]: experiment with parallel curves");
+        println!("  parallel_multi_[12]: multiple offsets from one ES");
     }
 }
