@@ -17,7 +17,7 @@
 #![cfg(nightly)]
 #![feature(test)]
 extern crate test;
-use test::{Bencher, black_box};
+use test::{black_box, Bencher};
 
 use kurbo::*;
 
@@ -53,12 +53,12 @@ fn integ_euler_8(k0: f64, k1: f64) -> (f64, f64) {
     let t5_6 = t4_4 * t1_2 + t4_5 * t1_1;
     let t6_6 = t4_4 * t2_2;
     let mut u = 1.;
-    u -= (1./24.) * t2_2 + (1./160.) * t2_4;
-    u += (1./1920.) * t4_4 + (1./10752.) * t4_6;
-    u -= (1./322560.) * t6_6;
-    let mut v = (1./12.) * t1_2;
-    v -= (1./480.) * t3_4 + (1./2688.) * t3_6;
-    v += (1./53760.) * t5_6;
+    u -= (1. / 24.) * t2_2 + (1. / 160.) * t2_4;
+    u += (1. / 1920.) * t4_4 + (1. / 10752.) * t4_6;
+    u -= (1. / 322560.) * t6_6;
+    let mut v = (1. / 12.) * t1_2;
+    v -= (1. / 480.) * t3_4 + (1. / 2688.) * t3_6;
+    v += (1. / 53760.) * t5_6;
     (u, v)
 }
 
@@ -75,7 +75,7 @@ fn bench_fit_euler(b: &mut Bencher) {
 }
 
 // Pretty much straight out of the notebook. Looking at the generated
-// asm, the compiler does a good job 
+// asm, the compiler does a good job
 fn fast_fit_euler(th0: f64, th1: f64) -> f64 {
     let k0 = th0 + th1;
     let dth = th1 - th0;

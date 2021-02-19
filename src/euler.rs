@@ -293,9 +293,7 @@ impl EulerSeg {
     /// Mostly used for experimentation.
     #[doc(hidden)]
     pub fn from_params(p0: Point, p1: Point, params: EulerParams) -> EulerSeg {
-        EulerSeg {
-            p0, p1, params
-        }
+        EulerSeg { p0, p1, params }
     }
 
     /// Calculate error from cubic bezier.
@@ -389,6 +387,112 @@ impl EulerSeg {
             }
         })
     }
+
+    /// Generate an approximate parallel curve as a single segment.
+    ///
+    /// The `dir` argument should be -1.0 when the direction is reversed
+    /// due to the curvature exceeding the offset; in other words it should
+    /// have opposite sign on either side of a cusp.
+    pub fn parallel_approx(&self, offset: f64, dir: f64) -> EulerSeg {
+        let th0 = self.params.th(0.0);
+        let th1 = self.params.th(1.0);
+        let v0 = Vec2::new(offset * th0.sin(), offset * th0.cos());
+        let v1 = Vec2::new(offset * th1.sin(), offset * th1.cos());
+        let chord = (self.p1 - self.p0).hypot();
+        let dth = dir * (v1.y - v0.y).atan2(dir * (chord + v1.x - v0.x));
+        let c = (self.p1.x - self.p0.x) / chord;
+        let s = (self.p1.y - self.p0.y) / chord;
+        let p0 = self.p0 + Vec2::new(v0.x * c - v0.y * s, v0.x * s + v0.y * c);
+        let p1 = self.p1 + Vec2::new(v1.x * c - v1.y * s, v1.x * s + v1.y * c);
+        EulerSeg::new(p0, p1, -th0 - dth, th1 + dth)
+    }
+
+    /// Generate a parallel curve as a sequence of segments.
+    pub fn parallel_curve(&self, offset: f64, accuracy: f64) -> impl Iterator<Item = EulerSeg> {
+        let chord = (self.p1 - self.p0).hypot();
+        let a = self.params.k0 * self.params.chord + chord / offset;
+        let b = 0.5 * self.params.k1 * self.params.chord;
+        let u0 = a - b;
+        let u1 = a + b;
+        let (es0, mut es1) = if u0.signum() * u1.signum() < 0.0 {
+            let t_split = u0 / (u0 - u1);
+            let es0 = self.subsegment(0.0..t_split);
+            let es1 = self.subsegment(t_split..1.0);
+            (es0, Some(es1))
+        } else {
+            (*self, None)
+        };
+        let mut inner = es0.parallel_curve_raw(offset, accuracy);
+        std::iter::from_fn(move || {
+            if let Some(seg) = inner.next() {
+                Some(seg)
+            } else {
+                let es1 = es1.take()?;
+                inner = es1.parallel_curve_raw(offset, accuracy);
+                inner.next()
+            }
+        })
+    }
+
+    /// Generate a parallel curve assuming no cusp.
+    fn parallel_curve_raw(&self, offset: f64, accuracy: f64) -> impl Iterator<Item = EulerSeg> {
+        let this = *self;
+
+        // Estimate error for a single-segment approximation
+        let chord = (this.p1 - this.p0).hypot();
+        // TODO: this predicts the L2 norm error, should rescale to accurately predict
+        // Hausdorff norm. From quick experimentation, that's probably multiplying by
+        // about 1.5, but it should be measured more carefully.
+        let arc = chord / this.params.chord;
+        let a = this.params.k0 * this.params.chord + chord / offset;
+        let dir = a.signum() * offset.signum();
+        let est_err = 0.005 * (this.params.k1.powi(2) / a).abs() * arc;
+        let b = 0.5 * this.params.k1 * this.params.chord;
+        let u0 = a - b;
+        let u1 = a + b;
+        let u0 = u0.abs();
+        let u1 = u1.abs();
+        let (n, c0, dc, du_recip);
+        if est_err < accuracy {
+            n = 1;
+            c0 = 0.0;
+            dc = 0.0;
+            du_recip = 0.0;
+        } else {
+            n = (est_err * predict_rel(u0, u1) / accuracy).powf(0.25).ceil() as usize;
+            c0 = u0.powf(0.75);
+            dc = (u1.powf(0.75) - c0) / (n as f64);
+            du_recip = (u1 - u0).recip();
+        };
+        println!(
+            "<!--err = {}, u0 = {}, u1 = {}, n = {}-->",
+            est_err, u0, u1, n
+        );
+        let mut t0 = 0.0;
+        let mut i = 0;
+        std::iter::from_fn(move || {
+            if i == n {
+                None
+            } else {
+                i += 1;
+                let t1 = if i == n {
+                    1.0
+                } else {
+                    ((c0 + (i as f64) * dc).powf(4. / 3.) - u0) * du_recip
+                };
+                let seg_par = this.subsegment(t0..t1).parallel_approx(offset, dir);
+                t0 = t1;
+                Some(seg_par)
+            }
+        })
+    }
+}
+
+/// The error of the worst subdivision compared to the error of the
+/// whole segment, relative to that predicted by n^4 scaling.
+fn predict_rel(t0: f64, t1: f64) -> f64 {
+    let a = t0.min(t1) / t0.max(t1);
+    (128_f64 / 81.).powf(0.25) * ((1.0 - a.powf(0.75)) / (1.0 - a)).powi(4) * (1.0 + a)
 }
 
 impl ParamCurve for EulerSeg {
@@ -403,8 +507,6 @@ impl ParamCurve for EulerSeg {
         )
     }
 
-    // TODO: I'm not sure this is right, possibly chord needs to be taken into
-    // account too? Need to test.
     fn subsegment(&self, range: std::ops::Range<f64>) -> Self {
         let p0 = self.eval(range.start);
         let p1 = self.eval(range.end);
@@ -456,7 +558,8 @@ impl ParamCurveDeriv for EulerSeg {
 
 impl ParamCurveCurvature for EulerSeg {
     fn curvature(&self, t: f64) -> f64 {
-        (self.params.k0 + (t - 0.5) * self.params.k1) * self.params.chord / (self.p1 - self.p0).hypot()
+        (self.params.k0 + (t - 0.5) * self.params.k1) * self.params.chord
+            / (self.p1 - self.p0).hypot()
     }
 }
 
@@ -561,6 +664,20 @@ mod tests {
         CubicBez, CubicToEulerIter, EulerSeg, ParamCurve, ParamCurveArclen, ParamCurveCurvature,
         ParamCurveDeriv, ParamCurveNearest, PathEl, Point,
     };
+
+    #[test]
+    fn euler_subsegment() {
+        let es = EulerSeg::new(Point::ORIGIN, Point::new(1., 1.), 0.2, 0.3);
+        let t0 = 0.3;
+        let t1 = 0.8;
+        let subseg = es.subsegment(t0..t1);
+        for i in 0..11 {
+            let t = (i as f64) * 0.1;
+            let orig_p = es.eval(t0 + (t1 - t0) * t);
+            let subseg_p = subseg.eval(t);
+            assert!((orig_p - subseg_p).hypot() < 1e-11);
+        }
+    }
 
     #[test]
     fn euler_deriv() {

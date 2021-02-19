@@ -14,7 +14,7 @@
 
 //! A few test programs and experiments to exercise Euler segments.
 
-use kurbo::{Affine, CubicBez, EulerParams, EulerSeg, Point, Shape, Vec2};
+use kurbo::{Affine, BezPath, CubicBez, EulerParams, EulerSeg, ParamCurve, Point, Shape, Vec2};
 
 #[allow(unused)]
 fn check_euler_int_accuracy() {
@@ -50,7 +50,7 @@ fn cubic_err_scatter() {
         r##"<!DOCTYPE html>
 <html>
     <body>
-    <svg height="800" width="1000">
+    <svg width="1000" height="800"
     <line x1="0" y1="0" x2="800" y2="800" stroke="blue" />"##
     );
     for _ in 0..100000 {
@@ -65,10 +65,7 @@ fn cubic_err_scatter() {
         if y < 750. {
             let a = Affine::new([20., 0., 0., 20., x, y]);
             let path = (a * c).into_path(1e-6);
-            println!(
-                r##"<path d="{}" fill="none" stroke="#000" />"##,
-                path.to_svg()
-            );
+            println!("<path d='{}' fill='none' stroke='#000' />", path.to_svg());
         }
     }
     println!(
@@ -143,19 +140,95 @@ fn arc_toy() {
     println!("err = {:e}", err);
 }
 
+fn print_svg_path(bp: &BezPath, color: &str) {
+    println!(
+        r"    <path d='{}' stroke='{}' fill='none' />",
+        bp.to_svg(),
+        color
+    );
+}
+
+fn print_euler_seg(es: &EulerSeg, color: &str) {
+    let mut bp = BezPath::new();
+    bp.move_to(es.start());
+    bp.extend(es.to_cubics(0.1));
+    print_svg_path(&bp, color);
+}
+
+fn parallel() {
+    println!(
+        r##"<!DOCTYPE html>
+<html>
+    <body>
+    <svg width="1000" height="800">"##
+    );
+    let es = EulerSeg::new(Point::new(100., 300.), Point::new(500., 300.), 0.9, 1.1);
+    print_euler_seg(&es, "black");
+
+    let offset = -250.0;
+    let es_par = es.parallel_approx(offset, -1.);
+    print_euler_seg(&es_par, "#c00");
+
+    let mut bp = BezPath::new();
+    for seg in es.parallel_curve(offset, 1e-1) {
+        if bp.is_empty() {
+            bp.move_to(seg.start());
+        }
+        bp.extend(seg.to_cubics(0.1));
+    }
+    print_svg_path(&bp, "#00c");
+
+    println!(
+        r#"    </svg>
+    </body>
+</html>"#
+    );
+}
+
+const COLORS: &[&str] = &["#00f", "#aaf"];
+
+fn parallel_multi() {
+    println!(
+        r##"<!DOCTYPE html>
+<html>
+    <body>
+    <svg width="1000" height="800">"##
+    );
+    let es = EulerSeg::new(Point::new(300., 600.), Point::new(700., 600.), 0.7, 1.1);
+    //let es = EulerSeg::from_params(Point::new(300., 400.), Point::new(700., 400.), EulerParams::from_k0_k1(5.0, 10.0));
+    print_euler_seg(&es, "black");
+
+    for i in 1..25 {
+        let offset = -25.0 * i as f64;
+
+        for (j, seg) in es.parallel_curve(offset, 1e-1).enumerate() {
+            print_euler_seg(&seg, COLORS[j % COLORS.len()]);
+        }
+    }
+
+    println!(
+        r#"    </svg>
+    </body>
+</html>"#
+    );
+}
+
 fn main() {
     if let Some(cmd) = std::env::args().skip(1).next() {
         match cmd.as_str() {
             "cubic_err_scatter" => cubic_err_scatter(),
             "fit_cubic_plot" => fit_cubic_plot(),
             "arc_toy" => arc_toy(),
+            "parallel" => parallel(),
+            "parallel_multi" => parallel_multi(),
             _ => println!("unknown cmd"),
         }
-        println!("arg = {}", cmd);
     } else {
         println!("usage: euler <cmd>");
         println!("  cubic_err_scatter: scatter plot of cubic->ES error estimates");
         println!("  fit_cubic_plot: 2d image of ES->cubic error");
         println!("  arc_toy: something that prints single ES->cubic fit");
+        println!("  parallel: experiment with parallel curves");
+        println!("  parallel_multi: multiple offsets from one ES");
     }
 }
