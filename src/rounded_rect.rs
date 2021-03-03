@@ -1,7 +1,9 @@
 //! A rectangle with rounded corners.
 
-use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+use std::ops::{Add, Sub};
+
+use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
 
 /// A rectangle with equally rounded corners.
 ///
@@ -402,6 +404,24 @@ impl Iterator for RoundedRectPathIter {
                 self.rect.next()
             }
         }
+    }
+}
+
+impl Add<Vec2> for RoundedRect {
+    type Output = RoundedRect;
+
+    #[inline]
+    fn add(self, v: Vec2) -> RoundedRect {
+        RoundedRect::from_rect(self.rect + v, self.radii)
+    }
+}
+
+impl Sub<Vec2> for RoundedRect {
+    type Output = RoundedRect;
+
+    #[inline]
+    fn sub(self, v: Vec2) -> RoundedRect {
+        RoundedRect::from_rect(self.rect - v, self.radii)
     }
 }
 
