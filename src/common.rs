@@ -4,6 +4,94 @@
 
 use arrayvec::ArrayVec;
 
+// The `float` mod provides floating point operations on `f64` when in no_std mode using libm. Does
+// nothing when std is enabled.
+#[cfg(not(feature = "std"))]
+mod float {
+    macro_rules! define {
+        () => {};
+        // n-arity
+        ($name:ident ($($args:ident : $tys:ty),*) $($rest:tt)*) => {
+            fn $name(self $(,$args: $tys)*) -> f64;
+            define!($($rest)*);
+        };
+        // 1-arity
+        ($name:ident $($rest:tt)*) => {
+            define!($name() $($rest)*);
+        }
+    }
+
+    /// Methods we need for floats.
+    ///
+    /// Uses libm methods
+    pub trait Float {
+        define!(floor ceil trunc sin cos tan atan2(x: f64) sqrt cbrt signum round abs powf(x: f64)
+            powi(x: i32) copysign(y: f64) hypot(x: f64) log2 ln
+        );
+    }
+
+    macro_rules! implement {
+        () => {};
+        // libm name is different n-arity
+        ($name:ident ($($args:ident : $tys:ty),*) => $libmname:ident $($rest:tt)*) => {
+            #[inline]
+            fn $name(self $(,$args: $tys)*) -> f64 {
+                ::libm::$libmname(self $(,$args)*)
+            }
+            implement!($($rest)*);
+        };
+        // n-arity
+        ($name:ident ($($args:ident : $tys:ty),*) $($rest:tt)*) => {
+            implement!($name ($($args : $tys)*) => $name $($rest)*);
+        };
+        // libm name is different 1-arity
+        ($name:ident => $libmname:ident $($rest:tt)*) => {
+            implement!($name() => $libmname $($rest)*);
+        };
+        // 1-arity
+        ($name:ident $($rest:tt)*) => {
+            implement!($name() => $name $($rest)*);
+        }
+    }
+
+    impl super::Float for f64 {
+        implement!(floor ceil trunc sin cos tan atan2(x: f64) sqrt cbrt round abs => fabs
+            powf(x: f64) => pow copysign(y: f64) hypot(x: f64) log2 ln => log
+        );
+
+        // copied from libstd
+        fn signum(self) -> f64 {
+            if self.is_nan() {
+                Self::NAN
+            } else {
+                1.0_f64.copysign(self)
+            }
+        }
+
+        // This needs to be replaced with something better, if/when std gets more modular.
+        fn powi(mut self, mut i: i32) -> f64 {
+            let mut acc = 1.;
+            if i < 0 {
+                self = self.recip();
+                i *= -1;
+            }
+            while i > 0 {
+                acc *= self;
+                i -= 1;
+            }
+            acc
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+mod float {
+    pub trait Float {}
+    impl Float for f64 {}
+}
+
+pub use float::Float;
+
 /// Adds convenience methods to `f32` and `f64`.
 pub trait FloatExt<T> {
     /// Rounds to the nearest integer away from zero,
@@ -36,6 +124,7 @@ impl FloatExt<f64> for f64 {
     }
 }
 
+#[cfg(feature = "std")]
 impl FloatExt<f32> for f32 {
     #[inline]
     fn expand(&self) -> f32 {

@@ -1,9 +1,14 @@
 //! A rectangle.
 
-use std::fmt;
-use std::ops::{Add, Sub};
-
-use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape, Size, Vec2};
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{
+    std::{
+        fmt,
+        ops::{Add, Sub},
+    },
+    Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape, Size, Vec2,
+};
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]

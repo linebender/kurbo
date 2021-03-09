@@ -14,7 +14,9 @@
 
 //! A description of the radii for each corner of a rounded rectangle.
 
-use std::convert::From;
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::std::convert::From;
 
 /// Radii for each corner of a rounded rectangle.
 ///

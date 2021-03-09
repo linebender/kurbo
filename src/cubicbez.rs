@@ -1,15 +1,15 @@
 //! Cubic Bézier segments.
 
-use std::ops::{Mul, Range};
-
-use crate::MAX_EXTREMA;
 use arrayvec::ArrayVec;
 
-use crate::common::solve_quadratic;
-use crate::common::GAUSS_LEGENDRE_COEFFS_9;
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
 use crate::{
+    common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_9},
+    std::ops::{Mul, Range},
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
+    MAX_EXTREMA,
 };
 
 /// A single cubic Bézier segment.
@@ -301,7 +301,7 @@ impl ParamCurveExtrema for CubicBez {
         let d2 = self.p3 - self.p2;
         one_coord(&mut result, d0.x, d1.x, d2.x);
         one_coord(&mut result, d0.y, d1.y, d2.y);
-        result.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        result.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         result
     }
 }

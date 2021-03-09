@@ -1,9 +1,15 @@
 //! A rectangle with rounded corners.
 
-use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
-use std::ops::{Add, Sub};
-
-use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{
+    arc::ArcAppendIter,
+    std::{
+        f64::consts::{FRAC_PI_2, FRAC_PI_4},
+        ops::{Add, Sub},
+    },
+    Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2,
+};
 
 /// A rectangle with equally rounded corners.
 ///

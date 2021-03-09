@@ -1,10 +1,9 @@
 //! Lines.
 
-use std::ops::{Add, Mul, Range, Sub};
-
 use arrayvec::ArrayVec;
 
 use crate::{
+    std::ops::{Add, Mul, Range, Sub},
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2,
     DEFAULT_ACCURACY, MAX_EXTREMA,

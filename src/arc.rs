@@ -1,9 +1,13 @@
 //! An ellipse arc.
 
-use crate::{PathEl, Point, Rect, Shape, Vec2};
-use std::{
-    f64::consts::{FRAC_PI_2, PI},
-    iter,
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{
+    std::{
+        f64::consts::{FRAC_PI_2, PI},
+        iter,
+    },
+    PathEl, Point, Rect, Shape, Vec2,
 };
 
 /// A single arc segment.

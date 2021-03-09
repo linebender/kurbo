@@ -1,10 +1,10 @@
 //! A trait for curves parametrized by a scalar.
 
-use std::ops::Range;
-
 use arrayvec::ArrayVec;
 
-use crate::{Point, Rect};
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{std::ops::Range, Point, Rect};
 
 /// A default value for methods that take an 'accuracy' argument.
 ///

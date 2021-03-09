@@ -10,11 +10,16 @@ description = "A 2D curves library"
 readme = "README.md"
 categories = ["graphics"]
 
+[features]
+std = ["arrayvec/std"]
+default = ["std"]
+
 [package.metadata.docs.rs]
-features = ["mint", "serde"]
+features = ["std", "mint", "serde"]
 
 [dependencies]
-arrayvec = "0.5.1"
+arrayvec = { version = "0.5.1", default-features = false }
+libm = "0.2.1"
 
 [dependencies.mint]
 version = "0.5.1"

@@ -1,10 +1,15 @@
 //! A simple 2D vector.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-
-use crate::common::FloatExt;
-use crate::{Point, Size};
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{
+    common::FloatExt,
+    std::{
+        fmt,
+        ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+    },
+    Point, Size,
+};
 
 /// A 2D vector.
 ///

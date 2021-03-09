@@ -77,6 +77,7 @@
     clippy::many_single_char_names,
     clippy::excessive_precision
 )]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 mod affine;
 mod arc;
@@ -95,6 +96,8 @@ mod rounded_rect;
 mod rounded_rect_radii;
 mod shape;
 mod size;
+// TODO it might be possible to include some of svg in no_std, would have to investigate.
+#[cfg(feature = "std")]
 mod svg;
 mod translate_scale;
 mod vec2;
@@ -115,6 +118,16 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
+#[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;
+
+/// This module wraps `std` if available, or `core` otherwise. It means we can just use
+/// `crate::std` in the rest of the crate without worrying about whether we are in `no_std` or not.
+mod std {
+    #[cfg(not(feature = "std"))]
+    pub use ::core::*;
+    #[cfg(feature = "std")]
+    pub use ::std::*;
+}

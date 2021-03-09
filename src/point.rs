@@ -1,10 +1,15 @@
 //! A 2D point.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
-
-use crate::common::FloatExt;
-use crate::Vec2;
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{
+    common::FloatExt,
+    std::{
+        fmt,
+        ops::{Add, AddAssign, Sub, SubAssign},
+    },
+    Vec2,
+};
 
 /// A 2D point.
 #[derive(Clone, Copy, Default, PartialEq)]

@@ -1,15 +1,15 @@
 //! Quadratic Bézier segments.
 
-use std::ops::{Mul, Range};
-
 use arrayvec::ArrayVec;
 
-use crate::common::solve_cubic;
-use crate::MAX_EXTREMA;
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
 use crate::{
+    common::solve_cubic,
+    std::ops::{Mul, Range},
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
-    Rect, Shape,
+    Rect, Shape, MAX_EXTREMA,
 };
 
 /// A single quadratic Bézier segment.
@@ -47,6 +47,7 @@ impl QuadBez {
     }
 
     /// Estimate the number of subdivisions for flattening.
+    #[cfg(feature = "std")]
     pub(crate) fn estimate_subdiv(&self, sqrt_tol: f64) -> FlattenParams {
         // Determine transformation to $y = x^2$ parabola.
         let d01 = self.p1 - self.p0;
@@ -86,6 +87,7 @@ impl QuadBez {
     }
 
     // Maps a value from 0..1 to 0..1.
+    #[cfg(feature = "std")]
     pub(crate) fn determine_subdiv_t(&self, params: &FlattenParams, x: f64) -> f64 {
         let a = params.a0 + (params.a2 - params.a0) * x;
         let u = approx_parabola_inv_integral(a);
@@ -151,6 +153,7 @@ impl Iterator for QuadBezIter {
     }
 }
 
+#[cfg(feature = "std")]
 pub(crate) struct FlattenParams {
     a0: f64,
     a2: f64,
@@ -163,12 +166,14 @@ pub(crate) struct FlattenParams {
 /// An approximation to $\int (1 + 4x^2) ^ -0.25 dx$
 ///
 /// This is used for flattening curves.
+#[cfg(feature = "std")]
 fn approx_parabola_integral(x: f64) -> f64 {
     const D: f64 = 0.67;
     x / (1.0 - D + (D.powi(4) + 0.25 * x * x).sqrt().sqrt())
 }
 
 /// An approximation to the inverse parabola integral.
+#[cfg(feature = "std")]
 fn approx_parabola_inv_integral(x: f64) -> f64 {
     const B: f64 = 0.39;
     x * (1.0 - B + (B * B + 0.25 * x * x).sqrt())

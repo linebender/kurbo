@@ -1,11 +1,14 @@
 //! SVG path representation.
 
-use std::error::Error;
-use std::f64::consts::PI;
-use std::fmt::{self, Display, Formatter};
-use std::io::{self, Write};
-
-use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
+use crate::{
+    std::{
+        error::Error,
+        f64::consts::PI,
+        fmt::{self, Display, Formatter},
+        io::{self, Write},
+    },
+    Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2,
+};
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 

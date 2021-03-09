@@ -1,10 +1,15 @@
 //! A 2D size.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
-
-use crate::common::FloatExt;
-use crate::{Rect, RoundedRect, RoundedRectRadii, Vec2};
+#[cfg(not(feature = "std"))]
+use crate::common::Float;
+use crate::{
+    common::FloatExt,
+    std::{
+        fmt,
+        ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
+    },
+    Rect, RoundedRect, RoundedRectRadii, Vec2,
+};
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
