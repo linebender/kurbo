@@ -488,6 +488,7 @@ mod tests {
 
     // ensure to_quads returns something given colinear points
     #[test]
+    #[cfg(feature = "std")]
     fn degenerate_to_quads() {
         let c = CubicBez::new((0., 9.), (6., 6.), (12., 3.0), (18., 0.0));
         let quads = c.to_quads(1e-6).collect::<Vec<_>>();

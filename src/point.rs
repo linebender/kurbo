@@ -301,6 +301,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn display() {
         let p = Point::new(0.12345, 9.87654);
         assert_eq!(format!("{}", p), "(0.12345, 9.87654)");

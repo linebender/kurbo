@@ -68,7 +68,7 @@ mod float {
             }
         }
 
-        // This needs to be replaced with something better, if/when std gets more modular.
+        // This needs to be replaced with something better. I couldn't find it in libm.
         fn powi(mut self, mut i: i32) -> f64 {
             let mut acc = 1.;
             if i < 0 {
@@ -84,12 +84,7 @@ mod float {
     }
 }
 
-#[cfg(feature = "std")]
-mod float {
-    pub trait Float {}
-    impl Float for f64 {}
-}
-
+#[cfg(not(feature = "std"))]
 pub use float::Float;
 
 /// Adds convenience methods to `f32` and `f64`.
@@ -107,7 +102,7 @@ pub trait FloatExt<T> {
     /// let f = 3.7_f64;
     /// let g = 3.0_f64;
     /// let h = -3.7_f64;
-    /// let i = -5.1_f32;
+    /// let i = -5.1_f64;
     ///
     /// assert_eq!(f.expand(), 4.0);
     /// assert_eq!(g.expand(), 3.0);

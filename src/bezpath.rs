@@ -1183,7 +1183,7 @@ mod alloc {
 #[cfg(feature = "std")]
 pub use alloc::BezPath;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
 

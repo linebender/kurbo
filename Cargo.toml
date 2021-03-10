@@ -33,3 +33,11 @@ features = ["derive"]
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
 rand = "0.7.2"
+
+[[example]]
+name = "ellipse"
+required-features = ["std"]
+
+[[example]]
+name = "circle"
+required-features = ["std"]

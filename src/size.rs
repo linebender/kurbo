@@ -356,6 +356,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "std")]
     fn display() {
         let s = Size::new(-0.12345, 9.87654);
         assert_eq!(format!("{}", s), "(-0.12345×9.87654)");

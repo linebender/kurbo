@@ -1,5 +1,4 @@
 //! Example of circle
-
 use kurbo::{Circle, Shape};
 
 fn main() {

@@ -465,6 +465,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn bez_conversion() {
         let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, 5.0);
         let p = rect.to_path(1e-9);

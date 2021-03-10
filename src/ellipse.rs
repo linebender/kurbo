@@ -267,10 +267,9 @@ impl Shape for Ellipse {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))] // requires to_path
 mod tests {
-    use crate::{Ellipse, Point, Shape};
-    use std::f64::consts::PI;
+    use crate::{std::f64::consts::PI, Ellipse, Point, Shape};
 
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy

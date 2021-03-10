@@ -683,6 +683,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn area_sign() {
         let r = Rect::new(0.0, 0.0, 10.0, 10.0);
         let center = r.center();
@@ -704,6 +705,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn display() {
         let r = Rect::from_origin_size((10., 12.23214), (22.222222222, 23.1));
         assert_eq!(
@@ -725,7 +727,7 @@ mod tests {
 
     #[test]
     fn contained_rect_with_aspect_ratio() {
-        use std::f64;
+        use crate::std::f64;
 
         fn case(outer: [f64; 4], aspect_ratio: f64, expected: [f64; 4]) {
             let outer = Rect::new(outer[0], outer[1], outer[2], outer[3]);
@@ -761,6 +763,6 @@ mod tests {
     #[test]
     fn aspect_ratio() {
         let test = Rect::new(0.0, 0.0, 1.0, 1.0);
-        assert!((test.aspect_ratio() - 1.0).abs() < 1e-6);
+        assert_approx_eq(test.aspect_ratio(), 1.0);
     }
 }

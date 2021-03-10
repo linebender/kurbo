@@ -382,7 +382,7 @@ impl From<mint::Vector2<f64>> for Vec2 {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
     #[test]
