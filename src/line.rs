@@ -88,6 +88,11 @@ impl ParamCurveArclen for Line {
     fn arclen(&self, _accuracy: f64) -> f64 {
         (self.p1 - self.p0).hypot()
     }
+
+    #[inline]
+    fn inv_arclen(&self, arclen: f64, _accuracy: f64) -> f64 {
+        arclen / (self.p1 - self.p0).hypot()
+    }
 }
 
 impl ParamCurveArea for Line {

@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use arrayvec::ArrayVec;
 
-use crate::{Point, Rect};
+use crate::{common, Point, Rect};
 
 /// A default value for methods that take an 'accuracy' argument.
 ///
@@ -81,42 +81,39 @@ pub trait ParamCurveArclen: ParamCurve {
     /// may vary with accuracy, if the curve needs to be subdivided.
     fn arclen(&self, accuracy: f64) -> f64;
 
-    /// Solve for the parameter that has the given arclength from the start.
+    /// Solve for the parameter that has the given arc length from the start.
     ///
-    /// This implementation is bisection, which is very robust but not
-    /// necessarily the fastest. It does measure increasingly short
-    /// segments, though, which should be good for subdivision algorithms.
+    /// This implementation uses the IPT method, as provided by
+    /// [`common::solve_itp`]. This is as robust as bisection but
+    /// typically converges faster. In addition, the method takes
+    /// care to compute arc lengths of increasingly smaller segments
+    /// of the curve, as that is likely faster than repeatedly
+    /// computing the arc length of the segment starting at t=0.
     fn inv_arclen(&self, arclen: f64, accuracy: f64) -> f64 {
-        // invariant: the curve's arclen on [0..t_last] + remaining = arclen
-        let mut remaining = arclen;
-        let mut t_last = 0.0;
-        let mut t0 = 0.0;
-        let mut t1 = 1.0;
-        let n = (self.arclen(accuracy) / accuracy).log2().ceil().max(1.0);
-        let inner_accuracy = accuracy / n;
-        let n = n as usize;
-        for i in 0..n {
-            let tm = 0.5 * (t0 + t1);
-            let (range, dir) = if tm > t_last {
-                (t_last..tm, 1.0)
-            } else {
-                (tm..t_last, -1.0)
-            };
-            let range_size = range.end - range.start;
-            let arc = self.subsegment(range).arclen(inner_accuracy);
-            remaining -= arc * dir;
-            if i == n - 1 || (remaining).abs() < accuracy {
-                // Allocate remaining arc evenly.
-                return tm + range_size * remaining / arc;
-            }
-            if remaining > 0.0 {
-                t0 = tm;
-            } else {
-                t1 = tm;
-            }
-            t_last = tm;
+        if arclen <= 0.0 {
+            return 0.0;
         }
-        unreachable!();
+        let total_arclen = self.arclen(accuracy);
+        if arclen >= total_arclen {
+            return 1.0;
+        }
+        let mut t_last = 0.0;
+        let mut arclen_last = 0.0;
+        let epsilon = accuracy / total_arclen;
+        let n = 1.0 - epsilon.log2().ceil().min(0.0);
+        let inner_accuracy = accuracy / n;
+        let f = |t: f64| {
+            let (range, dir) = if t > t_last {
+                (t_last..t, 1.0)
+            } else {
+                (t..t_last, -1.0)
+            };
+            let arc = self.subsegment(range).arclen(inner_accuracy);
+            arclen_last += arc * dir;
+            t_last = t;
+            arclen_last - arclen
+        };
+        common::solve_itp(f, 0.0, 1.0, epsilon, 1, 0.2, -arclen, total_arclen - arclen)
     }
 }
 
