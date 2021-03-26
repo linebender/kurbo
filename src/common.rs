@@ -148,6 +148,94 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
     result
 }
 
+/// Solve an arbitrary function for a zero-crossing.
+///
+/// This uses the [ITP method], as described in the paper
+/// [An Enhancement of the Bisection Method Average Performance Preserving Minmax Optimality].
+///
+/// The values of `ya` and `yb` are given as arguments rather than
+/// computed from `f`, as the values may already be known, or they may
+/// be less expensive to compute as special cases.
+///
+/// It is assumed that `ya < 0.0` and `yb > 0.0`, otherwise unexpected
+/// results may occur.
+///
+/// The value of `epsilon` must be larger than 2^-63 times `b - a`,
+/// otherwise integer overflow may occur. The `a` and `b` parameters
+/// represent the lower and upper bounds of the bracket searched for a
+/// solution.
+///
+/// The ITP method has tuning parameters. This implementation hardwires
+/// k2 to 2, both because it avoids an expensive floating point
+/// exponentiation, and because this value has been tested to work well
+/// with curve fitting problems.
+///
+/// The `n0` parameter controls the relative impact of the bisection and
+/// secant components. When it is 0, the number of iterations is
+/// guaranteed to be no more than the number required by bisection (thus,
+/// this method is strictly superior to bisection). However, when the
+/// function is smooth, a value of 1 gives the secant method more of a
+/// chance to engage, so the average number of iterations is likely
+/// lower, though there can be one more iteration than bisection in the
+/// worst case.
+///
+/// The `k1` parameter is harder to characterize, and interested users
+/// are referred to the paper, as well as encouraged to do empirical
+/// testing. To match the the paper, a value of `0.2 / (b - a)` is
+/// suggested, and this is confirmed to give good results.
+///
+/// When the function is monotonic, the returned result is guaranteed to
+/// be within `epsilon` of the zero crossing. For more detailed analysis,
+/// again see the paper.
+///
+/// [ITP method]: https://en.wikipedia.org/wiki/ITP_Method
+/// [An Enhancement of the Bisection Method Average Performance Preserving Minmax Optimality]: https://dl.acm.org/doi/10.1145/3423597
+#[allow(clippy::too_many_arguments)]
+pub fn solve_itp(
+    mut f: impl FnMut(f64) -> f64,
+    mut a: f64,
+    mut b: f64,
+    epsilon: f64,
+    n0: usize,
+    k1: f64,
+    mut ya: f64,
+    mut yb: f64,
+) -> f64 {
+    let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0) as usize;
+    let nmax = n0 + n1_2;
+    let mut scaled_epsilon = epsilon * (1u64 << nmax) as f64;
+    while b - a > 2.0 * epsilon {
+        let x1_2 = 0.5 * (a + b);
+        let r = scaled_epsilon - 0.5 * (b - a);
+        let xf = (yb * a - ya * b) / (yb - ya);
+        let sigma = x1_2 - xf;
+        // This has k2 = 2 hardwired for efficiency.
+        let delta = k1 * (b - a).powi(2);
+        let xt = if delta <= (x1_2 - xf).abs() {
+            xf + delta.copysign(sigma)
+        } else {
+            x1_2
+        };
+        let xitp = if (xt - x1_2).abs() <= r {
+            xt
+        } else {
+            x1_2 - r.copysign(sigma)
+        };
+        let yitp = f(xitp);
+        if yitp > 0.0 {
+            b = xitp;
+            yb = yitp;
+        } else if yitp < 0.0 {
+            a = xitp;
+            ya = yitp;
+        } else {
+            return xitp;
+        }
+        scaled_epsilon *= 0.5;
+    }
+    0.5 * (a + b)
+}
+
 // Tables of Legendre-Gauss quadrature coefficients, adapted from:
 // <https://pomax.github.io/bezierinfo/legendre-gauss.html>
 
@@ -262,5 +350,34 @@ mod tests {
         verify(solve_quadratic(5.0, 0.0, 1.0), &[]);
         verify(solve_quadratic(5.0, 1.0, 0.0), &[-5.0]);
         verify(solve_quadratic(1.0, 2.0, 1.0), &[-1.0]);
+    }
+
+    #[test]
+    fn test_solve_itp() {
+        let f = |x: f64| x.powi(3) - x - 2.0;
+        let x = solve_itp(f, 1., 2., 1e-12, 0, 0.2, f(1.), f(2.));
+        assert!(f(x).abs() < 6e-12);
+    }
+
+    #[test]
+    fn test_inv_arclen() {
+        use crate::{ParamCurve, ParamCurveArclen};
+        let c = crate::CubicBez::new(
+            (0.0, 0.0),
+            (100.0 / 3.0, 0.0),
+            (200.0 / 3.0, 100.0 / 3.0),
+            (100.0, 100.0),
+        );
+        let target = 100.0;
+        let _ = solve_itp(
+            |t| c.subsegment(0.0..t).arclen(1e-9) - target,
+            0.,
+            1.,
+            1e-6,
+            1,
+            0.2,
+            -target,
+            c.arclen(1e-9) - target,
+        );
     }
 }
