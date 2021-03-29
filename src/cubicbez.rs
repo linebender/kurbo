@@ -431,7 +431,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn cubicbez_signed_area_linear() {
         // y = 1 - x
         let c = CubicBez::new(
