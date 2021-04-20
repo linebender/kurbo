@@ -431,6 +431,17 @@ mod tests {
     }
 
     #[test]
+    fn cubicbez_inv_arclen_accuracy() {
+        let c = CubicBez::new((0.2, 0.73), (0.35, 1.08), (0.85, 1.08), (1.0, 0.73));
+        let true_t = c.inv_arclen(0.5, 1e-12);
+        for i in 1..12 {
+            let accuracy = (0.1f64).powi(i);
+            let approx_t = c.inv_arclen(0.5, accuracy);
+            assert!((approx_t - true_t).abs() <= accuracy);
+        }
+    }
+
+    #[test]
     #[allow(clippy::float_cmp)]
     fn cubicbez_signed_area_linear() {
         // y = 1 - x
