@@ -88,7 +88,7 @@ use crate::{
 /// [`segments` free function]: segments
 /// [`FromIterator<PathEl>`]: std::iter::FromIterator
 /// [`Extend<PathEl>`]: std::iter::Extend
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BezPath(Vec<PathEl>);
 
