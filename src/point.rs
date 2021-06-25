@@ -53,6 +53,12 @@ impl Point {
         (self - other).hypot()
     }
 
+    /// Squared Euclidean distance.
+    #[inline]
+    pub fn distance_squared(self, other: Point) -> f64 {
+        (self - other).hypot2()
+    }
+
     /// Returns a new `Point`,
     /// with `x` and `y` rounded to the nearest integer.
     ///
