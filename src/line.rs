@@ -116,7 +116,7 @@ impl ParamCurveNearest for Line {
             let dist = (p - self.eval(t)).hypot2();
             (t, dist)
         };
-        Nearest { t, distance_sq }
+        Nearest { distance_sq, t }
     }
 }
 

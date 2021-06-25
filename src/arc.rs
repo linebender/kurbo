@@ -143,9 +143,12 @@ impl Shape for Arc {
         PI * x * y
     }
 
-    /// Note: Finding the perimiter of an ellipse is fairly involved, so for now just approximate
-    /// by using the bezier curve representation. (See
-    /// https://en.wikipedia.org/wiki/Ellipse#Circumference)
+    /// The perimiter of the ellipse.
+    ///
+    /// Note: Finding the perimiter of an ellipse is [fairly involved][wikipedia],
+    /// so for now we just approximate by using the bezier curve representation.
+    ///
+    /// [wikipedia]: https://en.wikipedia.org/wiki/Ellipse#Circumference
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
         self.path_segments(0.1).perimeter(accuracy)
