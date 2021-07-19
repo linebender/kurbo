@@ -440,7 +440,7 @@ pub fn flatten(
                         let recip_val = params.val.recip();
                         while target < val_sum + params.val {
                             let u = (target - val_sum) * recip_val;
-                            let t = q.determine_subdiv_t(&params, u);
+                            let t = q.determine_subdiv_t(params, u);
                             let p = q.eval(t);
                             callback(PathEl::LineTo(p));
                             i += 1;
@@ -575,7 +575,7 @@ impl<I: Iterator<Item = PathEl>> Iterator for Segments<I> {
     type Item = PathSeg;
 
     fn next(&mut self) -> Option<PathSeg> {
-        while let Some(el) = self.elements.next() {
+        for el in &mut self.elements {
             // We first need to check whether this is the first
             // path element we see to fill in the start position.
             let (start, last) = self.start_last.get_or_insert_with(|| {
