@@ -13,8 +13,8 @@ use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ellipse {
     /// All ellipses can be represented as an affine map of the unit circle,
-    /// centred at (0, 0). Therefore, we can store the ellipse as an affine map,
-    /// with the implication it is applied to the unit circle to recover the
+    /// centred at (0, 0). Therefore we can store the ellipse as an affine map,
+    /// with the implication that it be applied to the unit circle to recover the
     /// actual shape.
     inner: Affine,
 }
@@ -117,7 +117,7 @@ impl Ellipse {
 
     /// Returns the two radii of this ellipse.
     ///
-    /// The first number is the horizontal radius, and the second is the vertical
+    /// The first number is the horizontal radius and the second is the vertical
     /// radius, before rotation.
     pub fn radii(&self) -> Vec2 {
         self.inner.svd().0

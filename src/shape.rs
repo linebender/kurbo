@@ -55,7 +55,7 @@ pub trait Shape: Sized {
     /// Convert to a Bézier path.
     ///
     /// This always allocates. It is appropriate when both the source
-    /// shape, and the resulting path are to be retained.
+    /// shape and the resulting path are to be retained.
     ///
     /// If you only need to iterate the elements (such as to convert them to
     /// drawing commands for a given 2D graphics API) you should prefer

@@ -136,7 +136,7 @@ impl Shape for Arc {
         iter::once(PathEl::MoveTo(self.center + p0)).chain(self.append_iter(tolerance))
     }
 
-    /// Note: shape isn't closed so area is not well-defined.
+    /// Note: shape isn't closed so area is not well defined.
     #[inline]
     fn area(&self) -> f64 {
         let Vec2 { x, y } = self.radii;
@@ -154,7 +154,7 @@ impl Shape for Arc {
         self.path_segments(0.1).perimeter(accuracy)
     }
 
-    /// Note: shape isn't closed, so a point's winding number is not well-defined.
+    /// Note: shape isn't closed, so a point's winding number is not well defined.
     #[inline]
     fn winding(&self, pt: Point) -> i32 {
         self.path_segments(0.1).winding(pt)
