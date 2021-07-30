@@ -13,8 +13,8 @@ use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ellipse {
     /// All ellipses can be represented as an affine map of the unit circle,
-    /// centred at (0, 0). Therefore we can store the ellipse as an affine map,
-    /// with the implication it be applied to the unit circle to recover the
+    /// centred at (0, 0). Therefore, we can store the ellipse as an affine map,
+    /// with the implication it is applied to the unit circle to recover the
     /// actual shape.
     inner: Affine,
 }
@@ -117,7 +117,7 @@ impl Ellipse {
 
     /// Returns the two radii of this ellipse.
     ///
-    /// The first number is the horizontal radius and the second is the vertical
+    /// The first number is the horizontal radius, and the second is the vertical
     /// radius, before rotation.
     pub fn radii(&self) -> Vec2 {
         self.inner.svd().0
@@ -153,7 +153,7 @@ impl Ellipse {
 impl Add<Vec2> for Ellipse {
     type Output = Ellipse;
 
-    /// In this context adding a `Vec2` applies the corresponding translation to the eliipse.
+    /// In this context adding a `Vec2` applies the corresponding translation to the ellipse.
     #[inline]
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, v: Vec2) -> Ellipse {
@@ -166,7 +166,7 @@ impl Add<Vec2> for Ellipse {
 impl Sub<Vec2> for Ellipse {
     type Output = Ellipse;
 
-    /// In this context subtracting a `Vec2` applies the corresponding translation to the eliipse.
+    /// In this context subtracting a `Vec2` applies the corresponding translation to the ellipse.
     #[inline]
     fn sub(self, v: Vec2) -> Ellipse {
         Ellipse {

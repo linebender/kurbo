@@ -103,7 +103,7 @@ impl Shape for Circle {
         } else {
             // This is empirically determined to fall within error tolerance.
             let n = (1.1163 * scaled_err).powf(1.0 / 6.0).ceil() as usize;
-            // Note: this isn't minimum error, but it is simple and we can easily
+            // Note: this isn't minimum error, but it is simple, and we can easily
             // estimate the error.
             let arm_len = (4.0 / 3.0) * (FRAC_PI_2 / (n as f64)).tan();
             (n, arm_len)

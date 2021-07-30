@@ -28,7 +28,7 @@ pub trait Shape: Sized {
     /// efficient.
     ///
     /// In many cases, shapes are able to iterate their elements without
-    /// allocating; however creating a a [`BezPath`] object always allocates.
+    /// allocating; however creating a [`BezPath`] object always allocates.
     /// If you need an owned [`BezPath`] you can use [`to_path`] instead.
     ///
     /// # Tolerance
@@ -55,7 +55,7 @@ pub trait Shape: Sized {
     /// Convert to a Bézier path.
     ///
     /// This always allocates. It is appropriate when both the source
-    /// shape and the resulting path are to be retained.
+    /// shape, and the resulting path are to be retained.
     ///
     /// If you only need to iterate the elements (such as to convert them to
     /// drawing commands for a given 2D graphics API) you should prefer
@@ -203,10 +203,6 @@ impl<'a, T: Shape> Shape for &'a T {
         (*self).bounding_box()
     }
 
-    fn as_circle(&self) -> Option<Circle> {
-        (*self).as_circle()
-    }
-
     fn as_line(&self) -> Option<Line> {
         (*self).as_line()
     }
@@ -217,6 +213,10 @@ impl<'a, T: Shape> Shape for &'a T {
 
     fn as_rounded_rect(&self) -> Option<RoundedRect> {
         (*self).as_rounded_rect()
+    }
+
+    fn as_circle(&self) -> Option<Circle> {
+        (*self).as_circle()
     }
 
     fn as_path_slice(&self) -> Option<&[PathEl]> {

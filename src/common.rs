@@ -50,7 +50,7 @@ impl FloatExt<f32> for f32 {
 ///
 /// See: <http://mathworld.wolfram.com/CubicFormula.html>
 ///
-/// Returns values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.
+/// Return values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.
 pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
     let mut result = ArrayVec::new();
     let c3_recip = c3.recip();
@@ -95,7 +95,7 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
 
 /// Find real roots of quadratic equation.
 ///
-/// Returns values of x for which c0 + c1 x + c2 x² = 0.
+/// Return values of x for which c0 + c1 x + c2 x² = 0.
 ///
 /// This function tries to be quite numerically robust. If the equation
 /// is nearly linear, it will return the root ignoring the quadratic term;
@@ -181,7 +181,7 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
 ///
 /// The `k1` parameter is harder to characterize, and interested users
 /// are referred to the paper, as well as encouraged to do empirical
-/// testing. To match the the paper, a value of `0.2 / (b - a)` is
+/// testing. To match the paper, a value of `0.2 / (b - a)` is
 /// suggested, and this is confirmed to give good results.
 ///
 /// When the function is monotonic, the returned result is guaranteed to
@@ -322,7 +322,7 @@ mod tests {
     use arrayvec::{Array, ArrayVec};
 
     fn verify<T: Array<Item = f64>>(mut roots: ArrayVec<T>, expected: &[f64]) {
-        assert!(expected.len() == roots.len());
+        assert_eq!(expected.len(), roots.len());
         let epsilon = 1e-6;
         roots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         for i in 0..expected.len() {

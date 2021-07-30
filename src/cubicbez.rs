@@ -146,16 +146,6 @@ impl ParamCurve for CubicBez {
         v.to_point()
     }
 
-    #[inline]
-    fn start(&self) -> Point {
-        self.p0
-    }
-
-    #[inline]
-    fn end(&self) -> Point {
-        self.p3
-    }
-
     fn subsegment(&self, range: Range<f64>) -> CubicBez {
         let (t0, t1) = (range.start, range.end);
         let p0 = self.eval(t0);
@@ -187,6 +177,16 @@ impl ParamCurve for CubicBez {
                 self.p3,
             ),
         )
+    }
+
+    #[inline]
+    fn start(&self) -> Point {
+        self.p0
+    }
+
+    #[inline]
+    fn end(&self) -> Point {
+        self.p3
     }
 }
 
@@ -235,7 +235,7 @@ impl ParamCurveArclen for CubicBez {
         // A degenerate curve where all points are identical will cause infinite recursion in the rec function (well, until MAX_DEPTH at least) in all branches.
         // This test will in addition be true if the bezier curve is just a simple line (i.e. p0=p1 and p2=p3).
         // The constant 0.5 has not been mathematically proven to be small enough, but from empirical tests
-        // a value of about 0.87 should be enough. Thus 0.5 is a conservative value.
+        // a value of about 0.87 should be enough. Thus, 0.5 is a conservative value.
         // See https://github.com/linebender/kurbo/pull/100 for more info.
         if (self.p1 - self.p0).hypot2() + (self.p2 - self.p3).hypot2() <= 0.5 * accuracy * accuracy
         {
@@ -259,7 +259,7 @@ impl ParamCurveArea for CubicBez {
 }
 
 impl ParamCurveNearest for CubicBez {
-    /// Find nearest point, using subdivision.
+    /// Find the nearest point, using subdivision.
     fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
         let mut best_r = None;
         let mut best_t = 0.0;

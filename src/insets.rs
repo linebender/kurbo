@@ -23,7 +23,7 @@ use crate::{Rect, Size};
 ///
 /// The inset value for each edge can be thought of as a delta computed from
 /// the center of the rect to that edge. For instance, with an inset of `2.0` on
-/// the x-axis, a rectange with the origin `(0.0, 0.0)` with that inset added
+/// the x-axis, a rectangle with the origin `(0.0, 0.0)` with that inset added
 /// will have the new origin at `(-2.0, 0.0)`.
 ///
 /// Put alternatively, a positive inset represents increased distance from center,
@@ -112,7 +112,7 @@ pub struct Insets {
 }
 
 impl Insets {
-    /// Zero'd insets.
+    /// Zeroed insets.
     pub const ZERO: Insets = Insets::uniform(0.);
 
     /// New uniform insets.
@@ -185,7 +185,7 @@ impl Insets {
     /// This is equivalent to creating a [`Size`] from the values returned by
     /// [`x_value`] and [`y_value`].
     ///
-    /// This function may return a a size with negative values.
+    /// This function may return a size with negative values.
     ///
     /// # Examples
     ///

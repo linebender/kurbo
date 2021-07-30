@@ -243,7 +243,7 @@ impl BezPath {
     /// segments and their polyline approximations. (In technical terms, this is the
     /// Hausdorff distance). The algorithm attempts to bound this distance between
     /// by `tolerance` but this is not absolutely guaranteed. The appropriate value
-    /// depends on the use, but for antialiasted rendering, a value of 0.25 has been
+    /// depends on the use, but for antialiased rendering, a value of 0.25 has been
     /// determined to give good results. The number of segments tends to scale as the
     /// inverse square root of tolerance.
     ///
@@ -342,7 +342,7 @@ impl FromIterator<PathEl> for BezPath {
 
 /// Allow iteration over references to `BezPath`.
 ///
-/// Note: the semantics are slightly different than simply iterating over the
+/// Note: the semantics are slightly different from simply iterating over the
 /// slice, as it returns `PathEl` items, rather than references.
 impl<'a> IntoIterator for &'a BezPath {
     type Item = PathEl;

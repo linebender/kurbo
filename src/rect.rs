@@ -720,8 +720,6 @@ mod tests {
 
     #[test]
     fn contained_rect_with_aspect_ratio() {
-        use std::f64;
-
         fn case(outer: [f64; 4], aspect_ratio: f64, expected: [f64; 4]) {
             let outer = Rect::new(outer[0], outer[1], outer[2], outer[3]);
             let expected = Rect::new(expected[0], expected[1], expected[2], expected[3]);
