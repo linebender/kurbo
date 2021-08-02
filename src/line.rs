@@ -56,6 +56,14 @@ impl ParamCurve for Line {
     }
 
     #[inline]
+    fn subsegment(&self, range: Range<f64>) -> Line {
+        Line {
+            p0: self.eval(range.start),
+            p1: self.eval(range.end),
+        }
+    }
+
+    #[inline]
     fn start(&self) -> Point {
         self.p0
     }
@@ -63,14 +71,6 @@ impl ParamCurve for Line {
     #[inline]
     fn end(&self) -> Point {
         self.p1
-    }
-
-    #[inline]
-    fn subsegment(&self, range: Range<f64>) -> Line {
-        Line {
-            p0: self.eval(range.start),
-            p1: self.eval(range.end),
-        }
     }
 }
 

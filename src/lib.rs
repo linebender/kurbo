@@ -48,7 +48,7 @@
 //! const DESIRED_ACCURACY: f64 = 0.1;
 //!
 //! /// Given a shape and a point, returns the closest position on the shape's
-//! /// parimeter, or `None` if the shape is malformed.
+//! /// perimeter, or `None` if the shape is malformed.
 //! fn closest_perimeter_point(shape: impl Shape, pt: Point) -> Option<Point> {
 //!     let mut best: Option<(Point, f64)> = None;
 //!     for segment in shape.path_segments(DESIRED_ACCURACY) {

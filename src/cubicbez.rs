@@ -146,16 +146,6 @@ impl ParamCurve for CubicBez {
         v.to_point()
     }
 
-    #[inline]
-    fn start(&self) -> Point {
-        self.p0
-    }
-
-    #[inline]
-    fn end(&self) -> Point {
-        self.p3
-    }
-
     fn subsegment(&self, range: Range<f64>) -> CubicBez {
         let (t0, t1) = (range.start, range.end);
         let p0 = self.eval(t0);
@@ -187,6 +177,16 @@ impl ParamCurve for CubicBez {
                 self.p3,
             ),
         )
+    }
+
+    #[inline]
+    fn start(&self) -> Point {
+        self.p0
+    }
+
+    #[inline]
+    fn end(&self) -> Point {
+        self.p3
     }
 }
 
@@ -259,7 +259,7 @@ impl ParamCurveArea for CubicBez {
 }
 
 impl ParamCurveNearest for CubicBez {
-    /// Find nearest point, using subdivision.
+    /// Find the nearest point, using subdivision.
     fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
         let mut best_r = None;
         let mut best_t = 0.0;

@@ -26,7 +26,7 @@ pub struct Arc {
 impl Arc {
     /// Create an iterator generating Bezier path elements.
     ///
-    /// The generated elemets can be append to an existing bezier path.
+    /// The generated elements can be appended to an existing bezier path.
     pub fn append_iter(&self, tolerance: f64) -> ArcAppendIter {
         let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
@@ -112,7 +112,7 @@ impl Iterator for ArcAppendIter {
     }
 }
 
-/// Take the ellipse radii, how the radii are rotated and the sweep angle, and return a point on
+/// Take the ellipse radii, how the radii are rotated, and the sweep angle, and return a point on
 /// the ellipse.
 fn sample_ellipse(radii: Vec2, x_rotation: f64, angle: f64) -> Vec2 {
     let u = radii.x * angle.cos();
@@ -143,9 +143,9 @@ impl Shape for Arc {
         PI * x * y
     }
 
-    /// The perimiter of the ellipse.
+    /// The perimeter of the ellipse.
     ///
-    /// Note: Finding the perimiter of an ellipse is [fairly involved][wikipedia],
+    /// Note: Finding the perimeter of an ellipse is [fairly involved][wikipedia],
     /// so for now we just approximate by using the bezier curve representation.
     ///
     /// [wikipedia]: https://en.wikipedia.org/wiki/Ellipse#Circumference
@@ -154,7 +154,7 @@ impl Shape for Arc {
         self.path_segments(0.1).perimeter(accuracy)
     }
 
-    /// Note: shape isn't closed so a point's winding number is not well defined.
+    /// Note: shape isn't closed, so a point's winding number is not well defined.
     #[inline]
     fn winding(&self, pt: Point) -> i32 {
         self.path_segments(0.1).winding(pt)

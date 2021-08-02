@@ -111,7 +111,7 @@ impl Vec2 {
     /// Returns a vector of magnitude 1.0 with the same angle as `self`; i.e.
     /// a unit/direction vector.
     ///
-    /// This produces `NaN` values when the magnitutde is `0`.
+    /// This produces `NaN` values when the magnitude is `0`.
     #[inline]
     pub fn normalize(self) -> Vec2 {
         self / self.hypot()
