@@ -621,6 +621,11 @@ impl Shape for Rect {
     fn as_rect(&self) -> Option<Rect> {
         Some(*self)
     }
+
+    #[inline]
+    fn contains(&self, pt: Point) -> bool {
+        self.contains(pt)
+    }
 }
 
 // This is clockwise in a y-down coordinate system for positive area.
