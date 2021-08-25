@@ -9,10 +9,11 @@ use std::ops::{Mul, Range};
 use arrayvec::ArrayVec;
 
 use crate::common::{solve_cubic, solve_quadratic};
+use crate::mindist::min_dist_param;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
-    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale,
+    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale, Vec2,
 };
 
 /// A Bézier path.
@@ -941,6 +942,35 @@ impl PathSeg {
             PathSeg::Quad(quad_bez) => quad_bez.is_nan(),
             PathSeg::Cubic(cubic_bez) => cubic_bez.is_nan(),
         }
+    }
+
+    #[inline]
+    fn as_vec2_vec(&self) -> Vec<Vec2> {
+        match self {
+            PathSeg::Line(l) => vec![l.p0.to_vec2(), l.p1.to_vec2()],
+            PathSeg::Quad(q) => vec![q.p0.to_vec2(), q.p1.to_vec2(), q.p2.to_vec2()],
+            PathSeg::Cubic(c) => {
+                vec![
+                    c.p0.to_vec2(),
+                    c.p1.to_vec2(),
+                    c.p2.to_vec2(),
+                    c.p3.to_vec2(),
+                ]
+            }
+        }
+    }
+
+    /// Minimum distance between two PathSegs
+    pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> (f64, f64, f64) {
+        let (dist, t1, t2) = min_dist_param(
+            &self.as_vec2_vec(),
+            &other.as_vec2_vec(),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            accuracy,
+            None,
+        );
+        (dist.sqrt(), t1, t2)
     }
 }
 
