@@ -945,22 +945,33 @@ impl PathSeg {
     }
 
     #[inline]
-    fn as_vec2_vec(&self) -> Vec<Vec2> {
+    fn as_vec2_vec(&self) -> ArrayVec<[Vec2; 4]> {
+        let mut a = ArrayVec::new();
         match self {
-            PathSeg::Line(l) => vec![l.p0.to_vec2(), l.p1.to_vec2()],
-            PathSeg::Quad(q) => vec![q.p0.to_vec2(), q.p1.to_vec2(), q.p2.to_vec2()],
-            PathSeg::Cubic(c) => {
-                vec![
-                    c.p0.to_vec2(),
-                    c.p1.to_vec2(),
-                    c.p2.to_vec2(),
-                    c.p3.to_vec2(),
-                ]
+            PathSeg::Line(l) => {
+                a.push(l.p0.to_vec2());
+                a.push(l.p1.to_vec2());
             }
-        }
+            PathSeg::Quad(q) => {
+                a.push(q.p0.to_vec2());
+                a.push(q.p1.to_vec2());
+                a.push(q.p2.to_vec2());
+            }
+            PathSeg::Cubic(c) => {
+                a.push(c.p0.to_vec2());
+                a.push(c.p1.to_vec2());
+                a.push(c.p2.to_vec2());
+                a.push(c.p3.to_vec2());
+            }
+        };
+        a
     }
 
     /// Minimum distance between two PathSegs
+    ///
+    /// Returns a tuple of the distance, the path time `t1` of the closest point
+    /// on the first PathSeg, and the path time `t2` of the closest point on the
+    /// second PathSeg.
     pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> (f64, f64, f64) {
         let (dist, t1, t2) = min_dist_param(
             &self.as_vec2_vec(),
