@@ -1,5 +1,5 @@
 use crate::Vec2;
-use core::cmp::Ordering::Less;
+use core::cmp::Ordering;
 
 // This implements the algorithm in "Computing the
 // minimum distance between two Bézier curves", Chen et al.,
@@ -25,7 +25,7 @@ pub fn min_dist_param(
         (S(umax, vmin, bez1, bez2), umax, vmin),
         (S(umax, vmax, bez1, bez2), umax, vmax),
     ];
-    let alpha: f64 = svalues.iter().map(|(a, _, _)| *a).fold(f64::NAN, f64::min);
+    let alpha: f64 = svalues.iter().map(|(a, _, _)| *a).reduce(f64::min).unwrap();
     if let Some(best) = best_alpha {
         if alpha > best {
             return (alpha, umid, vmid);
@@ -137,7 +137,7 @@ pub fn min_dist_param(
 
     *results
         .iter()
-        .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Less))
+        .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Less))
         .unwrap()
 }
 
