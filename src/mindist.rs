@@ -13,6 +13,7 @@ pub fn min_dist_param(
     epsilon: f64,
     best_alpha: Option<f64>,
 ) -> (f64, f64, f64) {
+    assert!(!bez1.is_empty() && !bez2.is_empty());
     let n = bez1.len() - 1;
     let m = bez2.len() - 1;
     let (umin, umax) = u;
@@ -225,8 +226,7 @@ fn choose(n: usize, k: usize) -> u32 {
 mod tests {
     use crate::mindist::A_r;
     use crate::mindist::{choose, D_rk};
-    use crate::Line;
-    use crate::{CubicBez, PathSeg, Vec2};
+    use crate::{CubicBez, Line, PathSeg, Vec2};
 
     #[test]
     fn test_choose() {
@@ -296,7 +296,6 @@ mod tests {
         ));
         let bez2 = PathSeg::Line(Line::new((141.0, 301.0), (152.0, 709.0)));
         let (dist1, _t1, _t2) = bez1.min_dist(bez2, 0.5);
-        println!("\n\n\n");
         let (dist2, _t1, _t2) = bez2.min_dist(bez1, 0.5);
         assert!((dist1 - dist2).abs() < 0.5);
     }
