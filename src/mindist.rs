@@ -203,7 +203,7 @@ fn D_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
 
 // Bezier basis function
 fn basis_function(n: usize, i: usize, u: f64) -> f64 {
-    choose(n, i) as f64 * (1.0 - u as f64).powi(n as i32 - i as i32) * u.powi(i as i32)
+    choose(n, i) as f64 * (1.0 - u as f64).powi((n - i) as i32) * u.powi(i as i32)
 }
 
 // Binomial co-efficient, but returning zeros for values outside of domain
