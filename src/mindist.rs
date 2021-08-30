@@ -13,6 +13,7 @@ pub fn min_dist_param(
     epsilon: f64,
     best_alpha: Option<f64>,
 ) -> (f64, f64, f64) {
+    assert!(!bez1.is_empty() && !bez2.is_empty());
     let n = bez1.len() - 1;
     let m = bez2.len() - 1;
     let (umin, umax) = u;
@@ -149,7 +150,7 @@ fn S(u: f64, v: f64, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
     let m = bez2.len() - 1;
     let mut summand = 0.0;
     for r in 0..=2 * n {
-        for k in 0..=2 * n {
+        for k in 0..=2 * m {
             summand +=
                 D_rk(r, k, bez1, bez2) * basis_function(2 * n, r, u) * basis_function(2 * m, k, v)
         }
@@ -225,7 +226,7 @@ fn choose(n: usize, k: usize) -> u32 {
 mod tests {
     use crate::mindist::A_r;
     use crate::mindist::{choose, D_rk};
-    use crate::{CubicBez, PathSeg, Vec2};
+    use crate::{CubicBez, Line, PathSeg, Vec2};
 
     #[test]
     fn test_choose() {
@@ -270,5 +271,32 @@ mod tests {
         ));
         let (dist, _t1, _t2) = bez1.min_dist(bez2, 0.001);
         assert!((dist - 50.9966).abs() < 0.5);
+    }
+
+    #[test]
+    fn test_overflow() {
+        let bez1 = PathSeg::Cubic(CubicBez::new(
+            (232.0, 126.0),
+            (134.0, 126.0),
+            (139.0, 232.0),
+            (141.0, 301.0),
+        ));
+        let bez2 = PathSeg::Line(Line::new((359.0, 416.0), (367.0, 755.0)));
+        let (dist, _t1, _t2) = bez1.min_dist(bez2, 0.001);
+        assert!((dist - 246.4731222669117).abs() < 0.5);
+    }
+
+    #[test]
+    fn test_out_of_order() {
+        let bez1 = PathSeg::Cubic(CubicBez::new(
+            (287.0, 182.0),
+            (346.0, 277.0),
+            (356.0, 299.0),
+            (359.0, 416.0),
+        ));
+        let bez2 = PathSeg::Line(Line::new((141.0, 301.0), (152.0, 709.0)));
+        let (dist1, _t1, _t2) = bez1.min_dist(bez2, 0.5);
+        let (dist2, _t1, _t2) = bez2.min_dist(bez1, 0.5);
+        assert!((dist1 - dist2).abs() < 0.5);
     }
 }
