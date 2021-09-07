@@ -73,6 +73,99 @@ impl CubicBez {
         ToQuads { c: self, n, i: 0 }
     }
 
+
+    fn split_into_n(&self, n: usize) -> Vec<CubicBez> {
+        match n {
+            1 => {
+                vec![*self]
+            }
+            2 => {
+                let (l, r) = self.subdivide();
+                vec![l, r]
+            }
+            3 => {
+                let (left, mid, right) = self.subdivide_3();
+                vec![left, mid, right]
+            }
+            4 => {
+                let (l, r) = self.subdivide();
+                let (ll, lr) = l.subdivide();
+                let (rl, rr) = r.subdivide();
+                vec![ll, lr, rl, rr]
+            }
+            6 => {
+                let (l, r) = self.subdivide();
+                let (l1, l2, l3) = l.subdivide_3();
+                let (r1, r2, r3) = r.subdivide_3();
+                vec![l1, l2, l3, r1, r2, r3]
+            }
+            _ => self._split_into_n_generic(n),
+        }
+    }
+
+    fn _split_into_n_generic(&self, n: usize) -> Vec<CubicBez> {
+        let mut r = vec![];
+        let (a, b, c, d) = self.parameters();
+        let dt = 1.0 / n as f64;
+        let delta_2 = dt * dt;
+        let delta_3 = dt * delta_2;
+        for i in 0..n {
+            let t1 = i as f64 * dt;
+            let t1_2 = t1 * t1;
+            let a1 = a * delta_3;
+            let b1 = (3.0 * a * t1 + b) * delta_2;
+            let c1 = (2.0 * b * t1 + c + 3.0 * a * t1_2) * dt;
+            let d1 = a * t1 * t1_2 + b * t1_2 + c * t1 + d;
+
+            r.push(CubicBez::from_parameters(a1, b1, c1, d1))
+        }
+        r
+    }
+
+    fn parameters(&self) -> (Vec2, Vec2, Vec2, Vec2) {
+        let c = (self.p1 - self.p0) * 3.0;
+        let b = (self.p2 - self.p1) * 3.0 - c;
+        let d = self.p0.to_vec2();
+        let a = self.p3.to_vec2() - d - c - b;
+        (a, b, c, d)
+    }
+
+    fn from_parameters(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> Self {
+        CubicBez::new(
+            d.to_point(),
+            d.to_point() + (c / 3.0),
+            d.to_point() + (c / 3.0) + (b + c) / 3.0,
+            d.to_point() + (c / 3.0) + (b + c) / 3.0 + a,
+        )
+    }
+
+    fn subdivide_3(&self) -> (CubicBez, CubicBez, CubicBez) {
+        let (p0, p1, p2, p3) = (
+            self.p0.to_vec2(),
+            self.p1.to_vec2(),
+            self.p2.to_vec2(),
+            self.p3.to_vec2(),
+        );
+        let mid1 = ((8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3) / 27.0).to_point();
+        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0) / 27.0;
+        let mid2 = ((p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3) / 27.0).to_point();
+        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0) / 27.0;
+        let left = CubicBez::new(
+            self.p0,
+            ((2.0 * p0 + p1) / 3.0).to_point(),
+            mid1 - deriv1,
+            mid1,
+        );
+        let mid = CubicBez::new(mid1, mid1 + deriv1, mid2 - deriv2, mid2);
+        let right = CubicBez::new(
+            mid2,
+            mid2 + deriv2,
+            ((p2 + 2.0 * p3) / 3.0).to_point(),
+            self.p3,
+        );
+        (left, mid, right)
+    }
+
     /// Does this curve fit inside the given distance from the origin?
     pub fn fit_inside(&self, distance: f64) -> bool {
         if self.p2.to_vec2().hypot() <= distance && self.p1.to_vec2().hypot() <= distance {
