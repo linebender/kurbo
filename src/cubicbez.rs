@@ -571,8 +571,8 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
 #[cfg(test)]
 mod tests {
     use crate::{
-        Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, Point,
+        cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
+        ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
     };
 
     #[test]
@@ -764,5 +764,91 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn cubicbez_approx_spline() {
+        let c1 = CubicBez::new(
+            (550.0, 258.0),
+            (1044.0, 482.0),
+            (2029.0, 1841.0),
+            (1934.0, 1554.0),
+        );
+
+        let quad = c1.try_approx_quadratic(344.0);
+        let expected = QuadBez::new(
+            Point::new(550.0, 258.0),
+            Point::new(1673.665720592873, 767.5164401068898),
+            Point::new(1934.0, 1554.0),
+        );
+        assert!(quad.is_some());
+        assert_eq!(quad.unwrap(), expected);
+
+        let quad = c1.try_approx_quadratic(343.0);
+        assert!(quad.is_none());
+
+        let spline = c1.approx_spline_n(2, 343.0);
+        assert!(spline.is_some());
+        let spline = spline.unwrap();
+        let expected = vec![
+            Point::new(550.0, 258.0),
+            Point::new(920.5, 426.0),
+            Point::new(2005.25, 1769.25),
+            Point::new(1934.0, 1554.0),
+        ];
+        assert_eq!(spline.len(), expected.len());
+        for (got, &wanted) in spline.iter().zip(expected.iter()) {
+            assert!(got.distance(wanted) < 5.0)
+        }
+
+        let spline = c1.approx_spline(5.0);
+        let expected = vec![
+            Point::new(550.0, 258.0),
+            Point::new(673.5, 314.0),
+            Point::new(984.8777777777776, 584.2666666666667),
+            Point::new(1312.6305555555557, 927.825),
+            Point::new(1613.1194444444443, 1267.425),
+            Point::new(1842.7055555555555, 1525.8166666666666),
+            Point::new(1957.75, 1625.75),
+            Point::new(1934.0, 1554.0),
+        ];
+        assert!(spline.is_some());
+        let spline = spline.unwrap();
+        assert_eq!(spline.len(), expected.len());
+        for (got, &wanted) in spline.iter().zip(expected.iter()) {
+            assert!(got.distance(wanted) < 5.0)
+        }
+    }
+
+    #[test]
+    fn cubicbez_cubics_to_quadratic_splines() {
+        let curves = vec![
+            CubicBez::new(
+                (550.0, 258.0),
+                (1044.0, 482.0),
+                (2029.0, 1841.0),
+                (1934.0, 1554.0),
+            ),
+            CubicBez::new(
+                (859.0, 384.0),
+                (1998.0, 116.0),
+                (1596.0, 1772.0),
+                (8.0, 1824.0),
+            ),
+            CubicBez::new(
+                (1090.0, 937.0),
+                (418.0, 1300.0),
+                (125.0, 91.0),
+                (104.0, 37.0),
+            ),
+        ];
+        let converted = cubics_to_quadratic_splines(&curves, 5.0);
+        assert!(converted.is_some());
+        let converted = converted.unwrap();
+        assert_eq!(converted[0].len(), 8);
+        assert_eq!(converted[1].len(), 8);
+        assert_eq!(converted[2].len(), 8);
+        assert!(converted[0][1].distance(Point::new(673.5, 314.0)) < 0.0001);
+        assert!(converted[0][2].distance(Point::new(88639.0 / 90.0, 52584.0 / 90.0)) < 0.0001);
     }
 }
