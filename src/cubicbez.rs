@@ -3,6 +3,7 @@
 use std::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
+use crate::{Line, Vec2};
 use arrayvec::ArrayVec;
 
 use crate::common::solve_quadratic;
@@ -11,6 +12,8 @@ use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
 };
+
+const MAX_SPLINE_SPLIT: usize = 100;
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,6 +74,72 @@ impl CubicBez {
         let n = ((err / max_hypot2).powf(1. / 6.0).ceil() as usize).max(1);
 
         ToQuads { c: self, n, i: 0 }
+    }
+
+    /// Return a quadratic spline approximating this cubic bezier
+    ///
+    /// Returns None if no suitable approximation was found in the given tolerance.
+    pub fn approx_spline(&self, accuracy: f64) -> Option<Vec<Point>> {
+        for n in 1..=MAX_SPLINE_SPLIT {
+            if let Some(spline) = self.approx_spline_n(n, accuracy) {
+                return Some(spline);
+            }
+        }
+        None
+    }
+
+    // Approximate a cubic curve with a quadratic spline of `n` curves
+    fn approx_spline_n(&self, n: usize, accuracy: f64) -> Option<Vec<Point>> {
+        if n == 1 {
+            return self
+                .try_approx_quadratic(accuracy)
+                .map(|quad| vec![quad.p0, quad.p1, quad.p2]);
+        }
+        let mut cubics = self.split_into_n(n).into_iter();
+
+        // The above function guarantees that the iterator returns n items,
+        // which is why we're unwrapping things with wild abandon.
+        let mut next_cubic = cubics.next().unwrap();
+        let mut next_q1: Point = next_cubic.approx_quad_control(0.0);
+        let mut q2 = self.p0;
+        let mut d1 = Vec2::ZERO;
+        let mut spline = vec![self.p0, next_q1];
+        for i in 1..=n {
+            let current_cubic: CubicBez = next_cubic;
+            let q0 = q2;
+            let q1 = next_q1;
+            q2 = if i < n {
+                next_cubic = cubics.next().unwrap();
+                next_q1 = next_cubic.approx_quad_control(i as f64 / (n - 1) as f64);
+
+                spline.push(next_q1);
+                q1.midpoint(next_q1)
+            } else {
+                current_cubic.p3
+            };
+            let d0 = d1;
+            d1 = q2.to_vec2() - current_cubic.p3.to_vec2();
+
+            if d1.hypot() > accuracy
+                || !CubicBez::new(
+                    d0.to_point(),
+                    q0.lerp(q1, 2.0 / 3.0) - current_cubic.p1.to_vec2(),
+                    q2.lerp(q1, 2.0 / 3.0) - current_cubic.p2.to_vec2(),
+                    d1.to_point(),
+                )
+                .fit_inside(accuracy)
+            {
+                return None;
+            }
+        }
+        spline.push(self.p3);
+        Some(spline)
+    }
+
+    fn approx_quad_control(&self, t: f64) -> Point {
+        let p1 = self.p0 + (self.p1 - self.p0) * 1.5;
+        let p2 = self.p3 + (self.p2 - self.p3) * 1.5;
+        p1.lerp(p2, t)
     }
 
     /// Approximate a cubic with a single quadratic
