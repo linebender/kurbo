@@ -73,6 +73,22 @@ impl CubicBez {
         ToQuads { c: self, n, i: 0 }
     }
 
+    /// Does this curve fit inside the given distance from the origin?
+    pub fn fit_inside(&self, distance: f64) -> bool {
+        if self.p2.to_vec2().hypot() <= distance && self.p1.to_vec2().hypot() <= distance {
+            return true;
+        }
+        let mid =
+            (self.p0.to_vec2() + 3.0 * (self.p1.to_vec2() + self.p2.to_vec2()) + self.p3.to_vec2())
+                * 0.125;
+        if mid.hypot() > distance {
+            return false;
+        }
+        // Split in two. Note that cu2qu here uses a 3/8 subdivision. I don't know why.
+        let (left, right) = self.subdivide();
+        left.fit_inside(distance) && right.fit_inside(distance)
+    }
+
     /// Is this cubic Bezier curve finite?
     #[inline]
     pub fn is_finite(&self) -> bool {
