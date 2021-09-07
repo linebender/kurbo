@@ -73,6 +73,28 @@ impl CubicBez {
         ToQuads { c: self, n, i: 0 }
     }
 
+    /// Approximate a cubic with a single quadratic
+    ///
+    /// Returns a quadratic approximating the given cubic that maintains
+    /// endpoint tangents if that is within tolerance, or None otherwise.
+    fn try_approx_quadratic(&self, accuracy: f64) -> Option<QuadBez> {
+        if let Some(q1) = Line::new(self.p0, self.p1).intersects(Line::new(self.p2, self.p3)) {
+            let c1 = self.p0.lerp(q1, 2.0 / 3.0);
+            let c2 = self.p3.lerp(q1, 2.0 / 3.0);
+            if !CubicBez::new(
+                Point::ZERO,
+                c1 - self.p1.to_vec2(),
+                c2 - self.p2.to_vec2(),
+                Point::ZERO,
+            )
+            .fit_inside(accuracy)
+            {
+                return None;
+            }
+            return Some(QuadBez::new(self.p0, q1, self.p3));
+        }
+        None
+    }
 
     fn split_into_n(&self, n: usize) -> Vec<CubicBez> {
         match n {
