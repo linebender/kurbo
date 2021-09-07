@@ -36,6 +36,19 @@ impl Line {
         self.arclen(DEFAULT_ACCURACY)
     }
 
+    /// Computes the intersection point of two lines.
+    pub fn intersects(self, other: Line) -> Option<Point> {
+        let ab = self.p1 - self.p0;
+        let cd = other.p1 - other.p0;
+        let p = ab.rotate();
+        let pcd = p.dot(cd);
+        if pcd == 0.0 {
+            return None;
+        }
+        let h = p.dot(self.p0 - other.p0) / pcd;
+        Some(other.p0 + cd * h)
+    }
+
     /// Is this line finite?
     #[inline]
     pub fn is_finite(self) -> bool {

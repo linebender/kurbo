@@ -47,6 +47,14 @@ impl Vec2 {
         Vec2 { x: v, y: v }
     }
 
+    /// Multiply the `Vec2` by `i`, rotating it by 90 degree counterclockwise
+    pub(crate) fn rotate(self) -> Self {
+        Vec2 {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+
     /// Dot product of two vectors.
     #[inline]
     pub fn dot(self, other: Vec2) -> f64 {
