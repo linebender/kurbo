@@ -543,6 +543,31 @@ impl Iterator for ToQuads {
     }
 }
 
+/// Convert multiple cubic Bézier curves to quadratic splines.
+///
+/// Ensures that the resulting splines have the same number of control points.
+pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option<Vec<Vec<Point>>> {
+    let mut splines: Vec<Option<Vec<Point>>> = vec![None; curves.len()];
+    let mut last_unsuccessful_i = 0;
+    let mut split_order = 1;
+    let mut i = 0;
+    loop {
+        if let Some(spline) = curves[i].approx_spline_n(split_order, accuracy) {
+            splines[i] = Some(spline);
+            i = (i + 1) % curves.len();
+            if i == last_unsuccessful_i {
+                return splines.into_iter().collect::<Option<Vec<_>>>();
+            }
+        } else {
+            if split_order > MAX_SPLINE_SPLIT {
+                return None;
+            }
+            last_unsuccessful_i = i;
+            split_order += 1;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
