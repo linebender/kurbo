@@ -141,6 +141,23 @@ pub struct LineIntersection {
     pub segment_t: f64,
 }
 
+/// An intersection of a [`PathSeg`] and a [`PathSeg`].
+///
+/// This can be generated with the [`PathSeg::intersections`] method.
+#[derive(Debug, Clone, Copy)]
+pub struct PathSegIntersection {
+    /// The 'time' that the intersection occurs, on the first path segment.
+    ///
+    /// This value is in the range 0..1.
+    pub first_t: f64,
+
+    /// The 'time' that the intersection occurs, on the second path segment.
+    ///
+    /// This value is nominally in the range 0..1, although it may slightly exceed
+    /// that range at the boundaries of segments.
+    pub second_t: f64,
+}
+
 impl BezPath {
     /// Create a new path.
     pub fn new() -> BezPath {
