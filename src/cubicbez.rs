@@ -80,12 +80,7 @@ impl CubicBez {
     ///
     /// Returns None if no suitable approximation was found in the given tolerance.
     pub fn approx_spline(&self, accuracy: f64) -> Option<Vec<Point>> {
-        for n in 1..=MAX_SPLINE_SPLIT {
-            if let Some(spline) = self.approx_spline_n(n, accuracy) {
-                return Some(spline);
-            }
-        }
-        None
+        (1..=MAX_SPLINE_SPLIT).find_map(|n| self.approx_spline_n(n, accuracy))
     }
 
     // Approximate a cubic curve with a quadratic spline of `n` curves
