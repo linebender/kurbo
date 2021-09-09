@@ -551,7 +551,7 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
     let mut last_unsuccessful_i = 0;
     let mut split_order = 1;
     let mut i = 0;
-    loop {
+    while split_order <= MAX_SPLINE_SPLIT {
         if let Some(spline) = curves[i].approx_spline_n(split_order, accuracy) {
             splines[i] = Some(spline);
             i = (i + 1) % curves.len();
@@ -559,13 +559,11 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
                 return splines.into_iter().collect::<Option<Vec<_>>>();
             }
         } else {
-            if split_order > MAX_SPLINE_SPLIT {
-                return None;
-            }
             last_unsuccessful_i = i;
             split_order += 1;
         }
     }
+    None
 }
 
 #[cfg(test)]
