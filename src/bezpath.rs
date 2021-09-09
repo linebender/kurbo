@@ -726,6 +726,39 @@ impl ParamCurveExtrema for PathSeg {
     }
 }
 
+// std::ops::Range isn't Copy
+#[derive(Copy, Debug, Clone)]
+struct TimeRange {
+    start: f64,
+    end: f64,
+}
+
+impl TimeRange {
+    pub const FULL: TimeRange = TimeRange {
+        start: 0.0,
+        end: 1.0,
+    };
+
+    fn subdivide(self) -> (f64, TimeRange, TimeRange) {
+        let midpoint = (self.start + self.end) / 2.0;
+        (
+            midpoint,
+            TimeRange {
+                start: self.start,
+                end: midpoint,
+            },
+            TimeRange {
+                start: midpoint,
+                end: self.end,
+            },
+        )
+    }
+
+    fn span(self) -> f64 {
+        self.end - self.start
+    }
+}
+
 impl PathSeg {
     /// Returns a new `PathSeg` describing the same path as `self`, but with
     /// the points reversed.
