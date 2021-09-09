@@ -875,6 +875,71 @@ impl PathSeg {
             .sum()
     }
 
+    /// Compute intersections between two `PathSeg`s
+    pub fn intersections(&self, other: &PathSeg) -> Box<dyn Iterator<Item = PathSegIntersection>> {
+        if let PathSeg::Line(l) = self {
+            return Box::new(
+                other
+                    .intersect_line(*l)
+                    .into_iter()
+                    .map(|x| PathSegIntersection {
+                        first_t: x.line_t,
+                        second_t: x.segment_t,
+                    }),
+            );
+        }
+        if let PathSeg::Line(l) = other {
+            return Box::new(
+                self.intersect_line(*l)
+                    .into_iter()
+                    .map(|x| PathSegIntersection {
+                        first_t: x.segment_t,
+                        second_t: x.line_t,
+                    }),
+            );
+        }
+        // We have curve/curve intersection for sure. Use bisection.
+        Box::new(self.curve_curve_intersections(other, TimeRange::FULL, TimeRange::FULL))
+    }
+
+    fn curve_curve_intersections(
+        &self,
+        other: &PathSeg,
+        t_self: TimeRange,
+        t_other: TimeRange,
+    ) -> Box<dyn Iterator<Item = PathSegIntersection>> {
+        // We have curve/curve intersection for sure
+        const EPSILON: f64 = 1e-9;
+
+        let my_bounds = Shape::bounding_box(&self);
+        let other_bounds = Shape::bounding_box(&other);
+        if my_bounds.intersect(other_bounds).area() == 0.0 {
+            return Box::new(std::iter::empty());
+        }
+
+        let (my_midpoint, my_left_t, my_right_t) = t_self.subdivide();
+        let (other_midpoint, other_left_t, other_right_t) = t_other.subdivide();
+
+        if my_bounds.area() < EPSILON && other_bounds.area() < EPSILON {
+            return Box::new(
+                vec![PathSegIntersection {
+                    first_t: my_midpoint,
+                    second_t: other_midpoint,
+                }]
+                .into_iter(),
+            );
+        }
+
+        let (my_left, my_right) = self.subdivide();
+        let (other_left, other_right) = other.subdivide();
+
+        let ll = my_left.curve_curve_intersections(&other_left, my_left_t, other_left_t);
+        let lr = my_left.curve_curve_intersections(&other_right, my_left_t, other_right_t);
+        let rl = my_right.curve_curve_intersections(&other_left, my_right_t, other_left_t);
+        let rr = my_right.curve_curve_intersections(&other_right, my_right_t, other_right_t);
+        Box::new(ll.chain(lr).chain(rl).chain(rr))
+    }
+
     /// Compute intersections against a line.
     ///
     /// Returns a vector of the intersections. For each intersection,
@@ -1315,11 +1380,26 @@ mod tests {
         assert_approx_eq(intersection.segment_t, 0.1);
         assert_approx_eq(intersection.line_t, 0.5);
 
+        // Same but using the `intersections` interface
+        let intersections: Vec<PathSegIntersection> = PathSeg::Line(h_line)
+            .intersections(&PathSeg::Line(v_line))
+            .collect();
+        assert_approx_eq(intersections[0].first_t, 0.1);
+        assert_approx_eq(intersections[0].second_t, 0.5);
+
         let v_line = Line::new((-10.0, -10.0), (-10.0, 10.0));
         assert!(PathSeg::Line(h_line).intersect_line(v_line).is_empty());
+        let intersections: Vec<PathSegIntersection> = PathSeg::Line(h_line)
+            .intersections(&PathSeg::Line(v_line))
+            .collect();
+        assert!(intersections.is_empty());
 
         let v_line = Line::new((10.0, 10.0), (10.0, 20.0));
         assert!(PathSeg::Line(h_line).intersect_line(v_line).is_empty());
+        let intersections: Vec<PathSegIntersection> = PathSeg::Line(h_line)
+            .intersections(&PathSeg::Line(v_line))
+            .collect();
+        assert!(intersections.is_empty());
     }
 
     #[test]
@@ -1330,6 +1410,21 @@ mod tests {
         let intersection = PathSeg::Quad(q).intersect_line(v_line)[0];
         assert_approx_eq(intersection.segment_t, 0.5);
         assert_approx_eq(intersection.line_t, 0.75);
+
+        // Same but using the `intersections` interface
+        let intersections: Vec<PathSegIntersection> = PathSeg::Quad(q)
+            .intersections(&PathSeg::Line(v_line))
+            .collect();
+        assert_eq!(intersections.len(), 1);
+        assert_approx_eq(intersections[0].first_t, 0.5);
+        assert_approx_eq(intersections[0].second_t, 0.75);
+        // And swapping the arguments
+        let intersections: Vec<PathSegIntersection> = PathSeg::Line(v_line)
+            .intersections(&PathSeg::Quad(q))
+            .collect();
+        assert_eq!(intersections.len(), 1);
+        assert_approx_eq(intersections[0].first_t, 0.75);
+        assert_approx_eq(intersections[0].second_t, 0.5);
 
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         assert_eq!(PathSeg::Quad(q).intersect_line(h_line).len(), 2);
@@ -1344,7 +1439,33 @@ mod tests {
         assert_approx_eq(intersection.segment_t, 0.333333333);
         assert_approx_eq(intersection.line_t, 0.592592592);
 
+        // Same but using the `intersections` interface
+        let intersections: Vec<PathSegIntersection> = PathSeg::Cubic(c)
+            .intersections(&PathSeg::Line(v_line))
+            .collect();
+        assert_eq!(intersections.len(), 1);
+        assert_approx_eq(intersections[0].first_t, 0.333333333);
+        assert_approx_eq(intersections[0].second_t, 0.592592592);
+        // And swapping the arguments
+        let intersections: Vec<PathSegIntersection> = PathSeg::Line(v_line)
+            .intersections(&PathSeg::Cubic(c))
+            .collect();
+        assert_eq!(intersections.len(), 1);
+        assert_approx_eq(intersections[0].first_t, 0.592592592);
+        assert_approx_eq(intersections[0].second_t, 0.333333333);
+
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         assert_eq!(PathSeg::Cubic(c).intersect_line(h_line).len(), 3);
+    }
+
+    #[test]
+    fn test_intersect_curve_curve() {
+        let c1 = CubicBez::new((10.0, 100.0), (90.0, 30.0), (40.0, 140.0), (220.0, 220.0));
+        let c2 = CubicBez::new((5.0, 150.0), (180.0, 20.0), (80.0, 250.0), (210.0, 190.0));
+        let intersections: Vec<PathSegIntersection> = PathSeg::Cubic(c1)
+            .intersections(&PathSeg::Cubic(c2))
+            .collect();
+        println!("intersections: {:#?}", intersections);
+        assert_eq!(intersections.len(), 3);
     }
 }
