@@ -90,7 +90,7 @@ impl CubicBez {
                 .try_approx_quadratic(accuracy)
                 .map(|quad| vec![quad.p0, quad.p1, quad.p2]);
         }
-        let mut cubics = self.split_into_n(n).into_iter();
+        let mut cubics = self.split_into_n(n);
 
         // The above function guarantees that the iterator returns n items,
         // which is why we're unwrapping things with wild abandon.
@@ -160,7 +160,7 @@ impl CubicBez {
         None
     }
 
-    fn split_into_n(&self, n: usize) -> Vec<CubicBez> {
+    fn split_into_n(&self, n: usize) -> impl Iterator<Item = CubicBez> {
         match n {
             1 => {
                 vec![*self]
@@ -185,27 +185,26 @@ impl CubicBez {
                 let (r1, r2, r3) = r.subdivide_3();
                 vec![l1, l2, l3, r1, r2, r3]
             }
-            _ => self._split_into_n_generic(n),
-        }
-    }
+            _ => {
+                let mut r = vec![];
+                let (a, b, c, d) = self.parameters();
+                let dt = 1.0 / n as f64;
+                let delta_2 = dt * dt;
+                let delta_3 = dt * delta_2;
+                for i in 0..n {
+                    let t1 = i as f64 * dt;
+                    let t1_2 = t1 * t1;
+                    let a1 = a * delta_3;
+                    let b1 = (3.0 * a * t1 + b) * delta_2;
+                    let c1 = (2.0 * b * t1 + c + 3.0 * a * t1_2) * dt;
+                    let d1 = a * t1 * t1_2 + b * t1_2 + c * t1 + d;
 
-    fn _split_into_n_generic(&self, n: usize) -> Vec<CubicBez> {
-        let mut r = vec![];
-        let (a, b, c, d) = self.parameters();
-        let dt = 1.0 / n as f64;
-        let delta_2 = dt * dt;
-        let delta_3 = dt * delta_2;
-        for i in 0..n {
-            let t1 = i as f64 * dt;
-            let t1_2 = t1 * t1;
-            let a1 = a * delta_3;
-            let b1 = (3.0 * a * t1 + b) * delta_2;
-            let c1 = (2.0 * b * t1 + c + 3.0 * a * t1_2) * dt;
-            let d1 = a * t1 * t1_2 + b * t1_2 + c * t1 + d;
-
-            r.push(CubicBez::from_parameters(a1, b1, c1, d1))
+                    r.push(CubicBez::from_parameters(a1, b1, c1, d1))
+                }
+                r
+            }
         }
-        r
+        .into_iter()
     }
 
     fn parameters(&self) -> (Vec2, Vec2, Vec2, Vec2) {
