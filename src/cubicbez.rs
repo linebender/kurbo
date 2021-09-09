@@ -3,7 +3,7 @@
 use std::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
-use crate::{Line, Vec2};
+use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
 use crate::common::solve_quadratic;
@@ -79,16 +79,16 @@ impl CubicBez {
     /// Return a quadratic spline approximating this cubic bezier
     ///
     /// Returns None if no suitable approximation was found in the given tolerance.
-    pub fn approx_spline(&self, accuracy: f64) -> Option<Vec<Point>> {
+    pub fn approx_spline(&self, accuracy: f64) -> Option<QuadSpline> {
         (1..=MAX_SPLINE_SPLIT).find_map(|n| self.approx_spline_n(n, accuracy))
     }
 
     // Approximate a cubic curve with a quadratic spline of `n` curves
-    fn approx_spline_n(&self, n: usize, accuracy: f64) -> Option<Vec<Point>> {
+    fn approx_spline_n(&self, n: usize, accuracy: f64) -> Option<QuadSpline> {
         if n == 1 {
             return self
                 .try_approx_quadratic(accuracy)
-                .map(|quad| vec![quad.p0, quad.p1, quad.p2]);
+                .map(|quad| QuadSpline::new(vec![quad.p0, quad.p1, quad.p2]));
         }
         let mut cubics = self.split_into_n(n);
 
@@ -128,7 +128,7 @@ impl CubicBez {
             }
         }
         spline.push(self.p3);
-        Some(spline)
+        Some(QuadSpline::new(spline))
     }
 
     fn approx_quad_control(&self, t: f64) -> Point {
@@ -540,8 +540,8 @@ impl Iterator for ToQuads {
 /// Convert multiple cubic Bézier curves to quadratic splines.
 ///
 /// Ensures that the resulting splines have the same number of control points.
-pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option<Vec<Vec<Point>>> {
-    let mut splines: Vec<Option<Vec<Point>>> = vec![None; curves.len()];
+pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option<Vec<QuadSpline>> {
+    let mut splines: Vec<Option<QuadSpline>> = vec![None; curves.len()];
     let mut last_unsuccessful_i = 0;
     let mut split_order = 1;
     let mut i = 0;
@@ -788,8 +788,8 @@ mod tests {
             Point::new(2005.25, 1769.25),
             Point::new(1934.0, 1554.0),
         ];
-        assert_eq!(spline.len(), expected.len());
-        for (got, &wanted) in spline.iter().zip(expected.iter()) {
+        assert_eq!(spline.points().len(), expected.len());
+        for (got, &wanted) in spline.points().iter().zip(expected.iter()) {
             assert!(got.distance(wanted) < 5.0)
         }
 
@@ -806,8 +806,8 @@ mod tests {
         ];
         assert!(spline.is_some());
         let spline = spline.unwrap();
-        assert_eq!(spline.len(), expected.len());
-        for (got, &wanted) in spline.iter().zip(expected.iter()) {
+        assert_eq!(spline.points().len(), expected.len());
+        for (got, &wanted) in spline.points().iter().zip(expected.iter()) {
             assert!(got.distance(wanted) < 5.0)
         }
     }
@@ -837,10 +837,12 @@ mod tests {
         let converted = cubics_to_quadratic_splines(&curves, 5.0);
         assert!(converted.is_some());
         let converted = converted.unwrap();
-        assert_eq!(converted[0].len(), 8);
-        assert_eq!(converted[1].len(), 8);
-        assert_eq!(converted[2].len(), 8);
-        assert!(converted[0][1].distance(Point::new(673.5, 314.0)) < 0.0001);
-        assert!(converted[0][2].distance(Point::new(88639.0 / 90.0, 52584.0 / 90.0)) < 0.0001);
+        assert_eq!(converted[0].points().len(), 8);
+        assert_eq!(converted[1].points().len(), 8);
+        assert_eq!(converted[2].points().len(), 8);
+        assert!(converted[0].points()[1].distance(Point::new(673.5, 314.0)) < 0.0001);
+        assert!(
+            converted[0].points()[2].distance(Point::new(88639.0 / 90.0, 52584.0 / 90.0)) < 0.0001
+        );
     }
 }
