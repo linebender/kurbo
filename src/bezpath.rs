@@ -677,6 +677,14 @@ impl ParamCurveArclen for PathSeg {
             PathSeg::Cubic(cubic) => cubic.arclen(accuracy),
         }
     }
+
+    fn inv_arclen(&self, arclen: f64, accuracy: f64) -> f64 {
+        match *self {
+            PathSeg::Line(line) => line.inv_arclen(arclen, accuracy),
+            PathSeg::Quad(quad) => quad.inv_arclen(arclen, accuracy),
+            PathSeg::Cubic(cubic) => cubic.inv_arclen(arclen, accuracy),
+        }
+    }
 }
 
 impl ParamCurveArea for PathSeg {

@@ -179,6 +179,11 @@ impl ParamCurveArclen for ConstPoint {
     fn arclen(&self, _accuracy: f64) -> f64 {
         0.0
     }
+
+    #[inline]
+    fn inv_arclen(&self, _arclen: f64, _accuracy: f64) -> f64 {
+        0.0
+    }
 }
 
 impl Mul<Line> for Affine {
