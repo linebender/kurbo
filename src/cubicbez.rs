@@ -161,50 +161,77 @@ impl CubicBez {
     }
 
     fn split_into_n(&self, n: usize) -> impl Iterator<Item = CubicBez> {
+        // if we have six or fewer items we precompute them.
+        let mut storage = ArrayVec::<[_; 6]>::new();
         match n {
-            1 => {
-                vec![*self]
-            }
+            1 => storage.push(*self),
             2 => {
                 let (l, r) = self.subdivide();
-                vec![l, r]
+                storage.try_extend_from_slice(&[r, l]).unwrap();
             }
             3 => {
                 let (left, mid, right) = self.subdivide_3();
-                vec![left, mid, right]
+                storage.try_extend_from_slice(&[right, mid, left]).unwrap();
             }
             4 => {
                 let (l, r) = self.subdivide();
                 let (ll, lr) = l.subdivide();
                 let (rl, rr) = r.subdivide();
-                vec![ll, lr, rl, rr]
+                storage.try_extend_from_slice(&[rr, rl, lr, ll]).unwrap();
             }
             6 => {
                 let (l, r) = self.subdivide();
                 let (l1, l2, l3) = l.subdivide_3();
                 let (r1, r2, r3) = r.subdivide_3();
-                vec![l1, l2, l3, r1, r2, r3]
+                storage
+                    .try_extend_from_slice(&[r3, r2, r1, l3, l2, l1])
+                    .unwrap();
             }
-            _ => {
-                let mut r = vec![];
-                let (a, b, c, d) = self.parameters();
-                let dt = 1.0 / n as f64;
-                let delta_2 = dt * dt;
-                let delta_3 = dt * delta_2;
-                for i in 0..n {
-                    let t1 = i as f64 * dt;
-                    let t1_2 = t1 * t1;
-                    let a1 = a * delta_3;
-                    let b1 = (3.0 * a * t1 + b) * delta_2;
-                    let c1 = (2.0 * b * t1 + c + 3.0 * a * t1_2) * dt;
-                    let d1 = a * t1 * t1_2 + b * t1_2 + c * t1 + d;
-
-                    r.push(CubicBez::from_parameters(a1, b1, c1, d1))
-                }
-                r
-            }
+            _ => (),
         }
-        .into_iter()
+
+        // a limitation of returning 'impl Trait' is that the implementation
+        // can only return a single concrete type; that is you cannot return
+        // Vec::into_iter() from one branch, and then HashSet::into_iter from
+        // another branch.
+        //
+        // This means we have to get a bit fancy, and have a single concrete
+        // type that represents both of our possible cases.
+
+        let mut storage = if storage.is_empty() {
+            None
+        } else {
+            Some(storage)
+        };
+
+        // used in the fallback case
+        let mut i = 0;
+        let (a, b, c, d) = self.parameters();
+        let dt = 1.0 / n as f64;
+        let delta_2 = dt * dt;
+        let delta_3 = dt * delta_2;
+
+        std::iter::from_fn(move || {
+            // if storage exists, we use it exclusively
+            if let Some(storage) = storage.as_mut() {
+                return storage.pop();
+            }
+
+            // if storage does not exist, we are exclusively working down here.
+            if i >= n {
+                return None;
+            }
+
+            let t1 = i as f64 * dt;
+            let t1_2 = t1 * t1;
+            let a1 = a * delta_3;
+            let b1 = (3.0 * a * t1 + b) * delta_2;
+            let c1 = (2.0 * b * t1 + c + 3.0 * a * t1_2) * dt;
+            let d1 = a * t1 * t1_2 + b * t1_2 + c * t1 + d;
+            let result = CubicBez::from_parameters(a1, b1, c1, d1);
+            i += 1;
+            Some(result)
+        })
     }
 
     fn parameters(&self) -> (Vec2, Vec2, Vec2, Vec2) {
