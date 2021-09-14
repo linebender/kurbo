@@ -1,8 +1,8 @@
 //! Quadratic Bézier splines.
 use crate::Point;
 
-#[derive(Clone, Debug, PartialEq)]
 /// A quadratic Bézier spline.
+#[derive(Clone, Debug, PartialEq)]
 pub struct QuadSpline(Vec<Point>);
 
 impl QuadSpline {
