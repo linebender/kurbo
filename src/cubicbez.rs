@@ -568,25 +568,26 @@ impl Iterator for ToQuads {
 ///
 /// Ensures that the resulting splines have the same number of control points.
 pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option<Vec<QuadSpline>> {
-    let mut splines: Vec<Option<QuadSpline>> = vec![None; curves.len()];
-    let mut last_unsuccessful_i = 0;
-    let mut split_order = 1;
-    let mut i = 0;
+    let mut result = Vec::new();
+    let mut split_order = 0;
+
     while split_order <= MAX_SPLINE_SPLIT {
-        if let Some(spline) = curves[i].approx_spline_n(split_order, accuracy) {
-            splines[i] = Some(spline);
-            i = (i + 1) % curves.len();
-            if i == last_unsuccessful_i {
-                return splines.into_iter().collect::<Option<Vec<_>>>();
+        split_order += 1;
+        result.clear();
+
+        for curve in curves {
+            match curve.approx_spline_n(split_order, accuracy) {
+                Some(spline) => result.push(spline),
+                None => break,
             }
-        } else {
-            last_unsuccessful_i = i;
-            split_order += 1;
+        }
+
+        if result.len() == curves.len() {
+            return Some(result);
         }
     }
     None
 }
-
 #[cfg(test)]
 mod tests {
     use crate::{
