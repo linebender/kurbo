@@ -252,7 +252,7 @@ impl CubicBez {
     }
 
     /// Does this curve fit inside the given distance from the origin?
-    pub fn fit_inside(&self, distance: f64) -> bool {
+    fn fit_inside(&self, distance: f64) -> bool {
         if self.p2.to_vec2().hypot() <= distance && self.p1.to_vec2().hypot() <= distance {
             return true;
         }
