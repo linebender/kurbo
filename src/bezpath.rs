@@ -13,7 +13,8 @@ use crate::mindist::min_dist_param;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
-    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale, Vec2,
+    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
+    Rect, Shape, TranslateScale, Vec2,
 };
 
 /// A Bézier path.
@@ -689,6 +690,39 @@ impl ParamCurveArea for PathSeg {
     }
 }
 
+impl ParamCurveCurvature for PathSeg {
+    fn curvature(&self, t: f64) -> f64 {
+        match *self {
+            PathSeg::Line(line) => line.curvature(t),
+            PathSeg::Quad(quad) => quad.curvature(t),
+            PathSeg::Cubic(cubic) => cubic.curvature(t),
+        }
+    }
+}
+
+impl ParamCurveDeriv for PathSeg {
+    type DerivResult = PathSeg;
+
+    fn deriv(&self) -> Self::DerivResult {
+        match *self {
+            PathSeg::Line(line) => {
+                let deriv = line.deriv();
+                PathSeg::Line(Line::new(deriv.start(), deriv.end()))
+            }
+            PathSeg::Quad(quad) => PathSeg::Line(quad.deriv()),
+            PathSeg::Cubic(cubic) => PathSeg::Quad(cubic.deriv()),
+        }
+    }
+
+    fn gauss_arclen(&self, coeffs: &[(f64, f64)]) -> f64 {
+        match *self {
+            PathSeg::Line(line) => line.gauss_arclen(coeffs),
+            PathSeg::Quad(quad) => quad.gauss_arclen(coeffs),
+            PathSeg::Cubic(cubic) => cubic.gauss_arclen(coeffs),
+        }
+    }
+}
+
 impl ParamCurveNearest for PathSeg {
     fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
         match *self {
@@ -726,6 +760,15 @@ impl PathSeg {
             PathSeg::Line(Line { p0, p1 }) => CubicBez::new(p0, p0, p1, p1),
             PathSeg::Cubic(c) => c,
             PathSeg::Quad(q) => q.raise(),
+        }
+    }
+
+    /// Evaluates the derivative of this segment at parameter `t`.
+    pub fn deriv_at(&self, t: f64) -> Point {
+        match *self {
+            PathSeg::Line(line) => line.deriv().eval(t),
+            PathSeg::Quad(quad) => quad.deriv().eval(t),
+            PathSeg::Cubic(cubic) => cubic.deriv().eval(t),
         }
     }
 
