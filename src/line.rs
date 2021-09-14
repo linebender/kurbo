@@ -36,6 +36,18 @@ impl Line {
         self.arclen(DEFAULT_ACCURACY)
     }
 
+    /// Computes the point where two lines, if extended to infinity, would cross.
+    pub fn crossing_point(self, other: Line) -> Option<Point> {
+        let ab = self.p1 - self.p0;
+        let cd = other.p1 - other.p0;
+        let pcd = ab.cross(cd);
+        if pcd == 0.0 {
+            return None;
+        }
+        let h = ab.cross(self.p0 - other.p0) / pcd;
+        Some(other.p0 + cd * h)
+    }
+
     /// Is this line finite?
     #[inline]
     pub fn is_finite(self) -> bool {
