@@ -107,6 +107,7 @@ pub use crate::arc::*;
 pub use crate::bezpath::*;
 pub use crate::circle::*;
 pub use crate::cubicbez::*;
+pub use crate::curve_intersections::curve_curve_intersections;
 pub use crate::ellipse::*;
 pub use crate::insets::*;
 pub use crate::line::*;

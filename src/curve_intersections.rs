@@ -4,6 +4,7 @@ use crate::{Point, Rect};
 use arrayvec::ArrayVec;
 use std::ops::Range;
 
+/// Compute the intersections between two Bézier curves
 pub fn curve_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
     curve1: &T,
     curve2: &U,
@@ -111,7 +112,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
     // t_min_clip and t_max_clip are (0, 1)-based, so project them back to get the new restricted
     // range:
     let new_domain1 =
-        &(domain_value_at_t(&domain1, t_min_clip)..domain_value_at_t(&domain1, t_max_clip));
+        &(domain_value_at_t(domain1, t_min_clip)..domain_value_at_t(domain1, t_max_clip));
 
     if (domain2.end - domain2.start).max(new_domain1.end - new_domain1.start) < epsilon {
         let t1 = (new_domain1.start + new_domain1.end) * 0.5;
@@ -455,14 +456,14 @@ fn clip_convex_hull_to_fat_line(
     d_max: f64,
 ) -> Option<(f64, f64)> {
     // Walk from the left corner of the convex hull until we enter the fat line limits:
-    let t_clip_min = walk_convex_hull_start_to_fat_line(&hull_top, &hull_bottom, d_min, d_max)?;
+    let t_clip_min = walk_convex_hull_start_to_fat_line(hull_top, hull_bottom, d_min, d_max)?;
 
     // Now walk from the right corner of the convex hull until we enter the fat line limits - to
     // walk right to left we just reverse the order of the hull vertices, so that hull_top and
     // hull_bottom start at the right corner now:
     hull_top.reverse();
     hull_bottom.reverse();
-    let t_clip_max = walk_convex_hull_start_to_fat_line(&hull_top, &hull_bottom, d_min, d_max)?;
+    let t_clip_max = walk_convex_hull_start_to_fat_line(hull_top, hull_bottom, d_min, d_max)?;
 
     Some((t_clip_min, t_clip_max))
 }
