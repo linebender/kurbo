@@ -758,7 +758,7 @@ impl PathSeg {
                 let a = end.y - start.y;
                 let b = start.x - end.x;
                 let c = a * start.x + b * start.y;
-                if (a * p.x + b * p.y - c) * (sign as f64) >= 0.0 {
+                if (a * p.x + b * p.y - c) * (sign as f64) <= 0.0 {
                     sign
                 } else {
                     0
@@ -1296,5 +1296,16 @@ mod tests {
 
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         assert_eq!(PathSeg::Cubic(c).intersect_line(h_line).len(), 3);
+    }
+
+    #[test]
+    fn test_contains() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((1.0, 1.0));
+        path.line_to((2.0, 0.0));
+        path.close_path();
+        assert_eq!(path.winding(Point::new(1.0, 0.5)), -1);
+        assert!(path.contains(Point::new(1.0, 0.5)));
     }
 }
