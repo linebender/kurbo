@@ -9,7 +9,6 @@ use std::ops::{Mul, Range};
 use arrayvec::ArrayVec;
 
 use crate::common::{solve_cubic, solve_quadratic};
-use crate::mindist::min_dist_param;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
@@ -139,6 +138,24 @@ pub struct LineIntersection {
     /// This value is nominally in the range 0..1, although it may slightly exceed
     /// that range at the boundaries of segments.
     pub segment_t: f64,
+}
+
+/// The minimum distance between two Bézier curves.
+pub struct MinDistance {
+    /// The shortest distance between any two points on the two curves.
+    pub distance: f64,
+    /// The position of the nearest point on the first curve, as a parameter.
+    ///
+    /// To resolve this to a [`Point`], use [`ParamCurve::eval`].
+    ///
+    /// [`ParamCurve::eval`]: crate::ParamCurve::eval
+    pub t1: f64,
+    /// The position of the nearest point on the second curve, as a parameter.
+    ///
+    /// To resolve this to a [`Point`], use [`ParamCurve::eval`].
+    ///
+    /// [`ParamCurve::eval`]: crate::ParamCurve::eval
+    pub t2: f64,
 }
 
 impl BezPath {
@@ -972,8 +989,8 @@ impl PathSeg {
     /// Returns a tuple of the distance, the path time `t1` of the closest point
     /// on the first PathSeg, and the path time `t2` of the closest point on the
     /// second PathSeg.
-    pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> (f64, f64, f64) {
-        let (dist, t1, t2) = min_dist_param(
+    pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> MinDistance {
+        let (distance, t1, t2) = crate::mindist::min_dist_param(
             &self.as_vec2_vec(),
             &other.as_vec2_vec(),
             (0.0, 1.0),
@@ -981,7 +998,11 @@ impl PathSeg {
             accuracy,
             None,
         );
-        (dist.sqrt(), t1, t2)
+        MinDistance {
+            distance: distance.sqrt(),
+            t1,
+            t2,
+        }
     }
 }
 
