@@ -163,7 +163,9 @@ impl CubicBez {
 
     fn split_into_n(&self, n: usize) -> impl Iterator<Item = CubicBez> {
         // for certain small values of `n` we precompute all our values.
-        let mut storage = ArrayVec::<[_; 6]>::new();
+        // if we have six or fewer items we precompute them.
+        let mut storage = ArrayVec::<_, 6>::new();
+
         match n {
             1 => storage.push(*self),
             2 => {
@@ -505,8 +507,8 @@ impl ParamCurveNearest for CubicBez {
 impl ParamCurveCurvature for CubicBez {}
 
 impl ParamCurveExtrema for CubicBez {
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
-        fn one_coord(result: &mut ArrayVec<[f64; MAX_EXTREMA]>, d0: f64, d1: f64, d2: f64) {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
+        fn one_coord(result: &mut ArrayVec<f64, MAX_EXTREMA>, d0: f64, d1: f64, d2: f64) {
             let a = d0 - 2.0 * d1 + d2;
             let b = 2.0 * (d1 - d0);
             let c = d0;

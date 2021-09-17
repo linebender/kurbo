@@ -190,10 +190,10 @@ pub trait ParamCurveExtrema: ParamCurve {
     /// cubic Béziers.
     ///
     /// The extrema should be reported in increasing parameter order.
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]>;
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA>;
 
     /// Return parameter ranges, each of which is monotonic within the range.
-    fn extrema_ranges(&self) -> ArrayVec<[Range<f64>; MAX_EXTREMA + 1]> {
+    fn extrema_ranges(&self) -> ArrayVec<Range<f64>, { MAX_EXTREMA + 1 }> {
         let mut result = ArrayVec::new();
         let mut t0 = 0.0;
         for t in self.extrema() {
