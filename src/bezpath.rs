@@ -721,8 +721,8 @@ impl PathSeg {
     }
 
     /// Convert this segment to a cubic bezier.
-    pub fn to_cubic(self) -> CubicBez {
-        match self {
+    pub fn to_cubic(&self) -> CubicBez {
+        match *self {
             PathSeg::Line(Line { p0, p1 }) => CubicBez::new(p0, p0, p1, p1),
             PathSeg::Cubic(c) => c,
             PathSeg::Quad(q) => q.raise(),

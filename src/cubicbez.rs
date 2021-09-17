@@ -55,7 +55,7 @@ impl CubicBez {
     ///
     /// This iterator will always produce at least one `QuadBez`.
     #[inline]
-    pub fn to_quads(self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
+    pub fn to_quads(&self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
         // The maximum error, as a vector from the cubic to the best approximating
         // quadratic, is proportional to the third derivative, which is constant
         // across the segment. Thus, the error scales down as the third power of
@@ -73,7 +73,7 @@ impl CubicBez {
         let err = (p2x2 - p1x2).hypot2();
         let n = ((err / max_hypot2).powf(1. / 6.0).ceil() as usize).max(1);
 
-        ToQuads { c: self, n, i: 0 }
+        ToQuads { c: *self, n, i: 0 }
     }
 
     /// Return a quadratic spline approximating this cubic bezier
