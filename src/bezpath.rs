@@ -717,7 +717,7 @@ impl ParamCurveNearest for PathSeg {
 }
 
 impl ParamCurveExtrema for PathSeg {
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
         match *self {
             PathSeg::Line(line) => line.extrema(),
             PathSeg::Quad(quad) => quad.extrema(),
@@ -868,7 +868,7 @@ impl PathSeg {
     /// let point = seg.eval(intersection.segment_t);
     /// assert_eq!(point, Point::new(1.0, 0.0));
     /// ```
-    pub fn intersect_line(&self, line: Line) -> ArrayVec<[LineIntersection; 3]> {
+    pub fn intersect_line(&self, line: Line) -> ArrayVec<LineIntersection, 3> {
         const EPSILON: f64 = 1e-9;
         let p0 = line.p0;
         let p1 = line.p1;
@@ -962,7 +962,7 @@ impl PathSeg {
     }
 
     #[inline]
-    fn as_vec2_vec(&self) -> ArrayVec<[Vec2; 4]> {
+    fn as_vec2_vec(&self) -> ArrayVec<Vec2, 4> {
         let mut a = ArrayVec::new();
         match self {
             PathSeg::Line(l) => {

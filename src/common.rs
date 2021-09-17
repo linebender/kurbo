@@ -51,7 +51,7 @@ impl FloatExt<f32> for f32 {
 /// See: <http://mathworld.wolfram.com/CubicFormula.html>
 ///
 /// Return values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.
-pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
+pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
     let mut result = ArrayVec::new();
     let c3_recip = c3.recip();
     let scaled_c2 = c2 * c3_recip;
@@ -102,7 +102,7 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<[f64; 3]> {
 /// the other root might be out of representable range. In the degenerate
 /// case where all coefficients are zero, so that all values of x satisfy
 /// the equation, a single `0.0` is returned.
-pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
+pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<f64, 2> {
     let mut result = ArrayVec::new();
     let sc0 = c0 * c2.recip();
     let sc1 = c1 * c2.recip();
@@ -319,9 +319,9 @@ pub const GAUSS_LEGENDRE_COEFFS_24: &[(f64, f64)] = &[
 #[cfg(test)]
 mod tests {
     use crate::common::*;
-    use arrayvec::{Array, ArrayVec};
+    use arrayvec::ArrayVec;
 
-    fn verify<T: Array<Item = f64>>(mut roots: ArrayVec<T>, expected: &[f64]) {
+    fn verify<const N: usize>(mut roots: ArrayVec<f64, N>, expected: &[f64]) {
         assert_eq!(expected.len(), roots.len());
         let epsilon = 1e-6;
         roots.sort_by(|a, b| a.partial_cmp(b).unwrap());
