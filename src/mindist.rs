@@ -1,11 +1,27 @@
+// Copyright 2021 The kurbo Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Minimum distance between two Bézier curves
+//!
+//! This implements the algorithm in "Computing the minimum distance between
+//! two Bézier curves", Chen et al., *Journal of Computational and Applied
+//! Mathematics* 229(2009), 294-301
+
 use crate::Vec2;
 use core::cmp::Ordering;
 
-// This implements the algorithm in "Computing the
-// minimum distance between two Bézier curves", Chen et al.,
-// *Journal of Computational and Applied Mathematics* 229(2009), 294-301
-
-pub fn min_dist_param(
+pub(crate) fn min_dist_param(
     bez1: &[Vec2],
     bez2: &[Vec2],
     u: (f64, f64),
@@ -269,8 +285,8 @@ mod tests {
             (215.0, 408.0),
             (309.0, 408.0),
         ));
-        let (dist, _t1, _t2) = bez1.min_dist(bez2, 0.001);
-        assert!((dist - 50.9966).abs() < 0.5);
+        let mindist = bez1.min_dist(bez2, 0.001);
+        assert!((mindist.distance - 50.9966).abs() < 0.5);
     }
 
     #[test]
@@ -282,8 +298,8 @@ mod tests {
             (141.0, 301.0),
         ));
         let bez2 = PathSeg::Line(Line::new((359.0, 416.0), (367.0, 755.0)));
-        let (dist, _t1, _t2) = bez1.min_dist(bez2, 0.001);
-        assert!((dist - 246.4731222669117).abs() < 0.5);
+        let mindist = bez1.min_dist(bez2, 0.001);
+        assert!((mindist.distance - 246.4731222669117).abs() < 0.5);
     }
 
     #[test]
@@ -295,8 +311,8 @@ mod tests {
             (359.0, 416.0),
         ));
         let bez2 = PathSeg::Line(Line::new((141.0, 301.0), (152.0, 709.0)));
-        let (dist1, _t1, _t2) = bez1.min_dist(bez2, 0.5);
-        let (dist2, _t1, _t2) = bez2.min_dist(bez1, 0.5);
-        assert!((dist1 - dist2).abs() < 0.5);
+        let mindist1 = bez1.min_dist(bez2, 0.5);
+        let mindist2 = bez2.min_dist(bez1, 0.5);
+        assert!((mindist1.distance - mindist2.distance).abs() < 0.5);
     }
 }
