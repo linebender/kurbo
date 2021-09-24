@@ -76,9 +76,10 @@ impl CubicBez {
         ToQuads { c: self, n, i: 0 }
     }
 
-    /// Return a quadratic spline approximating this cubic bezier
+    /// Return a [`QuadSpline`] approximating this cubic Bézier.
     ///
-    /// Returns None if no suitable approximation was found in the given tolerance.
+    /// Returns `None` if no suitable approximation is found within the given
+    /// tolerance.
     pub fn approx_spline(&self, accuracy: f64) -> Option<QuadSpline> {
         (1..=MAX_SPLINE_SPLIT).find_map(|n| self.approx_spline_n(n, accuracy))
     }
@@ -161,7 +162,7 @@ impl CubicBez {
     }
 
     fn split_into_n(&self, n: usize) -> impl Iterator<Item = CubicBez> {
-        // if we have six or fewer items we precompute them.
+        // for certain small values of `n` we precompute all our values.
         let mut storage = ArrayVec::<[_; 6]>::new();
         match n {
             1 => storage.push(*self),
