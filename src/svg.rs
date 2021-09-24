@@ -582,10 +582,10 @@ mod tests {
         let mut elements = vec![];
         let mut position = None;
 
-        let length = rng.gen_range(0, MAX_LENGTH);
+        let length = rng.gen_range(0..MAX_LENGTH);
         for _ in 0..length {
             let should_follow: bool = rand::random();
-            let kind = rng.gen_range(0, 3);
+            let kind = rng.gen_range(0..3);
 
             let first = position
                 .filter(|_| should_follow)
