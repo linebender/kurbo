@@ -17,6 +17,7 @@ const MAX_SPLINE_SPLIT: usize = 100;
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
 pub struct CubicBez {

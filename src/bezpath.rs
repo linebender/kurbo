@@ -89,6 +89,7 @@ use crate::{
 /// [`FromIterator<PathEl>`]: std::iter::FromIterator
 /// [`Extend<PathEl>`]: std::iter::Extend
 #[derive(Clone, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BezPath(Vec<PathEl>);
 
@@ -96,6 +97,7 @@ pub struct BezPath(Vec<PathEl>);
 ///
 /// A valid path has `MoveTo` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathEl {
     /// Move directly to the point without drawing anything, starting a new
@@ -113,6 +115,7 @@ pub enum PathEl {
 
 /// A segment of a Bézier path.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathSeg {
     /// A line segment.

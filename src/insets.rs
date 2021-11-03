@@ -99,6 +99,7 @@ use crate::{Rect, Size};
 /// assert_eq!(insets2.y_value(), insets.y_value());
 /// ```
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Insets {
     /// The minimum x coordinate (left edge).

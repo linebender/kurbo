@@ -6,6 +6,7 @@ use crate::{Point, Rect, Vec2};
 
 /// A 2D affine transform.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Affine([f64; 6]);
 

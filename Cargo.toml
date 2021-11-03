@@ -11,13 +11,17 @@ readme = "README.md"
 categories = ["graphics"]
 
 [package.metadata.docs.rs]
-features = ["mint", "serde"]
+features = ["mint", "schemars", "serde"]
 
 [dependencies]
 arrayvec = "0.7.1"
 
 [dependencies.mint]
 version = "0.5.1"
+optional = true
+
+[dependencies.schemars]
+version = "0.8.6"
 optional = true
 
 [dependencies.serde]

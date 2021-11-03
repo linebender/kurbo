@@ -10,6 +10,7 @@ use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size
 
 /// An ellipse.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ellipse {
     /// All ellipses can be represented as an affine map of the unit circle,

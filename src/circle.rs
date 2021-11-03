@@ -10,6 +10,7 @@ use crate::{Affine, Arc, ArcAppendIter, Ellipse, PathEl, Point, Rect, Shape, Vec
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Circle {
     /// The center.

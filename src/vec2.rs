@@ -12,6 +12,7 @@ use crate::{Point, Size};
 /// but it can be interpreted as a translation, and converted to and
 /// from a point (vector relative to the origin) and size.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vec2 {
     /// The x-coordinate.
