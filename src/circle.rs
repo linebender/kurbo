@@ -385,7 +385,6 @@ mod tests {
 
 #[inline]
 fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
-
     let (angle_sin, angle_cos) = angle.sin_cos();
     center
         + Vec2 {

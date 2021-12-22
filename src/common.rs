@@ -84,7 +84,6 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
         let rho = r.hypot(sq);
         let th = sq.atan2(r) * (1.0 / 3.0);
         let cbrho = rho.cbrt();
-
         let (th_sin, th_cos) = th.sin_cos();
         let c = th_cos;
         let ss3 = th_sin * 3.0f64.sqrt();
