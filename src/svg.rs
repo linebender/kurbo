@@ -407,8 +407,7 @@ impl Arc {
         let mut ry = arc.radii.y.abs();
 
         let xr = arc.x_rotation % (2.0 * PI);
-        let cos_phi = xr.cos();
-        let sin_phi = xr.sin();
+        let (sin_phi, cos_phi) = xr.sin_cos();
         let hd_x = (arc.from.x - arc.to.x) * 0.5;
         let hd_y = (arc.from.y - arc.to.y) * 0.5;
         let hs_x = (arc.from.x + arc.to.x) * 0.5;
