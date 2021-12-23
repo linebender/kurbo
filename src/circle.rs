@@ -162,11 +162,11 @@ impl Iterator for CirclePathIter {
         } else if ix <= self.n {
             let th1 = self.delta_th * (ix as f64);
             let th0 = th1 - self.delta_th;
-            let (c0, s0) = (th0.cos(), th0.sin());
-            let (c1, s1) = if ix == self.n {
-                (1.0, 0.0)
+            let (s0, c0) = th0.sin_cos();
+            let (s1, c1) = if ix == self.n {
+                (0.0, 1.0)
             } else {
-                (th1.cos(), th1.sin())
+                th1.sin_cos()
             };
             Some(PathEl::CurveTo(
                 Point::new(x + r * (c0 - a * s0), y + r * (s0 + a * c0)),
@@ -385,9 +385,10 @@ mod tests {
 
 #[inline]
 fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
+    let (angle_sin, angle_cos) = angle.sin_cos();
     center
         + Vec2 {
-            x: angle.cos() * radius,
-            y: angle.sin() * radius,
+            x: angle_cos * radius,
+            y: angle_sin * radius,
         }
 }

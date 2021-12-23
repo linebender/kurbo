@@ -97,9 +97,10 @@ impl Vec2 {
     /// [`Affine::rotate`]: crate::Affine::rotate
     #[inline]
     pub fn from_angle(th: f64) -> Vec2 {
+        let (th_sin, th_cos) = th.sin_cos();
         Vec2 {
-            x: th.cos(),
-            y: th.sin(),
+            x: th_cos,
+            y: th_sin,
         }
     }
 
