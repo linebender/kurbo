@@ -302,8 +302,14 @@ impl BezPath {
 
     /// Get the segment at the given element index.
     ///
-    /// The element index counts [`PathEl`] elements, so
-    /// for example includes an initial `Moveto`.
+    /// If you need to access all segments, [`segments`] provides a better
+    /// API. This is intended for random access of specific elements, for clients
+    /// that require this specifically.
+    ///
+    /// **note**: This returns the segment that ends at the provided element
+    /// index. In effect this means it is *1-indexed*: since no segment ends at
+    /// the first element (which is presumed to be a `MoveTo`) `get_seg(0)` will
+    /// always return `None`.
     pub fn get_seg(&self, ix: usize) -> Option<PathSeg> {
         if ix == 0 || ix >= self.0.len() {
             return None;
@@ -320,7 +326,9 @@ impl BezPath {
             PathEl::QuadTo(p1, p2) => Some(PathSeg::Quad(QuadBez::new(last, p1, p2))),
             PathEl::CurveTo(p1, p2, p3) => Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3))),
             PathEl::ClosePath => self.0[..ix].iter().rev().find_map(|el| match *el {
-                PathEl::MoveTo(start) => Some(PathSeg::Line(Line::new(last, start))),
+                PathEl::MoveTo(start) if start != last => {
+                    Some(PathSeg::Line(Line::new(last, start)))
+                }
                 _ => None,
             }),
             _ => None,
@@ -1238,6 +1246,8 @@ impl Iterator for PathSegIter {
 
 #[cfg(test)]
 mod tests {
+    use crate::{Circle, DEFAULT_ACCURACY};
+
     use super::*;
 
     fn assert_approx_eq(x: f64, y: f64) {
@@ -1339,5 +1349,16 @@ mod tests {
         path.close_path();
         assert_eq!(path.winding(Point::new(1.0, 0.5)), -1);
         assert!(path.contains(Point::new(1.0, 0.5)));
+    }
+
+    // get_seg(i) should produce the same results as path_segments().nth(i - 1).
+    #[test]
+    fn test_get_seg() {
+        let circle = Circle::new((10.0, 10.0), 2.0).to_path(DEFAULT_ACCURACY);
+        let segments = circle.path_segments(DEFAULT_ACCURACY).collect::<Vec<_>>();
+        let get_segs = (1..usize::MAX)
+            .map_while(|i| circle.get_seg(i))
+            .collect::<Vec<_>>();
+        assert_eq!(segments, get_segs);
     }
 }
