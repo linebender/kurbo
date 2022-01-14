@@ -202,11 +202,7 @@ impl BezPath {
     /// Will panic with a debug assert when the current subpath does not
     /// start with `move_to`.
     pub fn line_to<P: Into<Point>>(&mut self, p: P) {
-        debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(
-            self.0.last() != Some(&PathEl::ClosePath),
-            "Subpath must start with move_to"
-        );
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::LineTo(p.into()));
     }
 
@@ -215,11 +211,7 @@ impl BezPath {
     /// Will panic with a debug assert when the current subpath does not
     /// start with `move_to`.
     pub fn quad_to<P: Into<Point>>(&mut self, p1: P, p2: P) {
-        debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(
-            self.0.last() != Some(&PathEl::ClosePath),
-            "Subpath must start with move_to"
-        );
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::QuadTo(p1.into(), p2.into()));
     }
 
@@ -228,11 +220,7 @@ impl BezPath {
     /// Will panic with a debug assert when the current subpath does not
     /// start with `move_to`.
     pub fn curve_to<P: Into<Point>>(&mut self, p1: P, p2: P, p3: P) {
-        debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(
-            self.0.last() != Some(&PathEl::ClosePath),
-            "Subpath must start with move_to"
-        );
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::CurveTo(p1.into(), p2.into(), p3.into()));
     }
 
@@ -241,12 +229,12 @@ impl BezPath {
     /// Will panic with a debug assert when the current subpath does not
     /// start with `move_to`.
     pub fn close_path(&mut self) {
-        debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(
-            self.0.last() != Some(&PathEl::ClosePath),
-            "Subpath must start with move_to"
-        );
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::ClosePath);
+    }
+
+    fn is_open_subpath(&self) -> bool {
+        !self.0.is_empty() && self.0.last() != Some(&PathEl::ClosePath)
     }
 
     /// Get the path elements.
@@ -1281,7 +1269,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Subpath must start with move_to")]
+    #[should_panic(expected = "no open subpath")]
     fn test_elements_to_segments_starts_on_closepath() {
         let mut path = BezPath::new();
         path.close_path();
@@ -1303,7 +1291,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Subpath must start with move_to")]
+    #[should_panic(expected = "no open subpath")]
     fn test_must_not_start_on_quad() {
         let mut path = BezPath::new();
         path.quad_to((5.0, 5.0), (10.0, 10.0));
