@@ -203,7 +203,10 @@ impl BezPath {
     /// start with `move_to`.
     pub fn line_to<P: Into<Point>>(&mut self, p: P) {
         debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(self.0.last() != Some(&PathEl::ClosePath), "Subpath must start with move_to");
+        debug_assert!(
+            self.0.last() != Some(&PathEl::ClosePath),
+            "Subpath must start with move_to"
+        );
         self.push(PathEl::LineTo(p.into()));
     }
 
@@ -213,7 +216,10 @@ impl BezPath {
     /// start with `move_to`.
     pub fn quad_to<P: Into<Point>>(&mut self, p1: P, p2: P) {
         debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(self.0.last() != Some(&PathEl::ClosePath), "Subpath must start with move_to");
+        debug_assert!(
+            self.0.last() != Some(&PathEl::ClosePath),
+            "Subpath must start with move_to"
+        );
         self.push(PathEl::QuadTo(p1.into(), p2.into()));
     }
 
@@ -223,7 +229,10 @@ impl BezPath {
     /// start with `move_to`.
     pub fn curve_to<P: Into<Point>>(&mut self, p1: P, p2: P, p3: P) {
         debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(self.0.last() != Some(&PathEl::ClosePath), "Subpath must start with move_to");
+        debug_assert!(
+            self.0.last() != Some(&PathEl::ClosePath),
+            "Subpath must start with move_to"
+        );
         self.push(PathEl::CurveTo(p1.into(), p2.into(), p3.into()));
     }
 
@@ -233,7 +242,10 @@ impl BezPath {
     /// start with `move_to`.
     pub fn close_path(&mut self) {
         debug_assert!(!self.0.is_empty(), "Subpath must start with move_to");
-        debug_assert!(self.0.last() != Some(&PathEl::ClosePath), "Subpath must start with move_to");
+        debug_assert!(
+            self.0.last() != Some(&PathEl::ClosePath),
+            "Subpath must start with move_to"
+        );
         self.push(PathEl::ClosePath);
     }
 
