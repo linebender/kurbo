@@ -1,6 +1,7 @@
 use crate::ParamCurveBezierClipping;
 use crate::{ParamCurve, ParamCurveExtrema};
 use crate::{Point, Rect};
+use crate::real::*;
 use arrayvec::ArrayVec;
 use std::ops::Range;
 
@@ -55,7 +56,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
 
     let epsilon = 1e-9;
 
-    if (domain2.start - domain2.end).abs() < f64::EPSILON || curve2.arclen(epsilon) == 0.0 {
+    if real_is_equal(domain2.start, domain2.end) || curve2.arclen(epsilon) == 0.0 {
         add_point_curve_intersection(
             curve2,
             /* point is curve1 */ false,
@@ -136,7 +137,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
     // (Note: it's possible for new_domain1 to have become a point, even if
     // t_min_clip < t_max_clip. It's also possible for curve1 to not be a point even if new_domain1
     // is a point (but then curve1 will be very small).)
-    if (new_domain1.start - new_domain1.end).abs() < f64::EPSILON || curve1.arclen(epsilon) == 0.0 {
+    if real_is_equal(new_domain1.start, new_domain1.end) || curve1.arclen(epsilon) == 0.0 {
         add_point_curve_intersection(
             curve1,
             /* point is curve1 */ true,
@@ -209,7 +210,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         }
     } else {
         // Iterate.
-        if domain2.end - domain2.start >= epsilon {
+        if !real_is_equal(domain2.end, domain2.start) {
             call_count = add_curve_intersections(
                 curve2,
                 curve1,
@@ -251,7 +252,7 @@ fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezier
     intersections: &mut ArrayVec<[(f64, f64); 9]>,
     flip: bool,
 ) {
-    let pt = pt_curve.start();
+    let pt = pt_curve.eval(0.5);
     // We assume pt is curve1 when we add intersections below.
     let flip = if pt_curve_is_curve1 { flip } else { !flip };
 
@@ -273,39 +274,38 @@ fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezier
             }
         }
 
-        if (min_dist_sq - epsilon).abs() < f64::EPSILON {
+        if real_is_zero(min_dist_sq) {
             -1.0
         } else {
             domain_value_at_t(curve_domain, t_for_min)
         }
     };
 
-    if (curve_t - -1.0).abs() > f64::EPSILON {
+    if !real_is_equal(curve_t, -1.0) {
         add_intersection(pt_t, pt_curve, curve_t, curve, flip, intersections);
         return;
     }
 
     // If sampling didn't work, try a different approach.
-    let results = point_curve_intersections(pt, curve, epsilon);
+    let results = t_along_curve_for_point(pt, curve);
     for t in results {
         let curve_t = domain_value_at_t(curve_domain, t);
         add_intersection(pt_t, pt_curve, curve_t, curve, flip, intersections);
     }
 }
 
-fn point_curve_intersections<T: ParamCurveBezierClipping>(
+pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
     pt: Point,
     curve: &T,
-    epsilon: f64,
 ) -> ArrayVec<[f64; 9]> {
     let mut result = ArrayVec::new();
 
-    // (If both endpoints are epsilon close, we only return 0.0.)
-    if (pt - curve.start()).hypot2() < epsilon {
+    // If both endpoints are approximately close, we only return 0.0.
+    if point_is_equal(pt, curve.start()) {
         result.push(0.0);
         return result;
     }
-    if (pt - curve.end()).hypot2() < epsilon {
+    if point_is_equal(pt, curve.end()) {
         result.push(1.0);
         return result;
     }
@@ -316,11 +316,11 @@ fn point_curve_intersections<T: ParamCurveBezierClipping>(
     // directions, but the parameter calculations aren't very accurate, so give a little more
     // leeway there (TODO: this isn't perfect, as you might expect - the dupes that pass here are
     // currently being detected in add_intersection).
-    let param_eps = 10.0 * epsilon;
+    let param_eps = 10.0 * epsilon_for_point(pt);
     for params in [curve_x_t_params, curve_y_t_params].iter() {
         for t in params {
             let t = *t;
-            if (pt - curve.eval(t)).hypot2() > epsilon {
+            if !point_is_equal(pt, curve.eval(t)) {
                 continue;
             }
             let mut already_found_t = false;
@@ -340,20 +340,21 @@ fn point_curve_intersections<T: ParamCurveBezierClipping>(
         return result;
     }
 
-    // The remaining case is if pt is within epsilon of an interior point of curve, but not within
-    // the x-range or y-range of the curve (which we already checked) - for example if curve is a
-    // horizontal line that extends beyond its endpoints, and pt is just outside an end of the line;
-    // or if the curve has a cusp in one of the corners of its convex hull and pt is
-    // diagonally just outside the hull.  This is a rare case (could we even ignore it?).
+    // The remaining case is if pt is approximately equal to an interior point
+    // of curve, but not within the x-range or y-range of the curve (which we
+    // already checked) due to floating point errors - for example if curve is
+    // a horizontal line that extends beyond its endpoints, and pt is on the
+    // extrema, but just barely outside the x-y limits; or if the curve has a
+    // cusp in one of the corners of its convex hull and pt is diagonally just
+    // outside the hull.
     #[inline]
     fn maybe_add<T: ParamCurve + ParamCurveExtrema>(
         t: f64,
         pt: Point,
         curve: &T,
-        epsilon: f64,
         result: &mut ArrayVec<[f64; 9]>,
     ) -> bool {
-        if (curve.eval(t) - pt).hypot2() < epsilon {
+        if point_is_equal(curve.eval(t), pt) {
             result.push(t);
             return true;
         }
@@ -361,29 +362,10 @@ fn point_curve_intersections<T: ParamCurveBezierClipping>(
     }
 
     for ex in curve.extrema() {
-        maybe_add(ex, pt, curve, epsilon, &mut result);
+        maybe_add(ex, pt, curve, &mut result);
     }
 
     result
-}
-
-// If we're comparing distances between samples of curves, our epsilon should depend on how big the
-// points we're comparing are. This function returns an epsilon appropriate for the size of pt.
-fn epsilon_for_point(pt: Point) -> f64 {
-    let max = f64::max(f64::abs(pt.x), f64::abs(pt.y));
-    if max <= 9.0 {
-        0.001
-    } else if max <= 99.0 {
-        0.01
-    } else if max <= 999.0 {
-        0.1
-    } else if max <= 9_999.0 {
-        0.25
-    } else if max <= 999_999.0 {
-        0.5
-    } else {
-        1.0
-    }
 }
 
 fn add_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
@@ -535,13 +517,48 @@ mod tests {
         count: usize,
     ) {
         let arr1 = curve_curve_intersections(curve1, curve2);
-        assert_eq!(arr1.len(), count);
         let arr2 = curve_curve_intersections(curve2, curve1);
+        assert_eq!(arr1.len(), count);
         assert_eq!(arr2.len(), count);
+    }
+
+    fn test_t_along_curve<T: ParamCurveBezierClipping>(
+        curve: &T,
+        t_test: f64,
+    ) {
+        let pt_test = curve.eval(t_test);
+        let t_values = t_along_curve_for_point(pt_test, curve);
+        assert!(!t_values.is_empty());
+
+        let mut found_t = false;
+        for t in &t_values {
+            let pt = curve.eval(*t);
+
+            if real_is_equal(*t, t_test)
+            {
+                found_t = true;
+            }
+
+            println!("t for pt on curve: {} {}, expected {} {}", t, pt, t_test, pt_test);
+            assert!(point_is_equal(pt, pt_test))
+        }
+        assert!(found_t)
+    }
+
+    fn test_t<T: ParamCurveBezierClipping>(
+        curve: &T,
+    ) {
+        let tenths = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+        for &t in tenths.iter() {
+            test_t_along_curve(curve, t);
+        }
     }
 
     #[test]
     fn test_cubic_cubic_intersections() {
+        test_t(&CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)));
+        test_t(&CubicBez::new((0.0, 0.0), (-1.0, 0.0), (1.0, 0.0), (1.0, 0.0)));
+        
         do_test(
             &CubicBez::new((0.0, 0.0), (0.0, 1.0), (0.0, 1.0), (1.0, 1.0)),
             &CubicBez::new((0.0, 1.0), (1.0, 1.0), (1.0, 1.0), (1.0, 0.0)),
@@ -562,6 +579,17 @@ mod tests {
             &CubicBez::new((0.0, 0.0), (2.5, 0.5), (-1.5, 0.5), (1.0, 0.0)),
             9,
         );
+        // THESE TESTS FAIL, WORKING ON FIXES
+        // do_test(
+        //     &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
+        //     &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
+        //     2,
+        // );
+        // do_test(
+        //     &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
+        //     &CubicBez::new((0.0, 0.0), (0.3, -0.5), (0.7, -0.5), (1.0, 0.0)),
+        //     2,
+        // );
 
         // (A previous version of the code was returning two practically identical
         // intersection points here.)
