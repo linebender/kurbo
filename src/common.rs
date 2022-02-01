@@ -118,12 +118,8 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
     let sc1 = c1 * c2.recip();
     if !sc0.is_finite() || !sc1.is_finite() {
         // c2 is zero or very small, treat as linear eqn
-        let root = -c0 / c1;
-        if root.is_finite() {
+        for root in solve_linear(c0, c1) {
             result.push(root);
-        } else if c0 == 0.0 && c1 == 0.0 {
-            // Degenerate case
-            result.push(0.0);
         }
         return result;
     }
@@ -154,6 +150,21 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<[f64; 2]> {
         }
     } else {
         result.push(root1);
+    }
+    result
+}
+
+/// Find real roots of linear equation.
+///
+/// Return values of x for which c0 + c1 x = 0.
+pub fn solve_linear(c0: f64, c1: f64) -> ArrayVec<[f64; 1]> {
+    let mut result = ArrayVec::new();
+    let root = -c0 / c1;
+    if root.is_finite() {
+        result.push(root);
+    } else if c0 == 0.0 && c1 == 0.0 {
+        // Degenerate case
+        result.push(0.0);
     }
     result
 }

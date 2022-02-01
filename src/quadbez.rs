@@ -7,9 +7,9 @@ use arrayvec::ArrayVec;
 use crate::common::solve_cubic;
 use crate::MAX_EXTREMA;
 use crate::{
-    Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
+    Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveBezierClipping,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
-    Rect, Shape,
+    Rect, Shape, Vec2
 };
 
 /// A single quadratic Bézier segment.
@@ -92,6 +92,15 @@ impl QuadBez {
         (u - params.u0) * params.uscale
     }
 
+    /// Get the parameters such that the curve can be represented by the following formula:
+    ///     B(t) = a*t^2 + b*t + c
+    pub fn parameters(&self) -> (Vec2, Vec2, Vec2) {
+        let c = self.p0.to_vec2();
+        let b = (self.p1 - self.p0) * 2.0;
+        let a = c - self.p1.to_vec2() * 2.0 + self.p2.to_vec2();
+        (a, b, c)
+    }
+
     /// Is this quadratic Bezier curve finite?
     #[inline]
     pub fn is_finite(&self) -> bool {
@@ -102,6 +111,12 @@ impl QuadBez {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan()
+    }
+
+    /// Is this quadratic Bezier curve a line?
+    #[inline]
+    pub fn is_linear(&self, accuracy: f64) -> bool {
+        self.baseline().nearest(self.p1, accuracy).distance_sq <= accuracy
     }
 }
 

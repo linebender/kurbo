@@ -48,6 +48,14 @@ impl Line {
         Some(other.p0 + cd * h)
     }
 
+    /// Get the parameters such that the curve can be represented by the following formula:
+    ///     B(t) = a*t + b
+    pub fn parameters(&self) -> (Vec2, Vec2) {
+        let b = self.p0.to_vec2();
+        let a = self.p1 - self.p0;
+        (a, b)
+    }
+
     /// Is this line finite?
     #[inline]
     pub fn is_finite(self) -> bool {
