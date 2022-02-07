@@ -22,13 +22,20 @@ pub fn epsilon_for_point(pt: Point) -> f64 {
 /// Compare if two real values are approximately equal
 pub fn real_is_equal(num1: f64, num2: f64) -> bool
 {
+    real_is_approx(num1, num2, 1.)
+}
+
+/// Compare if two real values are approximately equal to a smaller degree than
+/// real_is_equal
+pub fn real_is_approx(num1: f64, num2: f64, scale: f64) -> bool
+{
     if num1 == f64::INFINITY || num2 == f64::INFINITY
     {
         return num1 == num2; // Do exact comparison
     }
 
     // Do approximate comparison
-    (num1 - num2).abs() <= epsilon_for_value(num1.max(num2))
+    (num1 - num2).abs() <= (scale * epsilon_for_value(num1.max(num2)))
 }
 
 /// Compare if a  real value is approximately zero
@@ -64,7 +71,14 @@ pub fn real_gte(num1: f64, num2: f64) -> bool
 /// Compare if two points are approximately equal
 pub fn point_is_equal(pt1: Point, pt2: Point) -> bool
 {
-    real_is_equal(pt1.x, pt2.x) && real_is_equal(pt1.y, pt2.y)
+    point_is_approx(pt1, pt2, 1.)
+}
+
+/// Compare if two points are approximately equal to a smaller degree than
+/// point_is_equal
+pub fn point_is_approx(pt1: Point, pt2: Point, scale: f64) -> bool
+{
+    real_is_approx(pt1.x, pt2.x, scale) && real_is_approx(pt1.y, pt2.y, scale)
 }
 
 #[cfg(test)]
