@@ -229,5 +229,5 @@ pub trait ParamCurveBezierClipping: ParamCurve + ParamCurveDeriv + ParamCurveExt
     /// Returns the upper and lower convex hull
     fn convex_hull_from_line(&self, l: &Line) -> (Vec<Point>, Vec<Point>);
     /// Returns the minimum and maximum distances of the "fat line" enclosing this curve
-    fn fat_line_min_max(&self) -> (f64, f64);
+    fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64);
 }

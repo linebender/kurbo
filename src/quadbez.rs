@@ -279,6 +279,11 @@ impl ParamCurveArclen for QuadBez {
         let c2 = 2.0 * c.sqrt();
         let ba_c2 = b * a2 + c2;
 
+        if a2.is_infinite() {
+            // The arclength is zero
+            return 0.
+        }
+
         let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc - c2) + sabc;
         // TODO: justify and fine-tune this exact constant.
         if ba_c2 < 1e-13 {

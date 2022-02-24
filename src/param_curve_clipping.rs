@@ -1,6 +1,6 @@
 //! A trait for clipping parametrized curves.
 
-use crate::common::{min_max, solve_cubic, solve_quadratic, solve_linear};
+use crate::common::{solve_cubic, solve_quadratic, solve_linear};
 use crate::{CubicBez, QuadBez, Line, Point, ParamCurve, ParamCurveBezierClipping};
 use arrayvec::ArrayVec;
 
@@ -10,6 +10,19 @@ fn signed_distance_from_ray_to_point(l: &Line, p: Point) -> f64 {
     let a = -vec2.y;
     let b = vec2.x;
     let c = -(a * l.start().x + b * l.start().y);
+
+    let len = (a * a + b * b).sqrt();
+    let a = a / len;
+    let b = b / len;
+    let c = c / len;
+
+    if a.is_infinite() || b.is_infinite() || c.is_infinite()
+    {
+        // Can't compute distance from zero-length line, so return distance
+        // from p0 instead
+        return (p - l.p0).hypot();
+    }
+
     a * p.x + b * p.y + c
 }
 
@@ -38,8 +51,16 @@ impl ParamCurveBezierClipping for Line {
             .collect()
     }
 
-    fn fat_line_min_max(&self) -> (f64, f64) {
-        (0., 0.)
+    fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64) {
+        // Get the signed distance to each point
+        let d0 = signed_distance_from_ray_to_point(&baseline, self.p0);
+        let d1 = signed_distance_from_ray_to_point(&baseline, self.p1);
+
+        // Calculate min and max distances
+        let d_min = f64::min(d0.min(d1), 0.0);
+        let d_max = f64::max(d0.max(d1), 0.0);
+
+        (d_min, d_max)
     }
 
     fn convex_hull_from_line(&self, l: &Line) -> (Vec<Point>, Vec<Point>) {
@@ -79,13 +100,24 @@ impl ParamCurveBezierClipping for QuadBez {
             .collect()
     }
 
-    fn fat_line_min_max(&self) -> (f64, f64) {
-        let baseline = self.baseline();
+    fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64) {
+        // Get the signed distance to each point
+        let d0 = signed_distance_from_ray_to_point(&baseline, self.p0);
         let d1 = signed_distance_from_ray_to_point(&baseline, self.p1);
-        let factor = 1.0 / 2.0;
+        let d2 = signed_distance_from_ray_to_point(&baseline, self.p2);
 
-        let d_min = factor * f64::min(d1, 0.0);
-        let d_max = factor * f64::max(d1, 0.0);
+        // Shrink d1 to a more accurate number, but test the distance compared
+        // to d0 and d3 in case we're looking at a perpendicular fat line
+        let factor = 1.0 / 2.0;
+        //let factor = 1.0;
+        let d1_1 = (d1 - d0) * factor + d0;
+        let d1_2 = (d1 - d2) * factor + d2;
+        // let d1_1 = d1;
+        // let d1_2 = d1;
+
+        // Calculate min and max distances
+        let d_min = f64::min(d0.min(d1_1).min(d1_2).min(d2), 0.0);
+        let d_max = f64::max(d0.max(d1_1).max(d1_2).max(d2), 0.0);
 
         (d_min, d_max)
     }
@@ -138,20 +170,25 @@ impl ParamCurveBezierClipping for CubicBez {
             .collect()
     }
 
-    fn fat_line_min_max(&self) -> (f64, f64) {
-        let baseline = self.baseline();
-        let (d1, d2) = min_max(
-            signed_distance_from_ray_to_point(&baseline, self.p1),
-            signed_distance_from_ray_to_point(&baseline, self.p2),
-        );
-        let factor = if (d1 * d2) > 0.0 {
+    fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64) {
+        // Get the signed distance to each point
+        let d0 = signed_distance_from_ray_to_point(&baseline, self.p0);
+        let d1 = signed_distance_from_ray_to_point(&baseline, self.p1);
+        let d2 = signed_distance_from_ray_to_point(&baseline, self.p2);
+        let d3 = signed_distance_from_ray_to_point(&baseline, self.p3);
+
+        // Shrink d1 and d2 to more accurate numbers
+        let factor: f64 = if ((d1 - d0) * (d2 - d3)) > 0.0 {
             3.0 / 4.0
         } else {
             4.0 / 9.0
         };
+        let d1 = (d1 - d0) * factor + d0;
+        let d2 = (d2 - d3) * factor + d3;
 
-        let d_min = factor * f64::min(d1, 0.0);
-        let d_max = factor * f64::max(d2, 0.0);
+        // Calculate min and max distances
+        let d_min = f64::min(d0.min(d1).min(d2).min(d3), 0.0);
+        let d_max = f64::max(d0.max(d1).max(d2).max(d3), 0.0);
 
         (d_min, d_max)
     }

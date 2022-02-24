@@ -1,6 +1,6 @@
 use crate::ParamCurveBezierClipping;
 use crate::{ParamCurve, ParamCurveExtrema};
-use crate::{Point, Rect};
+use crate::{Point, Rect, Affine};
 use crate::real::*;
 use arrayvec::ArrayVec;
 use std::ops::Range;
@@ -185,7 +185,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
 ) -> u32 {
     call_count += 1;
     recursion_count += 1;
-    if call_count >= 4096 || recursion_count >= 60 {
+    if call_count >= 4096 || recursion_count >= 128 {
         return call_count;
     }
 
@@ -243,15 +243,28 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         return call_count;
     }
 
-    let (t_min_clip, t_max_clip) = match restrict_curve_to_fat_line(curve1, curve2) {
-        Some((min, max)) => (min, max),
-        None => return call_count,
+    // Clip to the normal fatline and the perpendicular fatline and limit our search to the
+    // intersection of the two intervals.
+    let clip_norm = restrict_curve_to_fat_line(curve1, curve2);
+    let clip_perp = restrict_curve_to_perpendicular_fat_line(curve1, curve2);
+    let (t_min_clip, t_max_clip) = match clip_norm {
+        Some((min_norm, max_norm)) => {
+            match clip_perp {
+                Some((min_perp, max_perp)) => (min_norm.max(min_perp), max_norm.min(max_perp)),
+                None => (min_norm, max_norm),
+            }
+        }
+        None => {
+            match clip_perp {
+                Some((min_perp, max_perp)) => (min_perp, max_perp),
+                None => return call_count,
+            }
+        },
     };
 
     // t_min_clip and t_max_clip are (0, 1)-based, so project them back to get the new restricted
     // range:
-    let new_domain1 =
-        &(domain_value_at_t(domain1, t_min_clip)..domain_value_at_t(domain1, t_max_clip));
+    let new_domain1 = &(domain_value_at_t(domain1, t_min_clip)..domain_value_at_t(domain1, t_max_clip));
 
     if (domain2.end - domain2.start).max(new_domain1.end - new_domain1.start) < epsilon {
         let t1 = (new_domain1.start + new_domain1.end) * 0.5;
@@ -462,7 +475,6 @@ pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
     // directions, but the parameter calculations aren't very accurate, so give a little more
     // leeway there (TODO: this isn't perfect, as you might expect - the dupes that pass here are
     // currently being detected in add_intersection).
-    let param_eps = 10.0 * epsilon_for_point(pt);
     for params in [curve_x_t_params, curve_y_t_params].iter() {
         for t in params {
             let t = *t;
@@ -596,7 +608,35 @@ fn restrict_curve_to_fat_line<
 
     let baseline2 = curve2.baseline();
     let (mut top, mut bottom) = curve1.convex_hull_from_line(&baseline2);
-    let (d_min, d_max) = curve2.fat_line_min_max();
+    let (d_min, d_max) = curve2.fat_line_min_max(&baseline2);
+
+    clip_convex_hull_to_fat_line(&mut top, &mut bottom, d_min, d_max)
+}
+
+// Returns an interval (t_min, t_max) with the property that for parameter values outside that
+// interval, curve1 is guaranteed to not intersect curve2; uses the perpendicular fatline of
+// curve2 as its basis for the guarantee. We use check the perpendicular fatline as well as the
+// regular fatline because sometimes it converges to the result faster.
+fn restrict_curve_to_perpendicular_fat_line<
+    T: ParamCurveBezierClipping + ParamCurve + ParamCurveExtrema,
+    U: ParamCurveBezierClipping + ParamCurve + ParamCurveExtrema,
+>(
+    curve1: &T,
+    curve2: &U,
+) -> Option<(f64, f64)> {
+    use std::f64::consts::PI;
+
+    // TODO: Consider clipping against the perpendicular fat line as well (recommended by
+    // Sederberg).
+    // TODO: The current algorithm doesn't handle the (rare) case where curve1 and curve2 are
+    // overlapping lines.
+
+    let baseline2 = curve2.baseline();
+    let center_baseline2 = baseline2.bounding_box().center().to_vec2();
+    let affine_baseline2 = Affine::translate(center_baseline2) * Affine::rotate(PI / 2.) * Affine::translate(-center_baseline2);
+    let baseline2 = affine_baseline2 * baseline2;
+    let (mut top, mut bottom) = curve1.convex_hull_from_line(&baseline2);
+    let (d_min, d_max) = curve2.fat_line_min_max(&baseline2);
 
     clip_convex_hull_to_fat_line(&mut top, &mut bottom, d_min, d_max)
 }
