@@ -7,9 +7,18 @@ use std::ops::Range;
 
 bitflags::bitflags! {
     pub struct CurveIntersectionFlags: u32 {
-        const NONE                           = 0b00000000;
-        const KEEP_ENDPOINT_INTERSECTIONS    = 0b00000001;
-        const KEEP_DUPLICATE_INTERSECTIONS   = 0b00000010;
+        const NONE                                  = 0b00000000;
+        const KEEP_CURVE1_T0_INTERSECTION           = 0b00000001;
+        const KEEP_CURVE1_T1_INTERSECTION           = 0b00000010;
+        const KEEP_CURVE2_T0_INTERSECTION           = 0b00000100;
+        const KEEP_CURVE2_T1_INTERSECTION           = 0b00001000;
+        const KEEP_CURVE1_ENDPOINT_INTERSECTIONS    = Self::KEEP_CURVE1_T0_INTERSECTION.bits
+                                                    | Self::KEEP_CURVE1_T1_INTERSECTION.bits;
+        const KEEP_CURVE2_ENDPOINT_INTERSECTIONS    = Self::KEEP_CURVE2_T0_INTERSECTION.bits
+                                                    | Self::KEEP_CURVE2_T1_INTERSECTION.bits;
+        const KEEP_ALL_ENDPOINT_INTERSECTIONS       = Self::KEEP_CURVE1_ENDPOINT_INTERSECTIONS.bits
+                                                    | Self::KEEP_CURVE2_ENDPOINT_INTERSECTIONS.bits;
+        const KEEP_DUPLICATE_INTERSECTIONS          = 0b00010000;
     }
 }
 
@@ -151,10 +160,25 @@ fn check_for_overlap<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
         }
     }
 
-    if flags.contains(CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS) {
-        // Add the endpoints as intersections
-        intersections.push((overlap_along_curve1.0, overlap_along_curve2.0));
-        intersections.push((overlap_along_curve1.1, overlap_along_curve2.1));
+    let overlap_along_curve2_is_flipped = overlap_along_curve2.1 < overlap_along_curve2.0;
+    let overlap_along_curve2_0_is_start = !overlap_along_curve2_is_flipped && start2_on_1.0;
+    let overlap_along_curve2_1_is_start = overlap_along_curve2_is_flipped && start2_on_1.0;
+    let overlap_along_curve2_0_is_end = overlap_along_curve2_is_flipped && end2_on_1.0;
+    let overlap_along_curve2_1_is_end = !overlap_along_curve2_is_flipped && end2_on_1.0;
+    if flags.intersects(CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS) {
+        // Add the endpoints as intersections if necessary
+        if (!start1_on_2.0 && (!overlap_along_curve2_0_is_start && !overlap_along_curve2_0_is_end))
+            || (flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T0_INTERSECTION) && start1_on_2.0)
+            || (flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION) && overlap_along_curve2_0_is_start)
+            || (flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION) && overlap_along_curve2_0_is_end) {
+            intersections.push((overlap_along_curve1.0, overlap_along_curve2.0));
+        }
+        if (!end1_on_2.0 && (!overlap_along_curve2_1_is_start && !overlap_along_curve2_1_is_end))
+            || (flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T1_INTERSECTION) && end1_on_2.0)
+            || (flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION) && overlap_along_curve2_1_is_start)
+            || (flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION) && overlap_along_curve2_1_is_end) {
+            intersections.push((overlap_along_curve1.1, overlap_along_curve2.1));
+        }
     }
 
     true // The two curves overlap!
@@ -269,17 +293,14 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
     if (domain2.end - domain2.start).max(new_domain1.end - new_domain1.start) < epsilon {
         let t1 = (new_domain1.start + new_domain1.end) * 0.5;
         let t2 = (domain2.start + domain2.end) * 0.5;
-        // There's an unfortunate tendency for curve2 endpoints that end near (but not all
-        // that near) to the interior of curve1 to register as intersections, so try to avoid
-        // that. (We could be discarding a legitimate intersection here.)
-        if !flags.contains(CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS)
-            && (real_lte(t2, 0.0) || real_gte(t2, 1.0))
-            && point_is_equal(orig_curve1.eval(t1), orig_curve2.eval(t2))
-        {
+        let t1_corrected = if flip { t2 } else { t1 };
+        let t2_corrected = if flip { t1 } else { t2 };
+        
+        if point_is_equal(orig_curve1.eval(t1_corrected), orig_curve2.eval(t2_corrected)) {
+            // Note: add_intersection tests if the intersection is an end-point
+            add_intersection(t1, orig_curve1, t2, orig_curve2, flip, intersections, flags);
             return call_count;
         }
-        add_intersection(t1, orig_curve1, t2, orig_curve2, flip, intersections, flags);
-        return call_count;
     }
 
     // Reduce curve1 to the part that might intersect curve2.
@@ -553,14 +574,15 @@ fn add_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
 ) {
     let (t1, t2) = if flip { (t2, t1) } else { (t1, t2) };
     
-    // Discard endpoint/endpoint intersections.
-    if !flags.contains(CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS)
-    {
-        let t1_is_an_endpoint = real_lte(t1, 0.0) || real_gte(t1, 1.0);
-        let t2_is_an_endpoint = real_lte(t2, 0.0) || real_gte(t2, 1.0);
-        if t1_is_an_endpoint && t2_is_an_endpoint {
-            return;
-        }
+    // Discard endpoint/endpoint intersections if desired
+    let keep_intersection = 
+        (!real_lte(t1, 0.0) && !real_gte(t1, 1.0) && !real_lte(t2, 0.0) && !real_gte(t2, 1.0))
+        || flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T0_INTERSECTION) && real_lte(t1, 0.0)
+        || flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T1_INTERSECTION) && real_gte(t1, 1.0)
+        || flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION) && real_lte(t2, 0.0)
+        || flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION) && real_gte(t2, 1.0);
+    if !keep_intersection {
+        return;
     }
 
     if !flags.contains(CurveIntersectionFlags::KEEP_DUPLICATE_INTERSECTIONS)
@@ -722,7 +744,17 @@ mod tests {
     use super::*;
     use crate::{CubicBez, QuadBez, Line};
 
-    fn do_test<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
+    fn do_single_test<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
+        curve1: &T,
+        curve2: &U,
+        count: usize,
+        flags: CurveIntersectionFlags,
+    ) {
+        let arr1 = curve_curve_intersections(curve1, curve2, flags);
+        assert_eq!(arr1.len(), count);
+    }
+
+    fn do_double_test<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
         curve1: &T,
         curve2: &U,
         count: usize,
@@ -751,7 +783,6 @@ mod tests {
                 found_t = true;
             }
 
-            println!("t for pt on curve: {} {}, expected {} {}", t, pt, t_test, pt_test);
             assert!(point_is_equal(pt, pt_test))
         }
         assert!(found_t)
@@ -773,29 +804,54 @@ mod tests {
     ) {
         assert!(t1 < t2);
 
-        do_test(
+        do_double_test(
             &curve.subsegment(0.0..t2),
             &curve.subsegment(t1..1.0),
             2,
-            CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+            CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
         );
-        do_test(
+        do_double_test(
             &curve.subsegment(0.0..t2),
             &curve.subsegment(1.0..t1),
             2,
-            CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+            CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
         );
-        do_test(
+        do_double_test(
             &curve.subsegment(0.0..1.0),
             &curve.subsegment(t1..t2),
             2,
-            CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+            CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
         );
-        do_test(
+        do_double_test(
             &curve.subsegment(0.0..1.0),
             &curve.subsegment(t2..t1),
             2,
-            CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+            CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+        );
+
+        do_single_test(
+            &curve.subsegment(0.0..1.0),
+            &curve.subsegment(t1..t2),
+            1,
+            CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION, // Only include curve2 t=0 endpoint intersection
+        );
+        do_single_test(
+            &curve.subsegment(t1..t2),
+            &curve.subsegment(0.0..1.0),
+            0,
+            CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION, // Only include curve2 t=0 endpoint intersection
+        );
+        do_single_test(
+            &curve.subsegment(0.0..1.0),
+            &curve.subsegment(t1..t2),
+            1,
+            CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION, // Only include curve2 t=1 endpoint intersection
+        );
+        do_single_test(
+            &curve.subsegment(t1..t2),
+            &curve.subsegment(0.0..1.0),
+            0,
+            CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION, // Only include curve2 t=1 endpoint intersection
         );
     }
 
@@ -804,61 +860,61 @@ mod tests {
         test_t(&CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)));
         test_t(&CubicBez::new((0.0, 0.0), (-1.0, 0.0), (1.0, 0.0), (1.0, 0.0)));
         
-        do_test(
+        do_double_test(
             &CubicBez::new((0.0, 0.0), (0.0, 1.0), (0.0, 1.0), (1.0, 1.0)),
             &CubicBez::new((0.0, 1.0), (1.0, 1.0), (1.0, 1.0), (1.0, 0.0)),
             1,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &CubicBez::new((48.0, 84.0), (104.0, 176.0), (190.0, 37.0), (121.0, 75.0)),
             &CubicBez::new((68.0, 145.0), (74.0, 6.0), (143.0, 197.0), (138.0, 55.0)),
             4,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &CubicBez::new((0.0, 0.0), (0.5, 1.0), (0.5, 1.0), (1.0, 0.0)),
             &CubicBez::new((0.0, 1.0), (0.5, 0.0), (0.5, 0.0), (1.0, 1.0)),
             2,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &CubicBez::new((0.2, 0.0), (0.5, 3.0), (0.5, -2.0), (0.8, 1.0)),
             &CubicBez::new((0.0, 0.0), (2.5, 0.5), (-1.5, 0.5), (1.0, 0.0)),
             9,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &QuadBez::new((0.0, 0.0), (0.5, 1.0), (1.0, 0.0)),
             &CubicBez::new((0.2, 0.0), (0.5, 3.0), (0.5, -2.0), (0.8, 1.0)),
             3,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &QuadBez::new((0.0, 0.0), (0.5, 1.0), (1.0, 0.0)),
             &QuadBez::new((0.0, 0.25), (0.5, 0.75), (1.0, 0.25)),
             1,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &QuadBez::new((0.0, 0.0), (0.5, 1.0), (1.0, 0.0)),
             &QuadBez::new((0.0, 0.25), (0.5, -0.25), (1.0, 0.25)),
             2,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &QuadBez::new((0.0, 0.0), (0.5, 1.0), (1.0, 0.0)),
             &Line::new((0.0, 0.5), (1.0, 0.25)),
             2,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &QuadBez::new((0.0, 0.0), (0.5, 1.0), (1.0, 0.0)),
             &Line::new((0.0, 0.5), (1.0, 0.5)),
             1,
             CurveIntersectionFlags::NONE, // Standard algorithm
         );
-        do_test(
+        do_double_test(
             &CubicBez::new((0.2, 0.0), (0.5, 3.0), (0.5, -2.0), (0.8, 1.0)),
             &Line::new((0.0, 0.5), (1.0, 0.25)),
             3,
@@ -866,29 +922,41 @@ mod tests {
         );
         
         // These tests intersect at the endpoints which is only sometimes useful to know about.
-        do_test(
+        do_double_test(
             &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
             &CubicBez::new((1.0, 0.0), (0.7, -1.0), (0.3, -1.0), (0.0, 0.0)),
             2,
-            CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+            CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
         );
-        do_test(
+        do_double_test(
             &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
             &CubicBez::new((1.0, 0.0), (0.7, -1.0), (0.3, -1.0), (0.0, 0.0)),
             0,
             CurveIntersectionFlags::NONE, // Discard endpoint intersections
         );
-        do_test(
+        do_double_test(
+            &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
+            &CubicBez::new((1.0, 0.0), (0.7, -1.0), (0.3, -1.0), (0.0, 0.0)),
+            1,
+            CurveIntersectionFlags::KEEP_CURVE1_T0_INTERSECTION, // Include curve1 t=0 intersection
+        );
+        do_double_test(
             &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
             &CubicBez::new((0.0, 0.0), (0.3, -0.5), (0.7, -0.5), (1.0, 0.0)),
             2,
-            CurveIntersectionFlags::KEEP_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
+            CurveIntersectionFlags::KEEP_ALL_ENDPOINT_INTERSECTIONS, // Include endpoint intersections
         );
-        do_test(
+        do_double_test(
             &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
             &CubicBez::new((0.0, 0.0), (0.3, -0.5), (0.7, -0.5), (1.0, 0.0)),
             0,
             CurveIntersectionFlags::NONE, // Discard endpoint intersections
+        );
+        do_double_test(
+            &CubicBez::new((0.0, 0.0), (0.3, -1.0), (0.7, -1.0), (1.0, 0.0)),
+            &CubicBez::new((0.0, 0.0), (0.3, -0.5), (0.7, -0.5), (1.0, 0.0)),
+            1,
+            CurveIntersectionFlags::KEEP_CURVE1_T1_INTERSECTION, // Include curve1 t=1 intersection
         );
 
         // Test curves that lie exactly along one-another
@@ -896,7 +964,7 @@ mod tests {
 
         // (A previous version of the code was returning two practically identical
         // intersection points here.)
-        do_test(
+        do_double_test(
             &CubicBez::new(
                 (718133.1363092018, 673674.987999388),
                 (-53014.13135835016, 286988.87959900266),
@@ -917,7 +985,7 @@ mod tests {
         // point even though t_min_clip < t_max_clip (because domain1 was small enough to begin with
         // relative to the small distance between t_min_clip and t_max_clip), and the new curve1 is not
         // a point (it's split off the old curve1 using t_min_clip < t_max_clip).
-        do_test(
+        do_double_test(
             &CubicBez::new(
                 (423394.5967598548, -91342.7434613118),
                 (333212.450870987, 225564.45711810607),
