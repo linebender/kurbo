@@ -169,6 +169,37 @@ impl Point {
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
+
+    /// If we're comparing distances between samples of curves, our epsilon should
+    /// depend on how big the points we're comparing are. This function returns an
+    /// epsilon appropriate for the size of pt.
+    pub fn epsilon(pt: Point, accuracy: f64) -> f64 {
+        // Get max number in the point
+        let max = f64::max(f64::abs(pt.x), f64::abs(pt.y));
+
+        // These values have been obtained experimentally and can be changed if
+        // necessary.
+        accuracy.max(max.abs() * 0.0000000001).max(f64::EPSILON)
+    }
+
+    /// Compare if two points are approximately equal
+    pub fn is_near(pt1: Point, pt2: Point, accuracy: f64) -> bool
+    {
+        Point::is_approx(pt1, pt2, accuracy, 1.)
+    }
+
+    /// Compare if two points are approximately equal to some scaled accuracy
+    pub fn is_approx(pt1: Point, pt2: Point, accuracy: f64, scale: f64) -> bool
+    {
+        if pt1.x.is_infinite() || pt1.y.is_infinite() || pt2.x.is_infinite() || pt2.y.is_infinite()
+        {
+            return pt1 == pt2;
+        }
+
+        let accuracy_scaled = accuracy * scale;
+        let epsilon = Point::epsilon(pt1, accuracy_scaled).max(Point::epsilon(pt2, accuracy_scaled));
+        (pt2 - pt1).hypot() <= epsilon
+    }
 }
 
 impl From<(f64, f64)> for Point {
@@ -308,6 +339,22 @@ mod tests {
 
         let p = Point::new(0.12345, 9.87654);
         assert_eq!(format!("{:.2}", p), "(0.12, 9.88)");
+    }
+
+    #[test]
+    fn test_point_comparisons() {
+        assert!(Point::is_near(Point::new(0., 0.), Point::new(0., 0.), 0.));
+        assert!(Point::is_near(Point::new(1000000., 1000000.), Point::new(1000000., 1000000.), 0.));
+        assert!(Point::is_near(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::INFINITY, f64::INFINITY), 0.));
+        assert!(!Point::is_near(Point::new(0., 0.), Point::new(1., 1.), 0.));
+        assert!(!Point::is_near(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY), 0.));
+
+        let epsilon = 0.1;
+        assert!(Point::is_near(Point::new(0., 0.), Point::new(0. + epsilon, 0.), epsilon));
+        assert!(Point::is_near(Point::new(1000000., 1000000.), Point::new(1000000., 1000000. + epsilon), epsilon));
+        assert!(Point::is_near(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::INFINITY, f64::INFINITY), epsilon));
+        assert!(!Point::is_near(Point::new(0., 0.), Point::new(1., 1. + epsilon), epsilon));
+        assert!(!Point::is_near(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY), epsilon));
     }
 }
 

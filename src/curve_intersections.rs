@@ -1,7 +1,6 @@
 use crate::ParamCurveBezierClipping;
 use crate::{ParamCurve, ParamCurveExtrema};
 use crate::{Point, Rect, Affine};
-use crate::real::*;
 use arrayvec::ArrayVec;
 use std::ops::Range;
 
@@ -33,7 +32,7 @@ pub fn curve_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezie
 
     // Make sure we don't use too small of an accuracy
     let bounds = curve1.bounding_box().union(curve2.bounding_box());
-    let accuracy = accuracy.max(epsilon_for_point(Point::new(bounds.max_x(), bounds.max_y())));
+    let accuracy = Point::epsilon(Point::new(bounds.max_x(), bounds.max_y()), accuracy);
 
     // Check if both curves lie directly on each other for some span
     let overlaps = check_for_overlap(curve1, curve2, flags, accuracy, &mut av);
@@ -167,7 +166,7 @@ fn check_for_overlap<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
     for n in 1..3 {
         let curve1_pt = curve1.eval(overlap_along_curve1.0 + (n as f64) * interval1);
         let curve2_pt = curve2.eval(overlap_along_curve2.0 + (n as f64) * interval2);
-        if !point_is_equal(curve1_pt, curve2_pt, accuracy) {
+        if !Point::is_near(curve1_pt, curve2_pt, accuracy) {
             return false;
         }
     }
@@ -228,7 +227,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
 
     let arclen_epsilon = 1e-9;
 
-    if curve2.subsegment(domain2.start..domain2.end).arclen(arclen_epsilon) <= accuracy {
+    if orig_curve2.subsegment(domain2.start..domain2.end).arclen(arclen_epsilon) <= accuracy {
         add_point_curve_intersection(
             curve2,
             /* point is curve1 */ false,
@@ -319,7 +318,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         let curve1_pt = orig_curve1.eval(t1);
         let curve2_pt = orig_curve2.eval(t2);
         
-        if point_is_equal(curve1_pt, curve2_pt, accuracy) {
+        if Point::is_near(curve1_pt, curve2_pt, accuracy) {
             // Note: add_intersection tests if the intersection is an end-point
             add_intersection(t1, orig_curve1, t2, orig_curve2, flip, intersections, flags);
             return call_count;
@@ -414,7 +413,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         }
     } else {
         // Iterate.
-        if !real_is_equal(domain2.end, domain2.start) {
+        if curve2.arclen(arclen_epsilon) > accuracy {
             call_count = add_curve_intersections(
                 curve2,
                 curve1,
@@ -482,7 +481,7 @@ fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezier
             (t, d_sq)
         }).0;
 
-    if real_is_equal(curve_t, -1.) {
+    if curve_t == -1. {
         // No intersection found
         return;
     }
@@ -500,11 +499,11 @@ pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
     let mut result = ArrayVec::new();
 
     // If both endpoints are approximately close, we only return 0.0.
-    if point_is_equal(pt, curve.start(), accuracy) {
+    if Point::is_near(pt, curve.start(), accuracy) {
         result.push(0.0);
         return result;
     }
-    if point_is_equal(pt, curve.end(), accuracy) {
+    if Point::is_near(pt, curve.end(), accuracy) {
         result.push(1.0);
         return result;
     }
@@ -519,13 +518,13 @@ pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
         for t in params {
             let t = *t;
 
-            if near_pts_only && !point_is_equal(pt, curve.eval(t), 1e-3) { 
+            if near_pts_only && !Point::is_near(pt, curve.eval(t), 1e-3) { 
                 continue;
             }
 
             let mut already_found_t = false;
             for u in &result {
-                if real_is_equal(t, *u) {
+                if t.eq(u) {
                     already_found_t = true;
                     break;
                 }
@@ -555,7 +554,7 @@ pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
         accuracy: f64,
         result: &mut ArrayVec<[f64; 4]>,
     ) -> bool {
-        if point_is_equal(curve.eval(t), pt, accuracy) {
+        if Point::is_near(curve.eval(t), pt, accuracy) {
             result.push(t);
             return true;
         }
@@ -576,7 +575,7 @@ fn point_is_on_curve<T: ParamCurveBezierClipping>(
 ) -> (bool, ArrayVec<[f64; 4]>) {
     let t_values = t_along_curve_for_point(pt, curve, accuracy, true);
     for t in &t_values {
-        if point_is_equal(pt, curve.eval(*t), accuracy) {
+        if Point::is_near(pt, curve.eval(*t), accuracy) {
             return (true, t_values.clone()); // Point lies along curve
         }
     }
@@ -598,11 +597,11 @@ fn add_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
     
     // Discard endpoint/endpoint intersections if desired
     let keep_intersection = 
-        (!real_lte(t1, 0.0) && !real_gte(t1, 1.0) && !real_lte(t2, 0.0) && !real_gte(t2, 1.0))
-        || flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T0_INTERSECTION) && real_lte(t1, 0.0)
-        || flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T1_INTERSECTION) && real_gte(t1, 1.0)
-        || flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION) && real_lte(t2, 0.0)
-        || flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION) && real_gte(t2, 1.0);
+        (t1 > 0.0 && t1 < 1.0 && t2 > 0.0 && t2 < 1.0)
+        || (flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T0_INTERSECTION) && t1 <= 0.0)
+        || (flags.contains(CurveIntersectionFlags::KEEP_CURVE1_T1_INTERSECTION) && t1 >= 1.0)
+        || (flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T0_INTERSECTION) && t2 <= 0.0)
+        || (flags.contains(CurveIntersectionFlags::KEEP_CURVE2_T1_INTERSECTION) && t2 >= 1.0);
     if !keep_intersection {
         return;
     }
@@ -621,7 +620,7 @@ fn add_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
 
             // f64 errors can be particularly bad (over a hundred) if we wind up keeping the "wrong"
             // duplicate intersection, so always keep the one that minimizes sample distance.
-            if point_is_equal(pt1, old_pt1, 1e-3) && point_is_equal(pt2, old_pt2, 1e-3) {
+            if Point::is_near(pt1, old_pt1, 1e-3) && Point::is_near(pt2, old_pt2, 1e-3) {
                 if (pt1 - pt2).hypot2() < (old_pt1 - old_pt2).hypot2() {
                     intersections[i] = (t1, t2);
                 }
@@ -803,12 +802,12 @@ mod tests {
         for t in &t_values {
             let pt = curve.eval(*t);
 
-            if real_is_equal(*t, t_test) // ^^^ REPLACE WITH CMP
+            if (*t - t_test) <= 1e-9
             {
                 found_t = true;
             }
 
-            assert!(point_is_equal(pt, pt_test, 1e-3))
+            assert!(Point::is_near(pt, pt_test, 1e-3))
         }
         assert!(found_t)
     }

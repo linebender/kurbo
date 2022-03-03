@@ -102,7 +102,6 @@ mod size;
 mod svg;
 mod translate_scale;
 mod vec2;
-mod real;
 
 pub use crate::affine::*;
 pub use crate::arc::*;
@@ -126,4 +125,3 @@ pub use crate::size::*;
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;
-pub use crate::real::*;
