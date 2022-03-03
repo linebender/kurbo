@@ -2,6 +2,11 @@
 
 use crate::{Point};
 
+pub fn get_epsilon(num: f64, accuracy: f64) -> f64 {
+    // Use the provided number as the epsilon unless it's too small
+    accuracy.abs().max(epsilon_for_value(num))
+}
+
 /// If we're comparing numbers, our epsilon should depend on how big the number
 /// is. This function returns an epsilon appropriate for the size the largest
 /// number.
@@ -69,16 +74,16 @@ pub fn real_gte(num1: f64, num2: f64) -> bool
 }
 
 /// Compare if two points are approximately equal
-pub fn point_is_equal(pt1: Point, pt2: Point) -> bool
+pub fn point_is_equal(pt1: Point, pt2: Point, accuracy: f64) -> bool
 {
-    point_is_approx(pt1, pt2, 1.)
+    point_is_approx(pt1, pt2, accuracy, 1.)
 }
 
 /// Compare if two points are approximately equal to a smaller degree than
 /// point_is_equal
-pub fn point_is_approx(pt1: Point, pt2: Point, scale: f64) -> bool
+pub fn point_is_approx(pt1: Point, pt2: Point, accuracy: f64, scale: f64) -> bool
 {
-    real_is_approx(pt1.x, pt2.x, scale) && real_is_approx(pt1.y, pt2.y, scale)
+    (pt2 - pt1).hypot() <= get_epsilon((pt1.x).max(pt1.y).max(pt2.x).max(pt2.y), accuracy * scale)
 }
 
 #[cfg(test)]
@@ -124,11 +129,17 @@ mod tests {
 
     #[test]
     fn test_point_comparisons() {
-        assert!(point_is_equal(Point::new(0., 0.), Point::new(0., 0.)));
-        assert!(point_is_equal(Point::new(1000000., 1000000.), Point::new(1000000., 1000000.)));
-        assert!(point_is_equal(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::INFINITY, f64::INFINITY)));
-        assert!(!point_is_equal(Point::new(0., 0.), Point::new(1., 1.)));
-        assert!(!point_is_equal(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY)));
-        assert!(point_is_equal(Point::new(0., 0.), Point::new(f64::EPSILON, f64::EPSILON)));
+        assert!(point_is_equal(Point::new(0., 0.), Point::new(0., 0.), 0.));
+        assert!(point_is_equal(Point::new(1000000., 1000000.), Point::new(1000000., 1000000.), 0.));
+        assert!(point_is_equal(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::INFINITY, f64::INFINITY), 0.));
+        assert!(!point_is_equal(Point::new(0., 0.), Point::new(1., 1.), 0.));
+        assert!(!point_is_equal(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY), 0.));
+
+        let epsilon = 0.1;
+        assert!(point_is_equal(Point::new(0., 0.), Point::new(0. + epsilon, 0.), epsilon));
+        assert!(point_is_equal(Point::new(1000000., 1000000.), Point::new(1000000., 1000000. + epsilon), epsilon));
+        assert!(point_is_equal(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::INFINITY, f64::INFINITY), epsilon));
+        assert!(!point_is_equal(Point::new(0., 0.), Point::new(1., 1. + epsilon), epsilon));
+        assert!(!point_is_equal(Point::new(f64::INFINITY, f64::INFINITY), Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY), epsilon));
     }
 }
