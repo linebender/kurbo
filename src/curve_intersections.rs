@@ -225,7 +225,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         return call_count;
     }
 
-    let arclen_epsilon = 1e-9;
+    let arclen_epsilon = 1e-3;
 
     if orig_curve2.subsegment(domain2.start..domain2.end).arclen(arclen_epsilon) <= accuracy {
         add_point_curve_intersection(
@@ -311,7 +311,9 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
     let curve1 = &orig_curve1.subsegment(new_domain1.clone());
 
     // Check if both curves are very small
-    if curve1.arclen(arclen_epsilon) <= accuracy && curve2.arclen(arclen_epsilon) <= accuracy {
+    let curve1_arclen = curve1.arclen(arclen_epsilon);
+    let curve2_arclen = curve2.arclen(arclen_epsilon);
+    if curve1_arclen <= accuracy && curve2_arclen <= accuracy {
         let t1 = (new_domain1.start + new_domain1.end) * 0.5;
         let t2 = (domain2.start + domain2.end) * 0.5;
 
@@ -413,7 +415,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         }
     } else {
         // Iterate.
-        if curve2.arclen(arclen_epsilon) > accuracy {
+        if curve2_arclen > accuracy {
             call_count = add_curve_intersections(
                 curve2,
                 curve1,
