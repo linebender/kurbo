@@ -18,6 +18,7 @@ const MAX_SPLINE_SPLIT: usize = 100;
 
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
 pub struct CubicBez {
@@ -56,7 +57,7 @@ impl CubicBez {
     ///
     /// This iterator will always produce at least one `QuadBez`.
     #[inline]
-    pub fn to_quads(self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
+    pub fn to_quads(&self, accuracy: f64) -> impl Iterator<Item = (f64, f64, QuadBez)> {
         // The maximum error, as a vector from the cubic to the best approximating
         // quadratic, is proportional to the third derivative, which is constant
         // across the segment. Thus, the error scales down as the third power of
@@ -74,12 +75,13 @@ impl CubicBez {
         let err = (p2x2 - p1x2).hypot2();
         let n = ((err / max_hypot2).powf(1. / 6.0).ceil() as usize).max(1);
 
-        ToQuads { c: self, n, i: 0 }
+        ToQuads { c: *self, n, i: 0 }
     }
 
-    /// Return a quadratic spline approximating this cubic bezier
+    /// Return a [`QuadSpline`] approximating this cubic Bézier.
     ///
-    /// Returns None if no suitable approximation was found in the given tolerance.
+    /// Returns `None` if no suitable approximation is found within the given
+    /// tolerance.
     pub fn approx_spline(&self, accuracy: f64) -> Option<QuadSpline> {
         (1..=MAX_SPLINE_SPLIT).find_map(|n| self.approx_spline_n(n, accuracy))
     }
@@ -162,8 +164,10 @@ impl CubicBez {
     }
 
     fn split_into_n(&self, n: usize) -> impl Iterator<Item = CubicBez> {
+        // for certain small values of `n` we precompute all our values.
         // if we have six or fewer items we precompute them.
-        let mut storage = ArrayVec::<[_; 6]>::new();
+        let mut storage = ArrayVec::<_, 6>::new();
+
         match n {
             1 => storage.push(*self),
             2 => {
@@ -514,8 +518,8 @@ impl ParamCurveNearest for CubicBez {
 impl ParamCurveCurvature for CubicBez {}
 
 impl ParamCurveExtrema for CubicBez {
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
-        fn one_coord(result: &mut ArrayVec<[f64; MAX_EXTREMA]>, d0: f64, d1: f64, d2: f64) {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
+        fn one_coord(result: &mut ArrayVec<f64, MAX_EXTREMA>, d0: f64, d1: f64, d2: f64) {
             let a = d0 - 2.0 * d1 + d2;
             let b = 2.0 * (d1 - d0);
             let c = d0;

@@ -7,6 +7,7 @@ use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     /// The minimum x coordinate (left edge).
@@ -620,6 +621,11 @@ impl Shape for Rect {
     #[inline]
     fn as_rect(&self) -> Option<Rect> {
         Some(*self)
+    }
+
+    #[inline]
+    fn contains(&self, pt: Point) -> bool {
+        self.contains(pt)
     }
 }
 

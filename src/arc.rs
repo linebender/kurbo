@@ -8,6 +8,7 @@ use std::{
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Arc {
     /// The arc's centre point.
@@ -115,16 +116,18 @@ impl Iterator for ArcAppendIter {
 /// Take the ellipse radii, how the radii are rotated, and the sweep angle, and return a point on
 /// the ellipse.
 fn sample_ellipse(radii: Vec2, x_rotation: f64, angle: f64) -> Vec2 {
-    let u = radii.x * angle.cos();
-    let v = radii.y * angle.sin();
+    let (angle_sin, angle_cos) = angle.sin_cos();
+    let u = radii.x * angle_cos;
+    let v = radii.y * angle_sin;
     rotate_pt(Vec2::new(u, v), x_rotation)
 }
 
 /// Rotate `pt` about the origin by `angle` radians.
 fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
+    let (angle_sin, angle_cos) = angle.sin_cos();
     Vec2::new(
-        pt.x * angle.cos() - pt.y * angle.sin(),
-        pt.x * angle.sin() + pt.y * angle.cos(),
+        pt.x * angle_cos - pt.y * angle_sin,
+        pt.x * angle_sin + pt.y * angle_cos,
     )
 }
 

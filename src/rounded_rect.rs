@@ -25,6 +25,7 @@ use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shap
 ///
 /// [`to_rounded_rect`]: Rect::to_rounded_rect
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RoundedRect {
     /// Coordinates of the rectangle.

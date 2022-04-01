@@ -36,6 +36,7 @@ use crate::{
 /// This transformation is less powerful than `Affine`, but can be applied
 /// to more primitives, especially including [`Rect`].
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TranslateScale {
     translation: Vec2,

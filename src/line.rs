@@ -12,6 +12,7 @@ use crate::{
 
 /// A single line.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Line {
     /// The line's start point.
@@ -149,13 +150,14 @@ impl ParamCurveCurvature for Line {
 
 impl ParamCurveExtrema for Line {
     #[inline]
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
         ArrayVec::new()
     }
 }
 
 /// A trivial "curve" that is just a constant.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConstPoint(Point);
 
@@ -197,6 +199,11 @@ impl ParamCurveDeriv for ConstPoint {
 impl ParamCurveArclen for ConstPoint {
     #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
+        0.0
+    }
+
+    #[inline]
+    fn inv_arclen(&self, _arclen: f64, _accuracy: f64) -> f64 {
         0.0
     }
 }

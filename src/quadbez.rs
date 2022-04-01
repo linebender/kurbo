@@ -14,6 +14,7 @@ use crate::{
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
 pub struct QuadBez {
@@ -359,7 +360,7 @@ impl ParamCurveNearest for QuadBez {
 impl ParamCurveCurvature for QuadBez {}
 
 impl ParamCurveExtrema for QuadBez {
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
         let mut result = ArrayVec::new();
         let d0 = self.p1 - self.p0;
         let d1 = self.p2 - self.p1;

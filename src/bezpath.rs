@@ -9,7 +9,6 @@ use std::ops::{Mul, Range};
 use arrayvec::ArrayVec;
 
 use crate::common::{solve_cubic, solve_quadratic};
-use crate::mindist::min_dist_param;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
@@ -35,6 +34,10 @@ use crate::{
 /// These different representations are useful in different contexts.
 /// For tasks like drawing, elements are a natural fit, but when doing
 /// hit-testing or subdividing, we need to have access to the segments.
+///
+/// Conceptually, a `BezPath` contains zero or more subpaths. Each subpath
+/// *always* begins with a `MoveTo`, then has zero or more `LineTo`, `QuadTo`,
+/// and `CurveTo` elements, and optionally ends with a `ClosePath`.
 ///
 /// Internally, a `BezPath` is a list of [`PathEl`]s; as such it implements
 /// [`FromIterator<PathEl>`] and [`Extend<PathEl>`]:
@@ -90,6 +93,7 @@ use crate::{
 /// [`FromIterator<PathEl>`]: std::iter::FromIterator
 /// [`Extend<PathEl>`]: std::iter::Extend
 #[derive(Clone, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BezPath(Vec<PathEl>);
 
@@ -97,6 +101,7 @@ pub struct BezPath(Vec<PathEl>);
 ///
 /// A valid path has `MoveTo` at the beginning of each subpath.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathEl {
     /// Move directly to the point without drawing anything, starting a new
@@ -114,6 +119,7 @@ pub enum PathEl {
 
 /// A segment of a Bézier path.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathSeg {
     /// A line segment.
@@ -139,6 +145,24 @@ pub struct LineIntersection {
     /// This value is nominally in the range 0..1, although it may slightly exceed
     /// that range at the boundaries of segments.
     pub segment_t: f64,
+}
+
+/// The minimum distance between two Bézier curves.
+pub struct MinDistance {
+    /// The shortest distance between any two points on the two curves.
+    pub distance: f64,
+    /// The position of the nearest point on the first curve, as a parameter.
+    ///
+    /// To resolve this to a [`Point`], use [`ParamCurve::eval`].
+    ///
+    /// [`ParamCurve::eval`]: crate::ParamCurve::eval
+    pub t1: f64,
+    /// The position of the nearest point on the second curve, as a parameter.
+    ///
+    /// To resolve this to a [`Point`], use [`ParamCurve::eval`].
+    ///
+    /// [`ParamCurve::eval`]: crate::ParamCurve::eval
+    pub t2: f64,
 }
 
 impl BezPath {
@@ -174,23 +198,43 @@ impl BezPath {
     }
 
     /// Push a "line to" element onto the path.
+    ///
+    /// Will panic with a debug assert when the current subpath does not
+    /// start with `move_to`.
     pub fn line_to<P: Into<Point>>(&mut self, p: P) {
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::LineTo(p.into()));
     }
 
     /// Push a "quad to" element onto the path.
+    ///
+    /// Will panic with a debug assert when the current subpath does not
+    /// start with `move_to`.
     pub fn quad_to<P: Into<Point>>(&mut self, p1: P, p2: P) {
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::QuadTo(p1.into(), p2.into()));
     }
 
     /// Push a "curve to" element onto the path.
+    ///
+    /// Will panic with a debug assert when the current subpath does not
+    /// start with `move_to`.
     pub fn curve_to<P: Into<Point>>(&mut self, p1: P, p2: P, p3: P) {
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::CurveTo(p1.into(), p2.into(), p3.into()));
     }
 
     /// Push a "close path" element onto the path.
+    ///
+    /// Will panic with a debug assert when the current subpath does not
+    /// start with `move_to`.
     pub fn close_path(&mut self) {
+        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
         self.push(PathEl::ClosePath);
+    }
+
+    fn is_open_subpath(&self) -> bool {
+        !self.0.is_empty() && self.0.last() != Some(&PathEl::ClosePath)
     }
 
     /// Get the path elements.
@@ -282,8 +326,14 @@ impl BezPath {
 
     /// Get the segment at the given element index.
     ///
-    /// The element index counts [`PathEl`] elements, so
-    /// for example includes an initial `Moveto`.
+    /// If you need to access all segments, [`segments`] provides a better
+    /// API. This is intended for random access of specific elements, for clients
+    /// that require this specifically.
+    ///
+    /// **note**: This returns the segment that ends at the provided element
+    /// index. In effect this means it is *1-indexed*: since no segment ends at
+    /// the first element (which is presumed to be a `MoveTo`) `get_seg(0)` will
+    /// always return `None`.
     pub fn get_seg(&self, ix: usize) -> Option<PathSeg> {
         if ix == 0 || ix >= self.0.len() {
             return None;
@@ -300,7 +350,9 @@ impl BezPath {
             PathEl::QuadTo(p1, p2) => Some(PathSeg::Quad(QuadBez::new(last, p1, p2))),
             PathEl::CurveTo(p1, p2, p3) => Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3))),
             PathEl::ClosePath => self.0[..ix].iter().rev().find_map(|el| match *el {
-                PathEl::MoveTo(start) => Some(PathSeg::Line(Line::new(last, start))),
+                PathEl::MoveTo(start) if start != last => {
+                    Some(PathSeg::Line(Line::new(last, start)))
+                }
                 _ => None,
             }),
             _ => None,
@@ -677,6 +729,14 @@ impl ParamCurveArclen for PathSeg {
             PathSeg::Cubic(cubic) => cubic.arclen(accuracy),
         }
     }
+
+    fn inv_arclen(&self, arclen: f64, accuracy: f64) -> f64 {
+        match *self {
+            PathSeg::Line(line) => line.inv_arclen(arclen, accuracy),
+            PathSeg::Quad(quad) => quad.inv_arclen(arclen, accuracy),
+            PathSeg::Cubic(cubic) => cubic.inv_arclen(arclen, accuracy),
+        }
+    }
 }
 
 impl ParamCurveArea for PathSeg {
@@ -700,7 +760,7 @@ impl ParamCurveNearest for PathSeg {
 }
 
 impl ParamCurveExtrema for PathSeg {
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
         match *self {
             PathSeg::Line(line) => line.extrema(),
             PathSeg::Quad(quad) => quad.extrema(),
@@ -721,8 +781,8 @@ impl PathSeg {
     }
 
     /// Convert this segment to a cubic bezier.
-    pub fn to_cubic(self) -> CubicBez {
-        match self {
+    pub fn to_cubic(&self) -> CubicBez {
+        match *self {
             PathSeg::Line(Line { p0, p1 }) => CubicBez::new(p0, p0, p1, p1),
             PathSeg::Cubic(c) => c,
             PathSeg::Quad(q) => q.raise(),
@@ -758,7 +818,7 @@ impl PathSeg {
                 let a = end.y - start.y;
                 let b = start.x - end.x;
                 let c = a * start.x + b * start.y;
-                if (a * p.x + b * p.y - c) * (sign as f64) >= 0.0 {
+                if (a * p.x + b * p.y - c) * (sign as f64) <= 0.0 {
                     sign
                 } else {
                     0
@@ -851,7 +911,7 @@ impl PathSeg {
     /// let point = seg.eval(intersection.segment_t);
     /// assert_eq!(point, Point::new(1.0, 0.0));
     /// ```
-    pub fn intersect_line(&self, line: Line) -> ArrayVec<[LineIntersection; 3]> {
+    pub fn intersect_line(&self, line: Line) -> ArrayVec<LineIntersection, 3> {
         const EPSILON: f64 = 1e-9;
         let p0 = line.p0;
         let p1 = line.p1;
@@ -945,7 +1005,7 @@ impl PathSeg {
     }
 
     #[inline]
-    fn as_vec2_vec(&self) -> ArrayVec<[Vec2; 4]> {
+    fn as_vec2_vec(&self) -> ArrayVec<Vec2, 4> {
         let mut a = ArrayVec::new();
         match self {
             PathSeg::Line(l) => {
@@ -972,8 +1032,8 @@ impl PathSeg {
     /// Returns a tuple of the distance, the path time `t1` of the closest point
     /// on the first PathSeg, and the path time `t2` of the closest point on the
     /// second PathSeg.
-    pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> (f64, f64, f64) {
-        let (dist, t1, t2) = min_dist_param(
+    pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> MinDistance {
+        let (distance, t1, t2) = crate::mindist::min_dist_param(
             &self.as_vec2_vec(),
             &other.as_vec2_vec(),
             (0.0, 1.0),
@@ -981,7 +1041,11 @@ impl PathSeg {
             accuracy,
             None,
         );
-        (dist.sqrt(), t1, t2)
+        MinDistance {
+            distance: distance.sqrt(),
+            t1,
+            t2,
+        }
     }
 }
 
@@ -1206,6 +1270,8 @@ impl Iterator for PathSegIter {
 
 #[cfg(test)]
 mod tests {
+    use crate::{Circle, DEFAULT_ACCURACY};
+
     use super::*;
 
     fn assert_approx_eq(x: f64, y: f64) {
@@ -1213,7 +1279,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Can't start a segment on a ClosePath")]
+    #[should_panic(expected = "no open subpath")]
     fn test_elements_to_segments_starts_on_closepath() {
         let mut path = BezPath::new();
         path.close_path();
@@ -1235,26 +1301,12 @@ mod tests {
     }
 
     #[test]
-    fn test_elements_to_segments_starts_on_quad() {
+    #[should_panic(expected = "no open subpath")]
+    fn test_must_not_start_on_quad() {
         let mut path = BezPath::new();
         path.quad_to((5.0, 5.0), (10.0, 10.0));
         path.line_to((15.0, 15.0));
         path.close_path();
-
-        let mut segments = path.segments();
-        assert_eq!(
-            segments.next(),
-            Some(QuadBez::new((10.0, 10.0), (5.0, 5.0), (10.0, 10.0)).into()),
-        );
-        assert_eq!(
-            segments.next(),
-            Some(Line::new((10.0, 10.0), (15.0, 15.0)).into()),
-        );
-        assert_eq!(
-            segments.next(),
-            Some(Line::new((15.0, 15.0), (10.0, 10.0)).into()),
-        );
-        assert_eq!(segments.next(), None);
     }
 
     #[test]
@@ -1296,5 +1348,27 @@ mod tests {
 
         let h_line = Line::new((0.0, 0.0), (100.0, 0.0));
         assert_eq!(PathSeg::Cubic(c).intersect_line(h_line).len(), 3);
+    }
+
+    #[test]
+    fn test_contains() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((1.0, 1.0));
+        path.line_to((2.0, 0.0));
+        path.close_path();
+        assert_eq!(path.winding(Point::new(1.0, 0.5)), -1);
+        assert!(path.contains(Point::new(1.0, 0.5)));
+    }
+
+    // get_seg(i) should produce the same results as path_segments().nth(i - 1).
+    #[test]
+    fn test_get_seg() {
+        let circle = Circle::new((10.0, 10.0), 2.0).to_path(DEFAULT_ACCURACY);
+        let segments = circle.path_segments(DEFAULT_ACCURACY).collect::<Vec<_>>();
+        let get_segs = (1..usize::MAX)
+            .map_while(|i| circle.get_seg(i))
+            .collect::<Vec<_>>();
+        assert_eq!(segments, get_segs);
     }
 }
