@@ -8,8 +8,8 @@ use crate::common::solve_cubic;
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
-    ParamCurveBezierClipping, ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema,
-    ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2,
+    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
+    Rect, Shape, Vec2,
 };
 
 /// A single quadratic Bézier segment.

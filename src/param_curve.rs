@@ -41,6 +41,11 @@ pub trait ParamCurve: Sized {
     fn end(&self) -> Point {
         self.eval(1.0)
     }
+
+    /// Returns a line from the curve's start point to its end point
+    fn baseline(&self) -> Line {
+        Line::new(self.start(), self.end())
+    }
 }
 
 // TODO: I might not want to have separate traits for all these.
@@ -219,11 +224,6 @@ pub trait ParamCurveExtrema: ParamCurve {
 pub trait ParamCurveBezierClipping:
     ParamCurve + ParamCurveDeriv + ParamCurveExtrema + ParamCurveArclen
 {
-    /// Returns a line from the curve's start point to its end point
-    fn baseline(&self) -> Line {
-        Line::new(self.start(), self.end())
-    }
-
     /// Find the time `t` at which the curve has the given x value
     fn solve_t_for_x(&self, x: f64) -> ArrayVec<f64, 3>;
     /// Find the time `t` at which the curve has the given x value

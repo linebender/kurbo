@@ -8,9 +8,8 @@ use arrayvec::ArrayVec;
 
 use crate::common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_9};
 use crate::{
-    Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveBezierClipping,
-    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
-    QuadBez, Rect, Shape,
+    Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
 };
 
 const MAX_SPLINE_SPLIT: usize = 100;
