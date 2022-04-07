@@ -1,4 +1,6 @@
 //! Functions used for clipping parametrized curves and finding intersections between them
+//!
+//! Caution: All functions in this file are provisional and may change in the future!
 
 use crate::common::{solve_cubic, solve_linear, solve_quadratic};
 use crate::{
