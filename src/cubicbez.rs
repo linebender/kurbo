@@ -1,10 +1,10 @@
 //! Cubic Bézier segments.
 
+use arrayvec::ArrayVec;
 use std::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
-use arrayvec::ArrayVec;
 
 use crate::common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_9};
 use crate::{
@@ -606,7 +606,6 @@ mod tests {
         cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
         ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
     };
-    use arrayvec::ArrayVec;
 
     #[test]
     fn cubicbez_deriv() {
@@ -885,29 +884,5 @@ mod tests {
         assert!(
             converted[0].points()[2].distance(Point::new(88639.0 / 90.0, 52584.0 / 90.0)) < 0.0001
         );
-    }
-
-    use crate::param_curve::ParamCurveBezierClipping;
-    #[test]
-    fn solve_t_for_xy() {
-        fn verify(mut roots: ArrayVec<f64, 3>, expected: &[f64]) {
-            assert_eq!(expected.len(), roots.len());
-            let epsilon = 1e-6;
-            roots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-            for i in 0..expected.len() {
-                assert!((roots[i] - expected[i]).abs() < epsilon);
-            }
-        }
-
-        let curve = CubicBez::new((0.0, 0.0), (0.0, 8.0), (10.0, 8.0), (10.0, 0.0));
-        verify(curve.solve_t_for_x(5.0), &[0.5]);
-        verify(curve.solve_t_for_y(6.0), &[0.5]);
-
-        {
-            let curve = CubicBez::new((0.0, 10.0), (0.0, 10.0), (10.0, 10.0), (10.0, 10.0));
-
-            verify(curve.solve_t_for_y(10.0), &[]);
-        }
     }
 }
