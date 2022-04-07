@@ -6,8 +6,7 @@ use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
-use crate::common::GAUSS_LEGENDRE_COEFFS_9;
-use crate::common::{solve_quadratic};
+use crate::common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_9};
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveBezierClipping,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,

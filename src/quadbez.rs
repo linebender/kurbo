@@ -7,9 +7,9 @@ use arrayvec::ArrayVec;
 use crate::common::solve_cubic;
 use crate::MAX_EXTREMA;
 use crate::{
-    Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveBezierClipping,
-    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
-    Rect, Shape, Vec2
+    Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
+    ParamCurveBezierClipping, ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema,
+    ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2,
 };
 
 /// A single quadratic Bézier segment.
@@ -282,7 +282,7 @@ impl ParamCurveArclen for QuadBez {
 
         if a2.is_infinite() {
             // The arclength is zero
-            return 0.
+            return 0.;
         }
 
         let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc - c2) + sabc;

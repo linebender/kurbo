@@ -1,7 +1,7 @@
 //! A trait for clipping parametrized curves.
 
-use crate::common::{solve_cubic, solve_quadratic, solve_linear};
-use crate::{CubicBez, QuadBez, Line, Point, ParamCurve, ParamCurveBezierClipping};
+use crate::common::{solve_cubic, solve_linear, solve_quadratic};
+use crate::{CubicBez, Line, ParamCurve, ParamCurveBezierClipping, Point, QuadBez};
 use arrayvec::ArrayVec;
 
 // Note that the line is unbounded here!
@@ -16,8 +16,7 @@ fn signed_distance_from_ray_to_point(l: &Line, p: Point) -> f64 {
     let b = b / len;
     let c = c / len;
 
-    if a.is_infinite() || b.is_infinite() || c.is_infinite()
-    {
+    if a.is_infinite() || b.is_infinite() || c.is_infinite() {
         // Can't compute distance from zero-length line, so return distance
         // from p0 instead
         return (p - l.p0).hypot();
@@ -66,7 +65,7 @@ impl ParamCurveBezierClipping for Line {
     fn convex_hull_from_line(&self, l: &Line) -> (Vec<Point>, Vec<Point>) {
         let d0 = signed_distance_from_ray_to_point(l, self.start());
         let d1 = signed_distance_from_ray_to_point(l, self.end());
-        
+
         let p0 = Point::new(0.0, d0);
         let p1 = Point::new(1.0, d1);
 

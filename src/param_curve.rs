@@ -216,7 +216,9 @@ pub trait ParamCurveExtrema: ParamCurve {
 }
 
 /// A parameterized curve that can be used in the Bezier clipping algorithm
-pub trait ParamCurveBezierClipping: ParamCurve + ParamCurveDeriv + ParamCurveExtrema + ParamCurveArclen {
+pub trait ParamCurveBezierClipping:
+    ParamCurve + ParamCurveDeriv + ParamCurveExtrema + ParamCurveArclen
+{
     /// Returns a line from the curve's start point to its end point
     fn baseline(&self) -> Line {
         Line::new(self.start(), self.end())
