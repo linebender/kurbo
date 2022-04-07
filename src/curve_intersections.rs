@@ -27,7 +27,7 @@ pub fn curve_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezie
     curve2: &U,
     flags: CurveIntersectionFlags,
     accuracy: f64,
-) -> ArrayVec<[(f64, f64); 9]> {
+) -> ArrayVec<(f64, f64), 9> {
     let mut av = ArrayVec::new();
 
     // Make sure we don't use too small of an accuracy
@@ -64,7 +64,7 @@ fn check_for_overlap<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
     curve2: &U,
     flags: CurveIntersectionFlags,
     accuracy: f64,
-    intersections: &mut ArrayVec<[(f64, f64); 9]>,
+    intersections: &mut ArrayVec<(f64, f64), 9>,
 ) -> bool {
     // If the two curves overlap, there are two main cases we need to account for:
     //   1) One curve is completely along some portion of the other curve, thus
@@ -210,7 +210,7 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
     curve2: &U,
     domain1: &Range<f64>,
     domain2: &Range<f64>,
-    intersections: &mut ArrayVec<[(f64, f64); 9]>,
+    intersections: &mut ArrayVec<(f64, f64), 9>,
     flip: bool,
     mut recursion_count: u32,
     mut call_count: u32,
@@ -458,7 +458,7 @@ fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezier
     curve: &U,
     pt_domain: &Range<f64>,
     curve_domain: &Range<f64>,
-    intersections: &mut ArrayVec<[(f64, f64); 9]>,
+    intersections: &mut ArrayVec<(f64, f64), 9>,
     flip: bool,
     orig_curve1: &T,
     orig_curve2: &U,
@@ -497,7 +497,7 @@ pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
     curve: &T,
     accuracy: f64,
     near_pts_only: bool,
-) -> ArrayVec<[f64; 4]> {
+) -> ArrayVec<f64, 4> {
     let mut result = ArrayVec::new();
 
     // If both endpoints are approximately close, we only return 0.0.
@@ -554,7 +554,7 @@ pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
         pt: Point,
         curve: &T,
         accuracy: f64,
-        result: &mut ArrayVec<[f64; 4]>,
+        result: &mut ArrayVec<f64, 4>,
     ) -> bool {
         if Point::is_near(curve.eval(t), pt, accuracy) {
             result.push(t);
@@ -574,7 +574,7 @@ fn point_is_on_curve<T: ParamCurveBezierClipping>(
     pt: Point,
     curve: &T,
     accuracy: f64,
-) -> (bool, ArrayVec<[f64; 4]>) {
+) -> (bool, ArrayVec<f64, 4>) {
     let t_values = t_along_curve_for_point(pt, curve, accuracy, true);
     for t in &t_values {
         if Point::is_near(pt, curve.eval(*t), accuracy) {
@@ -590,7 +590,7 @@ fn add_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
     t2: f64,
     orig_curve2: &U,
     flip: bool,
-    intersections: &mut ArrayVec<[(f64, f64); 9]>,
+    intersections: &mut ArrayVec<(f64, f64), 9>,
     flags: CurveIntersectionFlags,
 ) {
     // Note: orig_curve1 and orig_curve2 are actually swapped with flip == true

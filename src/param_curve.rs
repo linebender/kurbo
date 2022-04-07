@@ -223,9 +223,9 @@ pub trait ParamCurveBezierClipping: ParamCurve + ParamCurveDeriv + ParamCurveExt
     }
 
     /// Find the time `t` at which the curve has the given x value
-    fn solve_t_for_x(&self, x: f64) -> ArrayVec<[f64; 3]>;
+    fn solve_t_for_x(&self, x: f64) -> ArrayVec<f64, 3>;
     /// Find the time `t` at which the curve has the given x value
-    fn solve_t_for_y(&self, y: f64) -> ArrayVec<[f64; 3]>;
+    fn solve_t_for_y(&self, y: f64) -> ArrayVec<f64, 3>;
     /// Returns the upper and lower convex hull
     fn convex_hull_from_line(&self, l: &Line) -> (Vec<Point>, Vec<Point>);
     /// Returns the minimum and maximum distances of the "fat line" enclosing this curve

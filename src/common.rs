@@ -148,7 +148,7 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<f64, 2> {
 /// Find real roots of linear equation.
 ///
 /// Return values of x for which c0 + c1 x = 0.
-pub fn solve_linear(c0: f64, c1: f64) -> ArrayVec<[f64; 1]> {
+pub fn solve_linear(c0: f64, c1: f64) -> ArrayVec<f64, 1> {
     let mut result = ArrayVec::new();
     let root = -c0 / c1;
     if root.is_finite() {

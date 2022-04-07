@@ -27,7 +27,7 @@ fn signed_distance_from_ray_to_point(l: &Line, p: Point) -> f64 {
 }
 
 impl ParamCurveBezierClipping for Line {
-    fn solve_t_for_x(&self, x: f64) -> ArrayVec<[f64; 3]> {
+    fn solve_t_for_x(&self, x: f64) -> ArrayVec<f64, 3> {
         if (self.p0.x - self.p1.x).abs() < f64::EPSILON {
             return ArrayVec::new();
         }
@@ -38,7 +38,7 @@ impl ParamCurveBezierClipping for Line {
             .filter(|&t| (0.0..=1.0).contains(&t))
             .collect()
     }
-    fn solve_t_for_y(&self, y: f64) -> ArrayVec<[f64; 3]> {
+    fn solve_t_for_y(&self, y: f64) -> ArrayVec<f64, 3> {
         if (self.p0.y - self.p1.y).abs() < f64::EPSILON {
             return ArrayVec::new();
         }
@@ -76,7 +76,7 @@ impl ParamCurveBezierClipping for Line {
 }
 
 impl ParamCurveBezierClipping for QuadBez {
-    fn solve_t_for_x(&self, x: f64) -> ArrayVec<[f64; 3]> {
+    fn solve_t_for_x(&self, x: f64) -> ArrayVec<f64, 3> {
         if self.is_linear(f64::EPSILON) && (self.p0.x - self.p2.x).abs() < f64::EPSILON {
             return ArrayVec::new();
         }
@@ -87,7 +87,7 @@ impl ParamCurveBezierClipping for QuadBez {
             .filter(|&t| (0.0..=1.0).contains(&t))
             .collect()
     }
-    fn solve_t_for_y(&self, y: f64) -> ArrayVec<[f64; 3]> {
+    fn solve_t_for_y(&self, y: f64) -> ArrayVec<f64, 3> {
         if self.is_linear(f64::EPSILON) && (self.p0.y - self.p2.y).abs() < f64::EPSILON {
             return ArrayVec::new();
         }
@@ -146,7 +146,7 @@ impl ParamCurveBezierClipping for QuadBez {
 }
 
 impl ParamCurveBezierClipping for CubicBez {
-    fn solve_t_for_x(&self, x: f64) -> ArrayVec<[f64; 3]> {
+    fn solve_t_for_x(&self, x: f64) -> ArrayVec<f64, 3> {
         if self.is_linear(f64::EPSILON) && (self.p0.x - self.p3.x).abs() < f64::EPSILON {
             return ArrayVec::new();
         }
@@ -157,7 +157,7 @@ impl ParamCurveBezierClipping for CubicBez {
             .filter(|&t| (0.0..=1.0).contains(&t))
             .collect()
     }
-    fn solve_t_for_y(&self, y: f64) -> ArrayVec<[f64; 3]> {
+    fn solve_t_for_y(&self, y: f64) -> ArrayVec<f64, 3> {
         if self.is_linear(f64::EPSILON) && (self.p0.y - self.p3.y).abs() < f64::EPSILON {
             return ArrayVec::new();
         }

@@ -608,7 +608,7 @@ mod tests {
         cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
         ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
     };
-    use arrayvec::{Array, ArrayVec};
+    use arrayvec::ArrayVec;
 
     #[test]
     fn cubicbez_deriv() {
@@ -892,7 +892,7 @@ mod tests {
     use crate::param_curve::ParamCurveBezierClipping;
     #[test]
     fn solve_t_for_xy() {
-        fn verify<T: Array<Item = f64>>(mut roots: ArrayVec<T>, expected: &[f64]) {
+        fn verify(mut roots: ArrayVec<f64, 3>, expected: &[f64]) {
             assert_eq!(expected.len(), roots.len());
             let epsilon = 1e-6;
             roots.sort_by(|a, b| a.partial_cmp(b).unwrap());
