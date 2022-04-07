@@ -1280,6 +1280,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "no open subpath")]
+    #[cfg(debug_assertions)] // Only provides proper panic message in debug mode
     fn test_elements_to_segments_starts_on_closepath() {
         let mut path = BezPath::new();
         path.close_path();
@@ -1302,6 +1303,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "no open subpath")]
+    #[cfg(debug_assertions)] // Only provides proper panic message in debug mode
     fn test_must_not_start_on_quad() {
         let mut path = BezPath::new();
         path.quad_to((5.0, 5.0), (10.0, 10.0));
