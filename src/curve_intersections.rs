@@ -72,8 +72,8 @@ impl ParamCurveBezierClipping for Line {
 
     fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64) {
         // Get the signed distance to each point
-        let d0 = signed_distance_from_ray_to_point(&baseline, self.p0);
-        let d1 = signed_distance_from_ray_to_point(&baseline, self.p1);
+        let d0 = signed_distance_from_ray_to_point(baseline, self.p0);
+        let d1 = signed_distance_from_ray_to_point(baseline, self.p1);
 
         // Calculate min and max distances
         let d_min = f64::min(d0.min(d1), 0.0);
@@ -121,9 +121,9 @@ impl ParamCurveBezierClipping for QuadBez {
 
     fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64) {
         // Get the signed distance to each point
-        let d0 = signed_distance_from_ray_to_point(&baseline, self.p0);
-        let d1 = signed_distance_from_ray_to_point(&baseline, self.p1);
-        let d2 = signed_distance_from_ray_to_point(&baseline, self.p2);
+        let d0 = signed_distance_from_ray_to_point(baseline, self.p0);
+        let d1 = signed_distance_from_ray_to_point(baseline, self.p1);
+        let d2 = signed_distance_from_ray_to_point(baseline, self.p2);
 
         // Shrink d1 to a more accurate number, but test the distance compared
         // to d0 and d3 in case we're looking at a perpendicular fat line
@@ -191,10 +191,10 @@ impl ParamCurveBezierClipping for CubicBez {
 
     fn fat_line_min_max(&self, baseline: &Line) -> (f64, f64) {
         // Get the signed distance to each point
-        let d0 = signed_distance_from_ray_to_point(&baseline, self.p0);
-        let d1 = signed_distance_from_ray_to_point(&baseline, self.p1);
-        let d2 = signed_distance_from_ray_to_point(&baseline, self.p2);
-        let d3 = signed_distance_from_ray_to_point(&baseline, self.p3);
+        let d0 = signed_distance_from_ray_to_point(baseline, self.p0);
+        let d1 = signed_distance_from_ray_to_point(baseline, self.p1);
+        let d2 = signed_distance_from_ray_to_point(baseline, self.p2);
+        let d3 = signed_distance_from_ray_to_point(baseline, self.p3);
 
         // Shrink d1 and d2 to more accurate numbers
         let factor: f64 = if ((d1 - d0) * (d2 - d3)) > 0.0 {
@@ -340,7 +340,7 @@ fn check_for_overlap<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
             return (false, 0.0);
         }
 
-        assert!(t_values_other.1.len() >= 1); // This has to be true or we really messed up!
+        assert!(!t_values_other.1.is_empty()); // This has to be true or we really messed up!
         if t_values_other.1.len() == 1 {
             return (true, t_values_other.1[0]);
         }
@@ -521,15 +521,11 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
         <= accuracy
     {
         add_point_curve_intersection(
-            curve2,
-            /* point is curve1 */ false,
-            curve1,
-            domain2,
-            domain1,
+            (curve2, curve1),
+            (domain2, domain1),
             intersections,
-            flip,
-            orig_curve2,
-            orig_curve1,
+            !flip, // Invert because curve order is inverted
+            (orig_curve2, orig_curve1),
             flags,
             accuracy,
         );
@@ -621,15 +617,11 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
     // is a point (but then curve1 will be very small).)
     if curve1.arclen(arclen_epsilon * 0.001) <= accuracy * 2. {
         add_point_curve_intersection(
-            curve1,
-            /* point is curve1 */ true,
-            curve2,
-            new_domain1,
-            domain2,
+            (curve1, curve2),
+            (new_domain1, domain2),
             intersections,
             flip,
-            orig_curve1,
-            orig_curve2,
+            (orig_curve1, orig_curve2),
             flags,
             accuracy,
         );
@@ -742,32 +734,25 @@ fn add_curve_intersections<T: ParamCurveBezierClipping, U: ParamCurveBezierClipp
 }
 
 fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
-    pt_curve: &T,
-    pt_curve_is_curve1: bool,
-    curve: &U,
-    pt_domain: &Range<f64>,
-    curve_domain: &Range<f64>,
+    curves: (&T, &U),
+    domains: (&Range<f64>, &Range<f64>),
     intersections: &mut ArrayVec<(f64, f64), 9>,
     flip: bool,
-    orig_curve1: &T,
-    orig_curve2: &U,
+    orig_curves: (&T, &U),
     flags: CurveIntersectionFlags,
     accuracy: f64,
 ) {
-    // We assume pt is curve1 when we add intersections below.
-    let flip = if pt_curve_is_curve1 { flip } else { !flip };
-
     // Get the mid-point
-    let pt = pt_curve.eval(0.5);
-    let pt_t = (pt_domain.start + pt_domain.end) * 0.5;
+    let pt = curves.0.eval(0.5);
+    let pt_t = (domains.0.start + domains.0.end) * 0.5;
 
     // Generally speaking |curve| will be quite small at this point, so see if we can get away with
     // just finding one of the points along the curve (even though there may be multiple).
-    let results = t_along_curve_for_point(pt, curve, accuracy, false);
+    let results = t_along_curve_for_point(pt, curves.1, accuracy, false);
     let curve_t = results
         .iter()
         .fold((-1., f64::MAX), |(t, d_sq), result| {
-            let result_pos = curve.eval(*result);
+            let result_pos = curves.1.eval(*result);
             let result_d_sq = (pt - result_pos).hypot2();
             if result_d_sq < d_sq {
                 return (*result, result_d_sq);
@@ -781,12 +766,12 @@ fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezier
         return;
     }
 
-    let curve_t = domain_value_at_t(curve_domain, curve_t); // convert to proper domain
+    let curve_t = domain_value_at_t(domains.1, curve_t); // convert to proper domain
     add_intersection(
         pt_t,
-        orig_curve1,
+        orig_curves.0,
         curve_t,
-        orig_curve2,
+        orig_curves.1,
         flip,
         intersections,
         flags,
@@ -882,7 +867,7 @@ fn point_is_on_curve<T: ParamCurveBezierClipping>(
             return (true, t_values.clone()); // Point lies along curve
         }
     }
-    (false, t_values.clone()) // Point is not along curve
+    (false, t_values) // Point is not along curve
 }
 
 fn add_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
