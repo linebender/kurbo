@@ -981,8 +981,8 @@ fn restrict_curve_to_perpendicular_fat_line<
 
 // Returns the min and max values at which the convex hull enters the fat line min/max offset lines.
 fn clip_convex_hull_to_fat_line(
-    hull_top: &mut Vec<Point>,
-    hull_bottom: &mut Vec<Point>,
+    hull_top: &mut [Point],
+    hull_bottom: &mut [Point],
     d_min: f64,
     d_max: f64,
 ) -> Option<(f64, f64)> {
