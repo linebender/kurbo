@@ -187,7 +187,7 @@ impl BezPath {
         BezPath(v)
     }
 
-    /// Pop a generic path element off of the path.
+    /// Removes the last [`PathEl`] from the path and returns it, or `None` if the path is empty.
     pub fn pop(&mut self) -> Option<PathEl> {
         self.0.pop()
     }
