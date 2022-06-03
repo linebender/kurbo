@@ -43,6 +43,16 @@ impl FloatExt<f32> for f32 {
     }
 }
 
+/// Order two things into minimum and maximum
+#[inline]
+pub fn min_max<T: PartialOrd>(a: T, b: T) -> (T, T) {
+    if a < b {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
 /// Find real roots of cubic equation.
 ///
 /// The implementation is not (yet) fully robust, but it does handle the case
