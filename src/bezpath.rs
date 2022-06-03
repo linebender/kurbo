@@ -187,6 +187,11 @@ impl BezPath {
         BezPath(v)
     }
 
+    /// Pop a generic path element off of the path.
+    pub fn pop(&mut self) -> Option<PathEl> {
+        self.0.pop()
+    }
+
     /// Push a generic path element onto the path.
     pub fn push(&mut self, el: PathEl) {
         self.0.push(el)
