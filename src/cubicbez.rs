@@ -309,6 +309,24 @@ impl CubicBez {
     pub fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan() || self.p3.is_nan()
     }
+
+    /// Determine the inflection points.
+    ///
+    /// Return value is t parameter for the inflection points of the curve segment.
+    /// There are a maximum of two for a cubic Bézier.
+    ///
+    /// See https://www.caffeineowl.com/graphics/2d/vectorial/cubic-inflexion.html
+    /// for the theory.
+    pub fn inflections(&self) -> ArrayVec<f64, 2> {
+        let a = self.p1 - self.p0;
+        let b = (self.p2 - self.p1) - a;
+        let c = (self.p3 - self.p0) - 3. * (self.p2 - self.p1);
+        solve_quadratic(a.cross(b), a.cross(c), b.cross(c))
+            .iter()
+            .copied()
+            .filter(|t| *t >= 0.0 && *t <= 1.0)
+            .collect()
+    }
 }
 
 /// An iterator for cubic beziers.
@@ -876,5 +894,25 @@ mod tests {
         assert!(
             converted[0].points()[2].distance(Point::new(88639.0 / 90.0, 52584.0 / 90.0)) < 0.0001
         );
+    }
+
+    #[test]
+    fn cubicbez_inflections() {
+        let c = CubicBez::new((0., 0.), (0.8, 1.), (0.2, 1.), (1., 0.));
+        let inflections = c.inflections();
+        assert_eq!(inflections.len(), 2);
+        assert!((inflections[0] - 0.311018).abs() < 1e-6);
+        assert!((inflections[1] - 0.688982).abs() < 1e-6);
+        let c = CubicBez::new((0., 0.), (1., 1.), (2., -1.), (3., 0.));
+        let inflections = c.inflections();
+        assert_eq!(inflections.len(), 1);
+        assert!((inflections[0] - 0.5).abs() < 1e-6);
+        let c = CubicBez::new((0., 0.), (1., 1.), (2., 1.), (3., 0.));
+        let inflections = c.inflections();
+        assert_eq!(inflections.len(), 0);
+        let c = CubicBez::new((100., 100.), (180., 200.), (120., 200.), (200., 100.));
+        for t in c.inflections() {
+            println!("{:?}", c.eval(t));
+        }
     }
 }
