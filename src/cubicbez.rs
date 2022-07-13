@@ -315,7 +315,7 @@ impl CubicBez {
     /// Return value is t parameter for the inflection points of the curve segment.
     /// There are a maximum of two for a cubic Bézier.
     ///
-    /// See https://www.caffeineowl.com/graphics/2d/vectorial/cubic-inflexion.html
+    /// See <https://www.caffeineowl.com/graphics/2d/vectorial/cubic-inflexion.html>
     /// for the theory.
     pub fn inflections(&self) -> ArrayVec<f64, 2> {
         let a = self.p1 - self.p0;
