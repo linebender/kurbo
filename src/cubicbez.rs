@@ -910,9 +910,5 @@ mod tests {
         let c = CubicBez::new((0., 0.), (1., 1.), (2., 1.), (3., 0.));
         let inflections = c.inflections();
         assert_eq!(inflections.len(), 0);
-        let c = CubicBez::new((100., 100.), (180., 200.), (120., 200.), (200., 100.));
-        for t in c.inflections() {
-            println!("{:?}", c.eval(t));
-        }
     }
 }
