@@ -18,6 +18,12 @@ enum Orientation {
     Ambiguous,
 }
 
+impl Orientation {
+    fn ordered(self) -> bool {
+        self == Orientation::Left || self == Orientation::Right
+    }
+}
+
 fn orient_float(a: f64, b: f64) -> Orientation {
     if a < b {
         Orientation::Left
@@ -87,11 +93,16 @@ impl LineSeg {
     fn order_by_top(&self, other: &LineSeg) -> Ordering {
         self.line.p0.y.total_cmp(&other.line.p0.y)
     }
+
+    fn solve_for_y(&self, y: f64) -> f64 {
+        solve_line_for_y(self.line, y)
+    }
 }
 
 // Return line segments sorted by top, horizontal lines removed.
 fn path_to_line_segs(p: &BezPath) -> Vec<LineSeg> {
-    let mut segs = p.segments()
+    let mut segs = p
+        .segments()
         .flat_map(|seg| {
             if let PathSeg::Line(l) = seg {
                 LineSeg::from_line(l)
@@ -102,6 +113,64 @@ fn path_to_line_segs(p: &BezPath) -> Vec<LineSeg> {
         .collect::<Vec<_>>();
     segs.sort_by(LineSeg::order_by_top);
     segs
+}
+
+#[derive(Clone, Copy)]
+struct El {
+    x0: f64,
+    x1: f64,
+    i: usize,
+}
+
+impl El {
+    fn from_line(l: Line, y0: f64, y1: f64, i: usize) -> Self {
+        let x0 = solve_line_for_y(l, y0);
+        let x1 = solve_line_for_y(l, y1);
+        El { x0, x1, i }
+    }
+
+    fn line(&self, y0: f64, y1: f64) -> Line {
+        Line::new((self.x0, y0), (self.x1, y1))
+    }
+}
+
+fn do_slice(active: &[LineSeg], y0: f64, y1: f64) {
+    let mut els = active
+        .iter()
+        .enumerate()
+        .map(|(i, s)| El::from_line(s.line, y0, y1, i))
+        .collect::<Vec<_>>();
+    els.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+    let mut z: Vec<El> = Vec::with_capacity(els.len());
+    for el in &els {
+        let El { mut x0, mut x1, i} = *el;
+        let mut j = z.len();
+        while j > 0 && z[j].x1 > x1 {
+            let prev = &mut z[j - 1];
+            // TODO: this should be original
+            let prev_l = prev.line(y0, y1);
+            let l = Line::new((x0, y0), (x1, y1));
+            // test if top is oriented
+            let top_prev_l = orient_point_line(Point::new(prev.x0, y0), l);
+            let top_l_prev = orient_point_line(Point::new(x0, y0), prev_l);
+            let bot_prev_l = orient_point_line(Point::new(prev.x1, y1), l);
+            let bot_l_prev = orient_point_line(Point::new(x1, y1), prev_l);
+            if !top_prev_l.ordered() {
+                x0 = prev.x0;
+            } else if !top_l_prev.ordered() {
+                prev.x0 = x0;
+            }
+            if !bot_prev_l.ordered() {
+                x1 = prev.x1;
+                break;
+            } else if !bot_l_prev.ordered() {
+                prev.x1 = x1;
+            }
+            // Note: if they're all ordered, that's an intersection
+            j -= 1;
+        }
+        z.insert(j, El { x0, x1, i});
+    }
 }
 
 #[test]
