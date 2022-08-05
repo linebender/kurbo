@@ -48,14 +48,18 @@ impl FloatExt<f32> for f32 {
 /// The implementation is not (yet) fully robust, but it does handle the case
 /// where `c3` is zero (in that case, solving the quadratic equation).
 ///
-/// See: <http://mathworld.wolfram.com/CubicFormula.html>
+/// See: <https://momentsingraphics.de/CubicRoots.html>
+///
+/// That implementation is in turn based on Jim Blinn's "How to Solve a Cubic
+/// Equation", which is masterful.
 ///
 /// Return values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.
 pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
     let mut result = ArrayVec::new();
     let c3_recip = c3.recip();
-    let scaled_c2 = c2 * c3_recip;
-    let scaled_c1 = c1 * c3_recip;
+    const ONETHIRD: f64 = 1. / 3.;
+    let scaled_c2 = c2 * (ONETHIRD * c3_recip);
+    let scaled_c1 = c1 * (ONETHIRD * c3_recip);
     let scaled_c0 = c0 * c3_recip;
     if !(scaled_c0.is_finite() && scaled_c1.is_finite() && scaled_c2.is_finite()) {
         // cubic coefficient is zero or nearly so.
@@ -65,31 +69,37 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
         return result;
     }
     let (c0, c1, c2) = (scaled_c0, scaled_c1, scaled_c2);
-    let q = c1 * (1.0 / 3.0) - c2 * c2 * (1.0 / 9.0); // Q
-    let r = (1.0 / 6.0) * c2 * c1 - (1.0 / 27.0) * c2.powi(3) - c0 * 0.5; // R
-    let d = q.powi(3) + r * r; // D
-    let x0 = c2 * (1.0 / 3.0);
+    // (d0, d1, d2) is called "Delta" in article
+    let d0 = (-c2).mul_add(c2, c1);
+    let d1 = (-c1).mul_add(c2, c0);
+    let d2 = c2 * c0 - c1 * c1;
+    // d is called "Discriminant"
+    let d = 4.0 * d0 * d2 - d1 * d1;
+    // de is called "Depressed.x", Depressed.y = d0
+    let de = (-2.0 * c2).mul_add(d0, d1);
     // TODO: handle the cases where these intermediate results overflow.
-    if d > 0.0 {
-        let sq = d.sqrt();
+    if d < 0.0 {
+        let sq = (-0.25 * d).sqrt();
+        let r = -0.5 * de;
         let t1 = (r + sq).cbrt() + (r - sq).cbrt();
-        result.push(t1 - x0);
+        result.push(t1 - c2);
     } else if d == 0.0 {
-        let t1 = -r.cbrt();
-        let x1 = t1 - x0;
-        result.push(x1);
-        result.push(-2.0 * t1 - x0);
+        let t1 = (-d0).sqrt().copysign(de);
+        result.push(t1 - c2);
+        result.push(-2.0 * t1 - c2);
     } else {
-        let sq = (-d).sqrt();
-        let rho = r.hypot(sq);
-        let th = sq.atan2(r) * (1.0 / 3.0);
-        let cbrho = rho.cbrt();
+        let th = d.sqrt().atan2(-de) * ONETHIRD;
+        // (th_cos, th_sin) is called "CubicRoot"
         let (th_sin, th_cos) = th.sin_cos();
-        let c = th_cos;
+        // (r0, r1, r2) is called "Root"
+        let r0 = th_cos;
         let ss3 = th_sin * 3.0f64.sqrt();
-        result.push(2.0 * cbrho * c - x0);
-        result.push(-cbrho * (c + ss3) - x0);
-        result.push(-cbrho * (c - ss3) - x0);
+        let r1 = 0.5 * (-th_cos + ss3);
+        let r2 = 0.5 * (-th_cos - ss3);
+        let t = 2.0 * (-d0).sqrt();
+        result.push(t.mul_add(r0, -c2));
+        result.push(t.mul_add(r1, -c2));
+        result.push(t.mul_add(r2, -c2));
     }
     result
 }
@@ -324,7 +334,7 @@ mod tests {
 
     fn verify<const N: usize>(mut roots: ArrayVec<f64, N>, expected: &[f64]) {
         assert_eq!(expected.len(), roots.len());
-        let epsilon = 1e-6;
+        let epsilon = 1e-12;
         roots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         for i in 0..expected.len() {
             assert!((roots[i] - expected[i]).abs() < epsilon);
@@ -338,7 +348,14 @@ mod tests {
         verify(solve_cubic(0.0, -1.0, 0.0, 1.0), &[-1.0, 0.0, 1.0]);
         verify(solve_cubic(-2.0, -3.0, 0.0, 1.0), &[-1.0, 2.0]);
         verify(solve_cubic(2.0, -3.0, 0.0, 1.0), &[-2.0, 1.0]);
-        verify(solve_cubic(2.0 - 1e-12, 5.0, 4.0, 1.0), &[-2.0, -1.0, -1.0]);
+        verify(
+            solve_cubic(2.0 - 1e-12, 5.0, 4.0, 1.0),
+            &[
+                -1.9999999999989995,
+                -1.0000010000848456,
+                -0.9999989999161546,
+            ],
+        );
         verify(solve_cubic(2.0 + 1e-12, 5.0, 4.0, 1.0), &[-2.0]);
     }
 
