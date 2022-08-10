@@ -7,6 +7,7 @@ use std::{
 
 use crate::{BezPath, Line, PathSeg, Point};
 
+#[derive(Clone, Copy)]
 struct LineSeg {
     orig: Line,
     line: Line,
@@ -26,22 +27,23 @@ enum Orientation {
 struct ActiveList {
     segs: Vec<LineSeg>,
     horiz: HorizLines,
-    queue: PriQueue,
+    queue: BinaryHeap<PriEl>,
 }
 
 struct TotalF64(f64);
 
-#[derive(Default)]
-struct PriQueue(BinaryHeap<TotalF64>);
+struct PriEl {
+    y: f64,
+    seg: Option<LineSeg>,
+}
 
 #[derive(Default)]
 struct HorizLines(BTreeMap<TotalF64, i32>);
 
 // rename?
+#[derive(Default)]
 struct Runner {
     active: ActiveList,
-    lines: Vec<Line>,
-    line_ix: usize,
 }
 
 impl Orientation {
@@ -138,7 +140,7 @@ impl LineSeg {
     }
 
     fn y_at_endpoint(&self, y: f64) -> bool {
-        self.orig.p0.y == y || self.orig.p1.y == y
+        self.line.p0.y == y || self.line.p1.y == y
     }
 }
 
@@ -217,45 +219,41 @@ fn do_slice(active: &[LineSeg], y0: f64, y1: f64) {
 }
 
 impl ActiveList {
-    fn insert_line(&mut self, l: Line) {
-        if l.p0.y == l.p1.y {
-            self.horiz.add_line(l.p0.x, l.p1.x);
+    fn insert_seg(&mut self, new_seg: LineSeg) {
+        if new_seg.line.p0.y == new_seg.line.p1.y {
+            self.horiz.add_line(new_seg.line.p0.x, new_seg.line.p1.x);
             return;
         }
-        if let Some(new_seg) = LineSeg::from_line(l) {
-            let y = new_seg.line.p0.y;
-            // find insertion point (should be binary search)
-            let mut i = 0;
-            while i < self.segs.len() {
-                let seg = &self.segs[i];
-                if y == seg.line.p0.y && l.p0.x < seg.line.p0.x {
-                    break;
-                }
-                let x1 = seg.x_for_y(y);
-                let o0 = orient_point_line_eqn(Point::new(x1, y), new_seg.line);
-                let o1 = orient_point_line_eqn(new_seg.line.p0, seg.orig);
+        let y = new_seg.line.p0.y;
+        // find insertion point (should be binary search)
+        let mut i = 0;
+        while i < self.segs.len() {
+            let seg = &self.segs[i];
+
+            let x1 = seg.x_for_y(y);
+            let o0 = orient_point_line_eqn(Point::new(x1, y), new_seg.line);
+            let o1 = orient_point_line_eqn(new_seg.line.p0, seg.orig);
+            if o0 == Orientation::Right && o1 == Orientation::Left {
+                break;
+            }
+            if o0 == Orientation::Ambiguous && o1 == Orientation::Ambiguous {
+                let y1 = new_seg.line.p1.y.min(seg.line.p1.y);
+                let x0 = new_seg.x_for_y(y1);
+                let x1 = seg.x_for_y(y1);
+                let o0 = orient_point_line_eqn(Point::new(x1, y1), new_seg.line);
+                let o1 = orient_point_line_eqn(Point::new(x0, y1), seg.orig);
                 if o0 == Orientation::Right && o1 == Orientation::Left {
                     break;
                 }
-                if o0 == Orientation::Ambiguous && o1 == Orientation::Ambiguous {
-                    let y1 = new_seg.line.p1.y.min(seg.line.p1.y);
-                    let x0 = new_seg.x_for_y(y1);
-                    let x1 = seg.x_for_y(y1);
-                    let o0 = orient_point_line_eqn(Point::new(x1, y1), new_seg.line);
-                    let o1 = orient_point_line_eqn(Point::new(x0, y1), seg.orig);
-                    if o0 == Orientation::Right && o1 == Orientation::Left {
-                        break;
-                    }
-                }
-                i += 1;
             }
-            self.segs.insert(i, new_seg);
-            if i > 0 {
-                self.try_intersect_pair(i - 1, i);
-            }
-            if i + 1 < self.segs.len() {
-                self.try_intersect_pair(i, i + 1);
-            }
+            i += 1;
+        }
+        self.segs.insert(i, new_seg);
+        if i > 0 {
+            self.try_intersect_pair(i - 1, i);
+        }
+        if i + 1 < self.segs.len() {
+            self.try_intersect_pair(i, i + 1);
         }
     }
 
@@ -270,47 +268,63 @@ impl ActiveList {
                 break;
             }
             let s = &mut self.segs[k..k + 2];
-            // note: can skip if s0.y0 != y && s1.y0 != y
-            let x0 = s[0].x_for_y(y);
-            let x1 = s[1].x_for_y(y);
-            // Question: should be line or line.p0 to orig.p1?
-            let o0 = orient_point_line_eqn(Point::new(x1, y), s[0].line);
-            let o1 = orient_point_line_eqn(Point::new(x0, y), s[1].line);
-            if (s[0].line.p0.y == y) != (s[1].line.p0.y == y) {
-                if o0 != Orientation::Right && !s[0].y_at_endpoint(y) {
+            let y_end0 = s[0].y_at_endpoint(y);
+            let y_end1 = s[1].y_at_endpoint(y);
+            if y_end0 || y_end1 {
+                let mut at0 = y_end0;
+                let mut at1 = y_end1;
+                let x0 = s[0].x_for_y(y);
+                let x1 = s[1].x_for_y(y);
+                // Question: should be line or line.p0 to orig.p1, or just orig?
+                let o0 = orient_point_line_eqn(Point::new(x1, y), s[0].line);
+                let o1 = orient_point_line_eqn(Point::new(x0, y), s[1].line);
+                if o0 != Orientation::Right && !y_end0 {
                     s[0].line.p0 = Point::new(x0, y);
+                    at0 = true;
                     i = k;
                 } else {
                     i = 0;
                 }
-                if o1 != Orientation::Left && !s[1].y_at_endpoint(y) {
+                if o1 != Orientation::Left && !y_end1 {
                     s[1].line.p0 = Point::new(x1, y);
+                    at1 = true;
                 }
-            }
-            if s[0].line.p0.y == y && s[1].line.p0.y == y && s[0].line.p0.x > s[1].line.p1.x {
-                // maybe choose which on basis of more vertical?
-                if o0 == Orientation::Ambiguous && !s[0].y_at_endpoint(y) {
-                    s[0].line.p0.x = s[1].line.p0.x;
-                } else if o1 == Orientation::Ambiguous && !s[1].y_at_endpoint(y) {
-                    s[1].line.p0.x = s[0].line.p0.x;
-                } else {
-                    // need to add horizontal whisker
-                    let i = if o0 == Orientation::Ambiguous { 0 } else { 1 };
-                    let x = s[1 - i].line.p0.x;
-                    let mut si = &mut s[i];
-                    self.horiz.add_delta(si.line.p0.x, si.winding);
-                    self.horiz.add_delta(x, -si.winding);
-                    si.line.p0.x = x;
+                if at0 && at1 && x0 > x1 {
+                    // maybe choose which on basis of more vertical?
+                    if o0 == Orientation::Ambiguous && !y_end0 {
+                        s[0].line.p0.x = x1;
+                    } else if o1 == Orientation::Ambiguous && !y_end1 {
+                        s[1].line.p0.x = x0;
+                    } else {
+                        // need to add horizontal whisker
+                        let i = if o0 == Orientation::Ambiguous { 0 } else { 1 };
+                        let sm = &s[1 - i];
+                        let xm = if sm.line.p0.y == y { sm.line.p0.x } else { sm.line.p1.x };
+                        let si = &mut s[i];
+                        let xi = if si.line.p0.y == y { si.line.p0.x } else { si.line.p1.x };
+                        self.horiz.add_delta(xi, si.winding);
+                        self.horiz.add_delta(xm, -si.winding);
+                        si.line.p0.x = xm;
+                    }
                 }
-                // Discussion: do we ever need to actually swap?
-                // We do if it's an intersection point
             }
             j = j.max(k + 1);
         }
     }
 
     fn delete_bottom(&mut self, y: f64) {
-        self.segs.retain(|seg| seg.orig.p1.y != y);
+        let mut last = None;
+        for i in 0..self.segs.len() {
+            if self.segs[i].line.p1.y != y {
+                if let Some(last) = last {
+                    if last + 1 != i {
+                        self.try_intersect_pair(last, i);
+                    }
+                }
+                last = Some(i);
+            }
+        }
+        self.segs.retain(|seg| seg.line.p1.y != y);
     }
 
     fn try_intersect_pair(&mut self, i: usize, j: usize) {
@@ -323,10 +337,24 @@ impl ActiveList {
         let o1 = orient_point_line_eqn(Point::new(x0, ymin), l1);
         if o0 == Orientation::Left && o1 == Orientation::Right {
             if let Some(p) = l0.crossing_point(l1) {
+                let mut seg0 = self.segs[i];
+                let mut seg1 = self.segs[j];
+                // Proof obligation: seg0.p0.y < p.y < seg0.p1.y, also seg1
                 self.segs[i].line.p1 = p;
                 self.segs[j].line.p1 = p;
+                seg0.line.p0 = p;
+                seg1.line.p0 = p;
+                self.queue_seg(seg0);
+                self.queue_seg(seg1);
             }
         }
+    }
+
+    fn queue_seg(&mut self, seg: LineSeg) {
+        self.queue.push(PriEl {
+            y: seg.line.p0.y,
+            seg: Some(seg),
+        });
     }
 }
 
@@ -351,28 +379,23 @@ impl Ord for TotalF64 {
     }
 }
 
-impl PriQueue {
-    fn push(&mut self, y: f64) {
-        self.0.push(TotalF64(-y));
+impl PartialEq for PriEl {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
     }
+}
 
-    /// Return the least value in the priority queue.
-    fn pop(&mut self) -> Option<f64> {
-        self.0.pop().map(|t| -t.0)
+impl Eq for PriEl {}
+
+impl PartialOrd for PriEl {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
+}
 
-    fn pop_dedup(&mut self) -> Option<f64> {
-        if let Some(x) = self.0.pop() {
-            while let Some(y) = self.0.peek() {
-                if x != *y {
-                    break;
-                }
-                self.0.pop();
-            }
-            Some(-x.0)
-        } else {
-            None
-        }
+impl Ord for PriEl {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.y.total_cmp(&self.y)
     }
 }
 
@@ -392,43 +415,36 @@ impl HorizLines {
 
 impl Runner {
     fn new(p: &BezPath) -> Runner {
-        let mut lines = p
-            .segments()
-            .map(|seg| {
-                if let PathSeg::Line(l) = seg {
-                    l
-                } else {
-                    panic!("only works on polygons");
+        let mut runner = Runner::default();
+        for seg in p.segments() {
+            if let PathSeg::Line(l) = seg {
+                if let Some(seg) = LineSeg::from_line(l) {
+                    let y1 = seg.line.p1.y;
+                    runner.active.queue_seg(seg);
+                    runner.active.queue.push(PriEl { y: y1, seg: None });
                 }
-            })
-            .collect::<Vec<_>>();
-        lines.sort_by(|l1, l2| l1.p0.y.min(l1.p1.y).total_cmp(&l2.p0.y.min(l2.p1.y)));
-        let mut queue = PriQueue::default();
-        for l in &lines {
-            queue.push(l.p0.y);
-            queue.push(l.p1.y);
+            }
         }
-        let active = ActiveList {
-            horiz: HorizLines::default(),
-            segs: Vec::new(),
-            queue,
-        };
-        Runner {
-            active,
-            lines,
-            line_ix: 0,
-        }
+        runner
     }
 
     fn step(&mut self) -> bool {
-        if let Some(y) = self.active.queue.pop_dedup() {
-            while self.line_ix < self.lines.len() {
-                let line = &self.lines[self.line_ix];
-                if line.p0.y.min(line.p1.y) != y {
+        if let Some(mut el) = self.active.queue.pop() {
+            let y = el.y;
+            loop {
+                if let Some(seg) = el.seg {
+                    self.active.insert_seg(seg);
+                }
+                if self
+                    .active
+                    .queue
+                    .peek()
+                    .map(|seg| seg.y != y)
+                    .unwrap_or(true)
+                {
                     break;
                 }
-                self.active.insert_line(*line);
-                self.line_ix += 1;
+                el = self.active.queue.pop().unwrap();
             }
             self.active.sort_at(y);
             self.active.delete_bottom(y);
