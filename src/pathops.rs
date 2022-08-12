@@ -5,7 +5,7 @@ use std::{
     collections::{BTreeMap, BinaryHeap},
 };
 
-use crate::{BezPath, Line, PathSeg, Point};
+use crate::{BezPath, Line, ParamCurve, PathSeg, Point};
 
 #[derive(Clone, Copy)]
 struct LineSeg {
@@ -90,6 +90,27 @@ fn orient_point_line_eqn(p: Point, l: Line) -> Orientation {
         return Orientation::Ambiguous;
     }
     if orient < 0.0 {
+        Orientation::Left
+    } else {
+        Orientation::Right
+    }
+}
+
+// Orientation wrt line, so that if point is within epsilon, always ambiguous.
+fn orient_point_line_eps(p: Point, l: Line, epsilon: f64) -> Orientation {
+    let d = l.p1 - l.p0;
+    let dotp = d.dot(p - l.p0);
+    let d_squared = d.dot(d);
+    let line_pt = if dotp <= 0.0 {
+        l.p0
+    } else if dotp >= d_squared {
+        l.p1
+    } else {
+        l.eval(dotp / d_squared)
+    };
+    if p.distance_squared(line_pt) < epsilon * epsilon {
+        Orientation::Ambiguous
+    } else if p.x < line_pt.x {
         Orientation::Left
     } else {
         Orientation::Right
@@ -257,6 +278,21 @@ impl ActiveList {
         }
     }
 
+    // Another try at inserting a segment.
+    //
+    // This one tries to maintain the fully-ordered invariant.
+    fn insert_seg2(&mut self, seg: LineSeg) {
+        let Point { x, y } = seg.line.p0;
+        let mut i = 0;
+        while i < self.segs.len() {
+            let seg = &self.segs[i];
+            if x < seg.x_for_y(y) {
+                break;
+            }
+            i += 1;
+        }
+    }
+
     // postcondition: segments are >= top-oriented
     fn sort_at(&mut self, y: f64) {
         let mut i = 0;
@@ -299,9 +335,17 @@ impl ActiveList {
                         // need to add horizontal whisker
                         let i = if o0 == Orientation::Ambiguous { 0 } else { 1 };
                         let sm = &s[1 - i];
-                        let xm = if sm.line.p0.y == y { sm.line.p0.x } else { sm.line.p1.x };
+                        let xm = if sm.line.p0.y == y {
+                            sm.line.p0.x
+                        } else {
+                            sm.line.p1.x
+                        };
                         let si = &mut s[i];
-                        let xi = if si.line.p0.y == y { si.line.p0.x } else { si.line.p1.x };
+                        let xi = if si.line.p0.y == y {
+                            si.line.p0.x
+                        } else {
+                            si.line.p1.x
+                        };
                         self.horiz.add_delta(xi, si.winding);
                         self.horiz.add_delta(xm, -si.winding);
                         si.line.p0.x = xm;
@@ -368,7 +412,6 @@ impl Eq for TotalF64 {}
 
 impl PartialOrd for TotalF64 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // Note order is reversed.
         Some(self.0.total_cmp(&other.0))
     }
 }
