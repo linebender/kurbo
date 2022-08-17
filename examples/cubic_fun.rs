@@ -1,6 +1,10 @@
+use std::cmp::Ordering;
+
+use arrayvec::ArrayVec;
 use kurbo::{
-    common::{solve_cubic, solve_itp}, Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveNearest, Point,
-    Shape, ParamCurveDeriv, PathSeg, Line, QuadBez, Vec2,
+    common::{solve_cubic, solve_itp},
+    Affine, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveDeriv, ParamCurveNearest,
+    PathSeg, Point, QuadBez, Shape, Vec2,
 };
 use rand::Rng;
 
@@ -179,65 +183,286 @@ fn cubic_newton(c0: CubicBez, c1: CubicBez, init_t0: f64, init_t1: f64) -> (f64,
     (t0, t1)
 }
 
-// c0 + c1 * x + c2 * x^2 is approx equal to cubic bez
-fn est_parabola(c: CubicBez) -> (f64, f64, f64) {
-    let c = c.subsegment(0.0..0.3);
-    let seg = PathSeg::Cubic(c);
-    let close_seg = PathSeg::Line(Line::new(c.p3, c.p0));
-    let area = seg.area() + close_seg.area();
-    let dx = c.p3.x - c.p0.x;
-    // Note: this solution gives 0 error at endpoints. Arguably
-    // a better solution would be based on mean / moments.
-    let c2 = 6. * area / dx.powi(3);
-    let c1 = (c.p3.y - c.p0.y - (c.p3.x.powi(2) - c.p0.x.powi(2)) * c2) / dx;
-    let c0 = c.p0.y - c1 * c.p0.x - c2 * c.p0.x.powi(2);
-    println!("{} {} {}", c0, c1, c2);
-    let a = Affine::new([500., 0., 0., 500., 550., 10.]);
-    print_svg(c);
-    for i in 0..=10 {
-        let t = i as f64 / 10.0;
-        let x = c.p0.lerp(c.p3, t).x;
-        let y = c0 + c1 * x + c2 * x * x;
-        let p = a * Point::new(x, y);
-        println!("  <circle cx=\"{}\" cy=\"{}\" r=\"3\" />", p.x, p.y);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum QuadraticSigns {
+    /// Signs are [-sign(b), sign(b)]
+    Linear,
+    /// Polynomial is of sign sign(c) everywhere (may be 0)
+    Degenerate,
+    /// No real roots, sign sign(a) everywhere
+    QuadraticNone,
+    /// One double root, sign [sign(a), sign(a)]
+    QuadraticDouble,
+    /// Two single roots, Sign [sign(a), -sign(a), sign(a)]
+    QuadraticSingles,
+}
+
+/// Solve quadratic equation and characterize signs.
+///
+/// Third return value is coefficient that controls sign as x -> inf.
+fn solve_quadratic_signs(c0: f64, c1: f64, c2: f64) -> (ArrayVec<f64, 2>, QuadraticSigns, f64) {
+    let mut result = ArrayVec::new();
+    let sc0 = c0 * c2.recip();
+    let sc1 = c1 * 0.5 * c2.recip();
+    if !sc0.is_finite() || !sc1.is_finite() {
+        // c2 is zero or very small, treat as linear eqn
+        let root = -c0 / c1;
+        if root.is_finite() {
+            result.push(root);
+            return (result, QuadraticSigns::Linear, c1);
+        } else if c0 == 0.0 && c1 == 0.0 {
+            // Degenerate case
+            result.push(0.0);
+        }
+        return (result, QuadraticSigns::Degenerate, c0);
     }
-    // Hybrid bezier concept from North Masters thesis
-    let q0 = QuadBez::new(c.p0, c.p0.lerp(c.p1, 1.5) ,c.p3);
-    let q1 = QuadBez::new(c.p0, c.p3.lerp(c.p2, 1.5) ,c.p3);
-    print_svg(q0.raise());
-    print_svg(q1.raise());
-    let mut dmin = 0.0f64;
-    let mut dmax = 0.0f64;
-    for q in [&q0, &q1] {
-        // Solve tangency with estimated parabola
-        // Maybe this should be a separate function?
-        let params = quad_parameters(*q);
-        let dparams = (params.1, 2. * params.2);
-        // d.qx/dt * dpara.y/dx - dq.y/dt = 0
-        // para.y = c0 + c1 * x + c2 * x^2
-        // dpara.y/dx = c1 + 2 * c2 * x = d0 + d1 * x
-        let d0 = c1;
-        let d1 = 2. * c2;
-        let dydt0 = d0 + d1 * params.0.x;
-        let dydt1 = d1 * params.1.x;
-        let dydt2 = d1 * params.2.x;
-        let f0 = dparams.0.x * dydt0 - dparams.0.y;
-        let f1 = dparams.0.x * dydt1 + dparams.1.x * dydt0 - dparams.1.y;
-        let f2 = dparams.0.x * dydt2 + dparams.1.x * dydt1;
-        let f3 = dparams.1.x * dydt2;
-        for t in solve_cubic(f0, f1, f2, f3) {
-            if (0.0..=1.0).contains(&t) {
-                let p = q.eval(t);
-                let y = p.y - (c0 + c1 * p.x + c2 * p.x.powi(2));
-                dmin = dmin.min(y);
-                dmax = dmax.max(y);
+    let arg = sc1 * sc1 - sc0;
+    let root1 = if !arg.is_finite() {
+        // Likely, calculation of sc1 * sc1 overflowed. Find one root
+        // using sc1 x + x² = 0, other root as sc0 / root1.
+        -2.0 * sc1
+    } else {
+        if arg < 0.0 {
+            return (result, QuadraticSigns::QuadraticNone, c2);
+        } else if arg == 0.0 {
+            result.push(sc1);
+            return (result, QuadraticSigns::QuadraticDouble, c2);
+        }
+        // See https://math.stackexchange.com/questions/866331
+        -(sc1 + arg.sqrt().copysign(sc1))
+    };
+    // Note: in this version we assume the result will be valid, as root1
+    // is chosen to be the root with larger magnitude.
+    let root2 = sc0 / root1;
+    // Sort just to be friendly and make results deterministic.
+    if root2 > root1 {
+        result.push(root1);
+        result.push(root2);
+    } else {
+        result.push(root2);
+        result.push(root1);
+    }
+    (result, QuadraticSigns::QuadraticSingles, c2)
+}
+
+/// Represents an interval so that for y0 < y < y1, f(y) has sign x
+struct SignInterval {
+    y0: f64,
+    y1: f64,
+    x: f64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Ternary {
+    Left,
+    In,
+    Right,
+}
+
+impl QuadraticSigns {
+    fn to_intervals(self, y0: f64, y1: f64, x: f64, roots: &ArrayVec<f64, 2>) -> Vec<SignInterval> {
+        // This is an annoying case analysis, but not clear the clever approach would be better.
+        match self {
+            QuadraticSigns::Degenerate
+            | QuadraticSigns::QuadraticNone
+            | QuadraticSigns::QuadraticDouble => vec![SignInterval { y0, y1, x }],
+            QuadraticSigns::Linear => {
+                let root = roots[0];
+                if root <= y0 {
+                    vec![SignInterval { y0, y1, x }]
+                } else if root < y1 {
+                    vec![
+                        SignInterval {
+                            y0,
+                            y1: root,
+                            x: -x,
+                        },
+                        SignInterval { y0: root, y1, x },
+                    ]
+                } else {
+                    vec![SignInterval { y0, y1, x: -x }]
+                }
             }
-            println!("t = {}, pt = {:?}", t, q.eval(t));
+            QuadraticSigns::QuadraticSingles => {
+                let root0 = roots[0];
+                let root1 = roots[1];
+                if root1 <= y0 || root0 >= y1 {
+                    vec![SignInterval { y0, y1, x }]
+                } else if root0 <= y0 && root1 >= y1 {
+                    vec![SignInterval { y0, y1, x: -x }]
+                } else if root0 > y0 && root1 < y1 {
+                    vec![
+                        SignInterval { y0, y1: root0, x },
+                        SignInterval {
+                            y0: root0,
+                            y1: root1,
+                            x: -x,
+                        },
+                        SignInterval { y0: root1, y1, x },
+                    ]
+                } else if root0 > y0 {
+                    vec![
+                        SignInterval { y0, y1: root0, x },
+                        SignInterval {
+                            y0: root0,
+                            y1,
+                            x: -x,
+                        },
+                    ]
+                } else {
+                    // root1 < y1
+                    vec![
+                        SignInterval {
+                            y0,
+                            y1: root1,
+                            x: -x,
+                        },
+                        SignInterval { y0: root1, y1, x },
+                    ]
+                }
+            }
         }
     }
-    println!("dmin = {}, dmax = {}", dmin, dmax);
-    // TODO: either want to return dmin/dmax or have separate function
-    (c0, c1, c2)
+}
+
+impl Ternary {
+    fn from_signs(a: f64, b: f64) -> Self {
+        if a < 0.0 && b < 0.0 {
+            Ternary::Left
+        } else if a > 0.0 && b > 0.0 {
+            Ternary::Right
+        } else {
+            Ternary::In
+        }
+    }
+}
+
+fn merge_intervals(a: &[SignInterval], b: &[SignInterval]) -> Vec<(f64, f64, Ternary)> {
+    let mut result = vec![];
+    let mut y = a[0].y0;
+    let mut i = 0;
+    let mut j = 0;
+    while i < a.len() {
+        let t = Ternary::from_signs(a[i].x, b[j].x);
+        let ya = a[i].y1;
+        let yb = b[j].y1;
+        let y1 = ya.min(yb);
+        if ya == y1 {
+            i += 1;
+        }
+        if yb == y1 {
+            j += 1;
+        }
+        result.push((y, y1, t));
+        y = y1;
+    }
+    result
+}
+
+#[derive(Clone, Copy, Debug)]
+struct EstParab {
+    c0: f64,
+    c1: f64,
+    c2: f64,
+    dmin: f64,
+    dmax: f64,
+}
+
+impl EstParab {
+    // c0 + c1 * x + c2 * x^2 is approx equal to cubic bez
+    fn from_cubic(c: CubicBez) -> Self {
+        //let c = c.subsegment(0.0..0.3);
+        let seg = PathSeg::Cubic(c);
+        let close_seg = PathSeg::Line(Line::new(c.p3, c.p0));
+        let area = seg.area() + close_seg.area();
+        let dy = c.p3.y - c.p0.y;
+        // Note: this solution gives 0 error at endpoints. Arguably
+        // a better solution would be based on mean / moments.
+        let c2 = -6. * area / dy.powi(3);
+        let c1 = (c.p3.x - c.p0.x - (c.p3.y.powi(2) - c.p0.y.powi(2)) * c2) / dy;
+        let c0 = c.p0.x - c1 * c.p0.y - c2 * c.p0.y.powi(2);
+        /*
+        println!("{} {} {}", c0, c1, c2);
+        let a = Affine::new([500., 0., 0., 500., 550., 10.]);
+        print_svg(c);
+        for i in 0..=10 {
+            let t = i as f64 / 10.0;
+            let y = c.p0.lerp(c.p3, t).y;
+            let x = c0 + c1 * y + c2 * y * y;
+            let p = a * Point::new(x, y);
+            println!("  <circle cx=\"{}\" cy=\"{}\" r=\"3\" />", p.x, p.y);
+        }
+        */
+        // Hybrid bezier concept from North Masters thesis
+        let q0 = QuadBez::new(c.p0, c.p0.lerp(c.p1, 1.5), c.p3);
+        let q1 = QuadBez::new(c.p0, c.p3.lerp(c.p2, 1.5), c.p3);
+        //print_svg(q0.raise());
+        //print_svg(q1.raise());
+        let mut dmin = 0.0f64;
+        let mut dmax = 0.0f64;
+        for q in [&q0, &q1] {
+            // Solve tangency with estimated parabola
+            // Maybe this should be a separate function?
+            let params = quad_parameters(*q);
+            let dparams = (params.1, 2. * params.2);
+            // d.qy/dt * dpara.x/dy - dq.x/dt = 0
+            // para.x = c0 + c1 * x + c2 * x^2
+            // dpara.x/dy = c1 + 2 * c2 * x = d0 + d1 * x
+            let d0 = c1;
+            let d1 = 2. * c2;
+            let dxdt0 = d0 + d1 * params.0.y;
+            let dxdt1 = d1 * params.1.y;
+            let dxdt2 = d1 * params.2.y;
+            let f0 = dparams.0.y * dxdt0 - dparams.0.x;
+            let f1 = dparams.0.y * dxdt1 + dparams.1.y * dxdt0 - dparams.1.x;
+            let f2 = dparams.0.y * dxdt2 + dparams.1.y * dxdt1;
+            let f3 = dparams.1.y * dxdt2;
+            for t in solve_cubic(f0, f1, f2, f3) {
+                if (0.0..=1.0).contains(&t) {
+                    let p = q.eval(t);
+                    let x = p.x - (c0 + c1 * p.y + c2 * p.y.powi(2));
+                    dmin = dmin.min(x);
+                    dmax = dmax.max(x);
+                }
+                //println!("t = {}, pt = {:?}", t, q.eval(t));
+            }
+        }
+        //println!("dmin = {}, dmax = {}", dmin, dmax);
+        EstParab {
+            c0,
+            c1,
+            c2,
+            dmin,
+            dmax,
+        }
+    }
+
+    fn eval(&self, y: f64) -> f64 {
+        self.c0 + self.c1 * y + self.c2 * y * y
+    }
+
+    // Classify regions where x + dmax < 0, x + dmin > 0, or in between
+    fn intervals(&self, y0: f64, y1: f64) -> Vec<(f64, f64, Ternary)> {
+        let (roots0, signs0, x0) = solve_quadratic_signs(self.c0 + self.dmin, self.c1, self.c2);
+        let (roots1, signs1, x1) = solve_quadratic_signs(self.c0 + self.dmax, self.c1, self.c2);
+        let iv0 = signs0.to_intervals(y0, y1, x0, &roots0);
+        let iv1 = signs1.to_intervals(y0, y1, x1, &roots1);
+        merge_intervals(&iv0, &iv1)
+    }
+}
+
+impl std::ops::Sub for EstParab {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        EstParab {
+            c0: self.c0 - other.c0,
+            c1: self.c1 - other.c1,
+            c2: self.c2 - other.c2,
+            dmin: self.dmin - other.dmax,
+            dmax: self.dmax - other.dmin,
+        }
+    }
 }
 
 /// Get the parameters such that the curve can be represented by the following formula:
@@ -249,17 +474,52 @@ pub fn quad_parameters(q: QuadBez) -> (Vec2, Vec2, Vec2) {
     (c0, c1, c2)
 }
 
+fn intersect_cubics_rec(orig_c0: CubicBez, orig_c1: CubicBez, y0: f64, y1: f64) {
+    println!("running recursion {}..{}", y0, y1);
+    let c0 = orig_c0.subsegment(solve_t_for_y(orig_c0, y0)..solve_t_for_y(orig_c0, y1));
+    let c1 = orig_c1.subsegment(solve_t_for_y(orig_c1, y0)..solve_t_for_y(orig_c1, y1));
+    let ep0 = EstParab::from_cubic(c0);
+    let ep1 = EstParab::from_cubic(c1);
+    //println!("ep0 = {:?}", ep0);
+    //println!("ep0 = {:?}", ep1);
+    let dep = ep1 - ep0;
+    //println!("ep1 - ep0 = {:?}", dep);
+    let ivs = dep.intervals(y0, y1);
+    for (new_y0, new_y1, t) in ivs {
+        if t == Ternary::In {
+            println!("delta y = {}", new_y1 - new_y0);
+            let mid = 0.5 * (new_y0 + new_y1);
+            if new_y1 - new_y0 > 1e-6 {
+                if new_y1 - new_y0 < 0.5 * (y1 - y0) {
+                    intersect_cubics_rec(orig_c0, orig_c1, new_y0, new_y1);
+                } else {
+                    intersect_cubics_rec(orig_c0, orig_c1, new_y0, mid);
+                    intersect_cubics_rec(orig_c0, orig_c1, mid, new_y1);
+                }
+            } else {
+                println!("intersection found at y = {}", mid);
+            }
+        }
+    }
+}
+
+fn intersect_cubics(c0: CubicBez, c1: CubicBez) {
+    intersect_cubics_rec(c0, c1, c0.p0.y, c0.p3.y);
+}
+
 fn main() {
     /* */
     let c0 = CubicBez::new((0., 0.), (0.4, 0.2), (0.2, 0.8), (1., 1.));
     let c1 = CubicBez::new((1., 0.), (0.7, 0.2), (0.8, 0.7), (0., 1.));
-    est_parabola(c0);
+    intersect_cubics(c0, c1);
+    /*
     let start = std::time::Instant::now();
     for _ in 0..1_000_000 {
         let _ = single_itp(c1, c0);
     }
     println!("{:?}", single_itp(c1, c0));
     println!("elapsed: {:?}", start.elapsed());
+    */
     /*
     let start = std::time::Instant::now();
     let mut s = 0.0;
