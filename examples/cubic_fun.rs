@@ -203,7 +203,7 @@ enum QuadraticSigns {
 fn solve_quadratic_signs(c0: f64, c1: f64, c2: f64) -> (ArrayVec<f64, 2>, QuadraticSigns, f64) {
     let mut result = ArrayVec::new();
     let sc0 = c0 * c2.recip();
-    let sc1 = c1 * 0.5 * c2.recip();
+    let sc1 = c1 * c2.recip();
     if !sc0.is_finite() || !sc1.is_finite() {
         // c2 is zero or very small, treat as linear eqn
         let root = -c0 / c1;
@@ -216,11 +216,11 @@ fn solve_quadratic_signs(c0: f64, c1: f64, c2: f64) -> (ArrayVec<f64, 2>, Quadra
         }
         return (result, QuadraticSigns::Degenerate, c0);
     }
-    let arg = sc1 * sc1 - sc0;
+    let arg = sc1 * sc1 - 4.0 * sc0;
     let root1 = if !arg.is_finite() {
         // Likely, calculation of sc1 * sc1 overflowed. Find one root
         // using sc1 x + x² = 0, other root as sc0 / root1.
-        -2.0 * sc1
+        -sc1
     } else {
         if arg < 0.0 {
             return (result, QuadraticSigns::QuadraticNone, c2);
@@ -229,7 +229,7 @@ fn solve_quadratic_signs(c0: f64, c1: f64, c2: f64) -> (ArrayVec<f64, 2>, Quadra
             return (result, QuadraticSigns::QuadraticDouble, c2);
         }
         // See https://math.stackexchange.com/questions/866331
-        -(sc1 + arg.sqrt().copysign(sc1))
+        -0.5 * (sc1 + arg.sqrt().copysign(sc1))
     };
     // Note: in this version we assume the result will be valid, as root1
     // is chosen to be the root with larger magnitude.
@@ -449,6 +449,24 @@ impl EstParab {
         let iv1 = signs1.to_intervals(y0, y1, x1, &roots1);
         merge_intervals(&iv0, &iv1)
     }
+
+    /// Determine minimum and maximum possible values over the range.
+    ///
+    /// This computes just the polynomial; dmin and dmax can easily be added after.
+    fn min_max(&self, y0: f64, y1: f64) -> (f64, f64) {
+        let x0 = self.eval(y0);
+        let x1 = self.eval(y1);
+        let mut xmin = x0.min(x1);
+        let mut xmax = x0.max(x1);
+        let vertex = -0.5 * self.c1 / self.c2;
+        // Note: may not be finite!
+        if vertex > y0 && vertex < y1 {
+            let x = self.eval(vertex);
+            xmin = xmin.min(x);
+            xmax = xmax.max(x);
+        }
+        (xmin, xmax)
+    }
 }
 
 impl std::ops::Sub for EstParab {
@@ -509,8 +527,10 @@ fn intersect_cubics(c0: CubicBez, c1: CubicBez) {
 
 fn main() {
     /* */
-    let c0 = CubicBez::new((0., 0.), (0.4, 0.2), (0.2, 0.8), (1., 1.));
+    let c0 = CubicBez::new((0., 0.), (1.4, 0.2), (1.2, 0.8), (0., 1.));
     let c1 = CubicBez::new((1., 0.), (0.7, 0.2), (0.8, 0.7), (0., 1.));
+    print_svg(c0);
+    print_svg(c1);
     intersect_cubics(c0, c1);
     /*
     let start = std::time::Instant::now();
