@@ -2,6 +2,8 @@
 
 #![allow(missing_docs)]
 
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
+
 use arrayvec::ArrayVec;
 
 /// Adds convenience methods to `f32` and `f64`.
@@ -157,6 +159,294 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<f64, 2> {
         result.push(root1);
     }
     result
+}
+
+/// Compute epsilon relative to coefficient.
+///
+/// A helper function from the Orellana and De Michele paper.
+fn eps_rel(raw: f64, a: f64) -> f64 {
+    if a == 0.0 {
+        raw.abs()
+    } else {
+        ((raw - a) / a).abs()
+    }
+}
+
+/// Find real roots of a quartic equation.
+///
+/// This is a fairly literal implementation of the method described in:
+/// Algorithm 1010: Boosting Efficiency in Solving Quartic Equations with
+/// No Compromise in Accuracy, Orellana and De Michele, ACM
+/// Transactions on Mathematical Software, Vol. 46, No. 2, May 2020.
+pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f64, 4> {
+    // TODO: special case c0 == 0.0
+    let a = c3 / c4;
+    let b = c2 / c4;
+    let c = c1 / c4;
+    let d = c0 / c4;
+    let calc_eps_q = |a1, b1, a2, b2| {
+        let eps_a = eps_rel(a1 + a2, a);
+        let eps_b = eps_rel(b1 + a1 * a2 + b2, b);
+        let eps_c = eps_rel(b1 * a2 + a1 * b2, c);
+        eps_a + eps_b + eps_c
+    };
+    let calc_eps_t = |a1, b1, a2, b2| calc_eps_q(a1, b1, a2, b2) + eps_rel(b1 * b2, d);
+    let disc = 9. * a * a - 24. * b;
+    let s = if disc >= 0.0 {
+        -2. * b / (3. * a + disc.sqrt().copysign(a))
+    } else {
+        -0.25 * a
+    };
+    let a_prime = a + 4. * s;
+    let b_prime = b + 3. * s * (a + 2. * s);
+    let c_prime = c + s * (2. * b + s * (3. * a + 4. * s));
+    let d_prime = d + s * (c + s * (b + s * (a + s)));
+    let g_prime = a_prime * c_prime - 4. * d_prime - (1. / 3.) * b_prime.powi(2);
+    let h_prime =
+        (a_prime * c_prime + 8. * d_prime - (2. / 9.) * b_prime.powi(2)) * (1. / 3.) * b_prime
+            - c_prime.powi(2)
+            - a_prime.powi(2) * d_prime;
+    let phi = depressed_cubic_dominant(g_prime, h_prime);
+    let l_1 = a * 0.5;
+    let l_3 = (1. / 6.) * b + 0.5 * phi;
+    let delt_2 = c - a * l_3;
+    let d_2_cand_1 = (2. / 3.) * b - phi - l_1 * l_1;
+    let l_2_cand_1 = 0.5 * delt_2 / d_2_cand_1;
+    let l_2_cand_2 = 2. * (d - l_3 * l_3) / delt_2;
+    let d_2_cand_2 = 0.5 * delt_2 / l_2_cand_2;
+    let d_2_cand_3 = d_2_cand_1;
+    let l_2_cand_3 = l_2_cand_2;
+    let mut d_2_best = 0.0;
+    let mut l_2_best = 0.0;
+    let mut eps_l_best = 0.0;
+    for (i, (d_2, l_2)) in [
+        (d_2_cand_1, l_2_cand_1),
+        (d_2_cand_2, l_2_cand_2),
+        (d_2_cand_3, l_2_cand_3),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let eps_0 = eps_rel(d_2 + l_1 * l_1 + 2. * l_3, b);
+        let eps_1 = eps_rel(2. * (d_2 * l_2 + l_1 * l_3), c);
+        let eps_2 = eps_rel(d_2 * l_2 * l_2 + l_3 * l_3, d);
+        let eps_l = eps_0 + eps_1 + eps_2;
+        if i == 0 || eps_l < eps_l_best {
+            d_2_best = *d_2;
+            l_2_best = *l_2;
+            eps_l_best = eps_l;
+        }
+    }
+    let d_2 = d_2_best;
+    let l_2 = l_2_best;
+    let mut alpha_1;
+    let mut beta_1;
+    let mut alpha_2;
+    let mut beta_2;
+    println!("phi = {}, d_2 = {}", phi, d_2);
+    if d_2 < 0.0 {
+        let sq = (-d_2).sqrt();
+        alpha_1 = l_1 + sq;
+        beta_1 = l_3 + sq * l_2;
+        alpha_2 = l_1 - sq;
+        beta_2 = l_3 - sq * l_2;
+        if beta_2.abs() < beta_1.abs() {
+            beta_2 = d / beta_1;
+        } else if beta_2.abs() > beta_1.abs() {
+            beta_1 = d / beta_2;
+        }
+        let cands;
+        if alpha_1.abs() != alpha_2.abs() {
+            if alpha_1.abs() < alpha_2.abs() {
+                let a1_cand_1 = (c - beta_1 * alpha_2) / beta_2;
+                let a1_cand_2 = (b - beta_2 - beta_1) / alpha_2;
+                let a1_cand_3 = a - alpha_2;
+                // Note: cand 3 is first because it is infallible, simplifying logic
+                cands = [
+                    (a1_cand_3, alpha_2),
+                    (a1_cand_1, alpha_2),
+                    (a1_cand_2, alpha_2),
+                ];
+            } else {
+                let a2_cand_1 = (c - alpha_1 * beta_2) / beta_1;
+                let a2_cand_2 = (b - beta_2 - beta_1) / alpha_1;
+                let a2_cand_3 = a - alpha_1;
+                cands = [
+                    (alpha_1, a2_cand_3),
+                    (alpha_1, a2_cand_1),
+                    (alpha_1, a2_cand_2),
+                ];
+            }
+            let mut eps_q_best = 0.0;
+            for (i, (a1, a2)) in cands.iter().enumerate() {
+                if a1.is_finite() && a2.is_finite() {
+                    let eps_q = calc_eps_q(*a1, beta_1, *a2, beta_2);
+                    if i == 0 || eps_q < eps_q_best {
+                        alpha_1 = *a1;
+                        alpha_2 = *a2;
+                        eps_q_best = eps_q;
+                    }
+                }
+            }
+        }
+    } else if d_2 == 0.0 {
+        let d_3 = d - l_3 * l_3;
+        alpha_1 = l_1;
+        beta_1 = l_3 + (-d_3).sqrt();
+        alpha_2 = l_1;
+        beta_2 = l_3 - (-d_3).sqrt();
+        if beta_1.abs() > beta_2.abs() {
+            beta_2 = d / beta_1;
+        } else if beta_2.abs() > beta_1.abs() {
+            beta_1 = d / beta_2;
+        }
+        // TODO: handle case d_2 is very small?
+    } else {
+        // I think this case means no real roots, return empty.
+        todo!()
+    }
+    // Newton-Raphson iteration on alpha/beta coeff's.
+    let mut eps_t = calc_eps_t(alpha_1, beta_1, alpha_2, beta_2);
+    for _ in 0..8 {
+        println!("a1 {} b1 {} a2 {} b2 {}", alpha_1, beta_1, alpha_2, beta_2);
+        println!("eps_t = {:e}", eps_t);
+        if eps_t == 0.0 {
+            break;
+        }
+        let f_0 = beta_1 * beta_2 - d;
+        let f_1 = beta_1 * alpha_2 + alpha_1 * beta_2 - c;
+        let f_2 = beta_1 + alpha_1 * alpha_2 + beta_2 - b;
+        let f_3 = alpha_1 + alpha_2 - a;
+        let c_1 = alpha_1 - alpha_2;
+        let det_j = beta_1 * beta_1 - beta_1 * (alpha_2 * c_1 + 2. * beta_2)
+            + beta_2 * (alpha_1 * c_1 + beta_2);
+        if det_j == 0.0 {
+            break;
+        }
+        let inv = det_j.recip();
+        let c_2 = beta_2 - beta_1;
+        let c_3 = beta_1 * alpha_2 - alpha_1 * beta_2;
+        let dz_0 = c_1 * f_0 + c_2 * f_1 + c_3 * f_2 - (beta_1 * c_2 + alpha_1 * c_3) * f_3;
+        let dz_1 = (alpha_1 * c_1 + c_2) * f_0
+            - beta_1 * c_1 * f_1
+            - beta_1 * c_2 * f_2
+            - beta_1 * c_3 * f_3;
+        let dz_2 = -c_1 * f_0 - c_2 * f_1 - c_3 * f_2 + (alpha_2 * c_3 + beta_2 * c_2) * f_3;
+        let dz_3 = -(alpha_2 * c_1 + c_2) * f_0
+            + beta_2 * c_1 * f_1
+            + beta_2 * c_2 * f_2
+            + beta_2 * c_3 * f_3;
+        let a1 = alpha_1 - inv * dz_0;
+        let b1 = beta_1 - inv * dz_1;
+        let a2 = alpha_2 - inv * dz_2;
+        let b2 = beta_2 - inv * dz_3;
+        let new_eps_t = calc_eps_t(a1, b1, a2, b2);
+        // We break if the new eps is equal, paper keeps going
+        if new_eps_t < eps_t {
+            alpha_1 = a1;
+            beta_1 = b1;
+            alpha_2 = a2;
+            beta_2 = b2;
+            eps_t = new_eps_t;
+        } else {
+            break;
+        }
+    }
+    let mut result = ArrayVec::new();
+    for (alpha, beta) in [(alpha_1, beta_1), (alpha_2, beta_2)] {
+        result.extend(solve_quadratic(beta, alpha, 1.0));
+    }
+    // Sort roots?
+    result
+}
+
+/// Dominant root of depressed cubic x^3 + gx + h = 0.
+///
+/// Section 2.2 of Orellana and De Michele.
+// Note: some of the techniques in here might be useful to improve the
+// cubic solver.
+fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
+    let q = (-1. / 3.) * g;
+    let r = 0.5 * h;
+    let phi_0;
+    let k = if q.abs() < 1e102 && r.abs() < 1e154 {
+        None
+    } else if q.abs() < r.abs() {
+        Some(1. - q * (q / r).powi(2))
+    } else {
+        Some(q.signum() * ((r / q).powi(2) / q - 1.0))
+    };
+    if k.is_some() && r == 0.0 {
+        if g > 0.0 {
+            phi_0 = 0.0;
+        } else {
+            phi_0 = (-g).sqrt();
+        }
+    } else if k.map(|k| k < 0.0).unwrap_or_else(|| r * r < q.powi(3)) {
+        let th = if k.is_some() {
+            r / q / q.sqrt()
+        } else {
+            r / q.powi(3).sqrt()
+        }
+        .acos();
+        let th1 = if th < FRAC_PI_2 { 0.0 } else { 2. * FRAC_PI_3 };
+        phi_0 = -2. * q.sqrt() * (th + th1).cos();
+    } else {
+        let a = if let Some(k) = k {
+            if q.abs() < r.abs() {
+                -r * (1. + k.sqrt())
+            } else {
+                -r - (q.abs().sqrt() * q * k.sqrt()).copysign(r)
+            }
+        } else {
+            -r - (r * r - q.powi(3)).sqrt().copysign(r)
+        }
+        .cbrt();
+        let b = if a == 0.0 { 0.0 } else { q / a };
+        phi_0 = a + b;
+    }
+    // Refine with Newton-Raphson iteration
+    let mut x = phi_0;
+    let mut f = (x * x + g) * x + h;
+    const EPS_M: f64 = 2.22045e-16;
+    if f.abs() < EPS_M * x.powi(3).max(g * x).max(h) {
+        return x;
+    }
+    for _ in 0..8 {
+        let delt_f = 3. * x * x + g;
+        if delt_f == 0.0 {
+            break;
+        }
+        let new_x = x - f / delt_f;
+        let new_f = (new_x * new_x + g) * new_x + h;
+        if new_f == 0.0 {
+            return new_x;
+        }
+        if new_f.abs() >= f.abs() {
+            break;
+        }
+        x = new_x;
+        f = new_f;
+    }
+    x
+}
+
+#[test]
+fn test_quartic() {
+    let (x1, x2, x3, x4) = (1.0, 2.0, 3.0, 4.0);
+    //let (x1, x2, x3, x4) = (1e44, 1e30, 1e30, 1.);
+    // good cases from paper: 1, 2, 3, 5, 14, 15, 17, 19, 20, 23
+    // dubious case: 4 (error is big-ish)
+    // fail: 21 (misses 1e7 roots - ok?)
+    // fail: 22 overflow (need rescaling)
+    //let (x1, x2, x3, x4) = (2.003, 2.002, 2.001, 2.0);
+    // Vieta's formulas. Taken from section 3.1 of paper.
+    let a = -(x1 + x2 + x3 + x4);
+    let b = x1 * (x2 + x3) + x2 * (x3 + x4) + x4 * (x1 + x3);
+    let c = -x1 * x2 * (x3 + x4) - x3 * x4 * (x1 + x2);
+    let d = x1 * x2 * x3 * x4;
+    println!("{} {} {} {}", a, b, c, d);
+    println!("{:?}", solve_quartic(d, c, b, a, 1.0));
 }
 
 /// Solve an arbitrary function for a zero-crossing.
