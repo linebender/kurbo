@@ -65,10 +65,7 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
     let scaled_c0 = c0 * c3_recip;
     if !(scaled_c0.is_finite() && scaled_c1.is_finite() && scaled_c2.is_finite()) {
         // cubic coefficient is zero or nearly so.
-        for root in solve_quadratic(c0, c1, c2) {
-            result.push(root);
-        }
-        return result;
+        return solve_quadratic(c0, c1, c2).iter().copied().collect();
     }
     let (c0, c1, c2) = (scaled_c0, scaled_c1, scaled_c2);
     // (d0, d1, d2) is called "Delta" in article
@@ -179,11 +176,43 @@ fn eps_rel(raw: f64, a: f64) -> f64 {
 /// No Compromise in Accuracy, Orellana and De Michele, ACM
 /// Transactions on Mathematical Software, Vol. 46, No. 2, May 2020.
 pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f64, 4> {
-    // TODO: special case c0 == 0.0
+    if c4 == 0.0 {
+        return solve_cubic(c0, c1, c2, c3).iter().copied().collect();
+    }
+    if c0 == 0.0 {
+        // Note: appends 0 root at end, doesn't sort. We might want to do that.
+        return solve_cubic(c1, c2, c3, c4)
+            .iter()
+            .copied()
+            .chain(Some(0.0))
+            .collect();
+    }
     let a = c3 / c4;
     let b = c2 / c4;
     let c = c1 / c4;
     let d = c0 / c4;
+    if let Some(result) = solve_quartic_inner(a, b, c, d, false) {
+        return result;
+    }
+    // Do polynomial rescaling
+    const K_Q: f64 = 7.16e76;
+    for rescale in [false, true] {
+        if let Some(result) = solve_quartic_inner(
+            a / K_Q,
+            b / K_Q.powi(2),
+            c / K_Q.powi(3),
+            d / K_Q.powi(4),
+            rescale,
+        ) {
+            return result.iter().map(|x| x * K_Q).collect();
+        }
+    }
+    // Overflow happened, just return no roots.
+    //println!("overflow, no roots returned");
+    Default::default()
+}
+
+fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<ArrayVec<f64, 4>> {
     let calc_eps_q = |a1, b1, a2, b2| {
         let eps_a = eps_rel(a1 + a2, a);
         let eps_b = eps_rel(b1 + a1 * a2 + b2, b);
@@ -201,12 +230,36 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
     let b_prime = b + 3. * s * (a + 2. * s);
     let c_prime = c + s * (2. * b + s * (3. * a + 4. * s));
     let d_prime = d + s * (c + s * (b + s * (a + s)));
-    let g_prime = a_prime * c_prime - 4. * d_prime - (1. / 3.) * b_prime.powi(2);
-    let h_prime =
-        (a_prime * c_prime + 8. * d_prime - (2. / 9.) * b_prime.powi(2)) * (1. / 3.) * b_prime
-            - c_prime.powi(2)
-            - a_prime.powi(2) * d_prime;
+    let g_prime;
+    let h_prime;
+    const K_C: f64 = 3.49e102;
+    if rescale {
+        let a_prime_s = a_prime / K_C;
+        let b_prime_s = b_prime / K_C;
+        let c_prime_s = c_prime / K_C;
+        let d_prime_s = d_prime / K_C;
+        g_prime = a_prime_s * c_prime_s - (4. / K_C) * d_prime_s - (1. / 3.) * b_prime_s.powi(2);
+        h_prime = (a_prime_s * c_prime_s + (8. / K_C) * d_prime_s - (2. / 9.) * b_prime_s.powi(2))
+            * (1. / 3.)
+            * b_prime_s
+            - c_prime_s * (c_prime_s / K_C)
+            - a_prime_s.powi(2) * d_prime_s;
+    } else {
+        g_prime = a_prime * c_prime - 4. * d_prime - (1. / 3.) * b_prime.powi(2);
+        h_prime =
+            (a_prime * c_prime + 8. * d_prime - (2. / 9.) * b_prime.powi(2)) * (1. / 3.) * b_prime
+                - c_prime.powi(2)
+                - a_prime.powi(2) * d_prime;
+    }
+    if !(g_prime.is_finite() && h_prime.is_finite()) {
+        return None;
+    }
     let phi = depressed_cubic_dominant(g_prime, h_prime);
+    let phi = if rescale {
+        phi * K_C
+    } else {
+        phi
+    };
     let l_1 = a * 0.5;
     let l_3 = (1. / 6.) * b + 0.5 * phi;
     let delt_2 = c - a * l_3;
@@ -243,7 +296,7 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
     let mut beta_1;
     let mut alpha_2;
     let mut beta_2;
-    println!("phi = {}, d_2 = {}", phi, d_2);
+    //println!("phi = {}, d_2 = {}", phi, d_2);
     if d_2 < 0.0 {
         let sq = (-d_2).sqrt();
         alpha_1 = l_1 + sq;
@@ -308,8 +361,8 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
     // Newton-Raphson iteration on alpha/beta coeff's.
     let mut eps_t = calc_eps_t(alpha_1, beta_1, alpha_2, beta_2);
     for _ in 0..8 {
-        println!("a1 {} b1 {} a2 {} b2 {}", alpha_1, beta_1, alpha_2, beta_2);
-        println!("eps_t = {:e}", eps_t);
+        //println!("a1 {} b1 {} a2 {} b2 {}", alpha_1, beta_1, alpha_2, beta_2);
+        //println!("eps_t = {:e}", eps_t);
         if eps_t == 0.0 {
             break;
         }
@@ -349,6 +402,7 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
             beta_2 = b2;
             eps_t = new_eps_t;
         } else {
+            //println!("new_eps_t got worse: {:e}", new_eps_t);
             break;
         }
     }
@@ -357,14 +411,14 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
         result.extend(solve_quadratic(beta, alpha, 1.0));
     }
     // Sort roots?
-    result
+    Some(result)
 }
 
 /// Dominant root of depressed cubic x^3 + gx + h = 0.
 ///
 /// Section 2.2 of Orellana and De Michele.
 // Note: some of the techniques in here might be useful to improve the
-// cubic solver.
+// cubic solver, and vice versa.
 fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
     let q = (-1. / 3.) * g;
     let r = 0.5 * h;
@@ -390,7 +444,7 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
         }
         .acos();
         let th1 = if th < FRAC_PI_2 { 0.0 } else { 2. * FRAC_PI_3 };
-        phi_0 = -2. * q.sqrt() * (th + th1).cos();
+        phi_0 = -2. * q.sqrt() * (th * (1. / 3.) + th1).cos();
     } else {
         let a = if let Some(k) = k {
             if q.abs() < r.abs() {
@@ -408,6 +462,7 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
     // Refine with Newton-Raphson iteration
     let mut x = phi_0;
     let mut f = (x * x + g) * x + h;
+    //println!("g = {:e}, h = {:e}, x = {:e}, f = {:e}", g, h, x, f);
     const EPS_M: f64 = 2.22045e-16;
     if f.abs() < EPS_M * x.powi(3).max(g * x).max(h) {
         return x;
@@ -419,6 +474,7 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
         }
         let new_x = x - f / delt_f;
         let new_f = (new_x * new_x + g) * new_x + h;
+        //println!("delt_f = {:e}, new_f = {:e}", delt_f, new_f);
         if new_f == 0.0 {
             return new_x;
         }
@@ -429,24 +485,6 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
         f = new_f;
     }
     x
-}
-
-#[test]
-fn test_quartic() {
-    let (x1, x2, x3, x4) = (1.0, 2.0, 3.0, 4.0);
-    //let (x1, x2, x3, x4) = (1e44, 1e30, 1e30, 1.);
-    // good cases from paper: 1, 2, 3, 5, 14, 15, 17, 19, 20, 23
-    // dubious case: 4 (error is big-ish)
-    // fail: 21 (misses 1e7 roots - ok?)
-    // fail: 22 overflow (need rescaling)
-    //let (x1, x2, x3, x4) = (2.003, 2.002, 2.001, 2.0);
-    // Vieta's formulas. Taken from section 3.1 of paper.
-    let a = -(x1 + x2 + x3 + x4);
-    let b = x1 * (x2 + x3) + x2 * (x3 + x4) + x4 * (x1 + x3);
-    let c = -x1 * x2 * (x3 + x4) - x3 * x4 * (x1 + x2);
-    let d = x1 * x2 * x3 * x4;
-    println!("{} {} {} {}", a, b, c, d);
-    println!("{:?}", solve_quartic(d, c, b, a, 1.0));
 }
 
 /// Solve an arbitrary function for a zero-crossing.
@@ -658,6 +696,96 @@ mod tests {
         verify(solve_quadratic(5.0, 0.0, 1.0), &[]);
         verify(solve_quadratic(5.0, 1.0, 0.0), &[-5.0]);
         verify(solve_quadratic(1.0, 2.0, 1.0), &[-1.0]);
+    }
+
+    #[test]
+    fn test_solve_quartic() {
+        // These test cases are taken from Orellana and De Michele paper (Table 1).
+        fn test_with_roots(coeffs: [f64; 4], roots: &[f64], rel_err: f64) {
+            // Note: in paper, coefficients are in decreasing order.
+            let mut actual = solve_quartic(coeffs[3], coeffs[2], coeffs[1], coeffs[0], 1.0);
+            actual.sort_by(f64::total_cmp);
+            assert_eq!(actual.len(), roots.len());
+            for (actual, expected) in actual.iter().zip(roots) {
+                assert!(
+                    (actual - expected).abs() < rel_err * expected.abs(),
+                    "actual {:e}, expected {:e}, err {:e}",
+                    actual,
+                    expected,
+                    actual - expected
+                );
+            }
+        }
+
+        fn test_vieta_roots(x1: f64, x2: f64, x3: f64, x4: f64, roots: &[f64], rel_err: f64) {
+            let a = -(x1 + x2 + x3 + x4);
+            let b = x1 * (x2 + x3) + x2 * (x3 + x4) + x4 * (x1 + x3);
+            let c = -x1 * x2 * (x3 + x4) - x3 * x4 * (x1 + x2);
+            let d = x1 * x2 * x3 * x4;
+            test_with_roots([a, b, c, d], roots, rel_err);
+        }
+
+        fn test_vieta(x1: f64, x2: f64, x3: f64, x4: f64, rel_err: f64) {
+            test_vieta_roots(x1, x2, x3, x4, &[x1, x2, x3, x4], rel_err);
+        }
+
+        // case 1
+        test_vieta(1., 1e3, 1e6, 1e9, 1e-16);
+        // case 2
+        test_vieta(2., 2.001, 2.002, 2.003, 1e-6);
+        // case 3
+        test_vieta(1e47, 1e49, 1e50, 1e53, 2e-16);
+        // case 4
+        test_vieta(-1., 1., 2., 1e14, 1e-16);
+        // case 5
+        test_vieta(-2e7, -1., 1., 1e7, 1e-16);
+        // case 6
+        test_with_roots(
+            [-9000002.0, -9999981999998.0, 19999982e6, -2e13],
+            &[-1e6, 1e7],
+            1e-16,
+        );
+        // case 7
+        test_with_roots(
+            [2000011.0, 1010022000028.0, 11110056e6, 2828e10],
+            &[-7., -4.],
+            1e-16,
+        );
+        // case 8
+        test_with_roots(
+            [-100002011.0, 201101022001.0, -102200111000011.0, 11000011e8],
+            &[11., 1e8],
+            1e-16,
+        );
+        // cases 9-13 have no real roots
+        // case 14
+        test_vieta_roots(1000., 1000., 1000., 1000., &[1000., 1000.], 1e-16);
+        // case 15
+        test_vieta_roots(1e-15, 1000., 1000., 1000., &[1e-15, 1000., 1000.], 1e-15);
+        // case 16 no real roots
+        // case 17
+        test_vieta(10000., 10001., 10010., 10100., 1e-6);
+        // case 19
+        test_vieta_roots(1., 1e30, 1e30, 1e44, &[1., 1e30, 1e44], 1e-16);
+        // case 20
+        // FAILS, error too big
+        test_vieta(1., 1e7, 1e7, 1e14, 1e-7);
+        // case 21 doesn't pick up double root
+        // case 22
+        test_vieta(1., 10., 1e152, 1e154, 3e-16);
+        // case 23
+        test_with_roots(
+            [1., 1., 3. / 8., 1e-3],
+            &[-0.497314148060048, -0.00268585193995149],
+            2e-15,
+        );
+        // case 24
+        const S: f64 = 1e30;
+        test_with_roots(
+            [-(1. + 1. / S), 1. / S - S * S, S * S + S, -S],
+            &[-S, 1e-30, 1., S],
+            2e-16,
+        );
     }
 
     #[test]
