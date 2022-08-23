@@ -51,7 +51,7 @@ impl FloatExt<f32> for f32 {
 /// See: <http://mathworld.wolfram.com/CubicFormula.html>
 ///
 /// Return values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.
-/// 
+///
 /// Note: The input arguments are in increasing exponent order
 pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
     let mut result = ArrayVec::new();
@@ -105,7 +105,7 @@ pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
 /// the other root might be out of representable range. In the degenerate
 /// case where all coefficients are zero, so that all values of x satisfy
 /// the equation, a single `0.0` is returned.
-/// 
+///
 /// Note: The input arguments are in increasing exponent order
 pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<f64, 2> {
     let mut result = ArrayVec::new();
@@ -152,7 +152,7 @@ pub fn solve_quadratic(c0: f64, c1: f64, c2: f64) -> ArrayVec<f64, 2> {
 /// Find real roots of linear equation.
 ///
 /// Return values of x for which c0 + c1 x = 0.
-/// 
+///
 /// Note: The input arguments are in increasing exponent order
 pub fn solve_linear(c0: f64, c1: f64) -> ArrayVec<f64, 1> {
     let mut result = ArrayVec::new();

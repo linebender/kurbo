@@ -95,7 +95,7 @@ impl QuadBez {
 
     /// Get the parameters such that the curve can be represented by the following formula:
     ///     B(t) = a*t^2 + b*t + c
-    /// 
+    ///
     /// Note: Values returned are in decresing exponent order
     pub fn parameters(&self) -> (Vec2, Vec2, Vec2) {
         let c = self.p0.to_vec2();

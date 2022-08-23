@@ -256,18 +256,29 @@ impl ParamCurveBezierClipping for CubicBez {
 }
 
 bitflags::bitflags! {
+    /// Flags that dictate how certain edge cases are handled when finding the intersections
+    /// between two path segments.
     pub struct CurveIntersectionFlags: u32 {
+        /// The default mode
         const NONE                                  = 0b00000000;
+        /// Intersections at t==0 on curve 1 are kept
         const KEEP_CURVE1_T0_INTERSECTION           = 0b00000001;
+        /// Intersections at t==1 on curve 1 are kept
         const KEEP_CURVE1_T1_INTERSECTION           = 0b00000010;
+        /// Intersections at t==0 on curve 2 are kept
         const KEEP_CURVE2_T0_INTERSECTION           = 0b00000100;
+        /// Intersections at t==1 on curve 2 are kept
         const KEEP_CURVE2_T1_INTERSECTION           = 0b00001000;
+        /// Intersections at t==0 and t==1 on curve 1 are kept
         const KEEP_CURVE1_ENDPOINT_INTERSECTIONS    = Self::KEEP_CURVE1_T0_INTERSECTION.bits
                                                     | Self::KEEP_CURVE1_T1_INTERSECTION.bits;
+        /// Intersections at t==0 and t==1 on curve 2 are kept
         const KEEP_CURVE2_ENDPOINT_INTERSECTIONS    = Self::KEEP_CURVE2_T0_INTERSECTION.bits
                                                     | Self::KEEP_CURVE2_T1_INTERSECTION.bits;
+        /// Intersections at t==0 and t==1 on curve 1 and curve 2 are kept
         const KEEP_ALL_ENDPOINT_INTERSECTIONS       = Self::KEEP_CURVE1_ENDPOINT_INTERSECTIONS.bits
                                                     | Self::KEEP_CURVE2_ENDPOINT_INTERSECTIONS.bits;
+        /// All intersections that lie at the same location are kept
         const KEEP_DUPLICATE_INTERSECTIONS          = 0b00010000;
     }
 }
@@ -777,6 +788,7 @@ fn add_point_curve_intersection<T: ParamCurveBezierClipping, U: ParamCurveBezier
     );
 }
 
+/// Return all t values where the specified point lies on the curve
 pub fn t_along_curve_for_point<T: ParamCurveBezierClipping>(
     pt: Point,
     curve: &T,
