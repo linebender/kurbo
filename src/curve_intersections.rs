@@ -16,7 +16,7 @@ pub trait ParamCurveBezierClipping:
 {
     /// Find the time `t` at which the curve has the given x value
     fn solve_t_for_x(&self, x: f64) -> ArrayVec<f64, 3>;
-    /// Find the time `t` at which the curve has the given x value
+    /// Find the time `t` at which the curve has the given y value
     fn solve_t_for_y(&self, y: f64) -> ArrayVec<f64, 3>;
     /// Returns the upper and lower convex hull
     fn convex_hull_from_line(&self, l: &Line) -> (Vec<Point>, Vec<Point>);
@@ -31,10 +31,10 @@ fn signed_distance_from_ray_to_point(l: &Line, p: Point) -> f64 {
     let b = vec2.x;
     let c = -(a * l.start().x + b * l.start().y);
 
-    let len = (a * a + b * b).sqrt();
-    let a = a / len;
-    let b = b / len;
-    let c = c / len;
+    let len_inv = (a * a + b * b).sqrt().recip();
+    let a = a * len_inv;
+    let b = b * len_inv;
+    let c = c * len_inv;
 
     if a.is_infinite() || b.is_infinite() || c.is_infinite() {
         // Can't compute distance from zero-length line, so return distance
@@ -328,7 +328,6 @@ fn check_for_overlap<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
     //          curve 2:               O-----------O
 
     // Use this function to get the t-value on another curve that corresponds to the t-value on this curve
-    #[inline]
     fn t_value_on_other<T: ParamCurveBezierClipping, U: ParamCurveBezierClipping>(
         t_this: f64,
         curve_this: &T,

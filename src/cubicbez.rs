@@ -239,6 +239,8 @@ impl CubicBez {
 
     /// Get the parameters such that the curve can be represented by the following formula:
     ///     B(t) = a*t^3 + b*t^2 + c*t + d
+    /// 
+    /// Note: Values returned are in decresing exponent order
     pub fn parameters(&self) -> (Vec2, Vec2, Vec2, Vec2) {
         let c = (self.p1 - self.p0) * 3.0;
         let b = (self.p2 - self.p1) * 3.0 - c;

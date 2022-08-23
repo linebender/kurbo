@@ -84,7 +84,7 @@ mod bezpath;
 mod circle;
 pub mod common;
 mod cubicbez;
-mod curve_intersections;
+pub mod curve_intersections;
 mod ellipse;
 mod insets;
 mod line;

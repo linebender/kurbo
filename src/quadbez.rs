@@ -95,6 +95,8 @@ impl QuadBez {
 
     /// Get the parameters such that the curve can be represented by the following formula:
     ///     B(t) = a*t^2 + b*t + c
+    /// 
+    /// Note: Values returned are in decresing exponent order
     pub fn parameters(&self) -> (Vec2, Vec2, Vec2) {
         let c = self.p0.to_vec2();
         let b = (self.p1 - self.p0) * 2.0;
@@ -281,7 +283,7 @@ impl ParamCurveArclen for QuadBez {
         let ba_c2 = b * a2 + c2;
 
         if a2.is_infinite() {
-            // The arclength is zero
+            // The arclength is zero, this happens when all control points lie on top of each other
             return 0.;
         }
 
@@ -449,6 +451,13 @@ mod tests {
             est,
             true_arclen
         );
+    }
+
+    #[test]
+    fn quadbez_arclen_zero() {
+        let q = QuadBez::new((-1.0, 0.0), (-1.0, 0.0), (-1.0, 0.0));
+        let accuracy = 1e-11;
+        assert_eq!(q.arclen(accuracy), 0.);
     }
 
     #[test]

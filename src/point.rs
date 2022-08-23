@@ -174,6 +174,12 @@ impl Point {
     /// If we're comparing distances between samples of curves, our epsilon should
     /// depend on how big the points we're comparing are. This function returns an
     /// epsilon appropriate for the size of pt.
+    ///
+    /// Note: In general, epsilon will be equal to accuracy, but in cases where
+    /// accuracy is very small, we want a larger epsilon value to help account for
+    /// floating point errors (after adding, subtracting, etc.). This larger epsilon
+    /// value is 0.0000000001 times the largest value in the point which was
+    /// determined experimentally and may change in the future.
     pub fn epsilon(pt: Point, accuracy: f64) -> f64 {
         // Get max number in the point
         let max = f64::max(f64::abs(pt.x), f64::abs(pt.y));
