@@ -486,15 +486,15 @@ fn arclen_rec(c: &CubicBez, accuracy: f64, depth: usize) -> f64 {
         .sum::<f64>();
     let est_gauss8_error = (est.powi(3) * 2.5e-6).min(3e-2) * lp_lc;
     if est_gauss8_error < accuracy {
-        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_8_HALF, dm, dm1, dm2);
+        return arclen_quadrature_core(GAUSS_LEGENDRE_COEFFS_8_HALF, dm, dm1, dm2);
     }
     let est_gauss16_error = (est.powi(6) * 1.5e-11).min(9e-3) * lp_lc;
     if est_gauss16_error < accuracy {
-        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_16_HALF, dm, dm1, dm2);
+        return arclen_quadrature_core(GAUSS_LEGENDRE_COEFFS_16_HALF, dm, dm1, dm2);
     }
     let est_gauss24_error = (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc;
     if est_gauss24_error < accuracy || depth >= 20 {
-        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_24_HALF, dm, dm1, dm2);
+        return arclen_quadrature_core(GAUSS_LEGENDRE_COEFFS_24_HALF, dm, dm1, dm2);
     }
     let (c0, c1) = c.subdivide();
     arclen_rec(&c0, accuracy * 0.5, depth + 1) + arclen_rec(&c1, accuracy * 0.5, depth + 1)
