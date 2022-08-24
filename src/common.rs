@@ -2,8 +2,6 @@
 
 #![allow(missing_docs)]
 
-use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
-
 use arrayvec::ArrayVec;
 
 /// Adds convenience methods to `f32` and `f64`.
@@ -437,14 +435,12 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
             phi_0 = (-g).sqrt();
         }
     } else if k.map(|k| k < 0.0).unwrap_or_else(|| r * r < q.powi(3)) {
-        let th = if k.is_some() {
+        let t = if k.is_some() {
             r / q / q.sqrt()
         } else {
             r / q.powi(3).sqrt()
-        }
-        .acos();
-        let th1 = if th < FRAC_PI_2 { 0.0 } else { 2. * FRAC_PI_3 };
-        phi_0 = -2. * q.sqrt() * (th * (1. / 3.) + th1).cos();
+        };
+        phi_0 = -2. * q.sqrt() * (t.abs().acos() * (1. / 3.)).cos().copysign(t);
     } else {
         let a = if let Some(k) = k {
             if q.abs() < r.abs() {
