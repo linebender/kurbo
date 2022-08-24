@@ -6,8 +6,7 @@ use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
-use crate::common::solve_quadratic;
-use crate::common::GAUSS_LEGENDRE_COEFFS_9;
+use crate::common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF, GAUSS_LEGENDRE_COEFFS_16_HALF, GAUSS_LEGENDRE_COEFFS_24_HALF};
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
@@ -446,46 +445,65 @@ impl ParamCurveDeriv for CubicBez {
     }
 }
 
+fn arclen_quadrature_core(coeffs: &[(f64, f64)], dm: Vec2, dm1: Vec2, dm2: Vec2) -> f64 {
+    coeffs
+        .iter()
+        .map(|&(wi, xi)| {
+            let d = dm + dm2 * (xi * xi);
+            let dpx = (d + dm1 * xi).hypot();
+            let dmx = (d - dm1 * xi).hypot();
+            (2.25f64.sqrt() * wi) * (dpx + dmx)
+        })
+        .sum::<f64>()
+}
+
+fn arclen_rec(c: &CubicBez, accuracy: f64, depth: usize) -> f64 {
+    let d03 = c.p3 - c.p0;
+    let d01 = c.p1 - c.p0;
+    let d12 = c.p2 - c.p1;
+    let d23 = c.p3 - c.p2;
+    let lp_lc = d01.hypot() + d12.hypot() + d23.hypot() - d03.hypot();
+    let dd1 = d12 - d01;
+    let dd2 = d23 - d12;
+    // It might be faster to do direct multiplies, the data dependencies would be shorter.
+    // The following values don't have the factor of 3 for first deriv
+    let dm = 0.25 * (d01 + d23) + 0.5 * d12; // first derivative at midpoint
+    let dm1 = 0.5 * (dd2 + dd1); // second derivative at midpoint
+    let dm2 = 0.25 * (dd2 - dd1); // 0.5 * (third derivative at midpoint)
+
+    let est = GAUSS_LEGENDRE_COEFFS_8
+        .iter()
+        .map(|&(wi, xi)| {
+            wi * {
+                let d_norm2 = (dm + dm1 * xi + dm2 * (xi * xi)).hypot2();
+                let dd_norm2 = (dm1 + dm2 * (2.0 * xi)).hypot2();
+                dd_norm2 / d_norm2
+            }
+        })
+        .sum::<f64>();
+    let est_gauss8_error = (est.powi(3) * 2.5e-6).min(3e-2) * lp_lc;
+    if est_gauss8_error < accuracy {
+        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_8_HALF, dm, dm1, dm2);
+    }
+    let est_gauss16_error = (est.powi(6) * 1.5e-11).min(9e-3) * lp_lc;
+    if est_gauss16_error < accuracy {
+        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_16_HALF, dm, dm1, dm2);
+    }
+    let est_gauss24_error = (est.powi(9) * 3.5e-16).min(3.5e-3) * lp_lc;
+    if est_gauss24_error < accuracy || depth >= 20 {
+        return arclen_quadrature_core(&GAUSS_LEGENDRE_COEFFS_24_HALF, dm, dm1, dm2);
+    }
+    let (c0, c1) = c.subdivide();
+    arclen_rec(&c0, accuracy * 0.5, depth + 1) + arclen_rec(&c1, accuracy * 0.5, depth + 1)
+}
+
 impl ParamCurveArclen for CubicBez {
     /// Arclength of a cubic Bézier segment.
     ///
     /// This is an adaptive subdivision approach using Legendre-Gauss quadrature
     /// in the base case, and an error estimate to decide when to subdivide.
     fn arclen(&self, accuracy: f64) -> f64 {
-        // Squared L2 norm of the second derivative of the cubic.
-        fn cubic_errnorm(c: &CubicBez) -> f64 {
-            let d = c.deriv().deriv();
-            let dd = d.end() - d.start();
-            d.start().to_vec2().hypot2() + d.start().to_vec2().dot(dd) + dd.hypot2() * (1.0 / 3.0)
-        }
-        fn est_gauss9_error(c: &CubicBez) -> f64 {
-            let lc2 = (c.p3 - c.p0).hypot2();
-            let lp = (c.p1 - c.p0).hypot() + (c.p2 - c.p1).hypot() + (c.p3 - c.p2).hypot();
-
-            2.56e-8 * (cubic_errnorm(c) / lc2).powi(8) * lp
-        }
-        const MAX_DEPTH: usize = 16;
-        fn rec(c: &CubicBez, accuracy: f64, depth: usize) -> f64 {
-            if depth == MAX_DEPTH || est_gauss9_error(c) < accuracy {
-                c.gauss_arclen(GAUSS_LEGENDRE_COEFFS_9)
-            } else {
-                let (c0, c1) = c.subdivide();
-                rec(&c0, accuracy * 0.5, depth + 1) + rec(&c1, accuracy * 0.5, depth + 1)
-            }
-        }
-
-        // Check if the bezier curve is degenerate, or almost degenerate
-        // A degenerate curve where all points are identical will cause infinite recursion in the rec function (well, until MAX_DEPTH at least) in all branches.
-        // This test will in addition be true if the bezier curve is just a simple line (i.e. p0=p1 and p2=p3).
-        // The constant 0.5 has not been mathematically proven to be small enough, but from empirical tests
-        // a value of about 0.87 should be enough. Thus 0.5 is a conservative value.
-        // See https://github.com/linebender/kurbo/pull/100 for more info.
-        if (self.p1 - self.p0).hypot2() + (self.p2 - self.p3).hypot2() <= 0.5 * accuracy * accuracy
-        {
-            (self.p0 - self.p3).hypot()
-        } else {
-            rec(self, accuracy, 0)
-        }
+        arclen_rec(self, accuracy, 0)
     }
 }
 
