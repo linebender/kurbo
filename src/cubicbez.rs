@@ -6,7 +6,10 @@ use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
-use crate::common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF, GAUSS_LEGENDRE_COEFFS_16_HALF, GAUSS_LEGENDRE_COEFFS_24_HALF};
+use crate::common::{
+    solve_quadratic, GAUSS_LEGENDRE_COEFFS_16_HALF, GAUSS_LEGENDRE_COEFFS_24_HALF,
+    GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF,
+};
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
