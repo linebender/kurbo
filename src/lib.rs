@@ -88,6 +88,7 @@ mod ellipse;
 mod insets;
 mod line;
 mod mindist;
+pub mod offset;
 mod param_curve;
 mod point;
 mod quadbez;
