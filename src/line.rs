@@ -52,7 +52,7 @@ impl Line {
     /// Is this line finite?
     #[inline]
     pub fn is_finite(self) -> bool {
-        self.p0.is_finite() && self.p0.is_finite()
+        self.p0.is_finite() && self.p1.is_finite()
     }
 
     /// Is this line NaN?
