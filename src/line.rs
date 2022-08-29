@@ -304,19 +304,28 @@ mod tests {
 
     #[test]
     fn line_is_finite() {
-        assert!((Line{
-            p0: Point{x: 0., y: 0.},
-            p1: Point{x: 1., y: 1.}
-        }).is_finite());
+        assert!((Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point { x: 1., y: 1. }
+        })
+        .is_finite());
 
-        assert!(!(Line{
-            p0: Point{x: 0., y: 0.},
-            p1: Point{x: f64::INFINITY, y: 1.}}
-        ).is_finite());
+        assert!(!(Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point {
+                x: f64::INFINITY,
+                y: 1.
+            }
+        })
+        .is_finite());
 
-        assert!(!(Line{
-            p0: Point{x: 0., y: 0.},
-            p1: Point{x: 0., y: f64::INFINITY}
-        }).is_finite());
+        assert!(!(Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point {
+                x: 0.,
+                y: f64::INFINITY
+            }
+        })
+        .is_finite());
     }
 }
