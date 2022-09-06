@@ -52,7 +52,7 @@ impl Line {
     /// Is this line finite?
     #[inline]
     pub fn is_finite(self) -> bool {
-        self.p0.is_finite() && self.p0.is_finite()
+        self.p0.is_finite() && self.p1.is_finite()
     }
 
     /// Is this line NaN?
@@ -289,7 +289,7 @@ impl Iterator for LinePathIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Line, ParamCurveArclen};
+    use crate::{Line, ParamCurveArclen, Point};
 
     #[test]
     fn line_arclen() {
@@ -300,5 +300,32 @@ mod tests {
 
         let t = l.inv_arclen(true_len / 3.0, epsilon);
         assert!((t - 1.0 / 3.0).abs() < epsilon);
+    }
+
+    #[test]
+    fn line_is_finite() {
+        assert!((Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point { x: 1., y: 1. }
+        })
+        .is_finite());
+
+        assert!(!(Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point {
+                x: f64::INFINITY,
+                y: 1.
+            }
+        })
+        .is_finite());
+
+        assert!(!(Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point {
+                x: 0.,
+                y: f64::INFINITY
+            }
+        })
+        .is_finite());
     }
 }
