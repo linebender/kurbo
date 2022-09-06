@@ -1,13 +1,12 @@
 //! Cubic Bézier segments.
 
+use arrayvec::ArrayVec;
 use std::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
-use arrayvec::ArrayVec;
 
-use crate::common::solve_quadratic;
-use crate::common::GAUSS_LEGENDRE_COEFFS_9;
+use crate::common::{solve_quadratic, GAUSS_LEGENDRE_COEFFS_9};
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
@@ -238,7 +237,11 @@ impl CubicBez {
         })
     }
 
-    fn parameters(&self) -> (Vec2, Vec2, Vec2, Vec2) {
+    /// Get the parameters such that the curve can be represented by the following formula:
+    ///     B(t) = a*t^3 + b*t^2 + c*t + d
+    ///
+    /// Note: Values returned are in decresing exponent order
+    pub fn parameters(&self) -> (Vec2, Vec2, Vec2, Vec2) {
         let c = (self.p1 - self.p0) * 3.0;
         let b = (self.p2 - self.p1) * 3.0 - c;
         let d = self.p0.to_vec2();
@@ -308,6 +311,13 @@ impl CubicBez {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan() || self.p3.is_nan()
+    }
+
+    /// Is this cubic Bezier curve a line?
+    #[inline]
+    pub fn is_linear(&self, accuracy: f64) -> bool {
+        self.baseline().nearest(self.p1, accuracy).distance_sq <= accuracy
+            && self.baseline().nearest(self.p2, accuracy).distance_sq <= accuracy
     }
 
     /// Determine the inflection points.

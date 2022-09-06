@@ -9,7 +9,7 @@ use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
-    Rect, Shape,
+    Rect, Shape, Vec2,
 };
 
 /// A single quadratic Bézier segment.
@@ -93,6 +93,17 @@ impl QuadBez {
         (u - params.u0) * params.uscale
     }
 
+    /// Get the parameters such that the curve can be represented by the following formula:
+    ///     B(t) = a*t^2 + b*t + c
+    ///
+    /// Note: Values returned are in decresing exponent order
+    pub fn parameters(&self) -> (Vec2, Vec2, Vec2) {
+        let c = self.p0.to_vec2();
+        let b = (self.p1 - self.p0) * 2.0;
+        let a = c - self.p1.to_vec2() * 2.0 + self.p2.to_vec2();
+        (a, b, c)
+    }
+
     /// Is this quadratic Bezier curve finite?
     #[inline]
     pub fn is_finite(&self) -> bool {
@@ -103,6 +114,12 @@ impl QuadBez {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan()
+    }
+
+    /// Is this quadratic Bezier curve a line?
+    #[inline]
+    pub fn is_linear(&self, accuracy: f64) -> bool {
+        self.baseline().nearest(self.p1, accuracy).distance_sq <= accuracy
     }
 }
 
@@ -264,6 +281,11 @@ impl ParamCurveArclen for QuadBez {
         let a32 = a2.powi(3);
         let c2 = 2.0 * c.sqrt();
         let ba_c2 = b * a2 + c2;
+
+        if a2.is_infinite() {
+            // The arclength is zero, this happens when all control points lie on top of each other
+            return 0.;
+        }
 
         let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc - c2) + sabc;
         // TODO: justify and fine-tune this exact constant.
@@ -429,6 +451,13 @@ mod tests {
             est,
             true_arclen
         );
+    }
+
+    #[test]
+    fn quadbez_arclen_zero() {
+        let q = QuadBez::new((-1.0, 0.0), (-1.0, 0.0), (-1.0, 0.0));
+        let accuracy = 1e-11;
+        assert_eq!(q.arclen(accuracy), 0.);
     }
 
     #[test]

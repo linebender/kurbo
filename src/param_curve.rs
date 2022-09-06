@@ -1,5 +1,6 @@
 //! A trait for curves parametrized by a scalar.
 
+use crate::Line;
 use std::ops::Range;
 
 use arrayvec::ArrayVec;
@@ -39,6 +40,11 @@ pub trait ParamCurve: Sized {
     /// The end point.
     fn end(&self) -> Point {
         self.eval(1.0)
+    }
+
+    /// Returns a line from the curve's start point to its end point
+    fn baseline(&self) -> Line {
+        Line::new(self.start(), self.end())
     }
 }
 
