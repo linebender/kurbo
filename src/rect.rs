@@ -7,6 +7,7 @@ use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     /// The minimum x coordinate (left edge).
@@ -621,6 +622,11 @@ impl Shape for Rect {
     fn as_rect(&self) -> Option<Rect> {
         Some(*self)
     }
+
+    #[inline]
+    fn contains(&self, pt: Point) -> bool {
+        self.contains(pt)
+    }
 }
 
 // This is clockwise in a y-down coordinate system for positive area.
@@ -720,8 +726,6 @@ mod tests {
 
     #[test]
     fn contained_rect_with_aspect_ratio() {
-        use std::f64;
-
         fn case(outer: [f64; 4], aspect_ratio: f64, expected: [f64; 4]) {
             let outer = Rect::new(outer[0], outer[1], outer[2], outer[3]);
             let expected = Rect::new(expected[0], expected[1], expected[2], expected[3]);

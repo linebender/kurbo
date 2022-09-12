@@ -14,6 +14,7 @@ use crate::{
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
 pub struct QuadBez {
@@ -183,14 +184,12 @@ impl ParamCurve for QuadBez {
             .to_point()
     }
 
-    #[inline]
-    fn start(&self) -> Point {
-        self.p0
-    }
-
-    #[inline]
-    fn end(&self) -> Point {
-        self.p2
+    fn subsegment(&self, range: Range<f64>) -> QuadBez {
+        let (t0, t1) = (range.start, range.end);
+        let p0 = self.eval(t0);
+        let p2 = self.eval(t1);
+        let p1 = p0 + (self.p1 - self.p0).lerp(self.p2 - self.p1, t0) * (t1 - t0);
+        QuadBez { p0, p1, p2 }
     }
 
     /// Subdivide into halves, using de Casteljau.
@@ -203,12 +202,14 @@ impl ParamCurve for QuadBez {
         )
     }
 
-    fn subsegment(&self, range: Range<f64>) -> QuadBez {
-        let (t0, t1) = (range.start, range.end);
-        let p0 = self.eval(t0);
-        let p2 = self.eval(t1);
-        let p1 = p0 + (self.p1 - self.p0).lerp(self.p2 - self.p1, t0) * (t1 - t0);
-        QuadBez { p0, p1, p2 }
+    #[inline]
+    fn start(&self) -> Point {
+        self.p0
+    }
+
+    #[inline]
+    fn end(&self) -> Point {
+        self.p2
     }
 }
 
@@ -288,7 +289,7 @@ impl ParamCurveArea for QuadBez {
 }
 
 impl ParamCurveNearest for QuadBez {
-    /// Find nearest point, using analytical algorithm based on cubic root finding.
+    /// Find the nearest point, using analytical algorithm based on cubic root finding.
     fn nearest(&self, p: Point, _accuracy: f64) -> Nearest {
         fn eval_t(p: Point, t_best: &mut f64, r_best: &mut Option<f64>, t: f64, p0: Point) {
             let r = (p0 - p).hypot2();
@@ -339,7 +340,7 @@ impl ParamCurveNearest for QuadBez {
 impl ParamCurveCurvature for QuadBez {}
 
 impl ParamCurveExtrema for QuadBez {
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
         let mut result = ArrayVec::new();
         let d0 = self.p1 - self.p0;
         let d1 = self.p2 - self.p1;

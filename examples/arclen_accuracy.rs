@@ -86,7 +86,7 @@ fn awesome_quad_arclen7(q: QuadBez, accuracy: f64, depth: usize, count: &mut usi
     let lc = (q.p2 - q.p0).hypot();
     let lp = (q.p1 - q.p0).hypot() + (q.p2 - q.p1).hypot();
     let est_err = 2.5e-2 * (lp - lc) * (x * x + y * y).powf(8.0).tanh();
-    // Increase depth so we can be an accurate baseline for comparison.
+    // Increase depth, so we can be an accurate baseline for comparison.
     if est_err < accuracy || depth == 22 {
         *count += 1;
         gauss_arclen_7(q)

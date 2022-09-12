@@ -12,6 +12,7 @@ use crate::{
 
 /// A single line.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Line {
     /// The line's start point.
@@ -36,10 +37,22 @@ impl Line {
         self.arclen(DEFAULT_ACCURACY)
     }
 
+    /// Computes the point where two lines, if extended to infinity, would cross.
+    pub fn crossing_point(self, other: Line) -> Option<Point> {
+        let ab = self.p1 - self.p0;
+        let cd = other.p1 - other.p0;
+        let pcd = ab.cross(cd);
+        if pcd == 0.0 {
+            return None;
+        }
+        let h = ab.cross(self.p0 - other.p0) / pcd;
+        Some(other.p0 + cd * h)
+    }
+
     /// Is this line finite?
     #[inline]
     pub fn is_finite(self) -> bool {
-        self.p0.is_finite() && self.p0.is_finite()
+        self.p0.is_finite() && self.p1.is_finite()
     }
 
     /// Is this line NaN?
@@ -56,6 +69,14 @@ impl ParamCurve for Line {
     }
 
     #[inline]
+    fn subsegment(&self, range: Range<f64>) -> Line {
+        Line {
+            p0: self.eval(range.start),
+            p1: self.eval(range.end),
+        }
+    }
+
+    #[inline]
     fn start(&self) -> Point {
         self.p0
     }
@@ -63,14 +84,6 @@ impl ParamCurve for Line {
     #[inline]
     fn end(&self) -> Point {
         self.p1
-    }
-
-    #[inline]
-    fn subsegment(&self, range: Range<f64>) -> Line {
-        Line {
-            p0: self.eval(range.start),
-            p1: self.eval(range.end),
-        }
     }
 }
 
@@ -87,6 +100,11 @@ impl ParamCurveArclen for Line {
     #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
         (self.p1 - self.p0).hypot()
+    }
+
+    #[inline]
+    fn inv_arclen(&self, arclen: f64, _accuracy: f64) -> f64 {
+        arclen / (self.p1 - self.p0).hypot()
     }
 }
 
@@ -111,7 +129,7 @@ impl ParamCurveNearest for Line {
             let dist = (p - self.eval(t)).hypot2();
             (t, dist)
         };
-        Nearest { t, distance_sq }
+        Nearest { distance_sq, t }
     }
 }
 
@@ -124,13 +142,14 @@ impl ParamCurveCurvature for Line {
 
 impl ParamCurveExtrema for Line {
     #[inline]
-    fn extrema(&self) -> ArrayVec<[f64; MAX_EXTREMA]> {
+    fn extrema(&self) -> ArrayVec<f64, MAX_EXTREMA> {
         ArrayVec::new()
     }
 }
 
 /// A trivial "curve" that is just a constant.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ConstPoint(Point);
 
@@ -172,6 +191,11 @@ impl ParamCurveDeriv for ConstPoint {
 impl ParamCurveArclen for ConstPoint {
     #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
+        0.0
+    }
+
+    #[inline]
+    fn inv_arclen(&self, _arclen: f64, _accuracy: f64) -> f64 {
         0.0
     }
 }
@@ -265,7 +289,7 @@ impl Iterator for LinePathIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Line, ParamCurveArclen};
+    use crate::{Line, ParamCurveArclen, Point};
 
     #[test]
     fn line_arclen() {
@@ -276,5 +300,32 @@ mod tests {
 
         let t = l.inv_arclen(true_len / 3.0, epsilon);
         assert!((t - 1.0 / 3.0).abs() < epsilon);
+    }
+
+    #[test]
+    fn line_is_finite() {
+        assert!((Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point { x: 1., y: 1. }
+        })
+        .is_finite());
+
+        assert!(!(Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point {
+                x: f64::INFINITY,
+                y: 1.
+            }
+        })
+        .is_finite());
+
+        assert!(!(Line {
+            p0: Point { x: 0., y: 0. },
+            p1: Point {
+                x: 0.,
+                y: f64::INFINITY
+            }
+        })
+        .is_finite());
     }
 }

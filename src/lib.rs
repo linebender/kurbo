@@ -48,7 +48,7 @@
 //! const DESIRED_ACCURACY: f64 = 0.1;
 //!
 //! /// Given a shape and a point, returns the closest position on the shape's
-//! /// parimeter, or `None` if the shape is malformed.
+//! /// perimeter, or `None` if the shape is malformed.
 //! fn closest_perimeter_point(shape: impl Shape, pt: Point) -> Option<Point> {
 //!     let mut best: Option<(Point, f64)> = None;
 //!     for segment in shape.path_segments(DESIRED_ACCURACY) {
@@ -71,7 +71,7 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
-#![warn(broken_intra_doc_links)]
+#![warn(rustdoc::broken_intra_doc_links)]
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,
@@ -88,9 +88,11 @@ mod cubicbez;
 mod ellipse;
 mod insets;
 mod line;
+mod mindist;
 mod param_curve;
 mod point;
 mod quadbez;
+mod quadspline;
 mod rect;
 mod rounded_rect;
 mod rounded_rect_radii;
@@ -111,6 +113,7 @@ pub use crate::line::*;
 pub use crate::param_curve::*;
 pub use crate::point::*;
 pub use crate::quadbez::*;
+pub use crate::quadspline::*;
 pub use crate::rect::*;
 pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;

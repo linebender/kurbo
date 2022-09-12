@@ -8,6 +8,7 @@ use crate::Vec2;
 
 /// A 2D point.
 #[derive(Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point {
     /// The x coordinate.
@@ -51,6 +52,12 @@ impl Point {
     #[inline]
     pub fn distance(self, other: Point) -> f64 {
         (self - other).hypot()
+    }
+
+    /// Squared Euclidean distance.
+    #[inline]
+    pub fn distance_squared(self, other: Point) -> f64 {
+        (self - other).hypot2()
     }
 
     /// Returns a new `Point`,

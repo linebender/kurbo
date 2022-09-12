@@ -11,6 +11,7 @@ use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
 /// A single SVG arc segment.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SvgArc {
     /// The arc's start point.
@@ -406,8 +407,7 @@ impl Arc {
         let mut ry = arc.radii.y.abs();
 
         let xr = arc.x_rotation % (2.0 * PI);
-        let cos_phi = xr.cos();
-        let sin_phi = xr.sin();
+        let (sin_phi, cos_phi) = xr.sin_cos();
         let hd_x = (arc.from.x - arc.to.x) * 0.5;
         let hd_y = (arc.from.y - arc.to.y) * 0.5;
         let hs_x = (arc.from.x + arc.to.x) * 0.5;
@@ -581,10 +581,10 @@ mod tests {
         let mut elements = vec![];
         let mut position = None;
 
-        let length = rng.gen_range(0, MAX_LENGTH);
+        let length = rng.gen_range(0..MAX_LENGTH);
         for _ in 0..length {
             let should_follow: bool = rand::random();
-            let kind = rng.gen_range(0, 3);
+            let kind = rng.gen_range(0..3);
 
             let first = position
                 .filter(|_| should_follow)

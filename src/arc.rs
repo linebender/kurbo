@@ -8,6 +8,7 @@ use std::{
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Arc {
     /// The arc's centre point.
@@ -26,7 +27,7 @@ pub struct Arc {
 impl Arc {
     /// Create an iterator generating Bezier path elements.
     ///
-    /// The generated elemets can be append to an existing bezier path.
+    /// The generated elements can be appended to an existing bezier path.
     pub fn append_iter(&self, tolerance: f64) -> ArcAppendIter {
         let sign = self.sweep_angle.signum();
         let scaled_err = self.radii.x.max(self.radii.y) / tolerance;
@@ -112,19 +113,21 @@ impl Iterator for ArcAppendIter {
     }
 }
 
-/// Take the ellipse radii, how the radii are rotated and the sweep angle, and return a point on
+/// Take the ellipse radii, how the radii are rotated, and the sweep angle, and return a point on
 /// the ellipse.
 fn sample_ellipse(radii: Vec2, x_rotation: f64, angle: f64) -> Vec2 {
-    let u = radii.x * angle.cos();
-    let v = radii.y * angle.sin();
+    let (angle_sin, angle_cos) = angle.sin_cos();
+    let u = radii.x * angle_cos;
+    let v = radii.y * angle_sin;
     rotate_pt(Vec2::new(u, v), x_rotation)
 }
 
 /// Rotate `pt` about the origin by `angle` radians.
 fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
+    let (angle_sin, angle_cos) = angle.sin_cos();
     Vec2::new(
-        pt.x * angle.cos() - pt.y * angle.sin(),
-        pt.x * angle.sin() + pt.y * angle.cos(),
+        pt.x * angle_cos - pt.y * angle_sin,
+        pt.x * angle_sin + pt.y * angle_cos,
     )
 }
 
@@ -143,15 +146,18 @@ impl Shape for Arc {
         PI * x * y
     }
 
-    /// Note: Finding the perimiter of an ellipse is fairly involved, so for now just approximate
-    /// by using the bezier curve representation. (See
-    /// https://en.wikipedia.org/wiki/Ellipse#Circumference)
+    /// The perimeter of the ellipse.
+    ///
+    /// Note: Finding the perimeter of an ellipse is [fairly involved][wikipedia],
+    /// so for now we just approximate by using the bezier curve representation.
+    ///
+    /// [wikipedia]: https://en.wikipedia.org/wiki/Ellipse#Circumference
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
         self.path_segments(0.1).perimeter(accuracy)
     }
 
-    /// Note: shape isn't closed so a point's winding number is not well defined.
+    /// Note: shape isn't closed, so a point's winding number is not well defined.
     #[inline]
     fn winding(&self, pt: Point) -> i32 {
         self.path_segments(0.1).winding(pt)

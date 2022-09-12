@@ -6,10 +6,14 @@ use crate::{Point, Rect, Vec2};
 
 /// A 2D affine transform.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Affine([f64; 6]);
 
 impl Affine {
+    /// The identity transform.
+    pub const IDENTITY: Affine = Affine::scale(1.0);
+
     /// A transform that is flipped on the y-axis. Useful for converting between
     /// y-up and y-down spaces.
     pub const FLIP_Y: Affine = Affine::new([1.0, 0., 0., -1.0, 0., 0.]);
@@ -62,8 +66,7 @@ impl Affine {
     /// The angle, `th`, is expressed in radians.
     #[inline]
     pub fn rotate(th: f64) -> Affine {
-        let s = th.sin();
-        let c = th.cos();
+        let (s, c) = th.sin_cos();
         Affine([c, s, -s, c, 0.0, 0.0])
     }
 
@@ -212,7 +215,7 @@ impl Affine {
 impl Default for Affine {
     #[inline]
     fn default() -> Affine {
-        Affine::scale(1.0)
+        Affine::IDENTITY
     }
 }
 

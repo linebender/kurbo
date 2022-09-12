@@ -12,6 +12,7 @@ use crate::{Point, Size};
 /// but it can be interpreted as a translation, and converted to and
 /// from a point (vector relative to the origin) and size.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vec2 {
     /// The x-coordinate.
@@ -96,9 +97,10 @@ impl Vec2 {
     /// [`Affine::rotate`]: crate::Affine::rotate
     #[inline]
     pub fn from_angle(th: f64) -> Vec2 {
+        let (th_sin, th_cos) = th.sin_cos();
         Vec2 {
-            x: th.cos(),
-            y: th.sin(),
+            x: th_cos,
+            y: th_sin,
         }
     }
 
@@ -111,7 +113,7 @@ impl Vec2 {
     /// Returns a vector of magnitude 1.0 with the same angle as `self`; i.e.
     /// a unit/direction vector.
     ///
-    /// This produces `NaN` values when the magnitutde is `0`.
+    /// This produces `NaN` values when the magnitude is `0`.
     #[inline]
     pub fn normalize(self) -> Vec2 {
         self / self.hypot()
