@@ -253,11 +253,7 @@ fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<
         return None;
     }
     let phi = depressed_cubic_dominant(g_prime, h_prime);
-    let phi = if rescale {
-        phi * K_C
-    } else {
-        phi
-    };
+    let phi = if rescale { phi * K_C } else { phi };
     let l_1 = a * 0.5;
     let l_3 = (1. / 6.) * b + 0.5 * phi;
     let delt_2 = c - a * l_3;
@@ -404,6 +400,7 @@ fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<
             break;
         }
     }
+    println!("{} {} {} {}", alpha_1, beta_1, alpha_2, beta_2);
     let mut result = ArrayVec::new();
     for (alpha, beta) in [(alpha_1, beta_1), (alpha_2, beta_2)] {
         result.extend(solve_quadratic(beta, alpha, 1.0));
@@ -945,5 +942,23 @@ mod tests {
             -target,
             c.arclen(1e-9) - target,
         );
+    }
+
+    #[test]
+    fn quux() {
+        fn test_vieta(x1: f64, x2: f64, x3: f64, x4: f64) {
+            let a = -(x1 + x2 + x3 + x4);
+            let b = x1 * (x2 + x3) + x2 * (x3 + x4) + x4 * (x1 + x3);
+            let c = -x1 * x2 * (x3 + x4) - x3 * x4 * (x1 + x2);
+            let d = x1 * x2 * x3 * x4;
+            let d = d + 1.0;
+            let c = c - 10.0;
+            let (a, b, c, d) = (1., 1., 3. / 8., 1e-1);
+            println!("coefs {} {} {} {}", a, b, c, d);
+            let mut actual = solve_quartic(d, c, b, a, 1.0);
+            println!("{:?}", actual);
+        }
+
+        test_vieta(1.0, 2.0, 3.0, 4.0);
     }
 }
