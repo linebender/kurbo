@@ -71,7 +71,7 @@ fn bench_euler_integ_8(b: &mut Bencher) {
 // About 240ns
 #[bench]
 fn bench_fit_euler(b: &mut Bencher) {
-    b.iter(|| FitEulerResult::fit_euler(black_box(0.1), black_box(0.2)))
+    b.iter(|| EulerParams::fit_euler(black_box(0.1), black_box(0.2)))
 }
 
 // Pretty much straight out of the notebook. Looking at the generated
@@ -137,6 +137,37 @@ fn fast_fit_euler3(th0: f64, th1: f64) -> (f64, f64) {
     (k1 * dth, ch)
 }
 
+// Compute both k1 and chord at the same time, which is what an
+// actual implementation would use.
+// Same as 3 but a bit more aggressive on the powers.
+fn fast_fit_euler4(th0: f64, th1: f64) -> (f64, f64) {
+    let k0 = th0 + th1;
+    let dth = th1 - th0;
+    let dth2 = dth * dth;
+    let k02 = k0 * k0;
+    let mut k1 = 6.;
+    k1 += dth2 * (1. / -70.);
+    k1 += dth2.powi(2) * (1. / -10780.);
+    k1 += dth2.powi(3) * 2.769178184818219e-07;
+    k1 += k02 * (1. / -10.);
+    k1 += dth2 * k02 * (1. / 4200.);
+    k1 += dth2.powi(2) * k02 * 1.6959677820260655e-05;
+    k1 += k02.powi(2) * (1. / -1400.);
+    k1 += dth2 * k02.powi(2) * 6.84915970574303e-05;
+    k1 += k02.powi(3) * -7.936475029053326e-06;
+    let mut ch = 1.;
+    ch += dth2 * (1. / -40.);
+    ch += dth2.powi(2) * 0.00034226190482569864;
+    ch += dth2.powi(3) * -1.9349474568904524e-06;
+    ch += k02 * (1. / -24.);
+    ch += dth2 * k02 * 0.0024702380951963226;
+    ch += dth2.powi(2) * k02 * -3.7297408997537985e-05;
+    ch += k02.powi(2) * (1. / 1920.);
+    ch += dth2 * k02.powi(2) * -4.87350869747975e-05;
+    ch += k02.powi(3) * -3.1001936068463107e-06;
+    (k1 * dth, ch)
+}
+
 // About 3ns
 #[bench]
 fn bench_fast_fit_euler(b: &mut Bencher) {
@@ -153,4 +184,9 @@ fn bench_fast_fit_euler2(b: &mut Bencher) {
 #[bench]
 fn bench_fast_fit_euler3(b: &mut Bencher) {
     b.iter(|| fast_fit_euler3(black_box(0.1), black_box(0.2)))
+}
+
+#[bench]
+fn bench_fast_fit_euler4(b: &mut Bencher) {
+    b.iter(|| fast_fit_euler4(black_box(0.1), black_box(0.2)))
 }
