@@ -11,5 +11,13 @@ fn bench_quartic(bb: &mut Bencher) {
     let c = -x1 * x2 * (x3 + x4) - x3 * x4 * (x1 + x2);
     let d = x1 * x2 * x3 * x4;
 
-    bb.iter(|| solve_quartic(test::black_box(d), test::black_box(c), test::black_box(b), test::black_box(a), 1.0))
+    bb.iter(|| {
+        solve_quartic(
+            test::black_box(d),
+            test::black_box(c),
+            test::black_box(b),
+            test::black_box(a),
+            1.0,
+        )
+    })
 }

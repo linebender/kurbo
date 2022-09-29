@@ -17,7 +17,8 @@
 
 use crate::{
     common::{solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16},
-    Affine, CubicBez, ParamCurve, ParamCurveArea, ParamCurveDeriv, Point, QuadBez, Shape, Vec2, ParamCurveArclen,
+    Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv, Point,
+    QuadBez, Shape, Vec2,
 };
 
 struct CubicOffset {
@@ -193,10 +194,10 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> Vec<CubicBez> {
         .filter_map(|&d0| {
             //println!("d0 = {}", d0);
             // TODO: deal with d0, d1 near 0. Maybe want negative values across cusps?
-            if true||d0 >= 0.0 {
+            if true || d0 >= 0.0 {
                 let d1 = (2. * d0 * s0 - area * (20. / 3.)) / (d0 * s01 - 2. * s1);
                 //println!("d0 = {}, d1 = {}", d0, d1);
-                if true||d1 >= -0.01 {
+                if true || d1 >= -0.01 {
                     Some(CubicBez::new(
                         (0.0, 0.0),
                         (d0 * c0, d0 * s0),
@@ -259,16 +260,27 @@ fn foo() {
 fn off_metrics() {
     let c = CubicBez::new((0., 0.), (10., 10.), (20., 10.), (30., 0.));
     let co = CubicOffset::new(c, 0.0);
-    println!("area = {}, moment_x = {}, arclen = {}", co.area(), co.x_moment(), co.arclen());
+    println!(
+        "area = {}, moment_x = {}, arclen = {}",
+        co.area(),
+        co.x_moment(),
+        co.arclen()
+    );
 }
 
 #[test]
 fn try_offset() {
     let c = CubicBez::new((100., 100.), (150., 75.), (300., 50.), (400., 200.));
-    println!("  <path d='{}' stroke='#000' fill='none' />", c.to_path(1e-9).to_svg());
+    println!(
+        "  <path d='{}' stroke='#000' fill='none' />",
+        c.to_path(1e-9).to_svg()
+    );
     for i in 1..=20 {
         let co = CubicOffset::new(c, i as f64 * 15.0);
         let new_c = co.cubic_approx();
-        println!("  <path d='{}' stroke='#008' fill='none' />", new_c.to_path(1e-9).to_svg());
+        println!(
+            "  <path d='{}' stroke='#008' fill='none' />",
+            new_c.to_path(1e-9).to_svg()
+        );
     }
 }
