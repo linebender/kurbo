@@ -39,3 +39,5 @@ euler = []
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 getrandom = { version = "0.2.0", features = ["js"] }
 
+[rust-analyzer.cargo]
+features = ["euler"]
