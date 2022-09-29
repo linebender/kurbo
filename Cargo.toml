@@ -11,7 +11,7 @@ readme = "README.md"
 categories = ["graphics"]
 
 [package.metadata.docs.rs]
-features = ["mint", "schemars", "serde"]
+features = ["mint", "schemars", "serde", "euler"]
 
 [dependencies]
 arrayvec = "0.7.1"
@@ -33,6 +33,11 @@ features = ["derive"]
 [dev-dependencies]
 rand = "0.8.0"
 
+[features]
+euler = []
+
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 getrandom = { version = "0.2.0", features = ["js"] }
 
+[rust-analyzer.cargo]
+features = ["euler"]

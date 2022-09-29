@@ -75,7 +75,8 @@
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,
-    clippy::excessive_precision
+    clippy::excessive_precision,
+    clippy::float_cmp
 )]
 
 mod affine;
@@ -121,3 +122,8 @@ pub use crate::size::*;
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;
+
+#[cfg(feature = "euler")]
+mod euler;
+#[cfg(feature = "euler")]
+pub use crate::euler::*;

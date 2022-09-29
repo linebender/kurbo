@@ -23,6 +23,10 @@ Here we mention a few other curves libraries and touch on some of the decisions 
 
 Some code has been copied from lyon_geom with adaptation, thus the author of lyon_geom, Nicolas Silva, is credited in the [AUTHORS] file.
 
+## Euler spirals
+
+In addition to the Bézier functionality, kurbo also contains support for Euler spirals. Enable the `euler` feature to get these.
+
 ## More info
 
 To learn more about Bézier curves, [A Primer on Bézier Curves] by Pomax is indispensable.
