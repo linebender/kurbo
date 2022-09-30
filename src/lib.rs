@@ -90,6 +90,7 @@ mod line;
 mod mindist;
 mod param_curve;
 pub mod pathops;
+pub mod pathops2;
 mod point;
 mod quadbez;
 mod quadspline;
