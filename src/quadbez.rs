@@ -113,7 +113,7 @@ pub struct QuadBezIter {
 }
 
 impl Shape for QuadBez {
-    type PathElementsIter = QuadBezIter;
+    type PathElementsIter<'iter> = QuadBezIter;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> QuadBezIter {

@@ -145,7 +145,7 @@ pub struct RoundedRectPathIter {
 }
 
 impl Shape for RoundedRect {
-    type PathElementsIter = RoundedRectPathIter;
+    type PathElementsIter<'iter> = RoundedRectPathIter;
 
     fn path_elements(&self, tolerance: f64) -> RoundedRectPathIter {
         let radii = self.radii();

@@ -192,9 +192,9 @@ impl From<Circle> for Ellipse {
 }
 
 impl Shape for Ellipse {
-    type PathElementsIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
+    type PathElementsIter<'iter> = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
-    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         let (radii, x_rotation) = self.inner.svd();
         Arc {
             center: self.center(),

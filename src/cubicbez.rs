@@ -338,7 +338,7 @@ pub struct CubicBezIter {
 }
 
 impl Shape for CubicBez {
-    type PathElementsIter = CubicBezIter;
+    type PathElementsIter<'iter> = CubicBezIter;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> CubicBezIter {
