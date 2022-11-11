@@ -15,7 +15,9 @@ pub trait Shape: Sized {
     /// The iterator returned by the [`path_elements`] method.
     ///
     /// [`path_elements`]: Shape::path_elements
-    type PathElementsIter: Iterator<Item = PathEl>;
+    type PathElementsIter<'iter>: Iterator<Item = PathEl> + 'iter
+    where
+        Self: 'iter;
 
     /// Returns an iterator over this shape expressed as [`PathEl`]s;
     /// that is, as Bézier path _elements_.
@@ -42,15 +44,10 @@ pub trait Shape: Sized {
     /// might be appropriate. Note that in general the number of
     /// cubic Bézier segments scales as `tolerance ^ (-1/6)`.
     ///
-    /// TODO: When [GAT's] land, the type of this can be changed to
-    /// contain a `&'a self` reference, which would let us take
-    /// iterators from complex shapes without cloning.
-    ///
-    /// [GAT's]: https://github.com/rust-lang/rust/issues/44265
     /// [`as_rect`]: Shape::as_rect
     /// [`as_line`]: Shape::as_line
     /// [`to_path`]: Shape::to_path
-    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter;
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_>;
 
     /// Convert to a Bézier path.
     ///
@@ -70,7 +67,7 @@ pub trait Shape: Sized {
 
     #[deprecated(since = "0.7.0", note = "Use path_elements instead")]
     #[doc(hidden)]
-    fn to_bez_path(&self, tolerance: f64) -> Self::PathElementsIter {
+    fn to_bez_path(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         self.path_elements(tolerance)
     }
     /// Convert into a Bézier path.
@@ -99,7 +96,7 @@ pub trait Shape: Sized {
     ///
     /// [`PathSeg`]: crate::PathSeg
     /// [`path_elements()`]: Shape::path_elements
-    fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
+    fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter<'_>> {
         segments(self.path_elements(tolerance))
     }
 
@@ -173,9 +170,11 @@ pub trait Shape: Sized {
 
 /// Blanket implementation so `impl Shape` will accept owned or reference.
 impl<'a, T: Shape> Shape for &'a T {
-    type PathElementsIter = T::PathElementsIter;
+    type PathElementsIter<'iter>
 
-    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+    = T::PathElementsIter<'iter> where T: 'iter, 'a: 'iter;
+
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         (*self).path_elements(tolerance)
     }
 
@@ -183,7 +182,7 @@ impl<'a, T: Shape> Shape for &'a T {
         (*self).to_path(tolerance)
     }
 
-    fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter> {
+    fn path_segments(&self, tolerance: f64) -> Segments<Self::PathElementsIter<'_>> {
         (*self).path_segments(tolerance)
     }
 

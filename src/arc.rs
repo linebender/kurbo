@@ -132,9 +132,9 @@ fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
 }
 
 impl Shape for Arc {
-    type PathElementsIter = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
+    type PathElementsIter<'iter> = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
-    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter {
+    fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         let p0 = sample_ellipse(self.radii, self.x_rotation, self.start_angle);
         iter::once(PathEl::MoveTo(self.center + p0)).chain(self.append_iter(tolerance))
     }

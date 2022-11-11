@@ -1108,10 +1108,10 @@ impl From<QuadBez> for PathSeg {
 }
 
 impl Shape for BezPath {
-    type PathElementsIter = std::vec::IntoIter<PathEl>;
+    type PathElementsIter<'iter> = std::iter::Copied<std::slice::Iter<'iter, PathEl>>;
 
-    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
-        self.0.clone().into_iter()
+    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {
+        self.0.iter().copied()
     }
 
     fn to_path(&self, _tolerance: f64) -> BezPath {
@@ -1176,11 +1176,13 @@ impl PathEl {
 ///
 /// If the slice starts with `LineTo`, `QuadTo`, or `CurveTo`, it will be treated as a `MoveTo`.
 impl<'a> Shape for &'a [PathEl] {
-    type PathElementsIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
+    type PathElementsIter<'iter>
+
+    = std::iter::Copied<std::slice::Iter<'a, PathEl>> where 'a: 'iter;
 
     #[inline]
-    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter {
-        self.iter().cloned()
+    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {
+        self.iter().copied()
     }
 
     fn to_path(&self, _tolerance: f64) -> BezPath {
@@ -1218,7 +1220,7 @@ pub struct PathSegIter {
 }
 
 impl Shape for PathSeg {
-    type PathElementsIter = PathSegIter;
+    type PathElementsIter<'iter> = PathSegIter;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> PathSegIter {

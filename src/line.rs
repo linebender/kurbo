@@ -238,7 +238,7 @@ pub struct LinePathIter {
 }
 
 impl Shape for Line {
-    type PathElementsIter = LinePathIter;
+    type PathElementsIter<'iter> = LinePathIter;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> LinePathIter {

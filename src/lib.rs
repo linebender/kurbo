@@ -75,7 +75,8 @@
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,
-    clippy::excessive_precision
+    clippy::excessive_precision,
+    clippy::bool_to_int_with_if
 )]
 
 mod affine;

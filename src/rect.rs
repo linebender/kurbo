@@ -575,7 +575,7 @@ pub struct RectPathIter {
 }
 
 impl Shape for Rect {
-    type PathElementsIter = RectPathIter;
+    type PathElementsIter<'iter> = RectPathIter;
 
     fn path_elements(&self, _tolerance: f64) -> RectPathIter {
         RectPathIter { rect: *self, ix: 0 }
