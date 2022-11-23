@@ -1,5 +1,5 @@
 # kurbo, a Rust 2D curves library
-[![Build Status](https://travis-ci.com/linebender/kurbo.svg)](https://travis-ci.com/linebender/kurbo)
+[![Build Status](https://github.com/linebender/kurbo/actions/workflows/ci.yml/badge.svg)](https://github.com/linebender/kurbo/actions/workflows/ci.yml)
 [![Docs](https://docs.rs/kurbo/badge.svg)](https://docs.rs/kurbo)
 [![Crates.io](https://img.shields.io/crates/v/kurbo.svg?maxAge=2592000)](https://crates.io/crates/kurbo)
 
@@ -10,6 +10,10 @@ The name "kurbo" is Esperanto for "curve".
 There is a focus on accuracy and good performance in high-accuracy conditions. Thus, the library might be useful in engineering and science contexts as well, as opposed to visual arts where rough approximations are often sufficient. Many approximate functions come with an accuracy parameter, and analytical solutions are used where they are practical. An example is area calculation, which is done using Green's theorem.
 
 The library is still in fairly early development stages. There are traits intended to be useful for general curves (not just Béziers), but these will probably be reorganized.
+
+## Minimum supported Rust version
+
+Since version 0.9, kurbo makes use of generic associated types and thus requires **rustc version 1.65 or greater.** 
 
 ## Similar crates
 
