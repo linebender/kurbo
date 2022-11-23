@@ -1213,6 +1213,46 @@ impl<'a> Shape for &'a [PathEl] {
     }
 }
 
+/// Implements [`Shape`] for an array of [`PathEl`], provided that the first element of the array is
+/// not a `PathEl::ClosePath`. If it is, several of these functions will panic.
+///
+/// If the array starts with `LineTo`, `QuadTo`, or `CurveTo`, it will be treated as a `MoveTo`.
+impl<const N: usize> Shape for [PathEl; N] {
+    type PathElementsIter<'iter> = std::iter::Copied<std::slice::Iter<'iter, PathEl>>;
+
+    #[inline]
+    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {
+        self.iter().copied()
+    }
+
+    fn to_path(&self, _tolerance: f64) -> BezPath {
+        BezPath::from_vec(self.to_vec())
+    }
+
+    /// Signed area.
+    fn area(&self) -> f64 {
+        segments(self.iter().copied()).area()
+    }
+
+    fn perimeter(&self, accuracy: f64) -> f64 {
+        segments(self.iter().copied()).perimeter(accuracy)
+    }
+
+    /// Winding number of point.
+    fn winding(&self, pt: Point) -> i32 {
+        segments(self.iter().copied()).winding(pt)
+    }
+
+    fn bounding_box(&self) -> Rect {
+        segments(self.iter().copied()).bounding_box()
+    }
+
+    #[inline]
+    fn as_path_slice(&self) -> Option<&[PathEl]> {
+        Some(self)
+    }
+}
+
 /// An iterator for path segments.
 pub struct PathSegIter {
     seg: PathSeg,
