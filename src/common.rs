@@ -211,6 +211,29 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
 }
 
 fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<ArrayVec<f64, 4>> {
+    factor_quartic_inner(a, b, c, d, rescale).map(|quadratics| {
+        quadratics
+            .iter()
+            .map(|(a, b)| solve_quadratic(*b, *a, 1.0))
+            .flatten()
+            .collect()
+    })
+}
+
+/// Factor a quartic into two quadratics.
+///
+/// Attempt to factor a quartic equation into two quadratic equations. Returns None either if there
+/// is overflow (in which case rescaling might succeed) or the factorization would result in
+/// complex coefficients.
+///
+/// Discussion question: distinguish the two cases in return value?
+pub fn factor_quartic_inner(
+    a: f64,
+    b: f64,
+    c: f64,
+    d: f64,
+    rescale: bool,
+) -> Option<ArrayVec<(f64, f64), 2>> {
     let calc_eps_q = |a1, b1, a2, b2| {
         let eps_a = eps_rel(a1 + a2, a);
         let eps_b = eps_rel(b1 + a1 * a2 + b2, b);
@@ -400,13 +423,7 @@ fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<
             break;
         }
     }
-    println!("{} {} {} {}", alpha_1, beta_1, alpha_2, beta_2);
-    let mut result = ArrayVec::new();
-    for (alpha, beta) in [(alpha_1, beta_1), (alpha_2, beta_2)] {
-        result.extend(solve_quadratic(beta, alpha, 1.0));
-    }
-    // Sort roots?
-    Some(result)
+    Some([(alpha_1, beta_1), (alpha_2, beta_2)].into())
 }
 
 /// Dominant root of depressed cubic x^3 + gx + h = 0.

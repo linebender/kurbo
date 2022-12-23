@@ -15,8 +15,14 @@
 //! Offset curve computation.
 //! Currently work in progress.
 
+use std::ops::Range;
+
+use arrayvec::ArrayVec;
+
 use crate::{
-    common::{solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16},
+    common::{
+        factor_quartic_inner, solve_cubic, solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16,
+    },
     Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv, Point,
     QuadBez, Shape, Vec2,
 };
@@ -28,6 +34,11 @@ struct CubicOffset {
     q: QuadBez,
     /// Offset.
     d: f64,
+}
+
+struct CurveSample {
+    p: Point,
+    offset: Vec2,
 }
 
 impl CubicOffset {
@@ -83,7 +94,7 @@ impl CubicOffset {
             .map(|&(wi, xi)| {
                 let t = 0.5 * (1.0 + xi);
                 let dx = self.eval_deriv(t).x;
-                let delta = 500. * (self.eval(t + 0.001) - self.eval(t - 0.001));
+                //let delta = 500. * (self.eval(t + 0.001) - self.eval(t - 0.001));
                 let p = self.eval(t);
                 (0.5 * wi) * dx * p.x * p.y
             })
@@ -126,28 +137,106 @@ impl CubicOffset {
     /// Compute cubic approximation of curve.
     ///
     /// Discussion: should also return an error metric?
-    fn cubic_approx(&self) -> CubicBez {
+    fn cubic_approx(&self, sign: f64, tol: f64) -> CubicBez {
         let (r, th, dp) = self.rotate_to_x();
         let end_x = r.c.p3.x + r.eval_offset(1.0).x;
         // these divisions don't work in the zero-length chord case.
-        let arclen = r.arclen() / end_x;
         let area = r.area() / end_x.powi(2);
         let x_moment = r.x_moment() / end_x.powi(3);
-        let th0 = r.q.p0.to_vec2().atan2();
-        let th1 = -r.q.p2.y.atan2(r.q.p2.x);
+        let th0 = (r.q.p0.to_vec2() * sign).atan2();
+        let th1 = -(r.q.p2.to_vec2() * sign).atan2();
         let mut best_c = None;
         let mut best_err = None;
+        let samples = self.sample_pts(10);
+        let a = Affine::translate(dp) * Affine::rotate(-th) * Affine::scale(end_x);
         for cand in cubic_fit(th0, th1, area, x_moment) {
-            let cand_arclen = cand.arclen(1e-9);
-            let err = (cand_arclen - arclen).abs();
+            let c = a * cand;
+            let err = Self::est_cubic_err(c, &samples, best_err.unwrap_or(tol));
             if best_err.map(|best_err| err < best_err).unwrap_or(true) {
                 best_err = Some(err);
-                best_c = Some(cand);
+                best_c = Some(c);
             }
-            //println!("{:?} {}", cand, cand_arclen - arclen);
         }
-        let c = best_c.unwrap();
-        Affine::translate(dp) * Affine::rotate(-th) * Affine::scale(end_x) * c
+        best_c.unwrap()
+    }
+
+    fn sample_pts(&self, n: usize) -> Vec<CurveSample> {
+        // TODO: this samples evenly by t, but that's not always great. It would be
+        // better to sample approximately evenly by arc length, but without the
+        // cost of inverse arc length solving.
+        let dt = ((n + 1) as f64).recip();
+        (0..n)
+            .map(|i| {
+                let t = (i + 1) as f64 * dt;
+                let offset = self.eval_offset(t);
+                let p = self.c.eval(t) + offset;
+                CurveSample { p, offset }
+            })
+            .collect()
+    }
+
+    fn est_cubic_err(c: CubicBez, samples: &[CurveSample], tol: f64) -> f64 {
+        let mut max_err = 0.0;
+        let tol2 = tol * tol;
+        for sample in samples {
+            // Project sample point onto approximate curve along normal.
+            let mut intersections = sample.intersect(c);
+            if intersections.is_empty() {
+                // maybe should just return some number greater than tol
+                intersections.extend([0., 1.]);
+            }
+            let mut best_err = None;
+            for t in intersections {
+                let this_err = sample.p.distance_squared(c.eval(t));
+                if best_err.map(|err| this_err < err).unwrap_or(true) {
+                    best_err = Some(this_err);
+                }
+            }
+            max_err = best_err.unwrap().max(max_err);
+            if max_err > tol2 {
+                break;
+            }
+        }
+        max_err
+    }
+
+    fn find_offset_cusps(&self) {
+        let d0 = self.q.p0.to_vec2();
+        let d1 = 2.0 * (self.q.p1 - self.q.p0);
+        let d2 = self.q.p0.to_vec2() - 2.0 * self.q.p1.to_vec2() + self.q.p1.to_vec2();
+        let c0 = d1.cross(d0);
+        let c1 = 2.0 * d2.cross(d0);
+        let c2 = d2.cross(d1);
+        // Compute a function which does zero-crossings at cusps.
+        let calc = |t| {
+            let ds2 = self.q.eval(t).to_vec2().hypot2();
+            // Could avoid a division by multiplying by ds2^1.5, but go for clarity.
+            let k = ((c2 * t + c1) * t + c0) / (ds2 * ds2.sqrt());
+            k * self.d + 1.0
+        };
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> CubicOffset {
+        Self::new(self.c.subsegment(range), self.d)
+    }
+}
+
+impl CurveSample {
+    /// Intersect a ray with the given cubic.
+    ///
+    /// Returns a vector of `t` values on the cubic.
+    fn intersect(&self, c: CubicBez) -> ArrayVec<f64, 3> {
+        let p1 = 3.0 * (c.p1 - c.p0);
+        let p2 = 3.0 * c.p2.to_vec2() - 6.0 * c.p1.to_vec2() + 3.0 * c.p0.to_vec2();
+        let p3 = (c.p3 - c.p0) - 3.0 * (c.p2 - c.p1);
+        let c0 = (c.p0 - self.p).cross(self.offset);
+        let c1 = p1.cross(self.offset);
+        let c2 = p2.cross(self.offset);
+        let c3 = p3.cross(self.offset);
+        solve_cubic(c0, c1, c2, c3)
+            .into_iter()
+            .filter(|&t| t >= 0. && t <= 1.)
+            .collect()
     }
 }
 
@@ -181,32 +270,51 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> Vec<CubicBez> {
             * s1
             - 75. * c1 * c1 * area * area * s0);
     let a0 = 80. * s1 * (42. * s1 * mx - 25. * area * (s1 - c1 * area));
-    // TODO: set a3 and/or a4 to 0 if nearly so, as solver isn't robust.
-    // Alternatively, make solver robust.
-    let roots = solve_quartic(a0, a1, a2, a3, a4);
+    let mut roots = ArrayVec::<f64, 4>::new();
+    const EPS: f64 = 1e-12;
+    if a4.abs() > EPS {
+        let a = a3 / a4;
+        let b = a2 / a4;
+        let c = a1 / a4;
+        let d = a0 / a4;
+        if let Some(quads) = factor_quartic_inner(a, b, c, d, false) {
+            for (qc1, qc0) in quads {
+                let qroots = solve_quadratic(qc0, qc1, 1.0);
+                if qroots.is_empty() {
+                    // Real part of pair of complex roots
+                    roots.push(-0.5 * qc1);
+                } else {
+                    roots.extend(qroots);
+                }
+            }
+        }
+    } else if a3.abs() > EPS {
+        roots.extend(solve_cubic(a0, a1, a2, a3));
+    } else {
+        roots.extend(solve_quadratic(a0, a1, a2));
+    }
+
     let s01 = s0 * c1 + s1 * c0;
-    let mut roots = roots.iter().copied().collect::<Vec<_>>();
-    roots.push(0.0);
-    roots.push(area * (10. / 3.) / s0);
-    println!("{:?}", roots);
     roots
         .iter()
         .filter_map(|&d0| {
-            //println!("d0 = {}", d0);
-            // TODO: deal with d0, d1 near 0. Maybe want negative values across cusps?
-            if true || d0 >= 0.0 {
-                let d1 = (2. * d0 * s0 - area * (20. / 3.)) / (d0 * s01 - 2. * s1);
-                //println!("d0 = {}, d1 = {}", d0, d1);
-                if true || d1 >= -0.01 {
-                    Some(CubicBez::new(
-                        (0.0, 0.0),
-                        (d0 * c0, d0 * s0),
-                        (1.0 - d1 * c1, d1 * s1),
-                        (1.0, 0.0),
-                    ))
+            let (d0, d1) = if d0 > 0.0 {
+                let d1 = (d0 * s0 - area * (10. / 3.)) / (0.5 * d0 * s01 - s1);
+                if d1 > 0.0 {
+                    (d0, d1)
                 } else {
-                    None
+                    (s0 / s01, 0.0)
                 }
+            } else {
+                (0.0, s1 / s01)
+            };
+            if d0 >= 0.0 && d1 >= 0.0 {
+                Some(CubicBez::new(
+                    (0.0, 0.0),
+                    (d0 * c0, d0 * s0),
+                    (1.0 - d1 * c1, d1 * s1),
+                    (1.0, 0.0),
+                ))
             } else {
                 None
             }
@@ -277,7 +385,7 @@ fn try_offset() {
     );
     for i in 1..=20 {
         let co = CubicOffset::new(c, i as f64 * 15.0);
-        let new_c = co.cubic_approx();
+        let new_c = co.cubic_approx(1.0, 1e3);
         println!(
             "  <path d='{}' stroke='#008' fill='none' />",
             new_c.to_path(1e-9).to_svg()
