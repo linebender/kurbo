@@ -214,8 +214,7 @@ fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<
     factor_quartic_inner(a, b, c, d, rescale).map(|quadratics| {
         quadratics
             .iter()
-            .map(|(a, b)| solve_quadratic(*b, *a, 1.0))
-            .flatten()
+            .flat_map(|(a, b)| solve_quadratic(*b, *a, 1.0))
             .collect()
     })
 }

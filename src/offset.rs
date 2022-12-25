@@ -23,11 +23,24 @@ use crate::{
     common::{
         factor_quartic_inner, solve_cubic, solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16,
     },
-    Affine, CubicBez, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv, Point,
-    QuadBez, Shape, Vec2,
+    Affine, CubicBez, CurveFitSample, ParamCurve, ParamCurveArclen, ParamCurveArea,
+    ParamCurveCurvature, ParamCurveDeriv, ParamCurveFit, Point, QuadBez, Shape, Vec2,
 };
 
-struct CubicOffset {
+/// The offset curve of a cubic Bézier.
+///
+/// This is a representation of the offset curve of a cubic Bézier segment, for
+/// purposes of curve fitting.
+pub struct CubicOffset {
+    inner: CubicOffsetInner,
+    // c0 + c1 t + c2 t^2 is the cross product of second and first
+    // derivatives of the underlying cubic (for computing curvature).
+    c0: f64,
+    c1: f64,
+    c2: f64,
+}
+
+struct CubicOffsetInner {
     /// Source curve.
     c: CubicBez,
     /// Derivative of source curve.
@@ -41,10 +54,10 @@ struct CurveSample {
     offset: Vec2,
 }
 
-impl CubicOffset {
+impl CubicOffsetInner {
     fn new(c: CubicBez, d: f64) -> Self {
         let q = c.deriv();
-        CubicOffset { c, q, d }
+        CubicOffsetInner { c, q, d }
     }
 
     fn eval_offset(&self, t: f64) -> Vec2 {
@@ -119,7 +132,7 @@ impl CubicOffset {
     /// Rotate the curve so its chord is on the x baseline.
     ///
     /// Returns rotated curve, rotation angle, and translation.
-    fn rotate_to_x(&self) -> (CubicOffset, f64, Vec2) {
+    fn rotate_to_x(&self) -> (CubicOffsetInner, f64, Vec2) {
         let p0 = self.c.p0 + self.eval_offset(0.0);
         let p1 = self.c.p3 + self.eval_offset(1.0);
         let dp = p0.to_vec2();
@@ -131,7 +144,7 @@ impl CubicOffset {
             self.c.p3 - dp,
         );
         let c = Affine::rotate(th) * ct;
-        (CubicOffset::new(c, self.d), th, p0.to_vec2())
+        (CubicOffsetInner::new(c, self.d), th, p0.to_vec2())
     }
 
     /// Compute cubic approximation of curve.
@@ -216,7 +229,7 @@ impl CubicOffset {
         };
     }
 
-    fn subsegment(&self, range: Range<f64>) -> CubicOffset {
+    fn subsegment(&self, range: Range<f64>) -> CubicOffsetInner {
         Self::new(self.c.subsegment(range), self.d)
     }
 }
@@ -241,7 +254,7 @@ impl CurveSample {
 }
 
 /// Returns curves matching area and moment, given unit chord.
-fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> Vec<CubicBez> {
+fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
     // Note: maybe we want to take unit vectors instead of angle? Shouldn't
     // matter much either way though.
     let (s0, c0) = th0.sin_cos();
@@ -330,7 +343,7 @@ fn offset() {
         "  <path d=\"{}\" stroke=\"#000\" fill=\"none\" />",
         c.to_path(1e-9).to_svg()
     );
-    let co = CubicOffset::new(c, -200.0);
+    let co = CubicOffsetInner::new(c, -200.0);
     for i in 0..=10 {
         let t = i as f64 / 10.0;
         let p = co.eval(t);
@@ -345,6 +358,73 @@ fn offset() {
     }
 }
 
+impl CubicOffset {
+    /// Create a new curve from Bézier segment and offset.
+    pub fn new(c: CubicBez, d: f64) -> Self {
+        let inner = CubicOffsetInner::new(c, d);
+        let q = inner.q;
+        let d0 = q.p0.to_vec2();
+        let d1 = 2.0 * (q.p1 - q.p0);
+        let d2 = q.p0.to_vec2() - 2.0 * q.p1.to_vec2() + q.p2.to_vec2();
+        let c0 = d1.cross(d0);
+        let c1 = 2.0 * d2.cross(d0);
+        let c2 = d2.cross(d1);
+        CubicOffset { inner, c0, c1, c2 }
+    }
+
+    // Compute a function which has a zero-crossing at cusps, and is
+    // positive at low curvatures on the source curve.
+    fn cusp_sign(&self, t: f64) -> f64 {
+        let ds2 = self.inner.q.eval(t).to_vec2().hypot2();
+        let k = ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt());
+        k * self.inner.d + 1.0
+    }
+}
+
+impl ParamCurveFit for CubicOffset {
+    fn sample(&self, t: f64, sign: f64) -> CurveFitSample {
+        let p = self.inner.eval(t);
+        const EPSILON: f64 = 1e-9;
+        let mut cusp = self.cusp_sign(t);
+        if cusp.abs() < EPSILON {
+            // This is a numerical derivative, which is probably good enough
+            // for all practical purposes, but an analytical derivative would
+            // be more elegant.
+            //
+            // Also, we're not dealing with second or higher order cusps.
+            cusp = sign * (self.cusp_sign(t + EPSILON) - self.cusp_sign(t - EPSILON));
+        }
+        let tangent = self.inner.q.eval(t).to_vec2() * cusp.signum();
+        CurveFitSample { p, tangent }
+    }
+
+    fn area_moment(&self, range: Range<f64>) -> (f64, f64) {
+        let seg = self.inner.c.subsegment(range.clone());
+        let p0 = seg.p0 + self.inner.eval_offset(range.start);
+        let p1 = seg.p3 + self.inner.eval_offset(range.end);
+        let d = (p1 - p0).normalize();
+        let a = Affine::new([d.x, -d.y, d.y, d.x, 0.0, 0.0]) * Affine::translate(-p0.to_vec2());
+        // Rotate and translate segment so chord is on the X axis.
+        let c_rotated = a * seg;
+        let rotated = CubicOffsetInner::new(c_rotated, self.inner.d);
+        GAUSS_LEGENDRE_COEFFS_16
+            .iter()
+            .map(|&(wi, xi)| {
+                let t = 0.5 * (1.0 + xi);
+                let dx = rotated.eval_deriv(t).x;
+                let p = rotated.eval(t);
+                let a = (0.5 * wi) * dx * p.y;
+                let m = a * p.x;
+                (a, m)
+            })
+            .fold((0.0, 0.0), |(a0, m0), (a1, m1)| (a0 + a1, m0 + m1))
+    }
+
+    fn break_cusp(&self, range: Range<f64>) -> Option<f64> {
+        None
+    }
+}
+
 #[test]
 fn foo() {
     let l = crate::Line::new((100.0, 100.0), (100.0, 200.0));
@@ -352,7 +432,7 @@ fn foo() {
     let c = q.raise();
     println!("l area {}", l.signed_area());
     println!("c area {}", c.signed_area());
-    println!("offset area {}", CubicOffset::new(c, 10.0).area());
+    println!("offset area {}", CubicOffsetInner::new(c, 10.0).area());
     for c in cubic_fit(
         1.7278759594743864,
         1.4137166941154067,
@@ -367,7 +447,7 @@ fn foo() {
 #[test]
 fn off_metrics() {
     let c = CubicBez::new((0., 0.), (10., 10.), (20., 10.), (30., 0.));
-    let co = CubicOffset::new(c, 0.0);
+    let co = CubicOffsetInner::new(c, 0.0);
     println!(
         "area = {}, moment_x = {}, arclen = {}",
         co.area(),
@@ -384,7 +464,7 @@ fn try_offset() {
         c.to_path(1e-9).to_svg()
     );
     for i in 1..=20 {
-        let co = CubicOffset::new(c, i as f64 * 15.0);
+        let co = CubicOffsetInner::new(c, i as f64 * 15.0);
         let new_c = co.cubic_approx(1.0, 1e3);
         println!(
             "  <path d='{}' stroke='#008' fill='none' />",
