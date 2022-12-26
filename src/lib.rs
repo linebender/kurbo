@@ -99,6 +99,7 @@ mod rect;
 mod rounded_rect;
 mod rounded_rect_radii;
 mod shape;
+pub mod simplify;
 mod size;
 mod svg;
 mod translate_scale;
