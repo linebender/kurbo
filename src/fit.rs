@@ -188,7 +188,6 @@ pub fn fit_to_cubic(
     let chord = d.hypot();
     let th0 = start.tangent.atan2() - th;
     let th1 = th - end.tangent.atan2();
-    generic_area_moment(source, range.clone());
     let (raw_area, raw_moment) = source.area_moment(range.clone());
     let area = raw_area / chord.powi(2);
     let moment = raw_moment / chord.powi(3);
@@ -319,36 +318,4 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
             }
         })
         .collect()
-}
-
-fn generic_area_moment(source: &impl ParamCurveFit, range: Range<f64>) -> (f64, f64) {
-    // Discussion point: could take p0 and p1 as args, to avoid duplicate
-    // computation. But maybe we can get rid of them altogether.
-    let p0 = source.sample_pt_tangent(range.start, 1.0).p;
-    let p1 = source.sample_pt_tangent(range.end, -1.0).p;
-    let chord = p1 - p0;
-    // Discussion point: I believe if we took (x / ds^2, y / ds^2) we would
-    // normalize to unit chord, avoiding a square root here and divisions later.
-    let cnorm = chord.normalize();
-    let dt = range.end - range.start;
-    let (a, mx) = GAUSS_LEGENDRE_COEFFS_16
-        .iter()
-        .map(|(wi, xi)| {
-            let t = range.start + 0.5 * dt * (1.0 + xi);
-            let (p, d) = source.sample_pt_deriv(t);
-            // TODO: a very fancy optimization would be to lift this translation
-            // and rotation out of the inner loop, computing raw values and then
-            // transforming them after.
-            let trans_p = p - p0;
-            let rot_p = Point::new(
-                trans_p.x * cnorm.x + trans_p.y * cnorm.y,
-                trans_p.y * cnorm.x - trans_p.x * cnorm.y,
-            );
-            let rot_dx = d.x * cnorm.x + d.y * cnorm.y;
-            let a = (0.5 * wi) * rot_dx * rot_p.y;
-            let mx = a * rot_p.x;
-            (a, mx)
-        })
-        .fold((0.0, 0.0), |(a0, x0), (a1, x1)| (a0 + a1, x0 + x1));
-    (a * dt, mx * dt)
 }

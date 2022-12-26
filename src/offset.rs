@@ -34,7 +34,8 @@ pub struct CubicOffset {
     /// Offset.
     d: f64,
     // c0 + c1 t + c2 t^2 is the cross product of second and first
-    // derivatives of the underlying cubic (for computing curvature).
+    // derivatives of the underlying cubic, multiplied by offset (for
+    // computing cusp).
     c0: f64,
     c1: f64,
     c2: f64,
@@ -47,16 +48,13 @@ impl CubicOffset {
         let d0 = q.p0.to_vec2();
         let d1 = 2.0 * (q.p1 - q.p0);
         let d2 = q.p0.to_vec2() - 2.0 * q.p1.to_vec2() + q.p2.to_vec2();
-        let c0 = d1.cross(d0);
-        let c1 = 2.0 * d2.cross(d0);
-        let c2 = d2.cross(d1);
         CubicOffset {
             c,
             q,
             d,
-            c0,
-            c1,
-            c2,
+            c0: d * d1.cross(d0),
+            c1: d * 2.0 * d2.cross(d0),
+            c2: d * d2.cross(d1),
         }
     }
 
@@ -74,19 +72,14 @@ impl CubicOffset {
 
     /// Evaluate derivative of curve.
     fn eval_deriv(&self, t: f64) -> Vec2 {
-        let dp = self.q.eval(t).to_vec2();
-        let ddp = self.q.deriv().eval(t).to_vec2();
-        // TODO: I think this computes the same value as the cusp quadratic.
-        let turn = ddp.cross(dp) * self.d / (dp.hypot() * dp.hypot2());
-        (1.0 + turn) * dp
+        self.cusp_sign(t) * self.q.eval(t).to_vec2()
     }
 
     // Compute a function which has a zero-crossing at cusps, and is
     // positive at low curvatures on the source curve.
     fn cusp_sign(&self, t: f64) -> f64 {
         let ds2 = self.q.eval(t).to_vec2().hypot2();
-        let k = ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt());
-        k * self.d + 1.0
+        ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt()) + 1.0
     }
 }
 
