@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 
 use crate::{
     common::{factor_quartic_inner, solve_cubic, solve_quadratic},
-    Affine, BezPath, CubicBez, ParamCurve, Point, Shape, Vec2,
+    Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
 };
 
 /// The source curve for curve fitting.
@@ -36,6 +36,19 @@ pub trait ParamCurveFit {
     /// Compute the signed area and the moment along the chord a closed curve
     /// consisting of the given curve segment and the line segment from the
     /// end point to the start point.
+    ///
+    /// Discussion point: there are (at least) two ways this could go for
+    /// better robustness, flexibility, and efficiency.
+    ///
+    /// A small optimization would be to return values normalized to the unit
+    /// chord.
+    ///
+    /// A more profound change would be to return moments not normalized to the
+    /// chord at all. This would allow (with some adaption) actually fitting
+    /// when the chord vanishes.
+    ///
+    /// Discussion point: we could provide a default implementation that does
+    /// quadrature integration with Green's theorem, given eval and derivative.
     fn area_moment(&self, range: Range<f64>) -> (f64, f64);
 
     /// Find a cusp or corner within the given range.
@@ -43,6 +56,9 @@ pub trait ParamCurveFit {
     /// If the range contains a corner or cusp, return it. If there is more
     /// than one such discontinuity, any can be reported, as the function will
     /// be called repeatedly after subdivision of the range.
+    ///
+    /// Do not report cusps at the endpoints of the range. (TODO: talk about
+    /// this)
     ///
     /// The definition of what exactly constitutes a cusp is somewhat loose.
     /// If a cusp is missed, then the curve fitting algorithm will attempt to

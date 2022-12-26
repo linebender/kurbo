@@ -21,7 +21,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     common::{
-        factor_quartic_inner, solve_cubic, solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16,
+        factor_quartic_inner, solve_cubic, solve_itp, solve_quadratic, solve_quartic,
+        GAUSS_LEGENDRE_COEFFS_16,
     },
     Affine, CubicBez, CurveFitSample, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveFit, Point, QuadBez, Shape, Vec2,
@@ -384,15 +385,15 @@ impl CubicOffset {
 impl ParamCurveFit for CubicOffset {
     fn sample(&self, t: f64, sign: f64) -> CurveFitSample {
         let p = self.inner.eval(t);
-        const EPSILON: f64 = 1e-9;
+        const CUSP_EPS: f64 = 1e-8;
         let mut cusp = self.cusp_sign(t);
-        if cusp.abs() < EPSILON {
+        if cusp.abs() < CUSP_EPS {
             // This is a numerical derivative, which is probably good enough
             // for all practical purposes, but an analytical derivative would
             // be more elegant.
             //
             // Also, we're not dealing with second or higher order cusps.
-            cusp = sign * (self.cusp_sign(t + EPSILON) - self.cusp_sign(t - EPSILON));
+            cusp = sign * (self.cusp_sign(t + CUSP_EPS) - self.cusp_sign(t - CUSP_EPS));
         }
         let tangent = self.inner.q.eval(t).to_vec2() * cusp.signum();
         CurveFitSample { p, tangent }
@@ -421,7 +422,35 @@ impl ParamCurveFit for CubicOffset {
     }
 
     fn break_cusp(&self, range: Range<f64>) -> Option<f64> {
-        None
+        const CUSP_EPS: f64 = 1e-8;
+        // When an endpoint is on (or very near) a cusp, move just far enough
+        // away from the cusp that we're confident we have the right sign.
+        let break_cusp_help = |mut x, mut d| {
+            let mut cusp = self.cusp_sign(x);
+            while cusp.abs() < CUSP_EPS && d < 1.0 {
+                x += d;
+                let old_cusp = cusp;
+                cusp = self.cusp_sign(x);
+                if cusp.abs() > old_cusp.abs() {
+                    break;
+                }
+                d *= 2.0;
+            }
+            (x, cusp)
+        };
+        let (a, cusp0) = break_cusp_help(range.start, 1e-12);
+        let (b, cusp1) = break_cusp_help(range.end, -1e-12);
+        if a >= b || cusp0 * cusp1 >= 0.0 {
+            // Discussion point: maybe we should search for double cusps in the interior
+            // of the range.
+            return None;
+        }
+        let s = cusp1.signum();
+        let f = |t| s * self.cusp_sign(t);
+        let k1 = 0.2 / (b - a);
+        const ITP_EPS: f64 = 1e-12;
+        let x = solve_itp(f, a, b, ITP_EPS, 1, k1, s * cusp0, s * cusp1);
+        Some(x)
     }
 }
 
