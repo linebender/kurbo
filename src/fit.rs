@@ -5,7 +5,7 @@ use std::ops::Range;
 use arrayvec::ArrayVec;
 
 use crate::{
-    common::{factor_quartic_inner, solve_cubic, solve_quadratic},
+    common::{factor_quartic_inner, solve_cubic, solve_quadratic, GAUSS_LEGENDRE_COEFFS_16},
     Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
 };
 
@@ -29,14 +29,22 @@ pub trait ParamCurveFit {
     /// side of the discontinuity the tangent will be sampled from.
     ///
     /// Generally `t` is in the range [0..1].
-    fn sample(&self, t: f64, sign: f64) -> CurveFitSample;
+    fn sample_pt_tangent(&self, t: f64, sign: f64) -> CurveFitSample;
+
+    /// Evaluate the point and derivative at parameter `t`.
+    ///
+    /// In curves with cusps, the derivative can go to zero.
+    fn sample_pt_deriv(&self, t: f64) -> (Point, Vec2);
 
     /// Compute signed area and moment for the given range.
     ///
-    /// Compute the signed area and the moment along the chord a closed curve
-    /// consisting of the given curve segment and the line segment from the
-    /// end point to the start point.
+    /// Compute the signed area and the moment along the x axis for the curve
+    /// rotated and translated so the start point is on the origin and the end
+    /// point is on the x axis.
     ///
+    /// A default implementation is proved which does quadrature integration
+    /// with Green's theorem.
+    /// 
     /// Discussion point: there are (at least) two ways this could go for
     /// better robustness, flexibility, and efficiency.
     ///
@@ -46,10 +54,37 @@ pub trait ParamCurveFit {
     /// A more profound change would be to return moments not normalized to the
     /// chord at all. This would allow (with some adaption) actually fitting
     /// when the chord vanishes.
-    ///
-    /// Discussion point: we could provide a default implementation that does
-    /// quadrature integration with Green's theorem, given eval and derivative.
-    fn area_moment(&self, range: Range<f64>) -> (f64, f64);
+    fn area_moment(&self, range: Range<f64>) -> (f64, f64) {
+        // Discussion point: could take p0 and p1 as args, to avoid duplicate
+        // computation. But maybe we can get rid of them altogether.
+        let p0 = self.sample_pt_tangent(range.start, 1.0).p;
+        let p1 = self.sample_pt_tangent(range.end, -1.0).p;
+        let chord = p1 - p0;
+        // Discussion point: I believe if we took (x / ds^2, y / ds^2) we would
+        // normalize to unit chord, avoiding a square root here and divisions later.
+        let cnorm = chord.normalize();
+        let dt = range.end - range.start;
+        let (a, mx) = GAUSS_LEGENDRE_COEFFS_16
+            .iter()
+            .map(|(wi, xi)| {
+                let t = range.start + 0.5 * dt * (1.0 + xi);
+                let (p, d) = self.sample_pt_deriv(t);
+                // TODO: a very fancy optimization would be to lift this translation
+                // and rotation out of the inner loop, computing raw values and then
+                // transforming them after.
+                let trans_p = p - p0;
+                let rot_p = Point::new(
+                    trans_p.x * cnorm.x + trans_p.y * cnorm.y,
+                    trans_p.y * cnorm.x - trans_p.x * cnorm.y,
+                );
+                let rot_dx = d.x * cnorm.x + d.y * cnorm.y;
+                let a = (0.5 * wi) * rot_dx * rot_p.y;
+                let mx = a * rot_p.x;
+                (a, mx)
+            })
+            .fold((0.0, 0.0), |(a0, x0), (a1, x1)| (a0 + a1, x0 + x1));
+        (a * dt, mx * dt)
+    }
 
     /// Find a cusp or corner within the given range.
     ///
@@ -99,6 +134,8 @@ impl CurveFitSample {
 /// Generate a Bézier path that fits the source curve.
 ///
 /// Discussion question: should this be a method on the trait instead?
+///
+/// Another direction this could go would be taking a dyn reference.
 pub fn fit_to_bezpath(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
     let mut path = BezPath::new();
     fit_to_bezpath_rec(source, 0.0..1.0, accuracy, &mut path);
@@ -144,13 +181,14 @@ pub fn fit_to_cubic(
     // will be useful (ie resulting chord is longer), otherwise simple short
     // cubic (maybe raised line).
 
-    let start = source.sample(range.start, 1.0);
-    let end = source.sample(range.end, -1.0);
+    let start = source.sample_pt_tangent(range.start, 1.0);
+    let end = source.sample_pt_tangent(range.end, -1.0);
     let d = end.p - start.p;
     let th = d.atan2();
     let chord = d.hypot();
     let th0 = start.tangent.atan2() - th;
     let th1 = th - end.tangent.atan2();
+    generic_area_moment(source, range.clone());
     let (raw_area, raw_moment) = source.area_moment(range.clone());
     let area = raw_area / chord.powi(2);
     let moment = raw_moment / chord.powi(3);
@@ -165,7 +203,7 @@ pub fn fit_to_cubic(
     const N_SAMPLE: usize = 10;
     let step: f64 = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
     let samples: ArrayVec<_, 10> = (0..N_SAMPLE)
-        .map(|i| source.sample(range.start + (i + 1) as f64 * step, 1.0))
+        .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
         .collect();
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
@@ -281,4 +319,36 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
             }
         })
         .collect()
+}
+
+fn generic_area_moment(source: &impl ParamCurveFit, range: Range<f64>) -> (f64, f64) {
+    // Discussion point: could take p0 and p1 as args, to avoid duplicate
+    // computation. But maybe we can get rid of them altogether.
+    let p0 = source.sample_pt_tangent(range.start, 1.0).p;
+    let p1 = source.sample_pt_tangent(range.end, -1.0).p;
+    let chord = p1 - p0;
+    // Discussion point: I believe if we took (x / ds^2, y / ds^2) we would
+    // normalize to unit chord, avoiding a square root here and divisions later.
+    let cnorm = chord.normalize();
+    let dt = range.end - range.start;
+    let (a, mx) = GAUSS_LEGENDRE_COEFFS_16
+        .iter()
+        .map(|(wi, xi)| {
+            let t = range.start + 0.5 * dt * (1.0 + xi);
+            let (p, d) = source.sample_pt_deriv(t);
+            // TODO: a very fancy optimization would be to lift this translation
+            // and rotation out of the inner loop, computing raw values and then
+            // transforming them after.
+            let trans_p = p - p0;
+            let rot_p = Point::new(
+                trans_p.x * cnorm.x + trans_p.y * cnorm.y,
+                trans_p.y * cnorm.x - trans_p.x * cnorm.y,
+            );
+            let rot_dx = d.x * cnorm.x + d.y * cnorm.y;
+            let a = (0.5 * wi) * rot_dx * rot_p.y;
+            let mx = a * rot_p.x;
+            (a, mx)
+        })
+        .fold((0.0, 0.0), |(a0, x0), (a1, x1)| (a0 + a1, x0 + x1));
+    (a * dt, mx * dt)
 }
