@@ -5,7 +5,9 @@ use std::ops::Range;
 use arrayvec::ArrayVec;
 
 use crate::{
-    common::{factor_quartic_inner, solve_cubic, solve_quadratic, GAUSS_LEGENDRE_COEFFS_16},
+    common::{
+        factor_quartic_inner, solve_cubic, solve_itp, solve_quadratic, GAUSS_LEGENDRE_COEFFS_16,
+    },
     Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
 };
 
@@ -44,7 +46,7 @@ pub trait ParamCurveFit {
     ///
     /// A default implementation is proved which does quadrature integration
     /// with Green's theorem.
-    /// 
+    ///
     /// Discussion point: there are (at least) two ways this could go for
     /// better robustness, flexibility, and efficiency.
     ///
@@ -155,7 +157,7 @@ fn fit_to_bezpath_rec(
     if let Some(t) = source.break_cusp(start..end) {
         fit_to_bezpath_rec(source, start..t, accuracy, path);
         fit_to_bezpath_rec(source, t..end, accuracy, path);
-    } else if let Some(c) = fit_to_cubic(source, start..end, accuracy) {
+    } else if let Some((c, _)) = fit_to_cubic(source, start..end, accuracy) {
         if path.is_empty() {
             path.move_to(c.p0);
         }
@@ -171,12 +173,13 @@ fn fit_to_bezpath_rec(
 
 /// Fit a single cubic to a range of the source curve.
 ///
+/// Returns the cubic segment and the square of the error.
 /// Discussion question: should this be a method on the trait instead?
 pub fn fit_to_cubic(
     source: &impl ParamCurveFit,
     range: Range<f64>,
     accuracy: f64,
-) -> Option<CubicBez> {
+) -> Option<(CubicBez, f64)> {
     // TODO: handle case where chord is short; return `None` if subdivision
     // will be useful (ie resulting chord is longer), otherwise simple short
     // cubic (maybe raised line).
@@ -233,7 +236,10 @@ pub fn fit_to_cubic(
             best_err2 = Some(max_err2);
         }
     }
-    best_c
+    match (best_c, best_err2) {
+        (Some(c), Some(err2)) => Some((c, err2)),
+        _ => None,
+    }
 }
 
 /// Returns curves matching area and moment, given unit chord.
@@ -318,4 +324,85 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
             }
         })
         .collect()
+}
+
+const HUGE: f64 = 1e12;
+
+/// Optimized curve fitting.
+///
+/// Note: right now this only handles smooth curves (no cusps).
+pub fn fit_to_bezpath_opt(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
+    let mut path = BezPath::new();
+    let (c, err2) = fit_to_cubic(source, 0.0..1.0, HUGE).unwrap();
+    let err = err2.sqrt();
+    if err < accuracy {
+        path.move_to(c.p0);
+        path.curve_to(c.p1, c.p2, c.p3);
+        return path;
+    }
+    let mut t0 = 0.0;
+    let mut n = 0;
+    let last_err;
+    loop {
+        n += 1;
+        match fit_opt_segment(source, accuracy, t0) {
+            Ok(t1) => t0 = t1,
+            Err(err) => {
+                last_err = err;
+                break;
+            }
+        }
+    }
+    const EPS: f64 = 1e-9;
+    let f = |x| fit_opt_err_delta(source, x, n);
+    let k1 = 0.2 / accuracy;
+    let ya = -err;
+    let yb = accuracy - last_err;
+    let x = solve_itp(f, 0.0, accuracy, EPS, 1, k1, ya, yb);
+    println!("got fit with n={}, err={}", n, x);
+    t0 = 0.0;
+    for i in 0..n {
+        let t1 = if i < n - 1 {
+            fit_opt_segment(source, x, t0).unwrap()
+        } else {
+            1.0
+        };
+        let (c, _) = fit_to_cubic(source, t0..t1, HUGE).unwrap();
+        if i == 0 {
+            path.move_to(c.p0);
+        }
+        path.curve_to(c.p1, c.p2, c.p3);
+        t0 = t1;
+    }
+    path
+}
+
+/// An Ok return is the t1 that hits the desired accuracy.
+/// An Err return is the error of t0..1.
+fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, t0: f64) -> Result<f64, f64> {
+    let (_, err2) = fit_to_cubic(source, t0..1.0, HUGE).unwrap();
+    let err = err2.sqrt();
+    if err <= accuracy {
+        return Err(err);
+    }
+    let f = |x| {
+        let (_, err2) = fit_to_cubic(source, t0..x, HUGE).unwrap();
+        err2.sqrt() - accuracy
+    };
+    const EPS: f64 = 1e-9;
+    let k1 = 0.2 / (1.0 - t0);
+    let t1 = solve_itp(f, t0, 1.0, EPS, 1, k1, -accuracy, err - accuracy);
+    Ok(t1)
+}
+
+// Returns delta error (accuracy - error of last seg)
+fn fit_opt_err_delta(source: &impl ParamCurveFit, accuracy: f64, n: usize) -> f64 {
+    let mut t0 = 0.0;
+    for _ in 0..n - 1 {
+        // If this returns Err, then n - 1 will work, which of course means the
+        // error is highly non-monotonic. We should probably harvest that solution.
+        t0 = fit_opt_segment(source, accuracy, t0).unwrap();
+    }
+    let (_, err2) = fit_to_cubic(source, t0..1.0, HUGE).unwrap();
+    accuracy - err2.sqrt()
 }
