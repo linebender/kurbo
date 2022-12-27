@@ -38,54 +38,33 @@ pub trait ParamCurveFit {
     /// In curves with cusps, the derivative can go to zero.
     fn sample_pt_deriv(&self, t: f64) -> (Point, Vec2);
 
-    /// Compute signed area and moment for the given range.
+    /// Compute moment integrals.
     ///
-    /// Compute the signed area and the moment along the x axis for the curve
-    /// rotated and translated so the start point is on the origin and the end
-    /// point is on the x axis.
+    /// This method computes the integrals of y dx, x y dx, and y^2 dx over the
+    /// length of this curve. From these integrals it is fairly straightforward
+    /// to derive the moments needed for curve fitting.
     ///
     /// A default implementation is proved which does quadrature integration
-    /// with Green's theorem.
+    /// with Green's theorem, in terms of samples evaulated with
+    /// [`sample_pt_deriv`].
     ///
-    /// Discussion point: there are (at least) two ways this could go for
-    /// better robustness, flexibility, and efficiency.
-    ///
-    /// A small optimization would be to return values normalized to the unit
-    /// chord.
-    ///
-    /// A more profound change would be to return moments not normalized to the
-    /// chord at all. This would allow (with some adaption) actually fitting
-    /// when the chord vanishes.
-    fn area_moment(&self, range: Range<f64>) -> (f64, f64) {
-        // Discussion point: could take p0 and p1 as args, to avoid duplicate
-        // computation. But maybe we can get rid of them altogether.
-        let p0 = self.sample_pt_tangent(range.start, 1.0).p;
-        let p1 = self.sample_pt_tangent(range.end, -1.0).p;
-        let chord = p1 - p0;
-        // Discussion point: I believe if we took (x / ds^2, y / ds^2) we would
-        // normalize to unit chord, avoiding a square root here and divisions later.
-        let cnorm = chord.normalize();
-        let dt = range.end - range.start;
-        let (a, mx) = GAUSS_LEGENDRE_COEFFS_16
+    /// [`sample_pt_deriv`]: ParamCurveFit::sample_pt_deriv
+    fn moment_integrals(&self, range: Range<f64>) -> (f64, f64, f64) {
+        let t0 = 0.5 * (range.start + range.end);
+        let dt = 0.5 * (range.end - range.start);
+        GAUSS_LEGENDRE_COEFFS_16
             .iter()
             .map(|(wi, xi)| {
-                let t = range.start + 0.5 * dt * (1.0 + xi);
+                let t = t0 + xi * dt;
                 let (p, d) = self.sample_pt_deriv(t);
-                // TODO: a very fancy optimization would be to lift this translation
-                // and rotation out of the inner loop, computing raw values and then
-                // transforming them after.
-                let trans_p = p - p0;
-                let rot_p = Point::new(
-                    trans_p.x * cnorm.x + trans_p.y * cnorm.y,
-                    trans_p.y * cnorm.x - trans_p.x * cnorm.y,
-                );
-                let rot_dx = d.x * cnorm.x + d.y * cnorm.y;
-                let a = (0.5 * wi) * rot_dx * rot_p.y;
-                let mx = a * rot_p.x;
-                (a, mx)
+                let a = (0.5 * wi) * d.x * p.y;
+                let x = p.x * a;
+                let y = p.y * a;
+                (a, x, y)
             })
-            .fold((0.0, 0.0), |(a0, x0), (a1, x1)| (a0 + a1, x0 + x1));
-        (a * dt, mx * dt)
+            .fold((0.0, 0.0, 0.0), |(a0, x0, y0), (a1, x1, y1)| {
+                (a0 + a1, x0 + x1, y0 + y1)
+            })
     }
 
     /// Find a cusp or corner within the given range.
@@ -188,13 +167,36 @@ pub fn fit_to_cubic(
     let end = source.sample_pt_tangent(range.end, -1.0);
     let d = end.p - start.p;
     let th = d.atan2();
-    let chord = d.hypot();
+    let chord2 = d.hypot2();
     let th0 = start.tangent.atan2() - th;
     let th1 = th - end.tangent.atan2();
-    let (raw_area, raw_moment) = source.area_moment(range.clone());
-    let area = raw_area / chord.powi(2);
-    let moment = raw_moment / chord.powi(3);
-    let a = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
+
+    let (a, x, y) = source.moment_integrals(range.clone());
+    let (x0, y0) = (start.p.x, start.p.y);
+    let (dx, dy) = (d.x, d.y);
+    let dt = range.end - range.start;
+    let area = a * dt - dx * (y0 + 0.5 * dy);
+    // `area` is signed area of closed curve segment (ie with chord subtracted).
+    // This quantity is invariant to translation and rotation.
+    // Subtract off moment of chord
+    let mut x = x * dt - dx * (x0 * y0 + 0.5 * (x0 * dy + y0 * dx) + (1. / 3.) * dy * dx);
+    let mut y = y * dt - dx * (y0 * y0 + y0 * dy + (1. / 3.) * dy * dy);
+    // Translate start point to origin; convert to moments.
+    x -= x0 * area;
+    y = 0.5 * y - y0 * area;
+    // Rotate into place (this also scales up by chordlength for efficiency).
+    let moment = d.x * x + d.y * y;
+    // `moment` is the chordlength times the x moment of the curve translated
+    // so its start point is on the origin, and rotated so its end point is on the
+    // x axis.
+
+    let chord2_inv = chord2.recip();
+    let unit_area = area * chord2_inv;
+    let mx = moment * chord2_inv.powi(2);
+    // `area` is signed area scaled to unit chord; `moment` is scaled x moment
+
+    let chord = chord2.sqrt();
+    let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
     // A few things here.
     //
     // First, it's not awesome to sample `t` uniformly, it would be better to
@@ -210,8 +212,8 @@ pub fn fit_to_cubic(
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
-    for cand in cubic_fit(th0, th1, area, moment) {
-        let c = a * cand;
+    for cand in cubic_fit(th0, th1, unit_area, mx) {
+        let c = aff * cand;
         let mut max_err2 = 0.0;
         for sample in &samples {
             let intersections = sample.intersect(c);
@@ -390,7 +392,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, t0: f64) -> Resul
         err2.sqrt() - accuracy
     };
     const EPS: f64 = 1e-9;
-    let k1 = 0.2 / (1.0 - t0);
+    let k1 = 2.0 / (1.0 - t0);
     let t1 = solve_itp(f, t0, 1.0, EPS, 1, k1, -accuracy, err - accuracy);
     Ok(t1)
 }
