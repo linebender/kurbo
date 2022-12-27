@@ -52,19 +52,20 @@ pub trait ParamCurveFit {
     fn moment_integrals(&self, range: Range<f64>) -> (f64, f64, f64) {
         let t0 = 0.5 * (range.start + range.end);
         let dt = 0.5 * (range.end - range.start);
-        GAUSS_LEGENDRE_COEFFS_16
+        let (a, x, y) = GAUSS_LEGENDRE_COEFFS_16
             .iter()
             .map(|(wi, xi)| {
                 let t = t0 + xi * dt;
                 let (p, d) = self.sample_pt_deriv(t);
-                let a = (0.5 * wi) * d.x * p.y;
+                let a = wi * d.x * p.y;
                 let x = p.x * a;
                 let y = p.y * a;
                 (a, x, y)
             })
             .fold((0.0, 0.0, 0.0), |(a0, x0, y0), (a1, x1, y1)| {
                 (a0 + a1, x0 + x1, y0 + y1)
-            })
+            });
+        (a * dt, x * dt, y * dt)
     }
 
     /// Find a cusp or corner within the given range.
@@ -107,7 +108,7 @@ impl CurveFitSample {
         let c3 = p3.dot(self.tangent);
         solve_cubic(c0, c1, c2, c3)
             .into_iter()
-            .filter(|&t| t >= 0. && t <= 1.)
+            .filter(|t| (0.0..=1.0).contains(t))
             .collect()
     }
 }
@@ -171,17 +172,19 @@ pub fn fit_to_cubic(
     let th0 = start.tangent.atan2() - th;
     let th1 = th - end.tangent.atan2();
 
-    let (a, x, y) = source.moment_integrals(range.clone());
+    let (mut area, mut x, mut y) = source.moment_integrals(range.clone());
     let (x0, y0) = (start.p.x, start.p.y);
     let (dx, dy) = (d.x, d.y);
-    let dt = range.end - range.start;
-    let area = a * dt - dx * (y0 + 0.5 * dy);
-    // `area` is signed area of closed curve segment (ie with chord subtracted).
+    // Subtract off area of chord
+    area -= dx * (y0 + 0.5 * dy);
+    // `area` is signed area of closed curve segment.
     // This quantity is invariant to translation and rotation.
+
     // Subtract off moment of chord
-    let mut x = x * dt - dx * (x0 * y0 + 0.5 * (x0 * dy + y0 * dx) + (1. / 3.) * dy * dx);
-    let mut y = y * dt - dx * (y0 * y0 + y0 * dy + (1. / 3.) * dy * dy);
-    // Translate start point to origin; convert to moments.
+    let dy_3 = dy * (1. / 3.);
+    x -= dx * (x0 * y0 + 0.5 * (x0 * dy + y0 * dx) + dy_3 * dx);
+    y -= dx * (y0 * y0 + y0 * dy + dy_3 * dy);
+    // Translate start point to origin; convert raw integrals to moments.
     x -= x0 * area;
     y = 0.5 * y - y0 * area;
     // Rotate into place (this also scales up by chordlength for efficiency).
@@ -193,7 +196,7 @@ pub fn fit_to_cubic(
     let chord2_inv = chord2.recip();
     let unit_area = area * chord2_inv;
     let mx = moment * chord2_inv.powi(2);
-    // `area` is signed area scaled to unit chord; `moment` is scaled x moment
+    // `unit_area` is signed area scaled to unit chord; `mx` is scaled x moment
 
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
@@ -379,17 +382,21 @@ pub fn fit_to_bezpath_opt(source: &impl ParamCurveFit, accuracy: f64) -> BezPath
     path
 }
 
+fn measure_one_seg(source: &impl ParamCurveFit, range: Range<f64>) -> Option<f64> {
+    fit_to_cubic(source, range, HUGE).map(|(_, err2)| err2.sqrt())
+}
+
 /// An Ok return is the t1 that hits the desired accuracy.
 /// An Err return is the error of t0..1.
 fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, t0: f64) -> Result<f64, f64> {
-    let (_, err2) = fit_to_cubic(source, t0..1.0, HUGE).unwrap();
-    let err = err2.sqrt();
+    let missing_err = accuracy * 2.0;
+    let err = measure_one_seg(source, t0..1.0).unwrap_or(missing_err);
     if err <= accuracy {
         return Err(err);
     }
     let f = |x| {
-        let (_, err2) = fit_to_cubic(source, t0..x, HUGE).unwrap();
-        err2.sqrt() - accuracy
+        let err = measure_one_seg(source, t0..x).unwrap_or(missing_err);
+        err - accuracy
     };
     const EPS: f64 = 1e-9;
     let k1 = 2.0 / (1.0 - t0);
@@ -405,6 +412,6 @@ fn fit_opt_err_delta(source: &impl ParamCurveFit, accuracy: f64, n: usize) -> f6
         // error is highly non-monotonic. We should probably harvest that solution.
         t0 = fit_opt_segment(source, accuracy, t0).unwrap();
     }
-    let (_, err2) = fit_to_cubic(source, t0..1.0, HUGE).unwrap();
-    accuracy - err2.sqrt()
+    let err = measure_one_seg(source, t0..1.0).unwrap_or(accuracy * 2.0);
+    accuracy - err
 }

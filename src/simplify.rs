@@ -1,124 +1,22 @@
 //! Simplification of a Bézier path
 
-use crate::CubicBez;
+use std::ops::Range;
 
-/// Compute moment integrals.
-pub fn moment_integrals(c: CubicBez) -> (f64, f64, f64) {
-    let (x0, y0) = (c.p0.x, c.p0.y);
-    let (x1, y1) = (c.p1.x, c.p1.y);
-    let (x2, y2) = (c.p2.x, c.p2.y);
-    let (x3, y3) = (c.p3.x, c.p3.y);
-    let r0 = x0 * y3;
-    let r1 = x0 * y0;
-    let r2 = x0 * y1;
-    let r3 = 3. * y2;
-    let r4 = r3 * x0;
-    let r5 = x1 * y3;
-    let r6 = 3. * r5;
-    let r7 = x2 * y3;
-    let r8 = 45. * x1;
-    let r9 = 45. * x0;
-    let r10 = 15. * r0;
-    let r11 = 18. * x0;
-    let r12 = 12. * r0;
-    let r13 = 27. * y2;
-    let r14 = x0.powi(2);
-    let r15 = 105. * y1;
-    let r16 = 30. * y2;
-    let r17 = x1.powi(2);
-    let r18 = x2.powi(2);
-    let r19 = x3.powi(2);
-    let r20 = 45. * y2;
-    let r21 = y0.powi(2);
-    let r22 = y1.powi(2);
-    let r23 = y2.powi(2);
-    let r24 = y3.powi(2);
+use crate::{
+    CubicBez, CurveFitSample, ParamCurve, ParamCurveDeriv, ParamCurveFit, PathEl, Point, Vec2,
+};
 
-    let a = -r0 - 10. * r1 - 6. * r2 - r3 * x1 - r4 - r6 - 6. * r7
-        + 6. * x1 * y0
-        + 3. * x2 * y0
-        + 3. * x2 * y1
-        + x3 * y0
-        + 3. * x3 * y1
-        + 6. * x3 * y2
-        + 10. * x3 * y3;
-    let x = -5. * r0 * x3
-        - r10 * x1
-        - r11 * x2 * y2
-        - r12 * x2
-        - r13 * r17
-        - r13 * x1 * x2
-        - r14 * r15
-        - r14 * r16
-        - 280. * r14 * y0
-        - 5. * r14 * y3
-        + 45. * r17 * y0
-        - 18. * r17 * y3
-        + 18. * r18 * y0
-        + 27. * r18 * y1
-        - 45. * r18 * y3
-        + 5. * r19 * y0
-        + 30. * r19 * y1
-        + 105. * r19 * y2
-        + 280. * r19 * y3
-        - r2 * r8
-        - r4 * x3
-        - 30. * r5 * x3
-        - r7 * r8
-        - 105. * r7 * x3
-        - r9 * x1 * y2
-        + 105. * x0 * x1 * y0
-        + 30. * x0 * x2 * y0
-        + 5. * x0 * x3 * y0
-        + 3. * x0 * x3 * y1
-        + 45. * x1 * x2 * y0
-        + 27. * x1 * x2 * y1
-        + 12. * x1 * x3 * y0
-        + 15. * x2 * x3 * y0
-        + 18. * x1 * x3 * y1
-        + 45. * x2 * x3 * y1
-        + 45. * x2 * x3 * y2;
-    let y = -5. * r0 * y0
-        - r1 * r15
-        - r1 * r16
-        - r10 * y2
-        - r11 * r23
-        - r12 * y1
-        - r13 * x1 * y1
-        - r2 * r20
-        - r20 * r5
-        - r20 * r7
-        - 140. * r21 * x0
-        + 105. * r21 * x1
-        + 30. * r21 * x2
-        + 5. * r21 * x3
-        - r22 * r9
-        + 27. * r22 * x2
-        + 18. * r22 * x3
-        - 27. * r23 * x1
-        + 45. * r23 * x3
-        - 5. * r24 * x0
-        - 30. * r24 * x1
-        - 105. * r24 * x2
-        + 140. * r24 * x3
-        - 18. * r5 * y1
-        - r6 * y0
-        + 45. * x1 * y0 * y1
-        + 45. * x2 * y0 * y1
-        + 18. * x2 * y0 * y2
-        + 3. * x2 * y0 * y3
-        + 27. * x2 * y1 * y2
-        + 15. * x3 * y0 * y1
-        + 12. * x3 * y0 * y2
-        + 5. * x3 * y0 * y3
-        + 45. * x3 * y1 * y2
-        + 30. * x3 * y1 * y3
-        + 105. * x3 * y2 * y3;
-    (a * (1. / 20.), x * (1. / 840.), y * (1. / 420.))
+/// A Bézier path which has been prepared for simplification.
+pub struct SimplifyBezPath(Vec<SimplifyCubic>);
+
+struct SimplifyCubic {
+    c: CubicBez,
+    // The inclusive prefix sum of the moment integrals
+    moments: (f64, f64, f64),
 }
 
 /// Compute moment integrals.
-pub fn moment_integrals2(c: CubicBez) -> (f64, f64, f64) {
+pub fn moment_integrals(c: CubicBez) -> (f64, f64, f64) {
     let (x0, y0) = (c.p0.x, c.p0.y);
     let (x1, y1) = (c.p1.x - x0, c.p1.y - y0);
     let (x2, y2) = (c.p2.x - x0, c.p2.y - y0);
@@ -173,7 +71,100 @@ pub fn moment_integrals2(c: CubicBez) -> (f64, f64, f64) {
         - r8 * y2;
 
     let mx = x * (1. / 840.) + x0 * area + 0.5 * x3 * lift;
-    let my = y * (1. / 420.) + y0 * a * 0.1 + x0 * lift;
+    let my = y * (1. / 420.) + y0 * a * 0.1 + y0 * lift;
 
     (area, mx, my)
+}
+
+impl SimplifyBezPath {
+    /// Set up a new Bézier path for simplification.
+    ///
+    /// Currently this is not dealing with discontinuities at all, but it
+    /// could be extended to do so.
+    pub fn new(path: impl IntoIterator<Item = PathEl>) -> Self {
+        let (mut a, mut x, mut y) = (0.0, 0.0, 0.0);
+        let els = crate::segments(path)
+            .map(|seg| {
+                let c = seg.to_cubic();
+                let (ai, xi, yi) = moment_integrals(c);
+                a += ai;
+                x += xi;
+                y += yi;
+                SimplifyCubic {
+                    c,
+                    moments: (a, x, y),
+                }
+            })
+            .collect();
+        SimplifyBezPath(els)
+    }
+
+    /// Resolve a `t` value to a cubic.
+    ///
+    /// Also return the resulting `t` value for the selected cubic.
+    fn scale(&self, t: f64) -> (usize, f64) {
+        let t_scale = t * self.0.len() as f64;
+        let t_floor = t_scale.floor();
+        (t_floor as usize, t_scale - t_floor)
+    }
+
+    fn moment_integrals(&self, i: usize, range: Range<f64>) -> (f64, f64, f64) {
+        if range.end == range.start {
+            (0.0, 0.0, 0.0)
+        } else {
+            moment_integrals(self.0[i].c.subsegment(range))
+        }
+    }
+}
+
+impl ParamCurveFit for SimplifyBezPath {
+    fn sample_pt_deriv(&self, t: f64) -> (Point, Vec2) {
+        let (mut i, mut t0) = self.scale(t);
+        let n = self.0.len();
+        if i == n {
+            i -= 1;
+            t0 = 1.0;
+        }
+        let c = self.0[i].c;
+        (c.eval(t0), c.deriv().eval(t0).to_vec2() * n as f64)
+    }
+
+    fn sample_pt_tangent(&self, t: f64, _: f64) -> CurveFitSample {
+        let (mut i, mut t0) = self.scale(t);
+        if i == self.0.len() {
+            i -= 1;
+            t0 = 1.0;
+        }
+        let c = self.0[i].c;
+        let p = c.eval(t0);
+        let tangent = c.deriv().eval(t0).to_vec2();
+        CurveFitSample { p, tangent }
+    }
+
+    // We could use the default implementation, but provide our own, mostly
+    // because it is possible to efficiently provide an analytically accurate
+    // answer.
+    fn moment_integrals(&self, range: Range<f64>) -> (f64, f64, f64) {
+        let (i0, t0) = self.scale(range.start);
+        let (i1, t1) = self.scale(range.end);
+        if i0 == i1 {
+            self.moment_integrals(i0, t0..t1)
+        } else {
+            let (a0, x0, y0) = self.moment_integrals(i0, t0..1.0);
+            let (a1, x1, y1) = self.moment_integrals(i1, 0.0..t1);
+            let (mut a, mut x, mut y) = (a0 + a1, x0 + x1, y0 + y1);
+            if i1 > i0 + 1 {
+                let (a2, x2, y2) = self.0[i0].moments;
+                let (a3, x3, y3) = self.0[i1 - 1].moments;
+                a += a3 - a2;
+                x += x3 - x2;
+                y += y3 - y2;
+            }
+            (a, x, y)
+        }
+    }
+
+    fn break_cusp(&self, _: Range<f64>) -> Option<f64> {
+        None
+    }
 }

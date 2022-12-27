@@ -1,4 +1,4 @@
-use kurbo::{fit_to_bezpath, offset::CubicOffset, CubicBez, Shape};
+use kurbo::{offset::CubicOffset, CubicBez, Shape};
 
 fn main() {
     println!("<svg width='800' height='600' xmlns='http://www.w3.org/2000/svg'>");
