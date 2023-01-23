@@ -306,7 +306,7 @@ mod tests {
     use std::f64::consts::PI;
 
     fn assert_near(p0: Point, p1: Point) {
-        assert!((p1 - p0).hypot() < 1e-9, "{:?} != {:?}", p0, p1);
+        assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
     }
 
     #[test]

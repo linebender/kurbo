@@ -276,7 +276,7 @@ mod tests {
     use crate::{Affine, Point, TranslateScale, Vec2};
 
     fn assert_near(p0: Point, p1: Point) {
-        assert!((p1 - p0).hypot() < 1e-9, "{:?} != {:?}", p0, p1);
+        assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
     }
 
     #[test]

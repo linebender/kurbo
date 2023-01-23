@@ -220,7 +220,7 @@ fn D_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
 
 // Bezier basis function
 fn basis_function(n: usize, i: usize, u: f64) -> f64 {
-    choose(n, i) as f64 * (1.0 - u as f64).powi((n - i) as i32) * u.powi(i as i32)
+    choose(n, i) as f64 * (1.0 - u).powi((n - i) as i32) * u.powi(i as i32)
 }
 
 // Binomial co-efficient, but returning zeros for values outside of domain
@@ -266,9 +266,9 @@ mod tests {
             Vec2::new(309.0, 408.0),
         ];
         let b = A_r(1, &bez2);
-        assert!((b - 80283.0).abs() < 0.005, "B_1(Q)={:?}", b);
+        assert!((b - 80283.0).abs() < 0.005, "B_1(Q)={b:?}");
         let d = D_rk(0, 1, &bez1, &bez2);
-        assert!((d - 9220.0).abs() < 0.005, "D={:?}", d);
+        assert!((d - 9220.0).abs() < 0.005, "D={d:?}");
     }
 
     #[test]

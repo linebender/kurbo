@@ -357,7 +357,7 @@ mod tests {
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy
         // of the conversion into Béziers. But this seems good enough.
-        assert!((x - y).abs() < 1e-7, "{} != {}", x, y);
+        assert!((x - y).abs() < 1e-7, "{x} != {y}");
     }
 
     #[test]

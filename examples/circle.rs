@@ -9,9 +9,9 @@ fn main() {
     println!("<body>");
     println!("<svg height=\"800\" width=\"800\">");
     let path = circle.to_path(1e-3).to_svg();
-    println!("  <path d=\"{}\" stroke=\"black\" fill=\"none\" />", path);
+    println!("  <path d=\"{path}\" stroke=\"black\" fill=\"none\" />");
     let path = circle.to_path(1.0).to_svg();
-    println!("  <path d=\"{}\" stroke=\"red\" fill=\"none\" />", path);
+    println!("  <path d=\"{path}\" stroke=\"red\" fill=\"none\" />");
     println!("</svg>");
     println!("</body>");
     println!("</html>");

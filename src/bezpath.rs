@@ -1322,7 +1322,7 @@ mod tests {
     use super::*;
 
     fn assert_approx_eq(x: f64, y: f64) {
-        assert!((x - y).abs() < 1e-8, "{} != {}", x, y);
+        assert!((x - y).abs() < 1e-8, "{x} != {y}");
     }
 
     #[test]
