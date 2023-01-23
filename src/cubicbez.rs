@@ -697,10 +697,7 @@ mod tests {
                 let actual_arc = c.subsegment(0.0..t).arclen(accuracy * 0.5);
                 assert!(
                     (arc - actual_arc).abs() < accuracy,
-                    "at accuracy {:e}, wanted {} got {}",
-                    accuracy,
-                    actual_arc,
-                    arc
+                    "at accuracy {accuracy:e}, wanted {actual_arc} got {arc}"
                 );
             }
         }
@@ -711,10 +708,7 @@ mod tests {
         let actual_arc = c.subsegment(0.0..t).arclen(accuracy);
         assert!(
             (arc - actual_arc).abs() < 2.0 * accuracy,
-            "at accuracy {:e}, want {} got {}",
-            accuracy,
-            actual_arc,
-            arc
+            "at accuracy {accuracy:e}, want {actual_arc} got {arc}"
         );
     }
 
@@ -762,9 +756,7 @@ mod tests {
         fn verify(result: Nearest, expected: f64) {
             assert!(
                 (result.t - expected).abs() < 1e-6,
-                "got {:?} expected {}",
-                result,
-                expected
+                "got {result:?} expected {expected}"
             );
         }
         // y = x^3
@@ -823,7 +815,7 @@ mod tests {
                     let p = q.eval(t);
                     let err = (p.y - p.x.powi(3)).abs();
                     worst = worst.max(err);
-                    assert!(err < accuracy, "got {} wanted {}", err, accuracy);
+                    assert!(err < accuracy, "got {err} wanted {accuracy}");
                 }
             }
         }

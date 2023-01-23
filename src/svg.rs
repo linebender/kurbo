@@ -246,7 +246,7 @@ impl Display for SvgParseError {
         match self {
             SvgParseError::Wrong => write!(f, "Unable to parse a number"),
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
-            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{}\"", letter),
+            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
         }
     }
 }

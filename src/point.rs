@@ -305,10 +305,10 @@ mod tests {
     #[test]
     fn display() {
         let p = Point::new(0.12345, 9.87654);
-        assert_eq!(format!("{}", p), "(0.12345, 9.87654)");
+        assert_eq!(format!("{p}"), "(0.12345, 9.87654)");
 
         let p = Point::new(0.12345, 9.87654);
-        assert_eq!(format!("{:.2}", p), "(0.12, 9.88)");
+        assert_eq!(format!("{p:.2}"), "(0.12, 9.88)");
     }
 }
 

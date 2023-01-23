@@ -708,10 +708,10 @@ mod tests {
     fn display() {
         let r = Rect::from_origin_size((10., 12.23214), (22.222222222, 23.1));
         assert_eq!(
-            format!("{}", r),
+            format!("{r}"),
             "Rect { (10, 12.23214) (22.222222222×23.1) }"
         );
-        assert_eq!(format!("{:.2}", r), "Rect { (10.00, 12.23) (22.22×23.10) }");
+        assert_eq!(format!("{r:.2}"), "Rect { (10.00, 12.23) (22.22×23.10) }");
     }
 
     /* TODO uncomment when a (possibly approximate) equality test has been decided on

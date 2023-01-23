@@ -184,7 +184,7 @@ fn run_simple() {
         let elapsed = duration_to_time(start_time.elapsed());
         let err = true_len - est;
         if i > 0 {
-            println!("{} {}", elapsed, err);
+            println!("{elapsed} {err}");
         }
     }
 }

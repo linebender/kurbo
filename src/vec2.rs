@@ -385,7 +385,7 @@ mod tests {
     #[test]
     fn display() {
         let v = Vec2::new(1.2332421, 532.10721213123);
-        let s = format!("{:.2}", v);
+        let s = format!("{v:.2}");
         assert_eq!(s.as_str(), "𝐯=(1.23, 532.11)");
     }
 }

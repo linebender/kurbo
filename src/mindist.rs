@@ -266,9 +266,9 @@ mod tests {
             Vec2::new(309.0, 408.0),
         ];
         let b = A_r(1, &bez2);
-        assert!((b - 80283.0).abs() < 0.005, "B_1(Q)={:?}", b);
+        assert!((b - 80283.0).abs() < 0.005, "B_1(Q)={b:?}");
         let d = D_rk(0, 1, &bez1, &bez2);
-        assert!((d - 9220.0).abs() < 0.005, "D={:?}", d);
+        assert!((d - 9220.0).abs() < 0.005, "D={d:?}");
     }
 
     #[test]
