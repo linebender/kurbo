@@ -1,7 +1,7 @@
 //! A 2D point.
 
 use std::fmt;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::Vec2;
@@ -256,6 +256,60 @@ impl Sub<Point> for Point {
     #[inline]
     fn sub(self, other: Point) -> Vec2 {
         Vec2::new(self.x - other.x, self.y - other.y)
+    }
+}
+
+impl Neg for Point {
+    type Output = Point;
+
+    #[inline]
+    fn neg(self) -> Point {
+        Point::new(-self.x, -self.y)
+    }
+}
+
+impl Mul<f64> for Point {
+    type Output = Point;
+
+    #[inline]
+    fn mul(self, other: f64) -> Self {
+        Point::new(self.x * other, self.y * other)
+    }
+}
+
+impl Mul<Point> for f64 {
+    type Output = Point;
+
+    #[inline]
+    fn mul(self, other: Point) -> Point {
+        other * self
+    }
+}
+
+impl MulAssign<f64> for Point {
+    #[inline]
+    fn mul_assign(&mut self, other: f64) {
+        *self = Point::new(self.x * other, self.y * other)
+    }
+}
+
+impl Div<f64> for Point {
+    type Output = Point;
+
+    // Note: division by a scalar is implemented by multiplying by the reciprocal.
+    //
+    // This is more efficient but has different roundoff behavior than division.
+    #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    fn div(self, other: f64) -> Point {
+        self * other.recip()
+    }
+}
+
+impl DivAssign<f64> for Point {
+    #[inline]
+    fn div_assign(&mut self, other: f64) {
+        self.mul_assign(other.recip());
     }
 }
 
