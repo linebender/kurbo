@@ -548,7 +548,10 @@ mod tests {
         ];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
-        assert_eq!(path.to_svg(), "M10,10 C20,20 30,30 40,40 C30,30 20,20 10,10");
+        assert_eq!(
+            path.to_svg(),
+            "M10,10 C20,20 30,30 40,40 C30,30 20,20 10,10"
+        );
     }
 
     #[test]
