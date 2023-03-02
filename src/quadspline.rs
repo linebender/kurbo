@@ -35,8 +35,7 @@ impl QuadSpline {
 
     /// Return an iterator over the implied [`QuadBez`] sequence.
     ///
-    /// The returns quads are guarranteed to be G1 continuous because
-    /// this is a B-spline.
+    /// The returns quads are guaranteed to be G1 continuous.
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = QuadBez> + '_ {
         ToQuadBez {
