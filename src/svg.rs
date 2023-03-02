@@ -65,14 +65,17 @@ impl BezPath {
 
     /// Write the SVG representation of this path to the provided buffer.
     pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        for el in self.elements() {
+        for (i, el) in self.elements().iter().enumerate() {
+            if i > 0 {
+                write!(writer, " ")?;
+            }
             match *el {
-                PathEl::MoveTo(p) => write!(writer, "M{} {}", p.x, p.y)?,
-                PathEl::LineTo(p) => write!(writer, "L{} {}", p.x, p.y)?,
-                PathEl::QuadTo(p1, p2) => write!(writer, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y)?,
+                PathEl::MoveTo(p) => write!(writer, "M{},{}", p.x, p.y)?,
+                PathEl::LineTo(p) => write!(writer, "L{},{}", p.x, p.y)?,
+                PathEl::QuadTo(p1, p2) => write!(writer, "Q{},{} {},{}", p1.x, p1.y, p2.x, p2.y)?,
                 PathEl::CurveTo(p1, p2, p3) => write!(
                     writer,
-                    "C{} {} {} {} {} {}",
+                    "C{},{} {},{} {},{}",
                     p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
                 )?,
                 PathEl::ClosePath => write!(writer, "Z")?,
@@ -522,7 +525,7 @@ mod tests {
         .into()];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
-        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40");
+        assert_eq!(path.to_svg(), "M10,10 C20,20 30,30 40,40");
     }
 
     #[test]
@@ -545,7 +548,7 @@ mod tests {
         ];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
-        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40C30 30 20 20 10 10");
+        assert_eq!(path.to_svg(), "M10,10 C20,20 30,30 40,40 C30,30 20,20 10,10");
     }
 
     #[test]
@@ -570,7 +573,7 @@ mod tests {
 
         assert_eq!(
             path.to_svg(),
-            "M10 10C20 20 30 30 40 40M50 50C30 30 20 20 10 10"
+            "M10,10 C20,20 30,30 40,40 M50,50 C30,30 20,20 10,10"
         );
     }
 
