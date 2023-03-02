@@ -83,12 +83,15 @@ mod tests {
 
     #[test]
     pub fn no_points_no_quads() {
-        assert!(QuadSpline::new(Vec::new()).iter().next() == None);
+        assert!(QuadSpline::new(Vec::new()).iter().next().is_none());
     }
 
     #[test]
     pub fn one_point_no_quads() {
-        assert!(QuadSpline::new(vec![Point::new(1.0, 1.0)]).iter().next() == None);
+        assert!(QuadSpline::new(vec![Point::new(1.0, 1.0)])
+            .iter()
+            .next()
+            .is_none());
     }
 
     #[test]
@@ -97,7 +100,7 @@ mod tests {
             QuadSpline::new(vec![Point::new(1.0, 1.0), Point::new(1.0, 1.0)])
                 .iter()
                 .next()
-                == None
+                .is_none()
         );
     }
 
