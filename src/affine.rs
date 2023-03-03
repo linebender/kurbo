@@ -77,6 +77,24 @@ impl Affine {
         Affine([1.0, 0.0, 0.0, 1.0, p.x, p.y])
     }
 
+    /// An affine transformation representing a skew.
+    ///
+    /// The skew_x and skew_y parameters represent skew factors for the
+    /// horizontal and vertical directions, respectively.
+    ///
+    /// This is commonly used to generate a faux oblique transform for
+    /// font rendering. In this case, you can slant the glyph 20 degrees
+    /// clockwise in the horizontal direction (assuming a Y-up coordinate
+    /// system):
+    ///
+    /// ```
+    /// let oblique_transform = kurbo::Affine::skew(20f64.to_radians().tan(), 0.0);
+    /// ```
+    #[inline]
+    pub fn skew(skew_x: f64, skew_y: f64) -> Affine {
+        Affine([1.0, skew_y, skew_x, 1.0, 0.0, 0.0])
+    }
+
     /// Creates an affine transformation that takes the unit square to the given rectangle.
     ///
     /// Useful when you want to draw into the unit square but have your output fill any rectangle.
@@ -318,6 +336,8 @@ mod tests {
         assert_near(Affine::rotate(0.0) * p, p);
         assert_near(Affine::rotate(PI / 2.0) * p, Point::new(-4.0, 3.0));
         assert_near(Affine::translate((5.0, 6.0)) * p, Point::new(8.0, 10.0));
+        assert_near(Affine::skew(0.0, 0.0) * p, p);
+        assert_near(Affine::skew(2.0, 4.0) * p, Point::new(11.0, 16.0));
     }
 
     #[test]
