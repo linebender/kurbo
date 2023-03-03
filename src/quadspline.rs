@@ -35,9 +35,9 @@ impl QuadSpline {
 
     /// Return an iterator over the implied [`QuadBez`] sequence.
     ///
-    /// The returns quads are guaranteed to be G1 continuous.
+    /// The returned quads are guaranteed to be G1 continuous.
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = QuadBez> + '_ {
+    pub fn to_quads(&self) -> impl Iterator<Item = QuadBez> + '_ {
         ToQuadBez {
             idx: 0,
             points: &self.0,
@@ -54,21 +54,15 @@ impl<'a> Iterator for ToQuadBez<'a> {
     type Item = QuadBez;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.idx + 2 >= self.points.len() {
-            return None; // we're done here
+        let [mut p0, p1, mut p2]: [Point; 3] =
+            self.points.get(self.idx..=self.idx + 2)?.try_into().ok()?;
+
+        if self.idx != 0 {
+            p0 = p0.midpoint(p1);
         }
-        // If we're at an off-curve, next is an off-curve, start halfway between
-        let p0 = if self.idx == 0 {
-            self.points[self.idx]
-        } else {
-            self.points[self.idx].midpoint(self.points[self.idx + 1])
-        };
-        let p1 = self.points[self.idx + 1];
-        let p2 = if self.idx + 2 == self.points.len() - 1 {
-            self.points[self.idx + 2]
-        } else {
-            self.points[self.idx + 1].midpoint(self.points[self.idx + 2])
-        };
+        if self.idx + 2 < self.points.len() - 1 {
+            p2 = p1.midpoint(p2);
+        }
 
         self.idx += 1;
 
@@ -82,13 +76,13 @@ mod tests {
 
     #[test]
     pub fn no_points_no_quads() {
-        assert!(QuadSpline::new(Vec::new()).iter().next().is_none());
+        assert!(QuadSpline::new(Vec::new()).to_quads().next().is_none());
     }
 
     #[test]
     pub fn one_point_no_quads() {
         assert!(QuadSpline::new(vec![Point::new(1.0, 1.0)])
-            .iter()
+            .to_quads()
             .next()
             .is_none());
     }
@@ -97,7 +91,7 @@ mod tests {
     pub fn two_points_no_quads() {
         assert!(
             QuadSpline::new(vec![Point::new(1.0, 1.0), Point::new(1.0, 1.0)])
-                .iter()
+                .to_quads()
                 .next()
                 .is_none()
         );
@@ -110,7 +104,9 @@ mod tests {
         let p2 = Point::new(3.0, 3.0);
         assert_eq!(
             vec![QuadBez { p0, p1, p2 }],
-            QuadSpline::new(vec![p0, p1, p2]).iter().collect::<Vec<_>>()
+            QuadSpline::new(vec![p0, p1, p2])
+                .to_quads()
+                .collect::<Vec<_>>()
         );
     }
 
@@ -134,7 +130,7 @@ mod tests {
                 }
             ],
             QuadSpline::new(vec![p0, p1, p2, p3])
-                .iter()
+                .to_quads()
                 .collect::<Vec<_>>()
         );
     }
