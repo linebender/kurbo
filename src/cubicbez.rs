@@ -1,8 +1,8 @@
 //! Cubic Bézier segments.
 
-use core::ops::{Mul, Range};
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
+use core::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};

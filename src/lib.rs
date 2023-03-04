@@ -66,16 +66,16 @@
 //! let hit = closest_perimeter_point(circle, hit_point).unwrap();
 //! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
 //! ```
-//! 
+//!
 //! # Features
-//! 
+//!
 //! This crate either uses the standard library or the [`libm`] crate for
 //! math functionality. The `std` feature is enabled by default, but can be
 //! disabled, as long as the `libm` feature is enabled. This is useful for
 //! `no_std` environments. However, note that the `libm` crate is not as
 //! efficient as the standard library, and that this crate still uses the
 //! `alloc` crate regardless.
-//! 
+//!
 //! [`Piet`]: https://docs.rs/piet
 //! [`Druid`]: https://docs.rs/druid
 //! [`libm`]: https://docs.rs/libm
@@ -89,7 +89,6 @@
     clippy::excessive_precision,
     clippy::bool_to_int_with_if
 )]
-
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 #[cfg(not(any(feature = "std", feature = "libm")))]

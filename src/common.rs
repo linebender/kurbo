@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 /// Defines a trait that chooses between libstd or libm implementations of float methods.
 macro_rules! define_float_funcs {
     ($(
-        fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty 
+        fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty
         => $lname:ident/$lfname:ident;
     )+) => {
         pub(crate) trait FloatFuncs : Sized {
@@ -20,7 +20,7 @@ macro_rules! define_float_funcs {
                 return self.$name($($arg),*);
 
                 #[cfg(not(feature = "std"))]
-                return libm::$lfname(self $(,$arg as _)*); 
+                return libm::$lfname(self $(,$arg as _)*);
 
                 #[cfg(all(not(feature = "std"), not(feature = "libm")))]
                 compile_error!("kurbo requires either the `std` or `libm` feature");
