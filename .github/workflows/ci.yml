@@ -47,6 +47,8 @@ jobs:
           profile: minimal
           override: true
 
+      - run: rustup target add thumbv7m-none-eabi
+
       - name: cargo clippy
         uses: actions-rs/cargo@v1
         with:
@@ -58,6 +60,10 @@ jobs:
         with:
           command: test
           args: --all-features
+
+      - name: Build with no default features
+        # Use no-std target to ensure we don't link to std.
+        run: cargo build --no-default-features --features libm --target thumbv7m-none-eabi
 
   test-stable-wasm:
     runs-on: ${{ matrix.os }}

@@ -4,6 +4,91 @@
 
 use arrayvec::ArrayVec;
 
+/// Defines a trait that chooses between libstd or libm implementations of float methods.
+macro_rules! define_float_funcs {
+    ($(
+        fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty 
+        => $lname:ident/$lfname:ident;
+    )+) => {
+        pub(crate) trait FloatFuncs : Sized {
+            $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
+        }
+
+        impl FloatFuncs for f32 {
+            $(fn $name(self $(,$arg: $arg_ty)*) -> $ret {
+                #[cfg(feature = "std")]
+                return self.$name($($arg),*);
+
+                #[cfg(not(feature = "std"))]
+                return libm::$lfname(self $(,$arg as _)*); 
+
+                #[cfg(all(not(feature = "std"), not(feature = "libm")))]
+                compile_error!("kurbo requires either the `std` or `libm` feature");
+            })+
+        }
+
+        impl FloatFuncs for f64 {
+            $(fn $name(self $(,$arg: $arg_ty)*) -> $ret {
+                #[cfg(feature = "std")]
+                return self.$name($($arg),*);
+
+                #[cfg(all(not(feature = "std"), feature = "libm"))]
+                return libm::$lname(self $(,$arg as _)*);
+
+                #[cfg(all(not(feature = "std"), not(feature = "libm")))]
+                compile_error!("kurbo requires either the `std` or `libm` feature")
+            })+
+        }
+    }
+}
+
+define_float_funcs! {
+    fn abs(self) -> Self => fabs/fabsf;
+    fn atan2(self, other: Self) -> Self => atan2/atan2f;
+    fn cbrt(self) -> Self => cbrt/cbrtf;
+    fn ceil(self) -> Self => ceil/ceilf;
+    fn copysign(self, sign: Self) -> Self => copysign/copysignf;
+    fn floor(self) -> Self => floor/floorf;
+    fn hypot(self, other: Self) -> Self => hypot/hypotf;
+    fn ln(self) -> Self => log/logf;
+    fn log2(self) -> Self => log2/log2f;
+    fn mul_add(self, a: Self, b: Self) -> Self => fma/fmaf;
+    fn powi(self, n: i32) -> Self => pow/powf;
+    fn powf(self, n: Self) -> Self => pow/powf;
+    fn round(self) -> Self => round/roundf;
+    fn sin_cos(self) -> (Self, Self) => sincos/sincosf;
+    fn sqrt(self) -> Self => sqrt/sqrtf;
+    fn tan(self) -> Self => tan/tanf;
+    fn trunc(self) -> Self => trunc/truncf;
+}
+
+/// Special implementation for signum, because libm doesn't have it.
+pub(crate) trait FloatFuncsExtra {
+    fn signum(self) -> Self;
+}
+
+impl FloatFuncsExtra for f32 {
+    #[inline]
+    fn signum(self) -> f32 {
+        if self.is_nan() {
+            f32::NAN
+        } else {
+            1.0_f32.copysign(self)
+        }
+    }
+}
+
+impl FloatFuncsExtra for f64 {
+    #[inline]
+    fn signum(self) -> f64 {
+        if self.is_nan() {
+            f64::NAN
+        } else {
+            1.0_f64.copysign(self)
+        }
+    }
+}
+
 /// Adds convenience methods to `f32` and `f64`.
 pub trait FloatExt<T> {
     /// Rounds to the nearest integer away from zero,

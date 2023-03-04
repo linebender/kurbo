@@ -1,10 +1,13 @@
 //! A simple 2D vector.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::fmt;
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::{Point, Size};
+
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
 
 /// A 2D vector.
 ///

@@ -1,6 +1,6 @@
 //! Quadratic Bézier segments.
 
-use std::ops::{Mul, Range};
+use core::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
@@ -11,6 +11,9 @@ use crate::{
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
     Rect, Shape,
 };
+
+#[allow(unused_imports)]
+use crate::common::{FloatFuncs, FloatFuncsExtra};
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]

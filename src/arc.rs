@@ -1,10 +1,13 @@
 //! An ellipse arc.
 
 use crate::{PathEl, Point, Rect, Shape, Vec2};
-use std::{
+use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
 };
+
+#[allow(unused_imports)]
+use crate::common::{FloatFuncs, FloatFuncsExtra};
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug, PartialEq)]

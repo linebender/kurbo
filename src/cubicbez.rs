@@ -1,6 +1,8 @@
 //! Cubic Bézier segments.
 
-use std::ops::{Mul, Range};
+use core::ops::{Mul, Range};
+use alloc::vec::Vec;
+use alloc::vec;
 
 use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
@@ -14,6 +16,9 @@ use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
     ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
 };
+
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
 
 const MAX_SPLINE_SPLIT: usize = 100;
 
@@ -217,7 +222,7 @@ impl CubicBez {
         let delta_2 = dt * dt;
         let delta_3 = dt * delta_2;
 
-        std::iter::from_fn(move || {
+        core::iter::from_fn(move || {
             // if storage exists, we use it exclusively
             if let Some(storage) = storage.as_mut() {
                 return storage.pop();

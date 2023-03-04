@@ -1,9 +1,12 @@
 //! A rectangle with rounded corners.
 
-use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
-use std::ops::{Add, Sub};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+use core::ops::{Add, Sub};
 
 use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
+
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
 
 /// A rectangle with equally rounded corners.
 ///

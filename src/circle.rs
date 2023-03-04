@@ -1,12 +1,15 @@
 //! Implementation of circle shape.
 
-use std::{
+use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
     ops::{Add, Mul, Sub},
 };
 
 use crate::{Affine, Arc, ArcAppendIter, Ellipse, PathEl, Point, Rect, Shape, Vec2};
+
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -260,7 +263,7 @@ impl Sub<Vec2> for CircleSegment {
     }
 }
 
-type CircleSegmentPathIter = std::iter::Chain<
+type CircleSegmentPathIter = iter::Chain<
     iter::Chain<
         iter::Chain<iter::Chain<iter::Once<PathEl>, iter::Once<PathEl>>, ArcAppendIter>,
         iter::Once<PathEl>,

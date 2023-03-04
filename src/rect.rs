@@ -1,9 +1,12 @@
 //! A rectangle.
 
-use std::fmt;
-use std::ops::{Add, Sub};
+use core::fmt;
+use core::ops::{Add, Sub};
 
 use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape, Size, Vec2};
+
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]

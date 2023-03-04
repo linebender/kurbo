@@ -13,8 +13,17 @@ categories = ["graphics"]
 [package.metadata.docs.rs]
 features = ["mint", "schemars", "serde"]
 
-[dependencies]
-arrayvec = "0.7.1"
+[features]
+default = ["std"]
+std = []
+
+[dependencies.arrayvec]
+version = "0.7.1"
+default-features = false
+
+[dependencies.libm]
+version = "0.2.6"
+optional = true
 
 [dependencies.mint]
 version = "0.5.1"
@@ -27,6 +36,7 @@ optional = true
 [dependencies.serde]
 version = "1.0.105"
 optional = true
+default-features = false
 features = ["derive"]
 
 # This is used for research but not really needed; maybe refactor.

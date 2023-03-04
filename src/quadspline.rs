@@ -14,6 +14,8 @@
 
 //! Quadratic Bézier splines.
 use crate::Point;
+
+use alloc::vec::Vec;
 use crate::QuadBez;
 
 /// A quadratic Bézier spline in [B-spline](https://en.wikipedia.org/wiki/B-spline) format.

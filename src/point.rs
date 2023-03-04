@@ -1,10 +1,13 @@
 //! A 2D point.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use core::fmt;
+use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::Vec2;
+
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
 
 /// A 2D point.
 #[derive(Clone, Copy, Default, PartialEq)]

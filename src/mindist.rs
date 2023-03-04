@@ -21,6 +21,9 @@
 use crate::Vec2;
 use core::cmp::Ordering;
 
+#[allow(unused_imports)]
+use crate::common::FloatFuncs;
+
 pub(crate) fn min_dist_param(
     bez1: &[Vec2],
     bez2: &[Vec2],
