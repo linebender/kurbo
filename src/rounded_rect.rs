@@ -5,7 +5,7 @@ use core::ops::{Add, Sub};
 
 use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// A rectangle with equally rounded corners.

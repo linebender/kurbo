@@ -10,32 +10,29 @@ macro_rules! define_float_funcs {
         fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty
         => $lname:ident/$lfname:ident;
     )+) => {
+        #[cfg(not(feature = "std"))]
         pub(crate) trait FloatFuncs : Sized {
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
         }
 
+        #[cfg(not(feature = "std"))]
         impl FloatFuncs for f32 {
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret {
-                #[cfg(feature = "std")]
-                return self.$name($($arg),*);
-
-                #[cfg(not(feature = "std"))]
+                #[cfg(feature = "libm")]
                 return libm::$lfname(self $(,$arg as _)*);
 
-                #[cfg(all(not(feature = "std"), not(feature = "libm")))]
-                compile_error!("kurbo requires either the `std` or `libm` feature");
+                #[cfg(not(feature = "libm"))]
+                compile_error!("kurbo requires either the `std` or `libm` feature")
             })+
         }
 
+        #[cfg(not(feature = "std"))]
         impl FloatFuncs for f64 {
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret {
-                #[cfg(feature = "std")]
-                return self.$name($($arg),*);
-
-                #[cfg(all(not(feature = "std"), feature = "libm"))]
+                #[cfg(feature = "libm")]
                 return libm::$lname(self $(,$arg as _)*);
 
-                #[cfg(all(not(feature = "std"), not(feature = "libm")))]
+                #[cfg(not(feature = "libm"))]
                 compile_error!("kurbo requires either the `std` or `libm` feature")
             })+
         }
@@ -63,10 +60,12 @@ define_float_funcs! {
 }
 
 /// Special implementation for signum, because libm doesn't have it.
+#[cfg(not(feature = "std"))]
 pub(crate) trait FloatFuncsExtra {
     fn signum(self) -> Self;
 }
 
+#[cfg(not(feature = "std"))]
 impl FloatFuncsExtra for f32 {
     #[inline]
     fn signum(self) -> f32 {
@@ -78,6 +77,7 @@ impl FloatFuncsExtra for f32 {
     }
 }
 
+#[cfg(not(feature = "std"))]
 impl FloatFuncsExtra for f64 {
     #[inline]
     fn signum(self) -> f64 {

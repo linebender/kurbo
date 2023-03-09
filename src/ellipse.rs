@@ -8,7 +8,7 @@ use core::{
 
 use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size, Vec2};
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// An ellipse.

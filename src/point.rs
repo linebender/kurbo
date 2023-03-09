@@ -6,7 +6,7 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 use crate::common::FloatExt;
 use crate::Vec2;
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// A 2D point.

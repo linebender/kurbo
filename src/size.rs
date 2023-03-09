@@ -6,7 +6,7 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 use crate::common::FloatExt;
 use crate::{Rect, RoundedRect, RoundedRectRadii, Vec2};
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// A 2D size.

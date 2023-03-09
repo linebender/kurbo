@@ -4,7 +4,7 @@ use core::ops::{Mul, MulAssign};
 
 use crate::{Point, Rect, Vec2};
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// A 2D affine transform.

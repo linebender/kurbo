@@ -6,7 +6,7 @@ use core::{
     iter,
 };
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::{FloatFuncs, FloatFuncsExtra};
 
 /// A single arc segment.

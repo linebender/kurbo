@@ -16,7 +16,7 @@
 
 use core::convert::From;
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// Radii for each corner of a rounded rectangle.

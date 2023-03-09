@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 
 use crate::{common, Point, Rect};
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 /// A default value for methods that take an 'accuracy' argument.

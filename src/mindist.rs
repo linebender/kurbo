@@ -21,7 +21,7 @@
 use crate::Vec2;
 use core::cmp::Ordering;
 
-#[allow(unused_imports)]
+#[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 pub(crate) fn min_dist_param(
