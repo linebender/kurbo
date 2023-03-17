@@ -7,7 +7,7 @@ use core::{
 };
 
 #[cfg(not(feature = "std"))]
-use crate::common::{FloatFuncs, FloatFuncsExtra};
+use crate::common::FloatFuncs;
 
 /// A single arc segment.
 #[derive(Clone, Copy, Debug, PartialEq)]

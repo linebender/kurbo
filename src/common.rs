@@ -12,11 +12,23 @@ macro_rules! define_float_funcs {
     )+) => {
         #[cfg(not(feature = "std"))]
         pub(crate) trait FloatFuncs : Sized {
+            /// Special implementation for signum, because libm doesn't have it.
+            fn signum(self) -> Self;
+
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
         }
 
         #[cfg(not(feature = "std"))]
         impl FloatFuncs for f32 {
+            #[inline]
+            fn signum(self) -> f32 {
+                if self.is_nan() {
+                    f32::NAN
+                } else {
+                    1.0_f32.copysign(self)
+                }
+            }
+
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret {
                 #[cfg(feature = "libm")]
                 return libm::$lfname(self $(,$arg as _)*);
@@ -28,6 +40,15 @@ macro_rules! define_float_funcs {
 
         #[cfg(not(feature = "std"))]
         impl FloatFuncs for f64 {
+            #[inline]
+            fn signum(self) -> f64 {
+                if self.is_nan() {
+                    f64::NAN
+                } else {
+                    1.0_f64.copysign(self)
+                }
+            }
+
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret {
                 #[cfg(feature = "libm")]
                 return libm::$lname(self $(,$arg as _)*);
@@ -57,36 +78,6 @@ define_float_funcs! {
     fn sqrt(self) -> Self => sqrt/sqrtf;
     fn tan(self) -> Self => tan/tanf;
     fn trunc(self) -> Self => trunc/truncf;
-}
-
-/// Special implementation for signum, because libm doesn't have it.
-#[cfg(not(feature = "std"))]
-pub(crate) trait FloatFuncsExtra {
-    fn signum(self) -> Self;
-}
-
-#[cfg(not(feature = "std"))]
-impl FloatFuncsExtra for f32 {
-    #[inline]
-    fn signum(self) -> f32 {
-        if self.is_nan() {
-            f32::NAN
-        } else {
-            1.0_f32.copysign(self)
-        }
-    }
-}
-
-#[cfg(not(feature = "std"))]
-impl FloatFuncsExtra for f64 {
-    #[inline]
-    fn signum(self) -> f64 {
-        if self.is_nan() {
-            f64::NAN
-        } else {
-            1.0_f64.copysign(self)
-        }
-    }
 }
 
 /// Adds convenience methods to `f32` and `f64`.

@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[cfg(not(feature = "std"))]
-use crate::common::{FloatFuncs, FloatFuncsExtra};
+use crate::common::FloatFuncs;
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
