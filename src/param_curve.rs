@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A trait for curves parametrized by a scalar.
 
 use std::ops::Range;

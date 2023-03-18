@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Research testbed for arclengths of cubic Bézier segments.
 
 // Lots of stuff is commented out or was just something to try.

@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! SVG path representation.
 
 use std::error::Error;

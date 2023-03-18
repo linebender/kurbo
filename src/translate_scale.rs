@@ -1,3 +1,6 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A transformation that includes both scale and translation.
 
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};

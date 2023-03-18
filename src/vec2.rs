@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A simple 2D vector.
 
 use std::fmt;

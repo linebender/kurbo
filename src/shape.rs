@@ -1,3 +1,6 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A generic trait for shapes.
 
 use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments};

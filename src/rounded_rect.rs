@@ -1,3 +1,6 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A rectangle with rounded corners.
 
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
