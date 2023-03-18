@@ -55,8 +55,19 @@
 //! let hit = closest_perimeter_point(circle, hit_point).unwrap();
 //! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
 //! ```
+//!
+//! # Features
+//!
+//! This crate either uses the standard library or the [`libm`] crate for
+//! math functionality. The `std` feature is enabled by default, but can be
+//! disabled, as long as the `libm` feature is enabled. This is useful for
+//! `no_std` environments. However, note that the `libm` crate is not as
+//! efficient as the standard library, and that this crate still uses the
+//! `alloc` crate regardless.
+//!
 //! [`Piet`]: https://docs.rs/piet
 //! [`Druid`]: https://docs.rs/druid
+//! [`libm`]: https://docs.rs/libm
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
@@ -67,6 +78,12 @@
     clippy::excessive_precision,
     clippy::bool_to_int_with_if
 )]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+compile_error!("kurbo requires either the `std` or `libm` feature");
+
+extern crate alloc;
 
 mod affine;
 mod arc;
@@ -87,6 +104,7 @@ mod rounded_rect;
 mod rounded_rect_radii;
 mod shape;
 mod size;
+#[cfg(feature = "std")]
 mod svg;
 mod translate_scale;
 mod vec2;
@@ -108,6 +126,7 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
+#[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;

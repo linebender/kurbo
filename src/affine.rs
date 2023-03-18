@@ -3,9 +3,12 @@
 
 //! Affine transforms.
 
-use std::ops::{Mul, MulAssign};
+use core::ops::{Mul, MulAssign};
 
 use crate::{Point, Rect, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A 2D affine transform.
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -5,9 +5,11 @@
 
 #![allow(clippy::many_single_char_names)]
 
-use std::iter::{Extend, FromIterator};
-use std::mem;
-use std::ops::{Mul, Range};
+use core::iter::{Extend, FromIterator};
+use core::mem;
+use core::ops::{Mul, Range};
+
+use alloc::vec::Vec;
 
 use arrayvec::ArrayVec;
 
@@ -17,6 +19,9 @@ use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale, Vec2,
 };
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A Bézier path.
 ///
@@ -407,7 +412,7 @@ impl FromIterator<PathEl> for BezPath {
 /// slice, as it returns `PathEl` items, rather than references.
 impl<'a> IntoIterator for &'a BezPath {
     type Item = PathEl;
-    type IntoIter = std::iter::Cloned<std::slice::Iter<'a, PathEl>>;
+    type IntoIter = core::iter::Cloned<core::slice::Iter<'a, PathEl>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements().iter().cloned()
@@ -416,7 +421,7 @@ impl<'a> IntoIterator for &'a BezPath {
 
 impl IntoIterator for BezPath {
     type Item = PathEl;
-    type IntoIter = std::vec::IntoIter<PathEl>;
+    type IntoIter = alloc::vec::IntoIter<PathEl>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -1111,7 +1116,7 @@ impl From<QuadBez> for PathSeg {
 }
 
 impl Shape for BezPath {
-    type PathElementsIter<'iter> = std::iter::Copied<std::slice::Iter<'iter, PathEl>>;
+    type PathElementsIter<'iter> = core::iter::Copied<core::slice::Iter<'iter, PathEl>>;
 
     fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {
         self.0.iter().copied()
@@ -1181,7 +1186,7 @@ impl PathEl {
 impl<'a> Shape for &'a [PathEl] {
     type PathElementsIter<'iter>
 
-    = std::iter::Copied<std::slice::Iter<'a, PathEl>> where 'a: 'iter;
+    = core::iter::Copied<core::slice::Iter<'a, PathEl>> where 'a: 'iter;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {
@@ -1221,7 +1226,7 @@ impl<'a> Shape for &'a [PathEl] {
 ///
 /// If the array starts with `LineTo`, `QuadTo`, or `CurveTo`, it will be treated as a `MoveTo`.
 impl<const N: usize> Shape for [PathEl; N] {
-    type PathElementsIter<'iter> = std::iter::Copied<std::slice::Iter<'iter, PathEl>>;
+    type PathElementsIter<'iter> = core::iter::Copied<core::slice::Iter<'iter, PathEl>>;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {

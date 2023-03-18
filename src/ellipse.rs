@@ -3,13 +3,16 @@
 
 //! Implementation of ellipse shape.
 
-use std::f64::consts::PI;
-use std::{
+use core::f64::consts::PI;
+use core::{
     iter,
     ops::{Add, Mul, Sub},
 };
 
 use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// An ellipse.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]

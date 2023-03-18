@@ -3,7 +3,7 @@
 
 //! A description of the distances between the edges of two rectangles.
 
-use std::ops::{Add, Neg, Sub};
+use core::ops::{Add, Neg, Sub};
 
 use crate::{Rect, Size};
 

@@ -3,7 +3,7 @@
 
 //! Lines.
 
-use std::ops::{Add, Mul, Range, Sub};
+use core::ops::{Add, Mul, Range, Sub};
 
 use arrayvec::ArrayVec;
 
