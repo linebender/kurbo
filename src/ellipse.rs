@@ -1,3 +1,6 @@
+// Copyright 2020 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Implementation of ellipse shape.
 
 use std::f64::consts::PI;

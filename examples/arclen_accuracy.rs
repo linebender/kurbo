@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A test program to plot the error of arclength approximation.
 
 // Lots of stuff is commented out or was just something to try.

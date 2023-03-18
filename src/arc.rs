@@ -1,3 +1,6 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! An ellipse arc.
 
 use crate::{PathEl, Point, Rect, Shape, Vec2};

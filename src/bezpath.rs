@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Bézier paths (up to cubic).
 
 #![allow(clippy::many_single_char_names)]
