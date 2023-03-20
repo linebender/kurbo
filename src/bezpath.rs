@@ -192,6 +192,10 @@ impl BezPath {
     /// let back_to_path: BezPath = as_vec.into_iter().collect();
     /// ```
     pub fn from_vec(v: Vec<PathEl>) -> BezPath {
+        debug_assert!(
+            v.first().is_none() || matches!(v.first(), Some(PathEl::MoveTo(_))),
+            "BezPath must begin with MoveTo"
+        );
         BezPath(v)
     }
 
@@ -202,7 +206,11 @@ impl BezPath {
 
     /// Push a generic path element onto the path.
     pub fn push(&mut self, el: PathEl) {
-        self.0.push(el)
+        self.0.push(el);
+        debug_assert!(
+            matches!(self.0.first(), Some(PathEl::MoveTo(_))),
+            "BezPath must begin with MoveTo"
+        )
     }
 
     /// Push a "move to" element onto the path.
