@@ -69,6 +69,7 @@
 //! [`Druid`]: https://docs.rs/druid
 //! [`libm`]: https://docs.rs/libm
 
+#![feature(const_fn_floating_point_arithmetic, const_trait_impl, const_ops)]
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
 #![warn(rustdoc::broken_intra_doc_links)]
@@ -92,6 +93,7 @@ mod circle;
 pub mod common;
 mod cubicbez;
 mod ellipse;
+mod epsilon;
 mod insets;
 mod line;
 mod mindist;
@@ -115,6 +117,7 @@ pub use crate::bezpath::*;
 pub use crate::circle::*;
 pub use crate::cubicbez::*;
 pub use crate::ellipse::*;
+pub use crate::epsilon::*;
 pub use crate::insets::*;
 pub use crate::line::*;
 pub use crate::param_curve::*;
