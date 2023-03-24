@@ -199,8 +199,7 @@ impl Mul<Arc> for Affine {
     fn mul(self, arc: Arc) -> Self::Output {
         let ellipse = self * Ellipse::new(arc.center, arc.radii, arc.x_rotation);
         let center = ellipse.center();
-        let radii = ellipse.radii();
-        let rotation = ellipse.rotation();
+        let (radii, rotation) = ellipse.radii_and_rotation();
         Arc {
             center,
             radii,
