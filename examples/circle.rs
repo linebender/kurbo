@@ -1,8 +1,12 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Example of circle
 
-use kurbo::{Circle, Shape};
-
+#[cfg(feature = "std")]
 fn main() {
+    use kurbo::{Circle, Shape};
+
     let circle = Circle::new((400.0, 400.0), 380.0);
     println!("<!DOCTYPE html>");
     println!("<html>");
@@ -15,4 +19,9 @@ fn main() {
     println!("</svg>");
     println!("</body>");
     println!("</html>");
+}
+
+#[cfg(not(feature = "std"))]
+fn main() {
+    println!("This example requires the standard library");
 }

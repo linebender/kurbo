@@ -1,9 +1,13 @@
+// Copyright 2020 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Example of ellipse
 
-use kurbo::{Ellipse, Shape};
-use std::f64::consts::PI;
-
+#[cfg(feature = "std")]
 fn main() {
+    use kurbo::{Ellipse, Shape};
+    use std::f64::consts::PI;
+
     let ellipse = Ellipse::new((400.0, 400.0), (200.0, 100.0), 0.25 * PI);
     println!("<!DOCTYPE html>");
     println!("<html>");
@@ -16,4 +20,9 @@ fn main() {
     println!("</svg>");
     println!("</body>");
     println!("</html>");
+}
+
+#[cfg(not(feature = "std"))]
+fn main() {
+    println!("This example requires the standard library");
 }

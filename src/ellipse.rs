@@ -1,12 +1,18 @@
+// Copyright 2020 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Implementation of ellipse shape.
 
-use std::f64::consts::PI;
-use std::{
+use core::f64::consts::PI;
+use core::{
     iter,
     ops::{Add, Mul, Sub},
 };
 
 use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// An ellipse.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -273,7 +279,7 @@ mod tests {
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy
         // of the conversion into Béziers. But this seems good enough.
-        assert!((x - y).abs() < 1e-7, "{} != {}", x, y);
+        assert!((x - y).abs() < 1e-7, "{x} != {y}");
     }
 
     #[test]

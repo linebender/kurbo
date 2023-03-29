@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Research testbed for arclengths of cubic Bézier segments.
 
 // Lots of stuff is commented out or was just something to try.
@@ -249,13 +252,13 @@ fn main() {
         let est = gauss_arclen_9(c);
         let est_err = est_gauss9_error_3(c);
         let err = (accurate_arclen - est).abs();
-        println!("{} {}", est_err, err);
+        println!("{est_err} {err}");
 
         /*
         let mut count = 0;
         let est = my_arclen9(c, accuracy, 0, &mut count);
         let err = (accurate_arclen - est).abs();
-        println!("{} {}", err, count);
+        println!("{err} {count}");
         */
     }
 }

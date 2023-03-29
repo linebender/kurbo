@@ -1,3 +1,6 @@
+// Copyright 2020 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 #![cfg(nightly)]
 #![feature(test)]
 extern crate test;

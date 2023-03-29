@@ -1,3 +1,6 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! SVG path representation.
 
 use std::error::Error;
@@ -65,14 +68,17 @@ impl BezPath {
 
     /// Write the SVG representation of this path to the provided buffer.
     pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
-        for el in self.elements() {
+        for (i, el) in self.elements().iter().enumerate() {
+            if i > 0 {
+                write!(writer, " ")?;
+            }
             match *el {
-                PathEl::MoveTo(p) => write!(writer, "M{} {}", p.x, p.y)?,
-                PathEl::LineTo(p) => write!(writer, "L{} {}", p.x, p.y)?,
-                PathEl::QuadTo(p1, p2) => write!(writer, "Q{} {} {} {}", p1.x, p1.y, p2.x, p2.y)?,
+                PathEl::MoveTo(p) => write!(writer, "M{},{}", p.x, p.y)?,
+                PathEl::LineTo(p) => write!(writer, "L{},{}", p.x, p.y)?,
+                PathEl::QuadTo(p1, p2) => write!(writer, "Q{},{} {},{}", p1.x, p1.y, p2.x, p2.y)?,
                 PathEl::CurveTo(p1, p2, p3) => write!(
                     writer,
-                    "C{} {} {} {} {} {}",
+                    "C{},{} {},{} {},{}",
                     p1.x, p1.y, p2.x, p2.y, p3.x, p3.y
                 )?,
                 PathEl::ClosePath => write!(writer, "Z")?,
@@ -243,7 +249,7 @@ impl Display for SvgParseError {
         match self {
             SvgParseError::Wrong => write!(f, "Unable to parse a number"),
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
-            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{}\"", letter),
+            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
         }
     }
 }
@@ -277,9 +283,9 @@ impl<'a> SvgLexer<'a> {
     fn get_cmd(&mut self, last_cmd: u8) -> Option<u8> {
         self.skip_ws();
         if let Some(c) = self.get_byte() {
-            if (b'a'..=b'z').contains(&c) || (b'A'..=b'Z').contains(&c) {
+            if c.is_ascii_lowercase() || c.is_ascii_uppercase() {
                 return Some(c);
-            } else if last_cmd != 0 && (c == b'-' || c == b'.' || (b'0'..=b'9').contains(&c)) {
+            } else if last_cmd != 0 && (c == b'-' || c == b'.' || c.is_ascii_digit()) {
                 // Plausible number start
                 self.unget();
                 return Some(last_cmd);
@@ -311,7 +317,7 @@ impl<'a> SvgLexer<'a> {
         let mut digit_count = 0;
         let mut seen_period = false;
         while let Some(c) = self.get_byte() {
-            if (b'0'..=b'9').contains(&c) {
+            if c.is_ascii_digit() {
                 digit_count += 1;
             } else if c == b'.' && !seen_period {
                 seen_period = true;
@@ -326,11 +332,11 @@ impl<'a> SvgLexer<'a> {
                 if c == b'-' || c == b'+' {
                     c = self.get_byte().ok_or(SvgParseError::Wrong)?
                 }
-                if !(b'0'..=b'9').contains(&c) {
+                if c.is_ascii_digit() {
                     return Err(SvgParseError::Wrong);
                 }
                 while let Some(c) = self.get_byte() {
-                    if !(b'0'..=b'9').contains(&c) {
+                    if c.is_ascii_digit() {
                         self.unget();
                         break;
                     }
@@ -367,7 +373,7 @@ impl<'a> SvgLexer<'a> {
 
     fn get_maybe_relative(&mut self, cmd: u8) -> Result<Point, SvgParseError> {
         let pt = self.get_number_pair()?;
-        if (b'a'..=b'z').contains(&cmd) {
+        if cmd.is_ascii_lowercase() {
             Ok(self.last_pt + pt.to_vec2())
         } else {
             Ok(pt)
@@ -522,7 +528,7 @@ mod tests {
         .into()];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
-        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40");
+        assert_eq!(path.to_svg(), "M10,10 C20,20 30,30 40,40");
     }
 
     #[test]
@@ -545,7 +551,10 @@ mod tests {
         ];
         let path = BezPath::from_path_segments(segments.iter().cloned());
 
-        assert_eq!(path.to_svg(), "M10 10C20 20 30 30 40 40C30 30 20 20 10 10");
+        assert_eq!(
+            path.to_svg(),
+            "M10,10 C20,20 30,30 40,40 C30,30 20,20 10,10"
+        );
     }
 
     #[test]
@@ -570,7 +579,7 @@ mod tests {
 
         assert_eq!(
             path.to_svg(),
-            "M10 10C20 20 30 30 40 40M50 50C30 30 20 20 10 10"
+            "M10,10 C20,20 30,30 40,40 M50,50 C30,30 20,20 10,10"
         );
     }
 

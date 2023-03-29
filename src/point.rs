@@ -1,10 +1,16 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A 2D point.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use core::fmt;
+use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::Vec2;
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A 2D point.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -305,10 +311,10 @@ mod tests {
     #[test]
     fn display() {
         let p = Point::new(0.12345, 9.87654);
-        assert_eq!(format!("{}", p), "(0.12345, 9.87654)");
+        assert_eq!(format!("{p}"), "(0.12345, 9.87654)");
 
         let p = Point::new(0.12345, 9.87654);
-        assert_eq!(format!("{:.2}", p), "(0.12, 9.88)");
+        assert_eq!(format!("{p:.2}"), "(0.12, 9.88)");
     }
 }
 

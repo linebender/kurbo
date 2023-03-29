@@ -1,10 +1,16 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A simple 2D vector.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::fmt;
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::{Point, Size};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A 2D vector.
 ///
@@ -385,7 +391,7 @@ mod tests {
     #[test]
     fn display() {
         let v = Vec2::new(1.2332421, 532.10721213123);
-        let s = format!("{:.2}", v);
+        let s = format!("{v:.2}");
         assert_eq!(s.as_str(), "𝐯=(1.23, 532.11)");
     }
 }

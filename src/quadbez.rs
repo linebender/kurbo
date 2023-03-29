@@ -1,6 +1,9 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Quadratic Bézier segments.
 
-use std::ops::{Mul, Range};
+use core::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
@@ -11,6 +14,9 @@ use crate::{
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
     Rect, Shape,
 };
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A single quadratic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -385,7 +391,7 @@ mod tests {
     };
 
     fn assert_near(p0: Point, p1: Point, epsilon: f64) {
-        assert!((p1 - p0).hypot() < epsilon, "{:?} != {:?}", p0, p1);
+        assert!((p1 - p0).hypot() < epsilon, "{p0:?} != {p1:?}");
     }
 
     #[test]
@@ -413,7 +419,7 @@ mod tests {
             let accuracy = 0.1f64.powi(i);
             let est = q.arclen(accuracy);
             let error = est - true_arclen;
-            assert!(error.abs() < accuracy, "{} != {}", est, true_arclen);
+            assert!(error.abs() < accuracy, "{est} != {true_arclen}");
         }
     }
 
@@ -425,9 +431,7 @@ mod tests {
         let est = q.arclen(accuracy);
         assert!(
             (est - true_arclen).abs() < accuracy,
-            "{} != {}",
-            est,
-            true_arclen
+            "{est} != {true_arclen}"
         );
     }
 
@@ -475,9 +479,7 @@ mod tests {
     fn verify(result: Nearest, expected: f64) {
         assert!(
             (result.t - expected).abs() < 1e-6,
-            "got {:?} expected {}",
-            result,
-            expected
+            "got {result:?} expected {expected}"
         );
     }
 

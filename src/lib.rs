@@ -1,16 +1,5 @@
-// Copyright 2018 The kurbo Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! 2D geometry, with a focus on curves.
 //!
@@ -66,8 +55,19 @@
 //! let hit = closest_perimeter_point(circle, hit_point).unwrap();
 //! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
 //! ```
+//!
+//! # Features
+//!
+//! This crate either uses the standard library or the [`libm`] crate for
+//! math functionality. The `std` feature is enabled by default, but can be
+//! disabled, as long as the `libm` feature is enabled. This is useful for
+//! `no_std` environments. However, note that the `libm` crate is not as
+//! efficient as the standard library, and that this crate still uses the
+//! `alloc` crate regardless.
+//!
 //! [`Piet`]: https://docs.rs/piet
 //! [`Druid`]: https://docs.rs/druid
+//! [`libm`]: https://docs.rs/libm
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
@@ -78,6 +78,12 @@
     clippy::excessive_precision,
     clippy::bool_to_int_with_if
 )]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+compile_error!("kurbo requires either the `std` or `libm` feature");
+
+extern crate alloc;
 
 mod affine;
 mod arc;
@@ -101,6 +107,7 @@ mod rounded_rect_radii;
 mod shape;
 pub mod simplify;
 mod size;
+#[cfg(feature = "std")]
 mod svg;
 mod translate_scale;
 mod vec2;
@@ -123,6 +130,7 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
+#[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;

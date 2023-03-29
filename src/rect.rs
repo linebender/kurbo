@@ -1,9 +1,15 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A rectangle.
 
-use std::fmt;
-use std::ops::{Add, Sub};
+use core::fmt;
+use core::ops::{Add, Sub};
 
 use crate::{Ellipse, Insets, PathEl, Point, RoundedRect, RoundedRectRadii, Shape, Size, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A rectangle.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -708,10 +714,10 @@ mod tests {
     fn display() {
         let r = Rect::from_origin_size((10., 12.23214), (22.222222222, 23.1));
         assert_eq!(
-            format!("{}", r),
+            format!("{r}"),
             "Rect { (10, 12.23214) (22.222222222×23.1) }"
         );
-        assert_eq!(format!("{:.2}", r), "Rect { (10.00, 12.23) (22.22×23.10) }");
+        assert_eq!(format!("{r:.2}"), "Rect { (10.00, 12.23) (22.22×23.10) }");
     }
 
     /* TODO uncomment when a (possibly approximate) equality test has been decided on

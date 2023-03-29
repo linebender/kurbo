@@ -1,6 +1,9 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A transformation that includes both scale and translation.
 
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::{
     Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, RoundedRectRadii, Vec2,
@@ -276,7 +279,7 @@ mod tests {
     use crate::{Affine, Point, TranslateScale, Vec2};
 
     fn assert_near(p0: Point, p1: Point) {
-        assert!((p1 - p0).hypot() < 1e-9, "{:?} != {:?}", p0, p1);
+        assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
     }
 
     #[test]

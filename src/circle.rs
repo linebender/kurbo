@@ -1,12 +1,18 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Implementation of circle shape.
 
-use std::{
+use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
     ops::{Add, Mul, Sub},
 };
 
 use crate::{Affine, Arc, ArcAppendIter, Ellipse, PathEl, Point, Rect, Shape, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A circle.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -260,7 +266,7 @@ impl Sub<Vec2> for CircleSegment {
     }
 }
 
-type CircleSegmentPathIter = std::iter::Chain<
+type CircleSegmentPathIter = iter::Chain<
     iter::Chain<
         iter::Chain<iter::Chain<iter::Once<PathEl>, iter::Once<PathEl>>, ArcAppendIter>,
         iter::Once<PathEl>,
@@ -357,7 +363,7 @@ mod tests {
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy
         // of the conversion into Béziers. But this seems good enough.
-        assert!((x - y).abs() < 1e-7, "{} != {}", x, y);
+        assert!((x - y).abs() < 1e-7, "{x} != {y}");
     }
 
     #[test]

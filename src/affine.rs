@@ -1,8 +1,14 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Affine transforms.
 
-use std::ops::{Mul, MulAssign};
+use core::ops::{Mul, MulAssign};
 
 use crate::{Point, Rect, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A 2D affine transform.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -75,6 +81,24 @@ impl Affine {
     pub fn translate<V: Into<Vec2>>(p: V) -> Affine {
         let p = p.into();
         Affine([1.0, 0.0, 0.0, 1.0, p.x, p.y])
+    }
+
+    /// An affine transformation representing a skew.
+    ///
+    /// The skew_x and skew_y parameters represent skew factors for the
+    /// horizontal and vertical directions, respectively.
+    ///
+    /// This is commonly used to generate a faux oblique transform for
+    /// font rendering. In this case, you can slant the glyph 20 degrees
+    /// clockwise in the horizontal direction (assuming a Y-up coordinate
+    /// system):
+    ///
+    /// ```
+    /// let oblique_transform = kurbo::Affine::skew(20f64.to_radians().tan(), 0.0);
+    /// ```
+    #[inline]
+    pub fn skew(skew_x: f64, skew_y: f64) -> Affine {
+        Affine([1.0, skew_y, skew_x, 1.0, 0.0, 0.0])
     }
 
     /// Creates an affine transformation that takes the unit square to the given rectangle.
@@ -306,7 +330,7 @@ mod tests {
     use std::f64::consts::PI;
 
     fn assert_near(p0: Point, p1: Point) {
-        assert!((p1 - p0).hypot() < 1e-9, "{:?} != {:?}", p0, p1);
+        assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
     }
 
     #[test]
@@ -318,6 +342,8 @@ mod tests {
         assert_near(Affine::rotate(0.0) * p, p);
         assert_near(Affine::rotate(PI / 2.0) * p, Point::new(-4.0, 3.0));
         assert_near(Affine::translate((5.0, 6.0)) * p, Point::new(8.0, 10.0));
+        assert_near(Affine::skew(0.0, 0.0) * p, p);
+        assert_near(Affine::skew(2.0, 4.0) * p, Point::new(11.0, 16.0));
     }
 
     #[test]

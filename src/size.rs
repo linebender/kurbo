@@ -1,10 +1,16 @@
+// Copyright 2019 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! A 2D size.
 
-use std::fmt;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use core::fmt;
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
 use crate::{Rect, RoundedRect, RoundedRectRadii, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A 2D size.
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -69,6 +75,11 @@ impl Size {
 
     /// Returns a new size bounded by `min` and `max.`
     ///
+    /// # Panics
+    ///
+    /// Panics if `min.width` > `max.width` or `min.height` > `max.height`,
+    /// or if any of those four are `NaN`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -80,8 +91,8 @@ impl Size {
     /// assert_eq!(this.clamp(min, max), Size::new(10., 50.))
     /// ```
     pub fn clamp(self, min: Size, max: Size) -> Self {
-        let width = self.width.max(min.width).min(max.width);
-        let height = self.height.max(min.height).min(max.height);
+        let width = self.width.clamp(min.width, max.width);
+        let height = self.height.clamp(min.height, max.height);
         Size { width, height }
     }
 
@@ -354,10 +365,10 @@ mod tests {
     #[test]
     fn display() {
         let s = Size::new(-0.12345, 9.87654);
-        assert_eq!(format!("{}", s), "(-0.12345×9.87654)");
+        assert_eq!(format!("{s}"), "(-0.12345×9.87654)");
 
         let s = Size::new(-0.12345, 9.87654);
-        assert_eq!(format!("{:+6.2}", s), "( -0.12× +9.88)");
+        assert_eq!(format!("{s:+6.2}"), "( -0.12× +9.88)");
     }
 
     #[test]
