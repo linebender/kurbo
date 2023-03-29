@@ -65,9 +65,11 @@ macro_rules! define_float_funcs {
 
 define_float_funcs! {
     fn abs(self) -> Self => fabs/fabsf;
+    fn acos(self) -> Self => acos/acosf;
     fn atan2(self, other: Self) -> Self => atan2/atan2f;
     fn cbrt(self) -> Self => cbrt/cbrtf;
     fn ceil(self) -> Self => ceil/ceilf;
+    fn cos(self) -> Self => cos/cosf;
     fn copysign(self, sign: Self) -> Self => copysign/copysignf;
     fn floor(self) -> Self => floor/floorf;
     fn hypot(self, other: Self) -> Self => hypot/hypotf;

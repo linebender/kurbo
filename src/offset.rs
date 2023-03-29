@@ -15,7 +15,10 @@
 //! Computation of offset curves of cubic Béziers, based on a curve fitting
 //! approach.
 
-use std::ops::Range;
+use core::ops::Range;
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 use crate::{
     common::solve_itp, CubicBez, CurveFitSample, ParamCurve, ParamCurveDeriv, ParamCurveFit, Point,

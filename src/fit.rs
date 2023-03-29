@@ -4,7 +4,7 @@
 //! An implementation of cubic Bézier curve fitting based on a quartic
 //! solver making signed area and moment match the source curve.
 
-use std::ops::Range;
+use core::ops::Range;
 
 use arrayvec::ArrayVec;
 
@@ -14,6 +14,9 @@ use crate::{
     },
     Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
 };
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// The source curve for curve fitting.
 ///
@@ -368,7 +371,7 @@ pub fn fit_to_bezpath_opt(source: &impl ParamCurveFit, accuracy: f64) -> BezPath
     let ya = -err;
     let yb = accuracy - last_err;
     let x = solve_itp(f, 0.0, accuracy, EPS, 1, k1, ya, yb);
-    println!("got fit with n={}, err={}", n, x);
+    //println!("got fit with n={}, err={}", n, x);
     t0 = 0.0;
     for i in 0..n {
         let t1 = if i < n - 1 {

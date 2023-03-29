@@ -3,7 +3,12 @@
 
 //! Simplification of a Bézier path.
 
-use std::ops::Range;
+use alloc::vec::Vec;
+
+use core::ops::Range;
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 use crate::{
     CubicBez, CurveFitSample, ParamCurve, ParamCurveDeriv, ParamCurveFit, PathEl, Point, Vec2,
