@@ -3,10 +3,11 @@
 
 //! An ellipse arc.
 
-use crate::{PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Ellipse, PathEl, Point, Rect, Shape, Vec2};
 use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
+    ops::Mul,
 };
 
 #[cfg(not(feature = "std"))]
@@ -31,6 +32,23 @@ pub struct Arc {
 }
 
 impl Arc {
+    /// Create a new `Arc`.
+    pub fn new(
+        center: impl Into<Point>,
+        radii: impl Into<Vec2>,
+        start_angle: f64,
+        sweep_angle: f64,
+        x_rotation: f64,
+    ) -> Self {
+        Self {
+            center: center.into(),
+            radii: radii.into(),
+            start_angle,
+            sweep_angle,
+            x_rotation,
+        }
+    }
+
     /// Create an iterator generating Bezier path elements.
     ///
     /// The generated elements can be appended to an existing bezier path.
@@ -172,5 +190,22 @@ impl Shape for Arc {
     #[inline]
     fn bounding_box(&self) -> Rect {
         self.path_segments(0.1).bounding_box()
+    }
+}
+
+impl Mul<Arc> for Affine {
+    type Output = Arc;
+
+    fn mul(self, arc: Arc) -> Self::Output {
+        let ellipse = self * Ellipse::new(arc.center, arc.radii, arc.x_rotation);
+        let center = ellipse.center();
+        let (radii, rotation) = ellipse.radii_and_rotation();
+        Arc {
+            center,
+            radii,
+            x_rotation: rotation,
+            start_angle: arc.start_angle,
+            sweep_angle: arc.sweep_angle,
+        }
     }
 }

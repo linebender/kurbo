@@ -138,6 +138,13 @@ impl Ellipse {
         self.inner.svd().1
     }
 
+    /// Returns the radii and the rotation of this ellipse.
+    ///
+    /// Equivalent to `(self.radii(), self.rotation())` but more efficient.
+    pub fn radii_and_rotation(&self) -> (Vec2, f64) {
+        self.inner.svd()
+    }
+
     /// Is this ellipse finite?
     #[inline]
     pub fn is_finite(&self) -> bool {
