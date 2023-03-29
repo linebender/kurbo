@@ -20,15 +20,31 @@ use crate::common::FloatFuncs;
 
 /// The source curve for curve fitting.
 ///
+/// This trait is a general representation of curves to be used as input to a curve
+/// fitting process. It can represent source curves with cusps and corners, though
+/// if the corners are known in advance, it may be better to run curve fitting on
+/// subcurves bounded by the corners.
+///
+/// The trait primarily works by sampling the source curve and computing the position
+/// and derivative at each sample. Those derivatives are then used for multiple
+/// sub-tasks, including ensuring G1 continuity at subdivision points, computing the
+/// area and moment of the curve for curve fitting, and casting rays for evaluation
+/// of a distance metric to test accuracy.
+///
+/// A major motivation is computation of offset curves, which often have cusps, but
+/// the presence and location of those cusps is not generally known. It is also
+/// intended for conversion between curve types (for example, piecewise Euler spiral
+/// or NURBS), and distortion effects such as perspective transform.
+///
 /// Note general similarities to [`ParamCurve`] but also important differences.
 /// Instead of separate [`eval`] and evaluation of derivative, have a single
-/// [`sample`] method which can be more efficient and also handles cusps more
+/// [`sample_pt_deriv`] method which can be more efficient and also handles cusps more
 /// robustly. Also there is no method for subsegment, as that is not needed and
 /// would be annoying to implement.
 ///
 /// [`ParamCurve`]: crate::ParamCurve
 /// [`eval`]: crate::ParamCurve::eval
-/// [`sample`]: ParamCurveFit::sample
+/// [`sample_pt_deriv`]: ParamCurveFit::sample_pt_deriv
 pub trait ParamCurveFit {
     /// Evaluate the curve and its tangent at parameter `t`.
     ///
@@ -122,9 +138,15 @@ impl CurveFitSample {
 
 /// Generate a Bézier path that fits the source curve.
 ///
-/// Discussion question: should this be a method on the trait instead?
+/// This function is still experimental and the signature might change; it's possible
+/// it might become a method on the [`ParamCurveFit`] trait.
 ///
-/// Another direction this could go would be taking a dyn reference.
+/// This function recursively subdivides the curve in half by the parameter when the
+/// accuracy is not met. That gives a reasonably optimized result but not necessarily
+/// the minimum number of segments.
+///
+/// When a higher degree of optimization is desired (at considerably more runtime cost),
+/// consider [`fit_to_bezpath_opt`] instead.
 pub fn fit_to_bezpath(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
     let mut path = BezPath::new();
     fit_to_bezpath_rec(source, 0.0..1.0, accuracy, &mut path);
@@ -340,9 +362,18 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
 
 const HUGE: f64 = 1e12;
 
-/// Optimized curve fitting.
+/// Generate a highly optimized Bézier path that fits the source curve.
 ///
-/// Note: right now this only handles smooth curves (no cusps).
+/// This function is still experimental and the signature might change; it's possible
+/// it might become a method on the [`ParamCurveFit`] trait.
+///
+/// This function currently only handles continuous curves, and does not handle cusps
+/// or corners. It also hasn't been rigorously tested.
+///
+/// This function is considerably slower than [`fit_to_bezpath`], as it computes
+/// optimal subdivision points. Its result is expected to be very close to the optimum
+/// possible Bézier path for the source curve, in that it has a minimal number of curve
+/// segments, and a minimal error over all paths with that number of segments.
 pub fn fit_to_bezpath_opt(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
     let mut path = BezPath::new();
     let (c, err2) = fit_to_cubic(source, 0.0..1.0, HUGE).unwrap();

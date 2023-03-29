@@ -2,6 +2,33 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Simplification of a Bézier path.
+//!
+//! This module is currently experimental.
+//!
+//! The methods in this module create a `SimplifyBezPath` object, which can then
+//! be fed to [`fit_to_bezpath`] or [`fit_to_bezpath_opt`] depending on the degree
+//! of optimization desired.
+//!
+//! The implementation uses a number of techniques to achieve high performance and
+//! accuracy. The parameter (generally written `t`) evenly divides the curve segments
+//! in the original, so sampling can be done in constant time. The derivatives are
+//! computed analytically, as that is straightforward with Béziers.
+//!
+//! The areas and moments are computed analytically (using Green's theorem), and
+//! the prefix sum is stored. Thus, it is possible to analytically compute the area
+//! and moment of any subdivision of the curve, also in constant time, by taking
+//! the difference of two stored prefix sum values, then fixing up the subsegments.
+//!
+//! A current limitation (hoped to be addressed in the future) is that non-regular
+//! cubic segments may have tangents computed incorrectly. This can easily happen,
+//! for example when setting a control point equal to an endpoint.
+//!
+//! In addition, this method does not report corners (adjoining segments where the
+//! tangents are not continuous). It is not clear whether it's best to handle such
+//! cases here, or in client code.
+//!
+//! [`fit_to_bezpath`]: crate::fit_to_bezpath
+//! [`fit_to_bezpath_opt`]: crate::fit_to_bezpath_opt
 
 use alloc::vec::Vec;
 
@@ -15,6 +42,11 @@ use crate::{
 };
 
 /// A Bézier path which has been prepared for simplification.
+///
+/// See the [module-level documentation] for a bit more discussion of the approach,
+/// and how this struct is to be used.
+///
+/// [module-level documentation]: crate::simplify
 pub struct SimplifyBezPath(Vec<SimplifyCubic>);
 
 struct SimplifyCubic {
@@ -23,7 +55,11 @@ struct SimplifyCubic {
     moments: (f64, f64, f64),
 }
 
+#[doc(hidden)]
 /// Compute moment integrals.
+///
+/// This is exposed for testing purposes but is an internal detail. We can
+/// add to the public, documented interface if there is a use case.
 pub fn moment_integrals(c: CubicBez) -> (f64, f64, f64) {
     let (x0, y0) = (c.p0.x, c.p0.y);
     let (x1, y1) = (c.p1.x - x0, c.p1.y - y0);
