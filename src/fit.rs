@@ -1,4 +1,8 @@
-//! Curve-fitting
+// Copyright 2022 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! An implementation of cubic Bézier curve fitting based on a quartic
+//! solver making signed area and moment match the source curve.
 
 use std::ops::Range;
 

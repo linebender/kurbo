@@ -1,3 +1,11 @@
+// Copyright 2022 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! A test case for the cubic Bézier path simplifier, generating a very
+//! efficient and accurage SVG file to plot a quartic polynomial. This
+//! file was used to generate the image for the Wikipedia article on
+//! quartic polynomials.
+
 use std::{io::Write, ops::Range};
 
 use kurbo::{BezPath, CurveFitSample, ParamCurveFit, PathEl, Point, Vec2};

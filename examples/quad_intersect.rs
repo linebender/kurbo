@@ -1,3 +1,9 @@
+// Copyright 2022 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! Test case that demonstrates quadratic/quadratic intersection using
+//! new quartic solver.
+
 use arrayvec::ArrayVec;
 use kurbo::{common::solve_quartic, ParamCurve, Point, QuadBez, Shape};
 use rand::{thread_rng, Rng};

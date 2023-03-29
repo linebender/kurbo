@@ -1,3 +1,8 @@
+// Copyright 2022 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! A simple example to show an offset curve of a cubic Bézier segment.
+
 use kurbo::{offset::CubicOffset, CubicBez, Shape};
 
 fn main() {

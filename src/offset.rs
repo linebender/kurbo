@@ -1,4 +1,4 @@
-// Copyright 2022 The kurbo Authors.
+// Copyright 2022 The Kurbo Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Offset curve computation.
-//! Currently work in progress.
+//! Computation of offset curves of cubic Béziers, based on a curve fitting
+//! approach.
 
 use std::ops::Range;
 

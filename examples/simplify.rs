@@ -1,3 +1,10 @@
+// Copyright 2022 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! Test case showing simplification of a Bézier path. In this case, the
+//! source path is a simple mathematical function, but it should work for
+//! more general cases as well.
+
 use kurbo::{BezPath, Point};
 
 fn plot_fn(f: &dyn Fn(f64) -> f64, d: &dyn Fn(f64) -> f64, xa: f64, xb: f64, n: usize) -> BezPath {

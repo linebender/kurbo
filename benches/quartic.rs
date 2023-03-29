@@ -1,3 +1,9 @@
+// Copyright 2022 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! Benchmarks of the quartic equation solver.
+
+#![cfg(nightly)]
 #![feature(test)]
 extern crate test;
 use kurbo::common::solve_quartic;
