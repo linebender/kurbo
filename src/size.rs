@@ -75,11 +75,6 @@ impl Size {
 
     /// Returns a new size bounded by `min` and `max.`
     ///
-    /// # Panics
-    ///
-    /// Panics if `min.width` > `max.width` or `min.height` > `max.height`,
-    /// or if any of those four are `NaN`.
-    ///
     /// # Examples
     ///
     /// ```
@@ -91,8 +86,8 @@ impl Size {
     /// assert_eq!(this.clamp(min, max), Size::new(10., 50.))
     /// ```
     pub fn clamp(self, min: Size, max: Size) -> Self {
-        let width = self.width.clamp(min.width, max.width);
-        let height = self.height.clamp(min.height, max.height);
+        let width = self.width.max(min.width).min(max.width);
+        let height = self.height.max(min.height).min(max.height);
         Size { width, height }
     }
 
