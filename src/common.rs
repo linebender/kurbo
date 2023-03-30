@@ -5,6 +5,8 @@
 
 #![allow(missing_docs)]
 
+use crate::epsilon::Epsilon;
+
 use arrayvec::ArrayVec;
 
 /// Defines a trait that chooses between libstd or libm implementations of float methods.
@@ -291,6 +293,7 @@ pub fn solve_itp(
     mut ya: f64,
     mut yb: f64,
 ) -> f64 {
+    debug_assert!(epsilon >= Epsilon::default().value);
     let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0) as usize;
     let nmax = n0 + n1_2;
     let mut scaled_epsilon = epsilon * (1u64 << nmax) as f64;
