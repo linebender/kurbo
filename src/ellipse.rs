@@ -70,7 +70,7 @@ impl Ellipse {
     pub fn with_center(self, new_center: Point) -> Ellipse {
         let Point { x: cx, y: cy } = new_center;
         Ellipse {
-            inner: self.inner.set_translation(Vec2 { x: cx, y: cy }),
+            inner: self.inner.with_translation(Vec2 { x: cx, y: cy }),
         }
     }
 
@@ -78,7 +78,7 @@ impl Ellipse {
     #[must_use]
     pub fn with_radii(self, new_radii: Vec2) -> Ellipse {
         let rotation = self.inner.svd().1;
-        let translation = self.inner.get_translation();
+        let translation = self.inner.translation();
         Ellipse::private_new(translation, new_radii.x, new_radii.y, rotation)
     }
 
@@ -90,7 +90,7 @@ impl Ellipse {
     #[must_use]
     pub fn with_rotation(self, rotation: f64) -> Ellipse {
         let scale = self.inner.svd().0;
-        let translation = self.inner.get_translation();
+        let translation = self.inner.translation();
         Ellipse::private_new(translation, scale.x, scale.y, rotation)
     }
 
@@ -118,7 +118,7 @@ impl Ellipse {
     /// Returns the center of this ellipse.
     #[inline]
     pub fn center(&self) -> Point {
-        let Vec2 { x: cx, y: cy } = self.inner.get_translation();
+        let Vec2 { x: cx, y: cy } = self.inner.translation();
         Point { x: cx, y: cy }
     }
 
