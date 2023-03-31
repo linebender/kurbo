@@ -97,8 +97,10 @@ pub trait ParamCurveFit {
     /// than one such discontinuity, any can be reported, as the function will
     /// be called repeatedly after subdivision of the range.
     ///
-    /// Do not report cusps at the endpoints of the range. (TODO: talk about
-    /// this)
+    /// Do not report cusps at the endpoints of the range, as this may cause
+    /// potentially infinite subdivision. In particular, when a cusp is reported
+    /// and this method is called on a subdivided range bounded by the reported
+    /// cusp, then the subsequent call should not report a cusp there.
     ///
     /// The definition of what exactly constitutes a cusp is somewhat loose.
     /// If a cusp is missed, then the curve fitting algorithm will attempt to
@@ -144,6 +146,10 @@ impl CurveFitSample {
 /// This function recursively subdivides the curve in half by the parameter when the
 /// accuracy is not met. That gives a reasonably optimized result but not necessarily
 /// the minimum number of segments.
+///
+/// In general, the resulting Bézier path should have a Fréchet distance less than
+/// the provided `accuracy` parameter. However, this is not a rigorous guarantee, as
+/// the error metric is computed approximately.
 ///
 /// When a higher degree of optimization is desired (at considerably more runtime cost),
 /// consider [`fit_to_bezpath_opt`] instead.
@@ -368,12 +374,17 @@ const HUGE: f64 = 1e12;
 /// it might become a method on the [`ParamCurveFit`] trait.
 ///
 /// This function currently only handles continuous curves, and does not handle cusps
-/// or corners. It also hasn't been rigorously tested.
+/// or corners. In particular, it can't be expected to work correctly when the source
+/// curve is the parallel curve of a cubic Bézier where the curvature crosses the
+/// reciprocal of the offset distance (causing a cusp). It also hasn't been rigorously
+/// tested. It is hoped this will be improved.
 ///
 /// This function is considerably slower than [`fit_to_bezpath`], as it computes
 /// optimal subdivision points. Its result is expected to be very close to the optimum
 /// possible Bézier path for the source curve, in that it has a minimal number of curve
 /// segments, and a minimal error over all paths with that number of segments.
+///
+/// See [`fit_to_bezpath`] for an explanation of the `accuracy` parameter.
 pub fn fit_to_bezpath_opt(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
     let mut path = BezPath::new();
     let (c, err2) = fit_to_cubic(source, 0.0..1.0, HUGE).unwrap();
