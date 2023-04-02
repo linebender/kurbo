@@ -10,7 +10,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     common::{
-        factor_quartic_inner, solve_cubic, solve_itp, solve_quadratic, GAUSS_LEGENDRE_COEFFS_16,
+        factor_quartic_inner, solve_cubic, solve_itp_fallible, solve_quadratic,
+        GAUSS_LEGENDRE_COEFFS_16,
     },
     Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
 };
@@ -373,12 +374,6 @@ const HUGE: f64 = 1e12;
 /// This function is still experimental and the signature might change; it's possible
 /// it might become a method on the [`ParamCurveFit`] trait.
 ///
-/// This function currently only handles continuous curves, and does not handle cusps
-/// or corners. In particular, it can't be expected to work correctly when the source
-/// curve is the parallel curve of a cubic Bézier where the curvature crosses the
-/// reciprocal of the offset distance (causing a cusp). It also hasn't been rigorously
-/// tested. It is hoped this will be improved.
-///
 /// This function is considerably slower than [`fit_to_bezpath`], as it computes
 /// optimal subdivision points. Its result is expected to be very close to the optimum
 /// possible Bézier path for the source curve, in that it has a minimal number of curve
@@ -386,81 +381,157 @@ const HUGE: f64 = 1e12;
 ///
 /// See [`fit_to_bezpath`] for an explanation of the `accuracy` parameter.
 pub fn fit_to_bezpath_opt(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
+    let mut cusps = Vec::new();
     let mut path = BezPath::new();
-    let (c, err2) = fit_to_cubic(source, 0.0..1.0, HUGE).unwrap();
-    let err = err2.sqrt();
-    if err < accuracy {
-        path.move_to(c.p0);
-        path.curve_to(c.p1, c.p2, c.p3);
-        return path;
-    }
     let mut t0 = 0.0;
+    loop {
+        let t1 = cusps.last().copied().unwrap_or(1.0);
+        match fit_to_bezpath_opt_inner(source, accuracy, t0..t1, &mut path) {
+            Some(t) => cusps.push(t),
+            None => match cusps.pop() {
+                Some(t) => t0 = t,
+                None => break,
+            },
+        }
+    }
+    path
+}
+
+/// Fit a range without cusps.
+///
+/// On Ok return, range has been added to the path. On Err return, report a cusp (and don't
+/// mutate path).
+fn fit_to_bezpath_opt_inner(
+    source: &impl ParamCurveFit,
+    accuracy: f64,
+    range: Range<f64>,
+    path: &mut BezPath,
+) -> Option<f64> {
+    if let Some(t) = source.break_cusp(range.clone()) {
+        return Some(t);
+    }
+    let err;
+    if let Some((c, err2)) = fit_to_cubic(source, range.clone(), HUGE) {
+        err = err2.sqrt();
+        if err < accuracy {
+            if range.start == 0.0 {
+                path.move_to(c.p0);
+            }
+            path.curve_to(c.p1, c.p2, c.p3);
+            return None;
+        }
+    } else {
+        err = 2.0 * accuracy;
+    }
+    let (mut t0, t1) = (range.start, range.end);
     let mut n = 0;
     let last_err;
     loop {
         n += 1;
-        match fit_opt_segment(source, accuracy, t0) {
-            Ok(t1) => t0 = t1,
-            Err(err) => {
+        match fit_opt_segment(source, accuracy, t0..t1) {
+            FitResult::ParamVal(t) => t0 = t,
+            FitResult::SegmentError(err) => {
                 last_err = err;
                 break;
             }
+            FitResult::CuspFound(t) => return Some(t),
         }
     }
+    t0 = range.start;
     const EPS: f64 = 1e-9;
-    let f = |x| fit_opt_err_delta(source, x, n);
+    let f = |x| fit_opt_err_delta(source, x, t0..t1, n);
     let k1 = 0.2 / accuracy;
     let ya = -err;
     let yb = accuracy - last_err;
-    let x = solve_itp(f, 0.0, accuracy, EPS, 1, k1, ya, yb);
+    let x = match solve_itp_fallible(f, 0.0, accuracy, EPS, 1, k1, ya, yb) {
+        Ok(x) => x,
+        Err(t) => return Some(t),
+    };
     //println!("got fit with n={}, err={}", n, x);
-    t0 = 0.0;
+    let path_len = path.elements().len();
     for i in 0..n {
         let t1 = if i < n - 1 {
-            fit_opt_segment(source, x, t0).unwrap()
+            match fit_opt_segment(source, x, t0..range.end) {
+                FitResult::ParamVal(t1) => t1,
+                FitResult::SegmentError(_) => range.end,
+                FitResult::CuspFound(t) => {
+                    path.truncate(path_len);
+                    return Some(t);
+                }
+            }
         } else {
-            1.0
+            range.end
         };
         let (c, _) = fit_to_cubic(source, t0..t1, HUGE).unwrap();
-        if i == 0 {
+        if i == 0 && range.start == 0.0 {
             path.move_to(c.p0);
         }
         path.curve_to(c.p1, c.p2, c.p3);
         t0 = t1;
+        if t0 == range.end {
+            // This is unlikely but could happen when not monotonic.
+            break;
+        }
     }
-    path
+    None
 }
 
 fn measure_one_seg(source: &impl ParamCurveFit, range: Range<f64>) -> Option<f64> {
     fit_to_cubic(source, range, HUGE).map(|(_, err2)| err2.sqrt())
 }
 
-/// An Ok return is the t1 that hits the desired accuracy.
-/// An Err return is the error of t0..1.
-fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, t0: f64) -> Result<f64, f64> {
-    let missing_err = accuracy * 2.0;
-    let err = measure_one_seg(source, t0..1.0).unwrap_or(missing_err);
-    if err <= accuracy {
-        return Err(err);
-    }
-    let f = |x| {
-        let err = measure_one_seg(source, t0..x).unwrap_or(missing_err);
-        err - accuracy
-    };
-    const EPS: f64 = 1e-9;
-    let k1 = 2.0 / (1.0 - t0);
-    let t1 = solve_itp(f, t0, 1.0, EPS, 1, k1, -accuracy, err - accuracy);
-    Ok(t1)
+enum FitResult {
+    /// The parameter (`t`) value that meets the desired accuracy.
+    ParamVal(f64),
+    /// Error of the measured segment.
+    SegmentError(f64),
+    /// The parameter value where a cusp was found.
+    CuspFound(f64),
 }
 
-// Returns delta error (accuracy - error of last seg)
-fn fit_opt_err_delta(source: &impl ParamCurveFit, accuracy: f64, n: usize) -> f64 {
-    let mut t0 = 0.0;
-    for _ in 0..n - 1 {
-        // If this returns Err, then n - 1 will work, which of course means the
-        // error is highly non-monotonic. We should probably harvest that solution.
-        t0 = fit_opt_segment(source, accuracy, t0).unwrap();
+fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>) -> FitResult {
+    if let Some(t) = source.break_cusp(range.clone()) {
+        return FitResult::CuspFound(t);
     }
-    let err = measure_one_seg(source, t0..1.0).unwrap_or(accuracy * 2.0);
-    accuracy - err
+    let missing_err = accuracy * 2.0;
+    let err = measure_one_seg(source, range.clone()).unwrap_or(missing_err);
+    if err <= accuracy {
+        return FitResult::SegmentError(err);
+    }
+    let (t0, t1) = (range.start, range.end);
+    let f = |x| {
+        if let Some(t) = source.break_cusp(range.clone()) {
+            return Err(t);
+        }
+        let err = measure_one_seg(source, t0..x).unwrap_or(missing_err);
+        Ok(err - accuracy)
+    };
+    const EPS: f64 = 1e-9;
+    let k1 = 2.0 / (t1 - t0);
+    match solve_itp_fallible(f, t0, t1, EPS, 1, k1, -accuracy, err - accuracy) {
+        Ok(t1) => FitResult::ParamVal(t1),
+        Err(t) => FitResult::CuspFound(t),
+    }
+}
+
+// Ok result is delta error (accuracy - error of last seg).
+// Err result is a cusp.
+fn fit_opt_err_delta(
+    source: &impl ParamCurveFit,
+    accuracy: f64,
+    range: Range<f64>,
+    n: usize,
+) -> Result<f64, f64> {
+    let (mut t0, t1) = (range.start, range.end);
+    for _ in 0..n - 1 {
+        t0 = match fit_opt_segment(source, accuracy, t0..t1) {
+            FitResult::ParamVal(t0) => t0,
+            // In this case, n - 1 will work, which of course means the error is highly
+            // non-monotonic. We should probably harvest that solution.
+            FitResult::SegmentError(_) => return Ok(accuracy),
+            FitResult::CuspFound(t) => return Err(t),
+        }
+    }
+    let err = measure_one_seg(source, t0..t1).unwrap_or(accuracy * 2.0);
+    Ok(accuracy - err)
 }

@@ -12,7 +12,7 @@ fn main() {
         "  <path d='{}' stroke='#000' fill='none' />",
         c.to_path(1e-9).to_svg()
     );
-    for i in 1..=10 {
+    for i in 1..=80 {
         let co = CubicOffset::new(c, i as f64 * 4.0);
         let path = kurbo::fit_to_bezpath_opt(&co, 1e-3);
         println!(
