@@ -6,6 +6,8 @@
 
 use core::ops::Range;
 
+use alloc::vec::Vec;
+
 use arrayvec::ArrayVec;
 
 use crate::{
