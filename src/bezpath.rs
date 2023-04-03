@@ -273,6 +273,11 @@ impl BezPath {
         segments(self.iter())
     }
 
+    /// Shorten the path, keeping the first `len` elements.
+    pub fn truncate(&mut self, len: usize) {
+        self.0.truncate(len);
+    }
+
     /// Flatten the path, invoking the callback repeatedly.
     ///
     /// Flattening is the action of approximating a curve with a succession of line segments.
