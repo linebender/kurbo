@@ -8,54 +8,9 @@ use std::f64::consts::PI;
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Write};
 
-use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
-
-// Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
-
-/// A single SVG arc segment.
-#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SvgArc {
-    /// The arc's start point.
-    pub from: Point,
-    /// The arc's end point.
-    pub to: Point,
-    /// The arc's radii, where the vector's x-component is the radius in the
-    /// positive x direction after applying `x_rotation`.
-    pub radii: Vec2,
-    /// How much the arc is rotated, in radians.
-    pub x_rotation: f64,
-    /// Does this arc sweep through more than π radians?
-    pub large_arc: bool,
-    /// Determines if the arc should begin moving at positive angles.
-    pub sweep: bool,
-}
+use crate::{paths::svg::Arc as SvgArc, Arc, BezPath, PathEl, Point, Vec2};
 
 impl BezPath {
-    /// Create a BezPath with segments corresponding to the sequence of
-    /// `PathSeg`s
-    pub fn from_path_segments(segments: impl Iterator<Item = PathSeg>) -> BezPath {
-        let mut path_elements = Vec::new();
-        let mut current_pos = None;
-
-        for segment in segments {
-            let start = segment.start();
-            if Some(start) != current_pos {
-                path_elements.push(PathEl::MoveTo(start));
-            };
-            path_elements.push(match segment {
-                PathSeg::Line(l) => PathEl::LineTo(l.p1),
-                PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
-                PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3),
-            });
-
-            current_pos = Some(segment.end());
-        }
-
-        BezPath::from_vec(path_elements)
-    }
-
     /// Convert the path to an SVG path string representation.
     ///
     /// The current implementation doesn't take any special care to produce a

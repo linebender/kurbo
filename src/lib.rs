@@ -98,7 +98,7 @@ mod line;
 mod mindist;
 pub mod offset;
 mod param_curve;
-mod paths;
+pub mod paths;
 mod point;
 mod quadbez;
 mod quadspline;
