@@ -48,6 +48,10 @@ features = ["derive"]
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
 rand = "0.8.0"
+snog = { git = "https://github.com/derekdreery/snog" }
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 getrandom = { version = "0.2.0", features = ["js"] }
+
+[patch.crates-io]
+kurbo = { path = "." }

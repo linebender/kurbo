@@ -1,9 +1,11 @@
 //! This module provides type [`Path`] representing SVG path data, and associated types.
-use crate::{PathEl as KurboPathEl, Point, Shape, Vec2};
+use crate::{Affine, PathEl as KurboPathEl, Point, Shape, Vec2};
 use anyhow::{anyhow, Result};
-use std::{fmt, ops::Deref, vec};
+use std::{f64::consts::PI, fmt, io, iter, mem, ops::Deref, slice, vec};
 
 pub use self::one_vec::*;
+
+type OneIter<'a, T> = iter::Chain<iter::Once<&'a T>, slice::Iter<'a, T>>;
 
 /// An SVG path
 ///
@@ -250,7 +252,7 @@ impl Path {
     }
 
     /// Write out a text representation of the string.
-    pub fn write(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut iter = self.elements.iter();
         if let Some(el) = iter.next() {
             el.write(f)?;
@@ -261,6 +263,49 @@ impl Path {
         }
         Ok(())
     }
+
+    /// Write out the text representation of this path to anything implementing `io::Write`.
+    ///
+    /// `Path` also implements [`Display`][std::fmt::Display], which can be used when you need an
+    /// in-memory string representation (so you can e.g. `path.to_string()`).
+    ///
+    /// Note that this call will produce a lot of write calls under the hood, so it is recommended
+    /// to use a buffer (e.g. [`BufWriter`][std::io::BufWriter]) if your writer's
+    /// [`write`][io::Write::write] calls are expensive.
+    pub fn write_to(&self, mut w: impl io::Write) -> io::Result<()> {
+        write!(w, "{}", self)
+    }
+
+    /// Returns an error if the path is invalid
+    fn validate(&self) -> Result<()> {
+        let move_idx = self
+            .elements
+            .iter()
+            .enumerate()
+            .find(|(_, el)| matches!(el, PathEl::MoveTo(_) | PathEl::MoveToRel(_)))
+            .map(|(idx, _)| idx);
+        let path_idx = self
+            .elements
+            .iter()
+            .enumerate()
+            .find(|(_, el)| {
+                !matches!(
+                    el,
+                    PathEl::MoveTo(_)
+                        | PathEl::MoveToRel(_)
+                        | PathEl::Bearing(_)
+                        | PathEl::BearingRel(_)
+                )
+            })
+            .map(|(idx, _)| idx);
+        match (move_idx, path_idx) {
+            (None, Some(idx)) => Err(anyhow!("First path at index {idx} before first move")),
+            (Some(move_idx), Some(path_idx)) if move_idx > path_idx => Err(anyhow!(
+                "First path at index {path_idx} before first move at index {move_idx}"
+            )),
+            _ => Ok(()),
+        }
+    }
 }
 
 impl Deref for Path {
@@ -268,6 +313,22 @@ impl Deref for Path {
 
     fn deref(&self) -> &[PathEl] {
         &self.elements
+    }
+}
+
+impl TryFrom<Vec<PathEl>> for Path {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Vec<PathEl>) -> Result<Self, Self::Error> {
+        let path = Path { elements: value };
+        path.validate()?;
+        Ok(path)
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt(f)
     }
 }
 
@@ -281,6 +342,10 @@ impl Shape for Path {
             path_start_point: Point::ZERO,
             current_point: Point::ZERO,
             current_bearing: 0.,
+            state: IterState::None,
+            previous_cubic: None,
+            previous_quad: None,
+            seen_moveto: false,
         }
     }
 
@@ -353,11 +418,11 @@ impl PathEl {
             }
             PathEl::SmoothCubicTo(cubic_tos) => {
                 write!(f, "S")?;
-                cubic_tos.write_spaced(CubicTo::write_vals, f)?;
+                cubic_tos.write_spaced(SmoothCubicTo::write_vals, f)?;
             }
             PathEl::SmoothCubicToRel(cubic_tos) => {
                 write!(f, "s")?;
-                cubic_tos.write_spaced(CubicTo::write_vals, f)?;
+                cubic_tos.write_spaced(SmoothCubicTo::write_vals, f)?;
             }
             PathEl::QuadTo(quad_tos) => {
                 write!(f, "Q")?;
@@ -375,8 +440,14 @@ impl PathEl {
                 write!(f, "t")?;
                 quad_tos.write_spaced(write_point, f)?;
             }
-            PathEl::EllipticArc(_) => todo!(),
-            PathEl::EllipticArcRel(_) => todo!(),
+            PathEl::EllipticArc(arcs) => {
+                write!(f, "A")?;
+                arcs.write_spaced(Arc::write_vals, f)?;
+            }
+            PathEl::EllipticArcRel(arcs) => {
+                write!(f, "a")?;
+                arcs.write_spaced(Arc::write_vals, f)?;
+            }
             PathEl::Bearing(bearing) => {
                 write!(f, "B{bearing}",)?;
             }
@@ -418,6 +489,22 @@ impl QuadTo {
     }
 }
 
+impl Arc {
+    fn write_vals(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{},{} {} {},{} {},{}",
+            self.radii.x,
+            self.radii.y,
+            self.x_rotation,
+            self.large_arc,
+            self.sweep,
+            self.to.x,
+            self.to.y
+        )
+    }
+}
+
 /// An iterator over the path elements of an SVG path.
 ///
 /// This structure could be `Copy`, but we don't implement it to avoid hidden clones.
@@ -433,13 +520,467 @@ pub struct PathElementsIter<'iter> {
     current_point: Point,
     /// The current bearing.
     current_bearing: f64,
+    /// This flag tracks whether we have seen a moveto command yet. It affects the behavior of
+    /// `MoveToRel`.
+    seen_moveto: bool,
+    /// If there was a previous cubic bezier value, store its ctrl2 here.
+    ///
+    /// The point is ctrl2 in absolute coordinates (since this is all that's needed for smooth
+    /// cubics).
+    previous_cubic: Option<Point>,
+    /// If there was a previous quad bezier value, store its ctrl here.
+    ///
+    /// Format is ctrl in absolute coordinates.
+    previous_quad: Option<Point>,
+    /// Iterator state machine
+    state: IterState<'iter>,
+}
+
+#[derive(Clone)]
+enum IterState<'iter> {
+    /// We aren't part-way through any data type.
+    None,
+    /// We're in the middle of a lineto or moveto.
+    ///
+    /// These values are actually for drawing lines to. See the spec for details of why this is the
+    /// state for a `MoveTo` as well.
+    LineTo {
+        transform: bool,
+        rest: &'iter [Point],
+    },
+    /// Horizontal lines with the given distance
+    HorizTo { transform: bool, rest: &'iter [f64] },
+    /// Vertical lines with the given distance
+    VertTo { transform: bool, rest: &'iter [f64] },
+    /// Cubic Beziers
+    CubicTo {
+        transform: bool,
+        rest: &'iter [CubicTo],
+    },
+    /// Smooth cubic Beziers
+    SmoothCubicTo {
+        transform: bool,
+        rest: &'iter [SmoothCubicTo],
+    },
+    /// Quad Beziers
+    QuadTo {
+        transform: bool,
+        rest: &'iter [QuadTo],
+    },
+    /// Smooth quad Beziers
+    SmoothQuadTo {
+        transform: bool,
+        rest: &'iter [Point],
+    },
+}
+
+impl<'iter> PathElementsIter<'iter> {
+    /// Handle the next element
+    ///
+    /// Only call this if we finished handling the previous one (i.e. `state = IterState::None`).
+    fn next_el(&mut self, el: &'iter PathEl) -> Option<KurboPathEl> {
+        match el {
+            PathEl::MoveTo(points) => {
+                self.seen_moveto = true;
+                let (first, rest) = points.split();
+                self.current_point = *first;
+                self.path_start_point = *first;
+                self.state = IterState::LineTo {
+                    transform: false,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::MoveTo(*first))
+            }
+            PathEl::MoveToRel(points) => {
+                let (&first, rest) = points.split();
+                self.reset_prev_beziers();
+                if self.seen_moveto {
+                    let first = self.transform() * first;
+                    self.current_point = first;
+                    self.path_start_point = first;
+                    self.state = IterState::LineTo {
+                        transform: true,
+                        rest,
+                    };
+                    Some(KurboPathEl::MoveTo(first))
+                } else {
+                    self.seen_moveto = true;
+                    self.current_point = first;
+                    self.path_start_point = first;
+                    // Even though we treat the first element as absolute, we still treat
+                    // subsequent points as `LineToRel`s. This might make a difference if the
+                    // user added a `Bearing` before the first `MoveTo`.
+                    self.state = IterState::LineTo {
+                        transform: true,
+                        rest,
+                    };
+                    Some(KurboPathEl::MoveTo(first))
+                }
+            }
+            PathEl::ClosePath => {
+                self.current_point = self.path_start_point;
+                Some(KurboPathEl::ClosePath)
+            }
+            PathEl::LineTo(points) => {
+                let (&first, rest) = points.split();
+                self.current_point = first;
+                self.state = IterState::LineTo {
+                    transform: false,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::LineTo(first))
+            }
+            PathEl::LineToRel(points) => {
+                let (&first, rest) = points.split();
+                let first = self.transform() * first;
+                self.current_point = first;
+                self.state = IterState::LineTo {
+                    transform: true,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::LineTo(first))
+            }
+            PathEl::Horiz(dists) => {
+                let (&first, rest) = dists.split();
+                let first = Point::new(first, 0.);
+                self.current_point = first;
+                self.state = IterState::HorizTo {
+                    transform: false,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::LineTo(first))
+            }
+            PathEl::HorizRel(dists) => {
+                let (&first, rest) = dists.split();
+                let first = self.transform() * Point::new(first, 0.);
+                self.current_point = first;
+                self.state = IterState::HorizTo {
+                    transform: true,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::LineTo(first))
+            }
+            PathEl::Vert(dists) => {
+                let (&first, rest) = dists.split();
+                let first = Point::new(0., first);
+                self.current_point = first;
+                self.state = IterState::VertTo {
+                    transform: false,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::LineTo(first))
+            }
+            PathEl::VertRel(dists) => {
+                let (&first, rest) = dists.split();
+                let first = self.transform() * Point::new(0., first);
+                self.current_point = first;
+                self.state = IterState::VertTo {
+                    transform: true,
+                    rest,
+                };
+                self.reset_prev_beziers();
+                Some(KurboPathEl::LineTo(first))
+            }
+            PathEl::CubicTo(cubics) => {
+                let (CubicTo { to, ctrl1, ctrl2 }, rest) = cubics.split();
+                self.current_point = *to;
+                self.state = IterState::CubicTo {
+                    transform: false,
+                    rest,
+                };
+                self.previous_quad = None;
+                self.previous_cubic = Some(*ctrl2);
+                Some(KurboPathEl::CurveTo(*ctrl1, *ctrl2, *to))
+            }
+            PathEl::CubicToRel(cubics) => {
+                let (CubicTo { to, ctrl1, ctrl2 }, rest) = cubics.split();
+                let (to, ctrl1, ctrl2) = {
+                    let trans = self.transform();
+                    (trans * *to, trans * *ctrl1, trans * *ctrl2)
+                };
+                self.current_point = to;
+                self.state = IterState::CubicTo {
+                    transform: true,
+                    rest,
+                };
+                self.previous_quad = None;
+                self.previous_cubic = Some(ctrl2);
+                Some(KurboPathEl::CurveTo(ctrl1, ctrl2, to))
+            }
+            PathEl::SmoothCubicTo(cubics) => {
+                let (SmoothCubicTo { to, ctrl2 }, rest) = cubics.split();
+                let ctrl1 = self.get_smooth_cubic_ctrl1();
+                self.current_point = *to;
+                self.state = IterState::SmoothCubicTo {
+                    transform: false,
+                    rest,
+                };
+                self.previous_quad = None;
+                self.previous_cubic = Some(*ctrl2);
+                Some(KurboPathEl::CurveTo(ctrl1, *ctrl2, *to))
+            }
+            PathEl::SmoothCubicToRel(cubics) => {
+                let (SmoothCubicTo { to, ctrl2 }, rest) = cubics.split();
+
+                let (to, ctrl2) = {
+                    let trans = self.transform();
+                    (trans * *to, trans * *ctrl2)
+                };
+                let ctrl1 = self.get_smooth_cubic_ctrl1();
+                self.current_point = to;
+                self.state = IterState::SmoothCubicTo {
+                    transform: true,
+                    rest,
+                };
+                self.previous_quad = None;
+                self.previous_cubic = Some(ctrl2);
+                Some(KurboPathEl::CurveTo(ctrl1, ctrl2, to))
+            }
+            PathEl::QuadTo(cubics) => {
+                let (QuadTo { to, ctrl }, rest) = cubics.split();
+                self.current_point = *to;
+                self.state = IterState::QuadTo {
+                    transform: false,
+                    rest,
+                };
+                self.previous_quad = Some(*ctrl);
+                self.previous_cubic = None;
+                Some(KurboPathEl::QuadTo(*ctrl, *to))
+            }
+            PathEl::QuadToRel(cubics) => {
+                let (QuadTo { to, ctrl }, rest) = cubics.split();
+                let (to, ctrl) = {
+                    let trans = self.transform();
+                    (trans * *to, trans * *ctrl)
+                };
+
+                self.current_point = to;
+                self.state = IterState::QuadTo {
+                    transform: true,
+                    rest,
+                };
+                self.previous_quad = Some(ctrl);
+                self.previous_cubic = None;
+                Some(KurboPathEl::QuadTo(ctrl, to))
+            }
+            PathEl::SmoothQuadTo(cubics) => {
+                let (to, rest) = cubics.split();
+                let ctrl = self.get_smooth_quad_ctrl();
+
+                self.current_point = *to;
+                self.state = IterState::SmoothQuadTo {
+                    transform: false,
+                    rest,
+                };
+                self.previous_quad = Some(ctrl);
+                self.previous_cubic = None;
+                Some(KurboPathEl::QuadTo(ctrl, *to))
+            }
+            PathEl::SmoothQuadToRel(cubics) => {
+                let (to, rest) = cubics.split();
+                let to = self.transform() * *to;
+                let ctrl = self.get_smooth_quad_ctrl();
+
+                self.current_point = to;
+                self.state = IterState::SmoothQuadTo {
+                    transform: true,
+                    rest,
+                };
+                self.previous_quad = Some(ctrl);
+                self.previous_cubic = None;
+                Some(KurboPathEl::QuadTo(ctrl, to))
+            }
+            PathEl::EllipticArc(_) => todo!(),
+            PathEl::EllipticArcRel(_) => todo!(),
+            PathEl::Bearing(bearing) => {
+                self.current_bearing = bearing.rem_euclid(2. * PI);
+                None
+            }
+            PathEl::BearingRel(bearing_rel) => {
+                self.current_bearing = (self.current_bearing + bearing_rel).rem_euclid(2. * PI);
+                None
+            }
+        }
+    }
+
+    fn handle_state(&mut self, state: IterState<'iter>) -> Option<KurboPathEl> {
+        match state {
+            IterState::None => None,
+            IterState::LineTo { transform, rest } => {
+                let Some((first, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let mut first = *first;
+
+                if transform {
+                    first = self.transform() * first;
+                }
+                self.state = IterState::LineTo { transform, rest };
+                self.current_point = first;
+                Some(KurboPathEl::LineTo(first))
+            }
+            IterState::HorizTo { transform, rest } => {
+                let Some((first, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let mut first = Point::new(*first, 0.);
+
+                if transform {
+                    first = self.transform() * first;
+                }
+                self.state = IterState::HorizTo { transform, rest };
+                self.current_point = first;
+                Some(KurboPathEl::LineTo(first))
+            }
+            IterState::VertTo { transform, rest } => {
+                let Some((first, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let mut first = Point::new(0., *first);
+
+                if transform {
+                    first = self.transform() * first;
+                }
+                self.state = IterState::VertTo { transform, rest };
+                self.current_point = first;
+                Some(KurboPathEl::LineTo(first))
+            }
+            IterState::CubicTo { transform, rest } => {
+                let Some((CubicTo { ctrl1, ctrl2, to }, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let mut ctrl1 = *ctrl1;
+                let mut ctrl2 = *ctrl2;
+                let mut to = *to;
+                if transform {
+                    let trans = self.transform();
+                    ctrl1 = trans * ctrl1;
+                    ctrl2 = trans * ctrl2;
+                    to = trans * to;
+                }
+                self.current_point = to;
+                self.state = IterState::CubicTo { transform, rest };
+                // no need to set quad as we already did it for the first element
+                self.previous_cubic = Some(ctrl2);
+                Some(KurboPathEl::CurveTo(ctrl1, ctrl2, to))
+            }
+            IterState::SmoothCubicTo { transform, rest } => {
+                let Some((SmoothCubicTo { ctrl2, to }, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let ctrl1 = self.get_smooth_cubic_ctrl1();
+                let mut ctrl2 = *ctrl2;
+                let mut to = *to;
+                if transform {
+                    let trans = self.transform();
+                    ctrl2 = trans * ctrl2;
+                    to = trans * to;
+                }
+
+                self.current_point = to;
+                self.state = IterState::SmoothCubicTo { transform, rest };
+                // no need to set quad as we already did it for the first element
+                self.previous_cubic = Some(ctrl2);
+                Some(KurboPathEl::CurveTo(ctrl1, ctrl2, to))
+            }
+            IterState::QuadTo { transform, rest } => {
+                let Some((QuadTo { ctrl, to }, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let mut ctrl = *ctrl;
+                let mut to = *to;
+                if transform {
+                    let trans = self.transform();
+                    ctrl = trans * ctrl;
+                    to = trans * to;
+                }
+                self.current_point = to;
+                self.state = IterState::QuadTo { transform, rest };
+                // no need to set quad as we already did it for the first element
+                self.previous_quad = Some(ctrl);
+                Some(KurboPathEl::QuadTo(ctrl, to))
+            }
+            IterState::SmoothQuadTo { transform, rest } => {
+                let Some((to, rest)) = rest.split_first() else {
+                    return None;
+                };
+                let ctrl = self.get_smooth_quad_ctrl();
+                let mut to = *to;
+                if transform {
+                    let trans = self.transform();
+                    to = trans * to;
+                }
+
+                self.current_point = to;
+                self.state = IterState::SmoothQuadTo { transform, rest };
+                // no need to set quad as we already did it for the first element
+                self.previous_quad = Some(ctrl);
+                Some(KurboPathEl::QuadTo(ctrl, to))
+            }
+        }
+    }
+
+    /// Get the transform for the current start position and heading.
+    fn transform(&self) -> Affine {
+        // XXX I think this is correct, but not yet 100%
+        Affine::translate(self.current_point.to_vec2()) * Affine::rotate(self.current_bearing)
+    }
+
+    fn reset_prev_beziers(&mut self) {
+        self.previous_cubic = None;
+        self.previous_quad = None;
+    }
+
+    /// The ctrl1 of a smooth bezier is the reflection of the previous ctrl2 through the previous
+    /// endpoint, or just the previous endpoint if the previous segment wasn't a cubic.
+    fn get_smooth_cubic_ctrl1(&self) -> Point {
+        let Some(ctrl2) = self.previous_cubic else {
+            return self.current_point;
+        };
+        Point {
+            x: 2. * self.current_point.x - ctrl2.x,
+            y: 2. * self.current_point.y - ctrl2.y,
+        }
+    }
+
+    /// The ctrl of a smooth quad is the reflection of the previous ctrl through the previous
+    /// endpoint, or just the previous endpoint if the previous segment wasn't a quad.
+    fn get_smooth_quad_ctrl(&self) -> Point {
+        let Some(ctrl) = self.previous_quad else {
+            return self.current_point;
+        };
+        Point {
+            x: 2. * self.current_point.x - ctrl.x,
+            y: 2. * self.current_point.y - ctrl.y,
+        }
+    }
 }
 
 impl<'iter> Iterator for PathElementsIter<'iter> {
     type Item = KurboPathEl;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        loop {
+            // Remember to but the state back if necessary.
+            let existing_state = mem::replace(&mut self.state, IterState::None);
+            if let Some(el) = self.handle_state(existing_state) {
+                return Some(el);
+            }
+            let Some((first, rest)) = self.path.split_first() else {
+                break;
+            };
+            self.path = rest;
+            if let Some(kurbo_path) = self.next_el(first) {
+                return Some(kurbo_path);
+            }
+        }
+        None
     }
 }
 
@@ -454,13 +995,19 @@ mod one_vec {
     /// A vector that has at least 1 element.
     ///
     /// It stores the first element on the stack, and the rest on the heap.
+    ///
+    /// You can create a new `OneVec` either from the first element ([`single`][OneVec::single]) or
+    /// from the `TryFrom<Vec<T>>` implementation.
     #[derive(Debug, Clone)]
     pub struct OneVec<T> {
+        /// The first, required element in the `OneVec`.
         pub first: T,
+        /// The second and subsequent elements in this `OneVec` (all optional).
         pub rest: Vec<T>,
     }
 
     impl<T> OneVec<T> {
+        /// Create a `OneVec` from a single element.
         pub fn single(val: T) -> Self {
             Self {
                 first: val,
@@ -468,8 +1015,48 @@ mod one_vec {
             }
         }
 
+        /// Iterate over the values in this `OneVec`.
+        ///
+        /// The iterator is statically guaranteed to produce at least one element.
         pub fn iter(&self) -> iter::Chain<iter::Once<&T>, slice::Iter<'_, T>> {
             self.into_iter()
+        }
+
+        /// Get the element at the given index.
+        ///
+        /// If the index is `0`, then this is guaranteed to return `Some`.
+        pub fn get(&self, idx: usize) -> Option<&T> {
+            if idx == 0 {
+                Some(&self.first)
+            } else {
+                self.rest.get(idx - 1)
+            }
+        }
+
+        /// Get the element at the given index.
+        ///
+        /// If the index is `0`, then this is guaranteed to return `Some`.
+        pub fn get_mut(&mut self, idx: usize) -> Option<&mut T> {
+            if idx == 0 {
+                Some(&mut self.first)
+            } else {
+                self.rest.get_mut(idx - 1)
+            }
+        }
+
+        /// Get the first element.
+        pub fn first(&self) -> &T {
+            &self.first
+        }
+
+        /// Get the first element.
+        pub fn first_mut(&mut self) -> &mut T {
+            &mut self.first
+        }
+
+        /// Splits the `OneVec` into the first element and the rest.
+        pub fn split(&self) -> (&T, &[T]) {
+            (&self.first, &self.rest)
         }
 
         /// Write out the vector with spaces between each element
