@@ -65,6 +65,9 @@ jobs:
         # Use no-std target to ensure we don't link to std.
         run: cargo build --no-default-features --features libm --target thumbv7m-none-eabi
 
+      - name: cargo test --features=serde
+        run: cargo test --features=serde
+
   test-stable-wasm:
     runs-on: ${{ matrix.os }}
     strategy:
