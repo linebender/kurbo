@@ -353,7 +353,7 @@ pub fn fit_to_cubic(
 
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
-    let mut curve_dist = CurveDist::from_curve(source, range.clone());
+    let mut curve_dist = CurveDist::from_curve(source, range);
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
