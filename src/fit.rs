@@ -247,7 +247,7 @@ pub fn fit_to_cubic(
     // the order of samples, for example bit-reversing.
     const N_SAMPLE: usize = 10;
     let step: f64 = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
-    let samples: ArrayVec<_, 10> = (0..N_SAMPLE)
+    let samples: ArrayVec<_, N_SAMPLE> = (0..N_SAMPLE)
         .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
         .collect();
     let acc2 = accuracy * accuracy;
@@ -445,7 +445,7 @@ fn fit_to_bezpath_opt_inner(
     let k1 = 0.2 / accuracy;
     let ya = -err;
     let yb = accuracy - last_err;
-    let x = match solve_itp_fallible(f, 0.0, accuracy, EPS, 1, k1, ya, yb) {
+    let (_, x) = match solve_itp_fallible(f, 0.0, accuracy, EPS, 1, k1, ya, yb) {
         Ok(x) => x,
         Err(t) => return Some(t),
     };
@@ -511,7 +511,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
     const EPS: f64 = 1e-9;
     let k1 = 2.0 / (t1 - t0);
     match solve_itp_fallible(f, t0, t1, EPS, 1, k1, -accuracy, err - accuracy) {
-        Ok(t1) => FitResult::ParamVal(t1),
+        Ok((t1, _)) => FitResult::ParamVal(t1),
         Err(t) => FitResult::CuspFound(t),
     }
 }

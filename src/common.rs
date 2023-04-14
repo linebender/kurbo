@@ -452,8 +452,9 @@ pub fn factor_quartic_inner(
         }
         // TODO: handle case d_2 is very small?
     } else {
-        // I think this case means no real roots, return empty.
-        todo!()
+        // This case means no real roots; in the most general case we might want
+        // to factor into quadratic equations with complex coefficients.
+        return None;
     }
     // Newton-Raphson iteration on alpha/beta coeff's.
     let mut eps_t = calc_eps_t(alpha_1, beta_1, alpha_2, beta_2);
@@ -666,6 +667,9 @@ pub fn solve_itp(
 }
 
 /// A variant ITP solver that allows fallible functions.
+///
+/// Another difference: it returns the bracket that contains the root,
+/// which may be important if the function has a discontinuity.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_itp_fallible<E>(
     mut f: impl FnMut(f64) -> Result<f64, E>,
@@ -676,7 +680,7 @@ pub(crate) fn solve_itp_fallible<E>(
     k1: f64,
     mut ya: f64,
     mut yb: f64,
-) -> Result<f64, E> {
+) -> Result<(f64, f64), E> {
     let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0) as usize;
     let nmax = n0 + n1_2;
     let mut scaled_epsilon = epsilon * (1u64 << nmax) as f64;
@@ -705,11 +709,11 @@ pub(crate) fn solve_itp_fallible<E>(
             a = xitp;
             ya = yitp;
         } else {
-            return Ok(xitp);
+            return Ok((xitp, xitp));
         }
         scaled_epsilon *= 0.5;
     }
-    Ok(0.5 * (a + b))
+    Ok((a, b))
 }
 
 // Tables of Legendre-Gauss quadrature coefficients, adapted from:
