@@ -197,7 +197,7 @@ struct CurveDist {
     arcparams: ArrayVec<f64, N_SAMPLE>,
     range: Range<f64>,
     /// A "spicy" curve is one with potentially extreme curvature variation,
-    /// so the more accurate measurement is.
+    /// so use arc length measurement for better accuracy.
     spicy: bool,
 }
 
@@ -207,20 +207,21 @@ impl CurveDist {
         let mut last_tan = None;
         let mut spicy = false;
         const SPICY_THRESH: f64 = 0.1;
-        let samples = (0..N_SAMPLE)
-            .map(|i| {
-                let sample = source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0);
-                if let Some(last_tan) = last_tan {
-                    let cross = sample.tangent.cross(last_tan);
-                    let dot = sample.tangent.dot(last_tan);
-                    if cross.abs() > SPICY_THRESH * dot.abs() {
-                        spicy = true;
-                    }
+        let mut samples = ArrayVec::new();
+        for i in 0..N_SAMPLE + 2 {
+            let sample = source.sample_pt_tangent(range.start + i as f64 * step, 1.0);
+            if let Some(last_tan) = last_tan {
+                let cross = sample.tangent.cross(last_tan);
+                let dot = sample.tangent.dot(last_tan);
+                if cross.abs() > SPICY_THRESH * dot.abs() {
+                    spicy = true;
                 }
-                last_tan = Some(sample.tangent);
-                sample
-            })
-            .collect();
+            }
+            last_tan = Some(sample.tangent);
+            if i > 0 && i < N_SAMPLE + 1 {
+                samples.push(sample);
+            }
+        }
         CurveDist {
             samples,
             arcparams: Default::default(),
@@ -455,8 +456,6 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
         .collect()
 }
 
-const HUGE: f64 = 1e12;
-
 /// Generate a highly optimized Bézier path that fits the source curve.
 ///
 /// This function is still experimental and the signature might change; it's possible
@@ -499,7 +498,7 @@ fn fit_to_bezpath_opt_inner(
         return Some(t);
     }
     let err;
-    if let Some((c, err2)) = fit_to_cubic(source, range.clone(), HUGE) {
+    if let Some((c, err2)) = fit_to_cubic(source, range.clone(), accuracy) {
         err = err2.sqrt();
         if err < accuracy {
             if range.start == 0.0 {
@@ -527,7 +526,7 @@ fn fit_to_bezpath_opt_inner(
     }
     t0 = range.start;
     const EPS: f64 = 1e-9;
-    let f = |x| fit_opt_err_delta(source, x, t0..t1, n);
+    let f = |x| fit_opt_err_delta(source, x, accuracy, t0..t1, n);
     let k1 = 0.2 / accuracy;
     let ya = -err;
     let yb = accuracy - last_err;
@@ -550,7 +549,7 @@ fn fit_to_bezpath_opt_inner(
         } else {
             range.end
         };
-        let (c, _) = fit_to_cubic(source, t0..t1, HUGE).unwrap();
+        let (c, _) = fit_to_cubic(source, t0..t1, accuracy).unwrap();
         if i == 0 && range.start == 0.0 {
             path.move_to(c.p0);
         }
@@ -564,8 +563,8 @@ fn fit_to_bezpath_opt_inner(
     None
 }
 
-fn measure_one_seg(source: &impl ParamCurveFit, range: Range<f64>) -> Option<f64> {
-    fit_to_cubic(source, range, HUGE).map(|(_, err2)| err2.sqrt())
+fn measure_one_seg(source: &impl ParamCurveFit, range: Range<f64>, limit: f64) -> Option<f64> {
+    fit_to_cubic(source, range, limit).map(|(_, err2)| err2.sqrt())
 }
 
 enum FitResult {
@@ -582,7 +581,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
         return FitResult::CuspFound(t);
     }
     let missing_err = accuracy * 2.0;
-    let err = measure_one_seg(source, range.clone()).unwrap_or(missing_err);
+    let err = measure_one_seg(source, range.clone(), accuracy).unwrap_or(missing_err);
     if err <= accuracy {
         return FitResult::SegmentError(err);
     }
@@ -591,7 +590,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
         if let Some(t) = source.break_cusp(range.clone()) {
             return Err(t);
         }
-        let err = measure_one_seg(source, t0..x).unwrap_or(missing_err);
+        let err = measure_one_seg(source, t0..x, accuracy).unwrap_or(missing_err);
         Ok(err - accuracy)
     };
     const EPS: f64 = 1e-9;
@@ -607,6 +606,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
 fn fit_opt_err_delta(
     source: &impl ParamCurveFit,
     accuracy: f64,
+    limit: f64,
     range: Range<f64>,
     n: usize,
 ) -> Result<f64, f64> {
@@ -620,6 +620,6 @@ fn fit_opt_err_delta(
             FitResult::CuspFound(t) => return Err(t),
         }
     }
-    let err = measure_one_seg(source, t0..t1).unwrap_or(accuracy * 2.0);
+    let err = measure_one_seg(source, t0..t1, limit).unwrap_or(accuracy * 2.0);
     Ok(accuracy - err)
 }
