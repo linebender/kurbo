@@ -15,7 +15,7 @@ use crate::{
         factor_quartic_inner, solve_cubic, solve_itp_fallible, solve_quadratic,
         GAUSS_LEGENDRE_COEFFS_16,
     },
-    Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
+    Affine, BezPath, CubicBez, ParamCurve, ParamCurveArclen, Point, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -194,6 +194,8 @@ const N_SAMPLE: usize = 10;
 /// An acceleration structure for estimating curve distance
 struct CurveDist {
     samples: ArrayVec<CurveFitSample, N_SAMPLE>,
+    arcparams: ArrayVec<f64, N_SAMPLE>,
+    range: Range<f64>,
 }
 
 impl CurveDist {
@@ -202,7 +204,49 @@ impl CurveDist {
         let samples = (0..N_SAMPLE)
             .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
             .collect();
-        CurveDist { samples }
+        CurveDist {
+            samples,
+            arcparams: Default::default(),
+            range,
+        }
+    }
+
+    fn compute_arc_params(&mut self, source: &impl ParamCurveFit) {
+        const N_SUBSAMPLE: usize = 10;
+        let (start, end) = (self.range.start, self.range.end);
+        let dt = (end - start) * (1.0 / ((N_SAMPLE + 1) * N_SUBSAMPLE) as f64);
+        let mut arclen = 0.0;
+        for i in 0..N_SAMPLE + 1 {
+            for j in 0..N_SUBSAMPLE {
+                let t = start + dt * ((i * N_SUBSAMPLE + j) as f64 + 0.5);
+                let (_, deriv) = source.sample_pt_deriv(t);
+                arclen += deriv.hypot();
+            }
+            if i < N_SAMPLE {
+                self.arcparams.push(arclen);
+            }
+        }
+        let arclen_inv = arclen.recip();
+        for x in &mut self.arcparams {
+            *x *= arclen_inv;
+        }
+    }
+
+    /// Evaluate distance based on arc length parametrization
+    fn eval_arc(&self, c: CubicBez, acc2: f64) -> Option<f64> {
+        // TODO: this could perhaps be tuned.
+        const EPS: f64 = 1e-9;
+        let c_arclen = c.arclen(EPS);
+        let mut max_err2 = 0.0;
+        for (sample, s) in self.samples.iter().zip(&self.arcparams) {
+            let t = c.inv_arclen(c_arclen * s, EPS);
+            let err = sample.p.distance_squared(c.eval(t));
+            max_err2 = err.max(max_err2);
+            if max_err2 > acc2 {
+                return None;
+            }
+        }
+        Some(max_err2)
     }
 
     /// Evaluate distance to a cubic approximation.
@@ -278,13 +322,14 @@ pub fn fit_to_cubic(
 
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
-    let curve_dist = CurveDist::from_curve(source, range.clone());
+    let mut curve_dist = CurveDist::from_curve(source, range.clone());
+    curve_dist.compute_arc_params(source);
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
     for cand in cubic_fit(th0, th1, unit_area, mx) {
         let c = aff * cand;
-        if let Some(err2) = curve_dist.eval_dist(c, acc2) {
+        if let Some(err2) = curve_dist.eval_arc(c, acc2) {
             if err2 < acc2 && best_err2.map(|best| err2 < best).unwrap_or(true) {
                 best_c = Some(c);
                 best_err2 = Some(err2);
