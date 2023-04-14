@@ -189,6 +189,46 @@ fn fit_to_bezpath_rec(
     }
 }
 
+const N_SAMPLE: usize = 10;
+
+/// An acceleration structure for estimating curve distance
+struct CurveDist {
+    samples: ArrayVec<CurveFitSample, N_SAMPLE>,
+}
+
+impl CurveDist {
+    fn from_curve(source: &impl ParamCurveFit, range: Range<f64>) -> Self {
+        let step = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
+        let samples = (0..N_SAMPLE)
+            .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
+            .collect();
+        CurveDist { samples }
+    }
+
+    /// Evaluate distance to a cubic approximation.
+    ///
+    /// If distance exceeds stated accuracy, can return None. Note that
+    /// `acc2` is the square of the target.
+    ///
+    /// Returns the squre of the error, which is intended to be a good
+    /// approximation of the Fréchet distance.
+    fn eval_dist(&self, c: CubicBez, acc2: f64) -> Option<f64> {
+        let mut max_err2 = 0.0;
+        for sample in &self.samples {
+            let mut best = acc2 + 1.0;
+            for t in sample.intersect(c) {
+                let err = sample.p.distance_squared(c.eval(t));
+                best = best.min(err);
+            }
+            max_err2 = best.max(max_err2);
+            if max_err2 > acc2 {
+                return None;
+            }
+        }
+        Some(max_err2)
+    }
+}
+
 /// Fit a single cubic to a range of the source curve.
 ///
 /// Returns the cubic segment and the square of the error.
@@ -238,45 +278,17 @@ pub fn fit_to_cubic(
 
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
-    // A few things here.
-    //
-    // First, it's not awesome to sample `t` uniformly, it would be better to
-    // do an approximate arc length parametrization.
-    //
-    // Second, rejection of lower accuracy curves would be faster if we permuted
-    // the order of samples, for example bit-reversing.
-    const N_SAMPLE: usize = 10;
-    let step: f64 = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
-    let samples: ArrayVec<_, N_SAMPLE> = (0..N_SAMPLE)
-        .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
-        .collect();
+    let curve_dist = CurveDist::from_curve(source, range.clone());
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
     for cand in cubic_fit(th0, th1, unit_area, mx) {
         let c = aff * cand;
-        let mut max_err2 = 0.0;
-        for sample in &samples {
-            let intersections = sample.intersect(c);
-            if intersections.is_empty() {
-                max_err2 = acc2 + 1.0;
-                break;
+        if let Some(err2) = curve_dist.eval_dist(c, acc2) {
+            if err2 < acc2 && best_err2.map(|best| err2 < best).unwrap_or(true) {
+                best_c = Some(c);
+                best_err2 = Some(err2);
             }
-            let mut best = None;
-            for t in intersections {
-                let err = sample.p.distance_squared(c.eval(t));
-                if best.map(|best| err < best).unwrap_or(true) {
-                    best = Some(err);
-                }
-            }
-            max_err2 = best.unwrap().max(max_err2);
-            if max_err2 > acc2 {
-                break;
-            }
-        }
-        if max_err2 < acc2 && best_err2.map(|best| max_err2 < best).unwrap_or(true) {
-            best_c = Some(c);
-            best_err2 = Some(max_err2);
         }
     }
     match (best_c, best_err2) {
