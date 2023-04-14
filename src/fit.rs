@@ -196,18 +196,36 @@ struct CurveDist {
     samples: ArrayVec<CurveFitSample, N_SAMPLE>,
     arcparams: ArrayVec<f64, N_SAMPLE>,
     range: Range<f64>,
+    /// A "spicy" curve is one with potentially extreme curvature variation,
+    /// so the more accurate measurement is.
+    spicy: bool,
 }
 
 impl CurveDist {
     fn from_curve(source: &impl ParamCurveFit, range: Range<f64>) -> Self {
         let step = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
+        let mut last_tan = None;
+        let mut spicy = false;
+        const SPICY_THRESH: f64 = 0.1;
         let samples = (0..N_SAMPLE)
-            .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
+            .map(|i| {
+                let sample = source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0);
+                if let Some(last_tan) = last_tan {
+                    let cross = sample.tangent.cross(last_tan);
+                    let dot = sample.tangent.dot(last_tan);
+                    if cross.abs() > SPICY_THRESH * dot.abs() {
+                        spicy = true;
+                    }
+                }
+                last_tan = Some(sample.tangent);
+                sample
+            })
             .collect();
         CurveDist {
             samples,
             arcparams: Default::default(),
             range,
+            spicy,
         }
     }
 
@@ -256,7 +274,7 @@ impl CurveDist {
     ///
     /// Returns the squre of the error, which is intended to be a good
     /// approximation of the Fréchet distance.
-    fn eval_dist(&self, c: CubicBez, acc2: f64) -> Option<f64> {
+    fn eval_ray(&self, c: CubicBez, acc2: f64) -> Option<f64> {
         let mut max_err2 = 0.0;
         for sample in &self.samples {
             let mut best = acc2 + 1.0;
@@ -270,6 +288,18 @@ impl CurveDist {
             }
         }
         Some(max_err2)
+    }
+
+    fn eval_dist(&mut self, source: &impl ParamCurveFit, c: CubicBez, acc2: f64) -> Option<f64> {
+        // Always compute cheaper distance, hoping for early-out.
+        let ray_dist = self.eval_ray(c, acc2)?;
+        if !self.spicy {
+            return Some(ray_dist);
+        }
+        if self.arcparams.is_empty() {
+            self.compute_arc_params(source);
+        }
+        self.eval_arc(c, acc2)
     }
 }
 
@@ -323,13 +353,12 @@ pub fn fit_to_cubic(
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
     let mut curve_dist = CurveDist::from_curve(source, range.clone());
-    curve_dist.compute_arc_params(source);
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
     for cand in cubic_fit(th0, th1, unit_area, mx) {
         let c = aff * cand;
-        if let Some(err2) = curve_dist.eval_arc(c, acc2) {
+        if let Some(err2) = curve_dist.eval_dist(source, c, acc2) {
             if err2 < acc2 && best_err2.map(|best| err2 < best).unwrap_or(true) {
                 best_c = Some(c);
                 best_err2 = Some(err2);
