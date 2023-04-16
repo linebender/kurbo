@@ -24,6 +24,11 @@ impl<T> OneVec<T> {
         }
     }
 
+    /// Construct `self` directly from a first element and a possibly empty vec.
+    pub fn from_single_rest(first: T, rest: Vec<T>) -> Self {
+        Self { first, rest }
+    }
+
     /// Iterate over the values in this `OneVec`.
     ///
     /// The iterator is statically guaranteed to produce at least one element.
