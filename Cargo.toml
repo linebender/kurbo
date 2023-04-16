@@ -14,13 +14,15 @@ categories = ["graphics"]
 features = ["mint", "schemars", "serde"]
 
 [features]
-default = ["std"]
+default = ["std", "svg_path"]
 std = []
 serde = ["smallvec/serde", "arrayvec/serde", "serde1"]
+svg_path = ["nom"]
 
 [dependencies]
 smallvec = "1.10.0"
 anyhow = "1.0.70"
+nom = { version = "7.1.3", optional = true }
 
 [dependencies.arrayvec]
 version = "0.7.1"

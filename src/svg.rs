@@ -15,6 +15,7 @@ impl BezPath {
     ///
     /// The current implementation doesn't take any special care to produce a
     /// short string (reducing precision, using relative movement).
+    #[deprecated]
     pub fn to_svg(&self) -> String {
         let mut buffer = Vec::new();
         self.write_to(&mut buffer).unwrap();
@@ -22,6 +23,7 @@ impl BezPath {
     }
 
     /// Write the SVG representation of this path to the provided buffer.
+    #[deprecated]
     pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
         for (i, el) in self.elements().iter().enumerate() {
             if i > 0 {
@@ -48,6 +50,7 @@ impl BezPath {
     /// This is implemented on a best-effort basis, intended for cases where the
     /// user controls the source of paths, and is not intended as a replacement
     /// for a general, robust SVG parser.
+    #[deprecated]
     pub fn from_svg(data: &str) -> Result<BezPath, SvgParseError> {
         let mut lexer = SvgLexer::new(data);
         let mut path = BezPath::new();
@@ -188,169 +191,15 @@ impl BezPath {
     }
 }
 
-/// An error which can be returned when parsing an SVG.
-#[derive(Debug)]
-pub enum SvgParseError {
-    /// A number was expected.
-    Wrong,
-    /// The input string ended while still expecting input.
-    UnexpectedEof,
-    /// Encountered an unknown command letter.
-    UnknownCommand(char),
-}
-
-impl Display for SvgParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            SvgParseError::Wrong => write!(f, "Unable to parse a number"),
-            SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
-            SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
-        }
-    }
-}
-
-impl Error for SvgParseError {}
-
-struct SvgLexer<'a> {
-    data: &'a str,
-    ix: usize,
-    pub last_pt: Point,
-}
-
-impl<'a> SvgLexer<'a> {
-    fn new(data: &str) -> SvgLexer {
-        SvgLexer {
-            data,
-            ix: 0,
-            last_pt: Point::ORIGIN,
-        }
-    }
-
-    fn skip_ws(&mut self) {
-        while let Some(&c) = self.data.as_bytes().get(self.ix) {
-            if !(c == b' ' || c == 9 || c == 10 || c == 12 || c == 13) {
-                break;
-            }
-            self.ix += 1;
-        }
-    }
-
-    fn get_cmd(&mut self, last_cmd: u8) -> Option<u8> {
-        self.skip_ws();
-        if let Some(c) = self.get_byte() {
-            if c.is_ascii_lowercase() || c.is_ascii_uppercase() {
-                return Some(c);
-            } else if last_cmd != 0 && (c == b'-' || c == b'.' || c.is_ascii_digit()) {
-                // Plausible number start
-                self.unget();
-                return Some(last_cmd);
-            } else {
-                self.unget();
-            }
-        }
-        None
-    }
-
-    fn get_byte(&mut self) -> Option<u8> {
-        self.data.as_bytes().get(self.ix).map(|&c| {
-            self.ix += 1;
-            c
-        })
-    }
-
-    fn unget(&mut self) {
-        self.ix -= 1;
-    }
-
-    fn get_number(&mut self) -> Result<f64, SvgParseError> {
-        self.skip_ws();
-        let start = self.ix;
-        let c = self.get_byte().ok_or(SvgParseError::UnexpectedEof)?;
-        if !(c == b'-' || c == b'+') {
-            self.unget();
-        }
-        let mut digit_count = 0;
-        let mut seen_period = false;
-        while let Some(c) = self.get_byte() {
-            if c.is_ascii_digit() {
-                digit_count += 1;
-            } else if c == b'.' && !seen_period {
-                seen_period = true;
-            } else {
-                self.unget();
-                break;
-            }
-        }
-        if let Some(c) = self.get_byte() {
-            if c == b'e' || c == b'E' {
-                let mut c = self.get_byte().ok_or(SvgParseError::Wrong)?;
-                if c == b'-' || c == b'+' {
-                    c = self.get_byte().ok_or(SvgParseError::Wrong)?
-                }
-                if c.is_ascii_digit() {
-                    return Err(SvgParseError::Wrong);
-                }
-                while let Some(c) = self.get_byte() {
-                    if c.is_ascii_digit() {
-                        self.unget();
-                        break;
-                    }
-                }
-            } else {
-                self.unget();
-            }
-        }
-        if digit_count > 0 {
-            self.data[start..self.ix]
-                .parse()
-                .map_err(|_| SvgParseError::Wrong)
-        } else {
-            Err(SvgParseError::Wrong)
-        }
-    }
-
-    fn get_flag(&mut self) -> Result<bool, SvgParseError> {
-        self.skip_ws();
-        match self.get_byte().ok_or(SvgParseError::UnexpectedEof)? {
-            b'0' => Ok(false),
-            b'1' => Ok(true),
-            _ => Err(SvgParseError::Wrong),
-        }
-    }
-
-    fn get_number_pair(&mut self) -> Result<Point, SvgParseError> {
-        let x = self.get_number()?;
-        self.opt_comma();
-        let y = self.get_number()?;
-        self.opt_comma();
-        Ok(Point::new(x, y))
-    }
-
-    fn get_maybe_relative(&mut self, cmd: u8) -> Result<Point, SvgParseError> {
-        let pt = self.get_number_pair()?;
-        if cmd.is_ascii_lowercase() {
-            Ok(self.last_pt + pt.to_vec2())
-        } else {
-            Ok(pt)
-        }
-    }
-
-    fn opt_comma(&mut self) {
-        self.skip_ws();
-        if let Some(c) = self.get_byte() {
-            if c != b',' {
-                self.unget();
-            }
-        }
-    }
-}
-
 impl SvgArc {
     /// Checks that arc is actually a straight line.
     ///
+    /// `tolerance` is the maximum distance between the arc and the equvalent straight line from
+    /// the start to the end of the arc.
+    ///
     /// In this case, it can be replaced with a LineTo.
-    pub fn is_straight_line(&self) -> bool {
-        self.radii.x.abs() <= 1e-5 || self.radii.y.abs() <= 1e-5 || self.from == self.to
+    pub fn is_straight_line(&self, tolerance: f64) -> bool {
+        self.radii.x.abs() <= tolerance || self.radii.y.abs() <= tolerance || self.from == self.to
     }
 }
 
@@ -360,7 +209,7 @@ impl Arc {
     /// Returns `None` if `arc` is actually a straight line.
     pub fn from_svg_arc(arc: &SvgArc) -> Option<Arc> {
         // Have to check this first, otherwise `sum_of_sq` will be 0.
-        if arc.is_straight_line() {
+        if arc.is_straight_line(1e-6) {
             return None;
         }
 

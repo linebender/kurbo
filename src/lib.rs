@@ -98,6 +98,7 @@ mod line;
 mod mindist;
 pub mod offset;
 mod param_curve;
+#[cfg(any(feature = "svg_path"))]
 pub mod paths;
 mod point;
 mod quadbez;

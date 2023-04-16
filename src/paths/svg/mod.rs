@@ -1,11 +1,17 @@
 //! This module provides type [`Path`] representing SVG path data, and associated types.
-use crate::{Affine, PathEl as KurboPathEl, Point, Shape, Vec2};
-use anyhow::{anyhow, Result};
-use std::{f64::consts::PI, fmt, io, iter, mem, ops::Deref, slice, vec};
+//!
+//! In addition to providing SVG path support, this path type serves as a proof-of-concept and
+//! template for custom path types that implement [`kurbo::Shape`], thereby allowing it to be drawn
+//! by any rendering engine that supports [`BezPath`][kurbo::BezPath] rendering.
+use crate::{Affine, PathEl as KurboPathEl, Point, Rect, Shape, Vec2};
+use anyhow::{anyhow, ensure, Result};
+use std::{f64::consts::PI, io, mem, ops::Deref, vec};
 
-pub use self::one_vec::*;
+mod onevec;
+mod string_repr;
 
-type OneIter<'a, T> = iter::Chain<iter::Once<&'a T>, slice::Iter<'a, T>>;
+use self::onevec::*;
+pub use self::string_repr::{parse, SvgParseError};
 
 /// An SVG path
 ///
@@ -19,6 +25,8 @@ type OneIter<'a, T> = iter::Chain<iter::Once<&'a T>, slice::Iter<'a, T>>;
 pub struct Path {
     /// The elements that make up this path.
     elements: Vec<PathEl>,
+    /// A cache to record we've seen a moveto
+    has_moveto: bool,
 }
 
 /// An SVG path element
@@ -131,16 +139,17 @@ pub enum PathEl {
     /// `A`: Draw an elliptical arc.
     ///
     /// See the documentation for [`Arc`] for more details.
-    EllipticArc(OneVec<Arc>),
+    EllipticArc(OneVec<ArcTo>),
     /// `a`: Draw an elliptical arc.
     ///
     /// See the documentation for [`Arc`] for more details. The points are interpreted taking into
     /// account the bearing and previous position, as detailed in the [type documentation][PathEl].
     /// In particular, this affects the x-axis rotation (which will be the sum of the given x-axis
     /// rotation and the bearing).
-    EllipticArcRel(OneVec<Arc>),
+    EllipticArcRel(OneVec<ArcTo>),
     // TODO catmull-rom. These curves look interesting but I don't know anything about them and
-    // so it makes sense to tackle them later.
+    // so it makes sense to tackle them later. Update: they are based on defining the location and
+    // derivative at a set of points.
     /// Set the bearing.
     ///
     /// This overwrites the existing bearing. This is another place where this implementation is
@@ -201,7 +210,7 @@ pub struct QuadTo {
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Arc {
+pub struct ArcTo {
     /// The arc's end point.
     pub to: Point,
     /// The arc's radii, where the vector's x-component is the radius in the
@@ -218,7 +227,35 @@ pub struct Arc {
 impl Path {
     /// Create a new path object.
     pub fn new() -> Self {
-        Self { elements: vec![] }
+        Self {
+            elements: vec![],
+            has_moveto: false,
+        }
+    }
+
+    /// Create a new path object with space for `length` path elements.
+    pub fn with_capacity(length: usize) -> Self {
+        Self {
+            elements: Vec::with_capacity(length),
+            has_moveto: false,
+        }
+    }
+
+    /// Create a new path object from a vec of elements.
+    ///
+    /// This function will return an error if the resulting path would be invalid.
+    pub fn from_elements(elements: Vec<PathEl>) -> Result<Self> {
+        let mut this = Self {
+            elements,
+            has_moveto: false,
+        };
+        this.validate()?;
+        Ok(this)
+    }
+
+    /// Try to parse a string as an SVG path.
+    pub fn parse(input: &str) -> Result<Self, SvgParseError> {
+        parse(input)
     }
 
     /// Push an element onto the end of an array.
@@ -226,41 +263,24 @@ impl Path {
     /// All elements apart from `MoveTo` and `Bearing` must be preceeded by a `MoveTo`.
     pub fn push(&mut self, el: PathEl) -> Result<()> {
         // bearings and moveto are always allowed
-        if let PathEl::MoveTo(_) = &el {
+        if matches!(&el, PathEl::MoveTo(_)) {
             self.elements.push(el);
+            self.has_moveto = true;
             return Ok(());
         }
-        if let PathEl::Bearing(_) = &el {
+        if matches!(&el, PathEl::Bearing(_)) {
             self.elements.push(el);
             return Ok(());
         }
 
         // other elements are only allowed if they come after a moveto
-        if self
-            .elements
-            .iter()
-            .find(|el| matches!(*el, PathEl::MoveTo(_)))
-            .is_none()
-        {
+        if !self.has_moveto {
             return Err(anyhow!(
                 "all line and curve elements must be preceeded by a moveto"
             ));
         }
 
         self.elements.push(el);
-        Ok(())
-    }
-
-    /// Write out a text representation of the string.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut iter = self.elements.iter();
-        if let Some(el) = iter.next() {
-            el.write(f)?;
-        }
-        for el in iter {
-            write!(f, " ")?;
-            el.write(f)?;
-        }
         Ok(())
     }
 
@@ -277,34 +297,32 @@ impl Path {
     }
 
     /// Returns an error if the path is invalid
-    fn validate(&self) -> Result<()> {
-        let move_idx = self
-            .elements
-            .iter()
-            .enumerate()
-            .find(|(_, el)| matches!(el, PathEl::MoveTo(_) | PathEl::MoveToRel(_)))
-            .map(|(idx, _)| idx);
-        let path_idx = self
-            .elements
-            .iter()
-            .enumerate()
-            .find(|(_, el)| {
-                !matches!(
-                    el,
-                    PathEl::MoveTo(_)
-                        | PathEl::MoveToRel(_)
-                        | PathEl::Bearing(_)
-                        | PathEl::BearingRel(_)
-                )
-            })
-            .map(|(idx, _)| idx);
-        match (move_idx, path_idx) {
-            (None, Some(idx)) => Err(anyhow!("First path at index {idx} before first move")),
-            (Some(move_idx), Some(path_idx)) if move_idx > path_idx => Err(anyhow!(
-                "First path at index {path_idx} before first move at index {move_idx}"
-            )),
-            _ => Ok(()),
+    ///
+    /// Used to check invariants when a path is constructed from a list of path elemenets.
+    fn validate(&mut self) -> Result<()> {
+        let Path {
+            ref mut has_moveto,
+            ref mut elements,
+        } = self;
+        for (idx, el) in elements.into_iter().enumerate() {
+            match el {
+                PathEl::MoveTo(_) => {
+                    *has_moveto = true;
+                }
+                PathEl::Bearing(_) => {
+                    // fall through
+                }
+                _ => {
+                    // all other elements must be preceeded by moveto
+                    ensure!(
+                        *has_moveto,
+                        "path element {el:?} at index {idx} was not preceeded by a \
+                            `PathEl::MoveTo(_)`"
+                    )
+                }
+            }
         }
+        Ok(())
     }
 }
 
@@ -320,15 +338,7 @@ impl TryFrom<Vec<PathEl>> for Path {
     type Error = anyhow::Error;
 
     fn try_from(value: Vec<PathEl>) -> Result<Self, Self::Error> {
-        let path = Path { elements: value };
-        path.validate()?;
-        Ok(path)
-    }
-}
-
-impl fmt::Display for Path {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt(f)
+        Path::from_elements(value)
     }
 }
 
@@ -353,155 +363,16 @@ impl Shape for Path {
         todo!()
     }
 
-    fn perimeter(&self, accuracy: f64) -> f64 {
-        self.elements.iter().map(PathEl::length).sum()
-    }
-
-    fn winding(&self, pt: Point) -> i32 {
+    fn perimeter(&self, _accuracy: f64) -> f64 {
         todo!()
     }
 
-    fn bounding_box(&self) -> crate::Rect {
-        todo!()
-    }
-}
-
-impl PathEl {
-    fn length(&self) -> f64 {
+    fn winding(&self, _pt: Point) -> i32 {
         todo!()
     }
 
-    fn write(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PathEl::MoveTo(points) => {
-                write!(f, "M")?;
-                points.write_spaced(write_point, f)?;
-            }
-            PathEl::MoveToRel(points) => {
-                write!(f, "m")?;
-                points.write_spaced(write_point, f)?;
-            }
-            PathEl::ClosePath => {
-                write!(f, "Z")?;
-            }
-            PathEl::LineTo(points) => {
-                write!(f, "L")?;
-                points.write_spaced(write_point, f)?;
-            }
-            PathEl::LineToRel(points) => {
-                write!(f, "l")?;
-                points.write_spaced(write_point, f)?;
-            }
-            PathEl::Horiz(amts) => {
-                write!(f, "H")?;
-                amts.write_spaced(|v, f| write!(f, "{}", v), f)?;
-            }
-            PathEl::HorizRel(amts) => {
-                write!(f, "h")?;
-                amts.write_spaced(|v, f| write!(f, "{}", v), f)?;
-            }
-            PathEl::Vert(amts) => {
-                write!(f, "V")?;
-                amts.write_spaced(|v, f| write!(f, "{}", v), f)?;
-            }
-            PathEl::VertRel(amts) => {
-                write!(f, "v")?;
-                amts.write_spaced(|v, f| write!(f, "{}", v), f)?;
-            }
-            PathEl::CubicTo(cubic_tos) => {
-                write!(f, "C")?;
-                cubic_tos.write_spaced(CubicTo::write_vals, f)?;
-            }
-            PathEl::CubicToRel(cubic_tos) => {
-                write!(f, "c")?;
-                cubic_tos.write_spaced(CubicTo::write_vals, f)?;
-            }
-            PathEl::SmoothCubicTo(cubic_tos) => {
-                write!(f, "S")?;
-                cubic_tos.write_spaced(SmoothCubicTo::write_vals, f)?;
-            }
-            PathEl::SmoothCubicToRel(cubic_tos) => {
-                write!(f, "s")?;
-                cubic_tos.write_spaced(SmoothCubicTo::write_vals, f)?;
-            }
-            PathEl::QuadTo(quad_tos) => {
-                write!(f, "Q")?;
-                quad_tos.write_spaced(QuadTo::write_vals, f)?;
-            }
-            PathEl::QuadToRel(quad_tos) => {
-                write!(f, "q")?;
-                quad_tos.write_spaced(QuadTo::write_vals, f)?;
-            }
-            PathEl::SmoothQuadTo(quad_tos) => {
-                write!(f, "T")?;
-                quad_tos.write_spaced(write_point, f)?;
-            }
-            PathEl::SmoothQuadToRel(quad_tos) => {
-                write!(f, "t")?;
-                quad_tos.write_spaced(write_point, f)?;
-            }
-            PathEl::EllipticArc(arcs) => {
-                write!(f, "A")?;
-                arcs.write_spaced(Arc::write_vals, f)?;
-            }
-            PathEl::EllipticArcRel(arcs) => {
-                write!(f, "a")?;
-                arcs.write_spaced(Arc::write_vals, f)?;
-            }
-            PathEl::Bearing(bearing) => {
-                write!(f, "B{bearing}",)?;
-            }
-            PathEl::BearingRel(bearing) => {
-                write!(f, "b{bearing}",)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl CubicTo {
-    fn write_vals(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{},{} {},{} {},{}",
-            self.ctrl1.x, self.ctrl1.y, self.ctrl2.x, self.ctrl2.y, self.to.x, self.to.y
-        )
-    }
-}
-
-impl SmoothCubicTo {
-    fn write_vals(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{},{} {},{}",
-            self.ctrl2.x, self.ctrl2.y, self.to.x, self.to.y
-        )
-    }
-}
-
-impl QuadTo {
-    fn write_vals(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{},{} {},{}",
-            self.ctrl.x, self.ctrl.y, self.to.x, self.to.y
-        )
-    }
-}
-
-impl Arc {
-    fn write_vals(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{},{} {} {},{} {},{}",
-            self.radii.x,
-            self.radii.y,
-            self.x_rotation,
-            self.large_arc,
-            self.sweep,
-            self.to.x,
-            self.to.y
-        )
+    fn bounding_box(&self) -> Rect {
+        todo!()
     }
 }
 
@@ -513,6 +384,7 @@ pub struct PathElementsIter<'iter> {
     /// The path we are traversing.
     path: &'iter [PathEl],
     /// Tolerance parameter
+    #[allow(unused)]
     tolerance: f64,
     /// The start point of the current sub-path (this resets for every `MoveTo`).
     path_start_point: Point,
@@ -973,6 +845,7 @@ impl<'iter> Iterator for PathElementsIter<'iter> {
                 return Some(el);
             }
             let Some((first, rest)) = self.path.split_first() else {
+                // This break is hit if we have exhaused the vec of svg path els.
                 break;
             };
             self.path = rest;
@@ -981,126 +854,5 @@ impl<'iter> Iterator for PathElementsIter<'iter> {
             }
         }
         None
-    }
-}
-
-fn write_point(Point { x, y }: &Point, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{x},{y}")
-}
-
-mod one_vec {
-    use anyhow::anyhow;
-    use std::{fmt, iter, slice, vec};
-
-    /// A vector that has at least 1 element.
-    ///
-    /// It stores the first element on the stack, and the rest on the heap.
-    ///
-    /// You can create a new `OneVec` either from the first element ([`single`][OneVec::single]) or
-    /// from the `TryFrom<Vec<T>>` implementation.
-    #[derive(Debug, Clone)]
-    pub struct OneVec<T> {
-        /// The first, required element in the `OneVec`.
-        pub first: T,
-        /// The second and subsequent elements in this `OneVec` (all optional).
-        pub rest: Vec<T>,
-    }
-
-    impl<T> OneVec<T> {
-        /// Create a `OneVec` from a single element.
-        pub fn single(val: T) -> Self {
-            Self {
-                first: val,
-                rest: vec![],
-            }
-        }
-
-        /// Iterate over the values in this `OneVec`.
-        ///
-        /// The iterator is statically guaranteed to produce at least one element.
-        pub fn iter(&self) -> iter::Chain<iter::Once<&T>, slice::Iter<'_, T>> {
-            self.into_iter()
-        }
-
-        /// Get the element at the given index.
-        ///
-        /// If the index is `0`, then this is guaranteed to return `Some`.
-        pub fn get(&self, idx: usize) -> Option<&T> {
-            if idx == 0 {
-                Some(&self.first)
-            } else {
-                self.rest.get(idx - 1)
-            }
-        }
-
-        /// Get the element at the given index.
-        ///
-        /// If the index is `0`, then this is guaranteed to return `Some`.
-        pub fn get_mut(&mut self, idx: usize) -> Option<&mut T> {
-            if idx == 0 {
-                Some(&mut self.first)
-            } else {
-                self.rest.get_mut(idx - 1)
-            }
-        }
-
-        /// Get the first element.
-        pub fn first(&self) -> &T {
-            &self.first
-        }
-
-        /// Get the first element.
-        pub fn first_mut(&mut self) -> &mut T {
-            &mut self.first
-        }
-
-        /// Splits the `OneVec` into the first element and the rest.
-        pub fn split(&self) -> (&T, &[T]) {
-            (&self.first, &self.rest)
-        }
-
-        /// Write out the vector with spaces between each element
-        pub(crate) fn write_spaced(
-            &self,
-            mut cb: impl FnMut(&T, &mut fmt::Formatter) -> fmt::Result,
-            f: &mut fmt::Formatter,
-        ) -> fmt::Result {
-            cb(&self.first, f)?;
-            for v in &self.rest {
-                cb(v, f)?;
-            }
-            Ok(())
-        }
-    }
-
-    impl<T> TryFrom<Vec<T>> for OneVec<T> {
-        type Error = anyhow::Error;
-        fn try_from(mut v: Vec<T>) -> Result<Self, Self::Error> {
-            // Annoyingly the `Vec::remove` method can panic, so we have to check
-            // the vec is non-empty
-            if v.is_empty() {
-                return Err(anyhow!("vector must not be empty"));
-            }
-            let first = v.remove(0);
-            Ok(OneVec { first, rest: v })
-        }
-    }
-
-    impl<'a, T> IntoIterator for &'a OneVec<T> {
-        type IntoIter = iter::Chain<iter::Once<&'a T>, slice::Iter<'a, T>>;
-        type Item = &'a T;
-
-        fn into_iter(self) -> Self::IntoIter {
-            iter::once(&self.first).chain(&self.rest)
-        }
-    }
-
-    impl<T> IntoIterator for OneVec<T> {
-        type IntoIter = iter::Chain<iter::Once<T>, vec::IntoIter<T>>;
-        type Item = T;
-
-        fn into_iter(self) -> Self::IntoIter {
-            iter::once(self.first).chain(self.rest)
-        }
     }
 }
