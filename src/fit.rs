@@ -189,7 +189,7 @@ fn fit_to_bezpath_rec(
     }
 }
 
-const N_SAMPLE: usize = 10;
+const N_SAMPLE: usize = 20;
 
 /// An acceleration structure for estimating curve distance
 struct CurveDist {
@@ -206,7 +206,7 @@ impl CurveDist {
         let step = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
         let mut last_tan = None;
         let mut spicy = false;
-        const SPICY_THRESH: f64 = 0.1;
+        const SPICY_THRESH: f64 = 0.2;
         let mut samples = ArrayVec::new();
         for i in 0..N_SAMPLE + 2 {
             let sample = source.sample_pt_tangent(range.start + i as f64 * step, 1.0);
@@ -322,8 +322,12 @@ pub fn fit_to_cubic(
     let d = end.p - start.p;
     let th = d.atan2();
     let chord2 = d.hypot2();
-    let th0 = start.tangent.atan2() - th;
-    let th1 = th - end.tangent.atan2();
+    fn mod_2pi(th: f64) -> f64 {
+        let th_scaled = th * core::f64::consts::FRAC_1_PI * 0.5;
+        core::f64::consts::PI * 2.0 * (th_scaled - th_scaled.round())
+    }
+    let th0 = mod_2pi(start.tangent.atan2() - th);
+    let th1 = mod_2pi(th - end.tangent.atan2());
 
     let (mut area, mut x, mut y) = source.moment_integrals(range.clone());
     let (x0, y0) = (start.p.x, start.p.y);
@@ -357,9 +361,14 @@ pub fn fit_to_cubic(
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
-    for cand in cubic_fit(th0, th1, unit_area, mx) {
+    for (cand, d0, d1) in cubic_fit(th0, th1, unit_area, mx) {
         let c = aff * cand;
         if let Some(err2) = curve_dist.eval_dist(source, c, acc2) {
+            fn scale_f(d: f64) -> f64 {
+                1.0 + (d - 0.65).max(0.0) * 2.0
+            }
+            let scale = scale_f(d0).max(scale_f(d1)).powi(2);
+            let err2 = err2 * scale;
             if err2 < acc2 && best_err2.map(|best| err2 < best).unwrap_or(true) {
                 best_c = Some(c);
                 best_err2 = Some(err2);
@@ -373,7 +382,7 @@ pub fn fit_to_cubic(
 }
 
 /// Returns curves matching area and moment, given unit chord.
-fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
+fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<(CubicBez, f64, f64), 4> {
     // Note: maybe we want to take unit vectors instead of angle? Shouldn't
     // matter much either way though.
     let (s0, c0) = th0.sin_cos();
@@ -442,12 +451,17 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
             } else {
                 (0.0, s0 / s01)
             };
+            // We could implement a maximum d value here.
             if d0 >= 0.0 && d1 >= 0.0 {
-                Some(CubicBez::new(
-                    (0.0, 0.0),
-                    (d0 * c0, d0 * s0),
-                    (1.0 - d1 * c1, d1 * s1),
-                    (1.0, 0.0),
+                Some((
+                    CubicBez::new(
+                        (0.0, 0.0),
+                        (d0 * c0, d0 * s0),
+                        (1.0 - d1 * c1, d1 * s1),
+                        (1.0, 0.0),
+                    ),
+                    d0,
+                    d1,
                 ))
             } else {
                 None
@@ -534,7 +548,7 @@ fn fit_to_bezpath_opt_inner(
         Ok(x) => x,
         Err(t) => return Some(t),
     };
-    //println!("got fit with n={}, err={}", n, x);
+    eprintln!("got fit with n={}, err={}", n, x);
     let path_len = path.elements().len();
     for i in 0..n {
         let t1 = if i < n - 1 {
