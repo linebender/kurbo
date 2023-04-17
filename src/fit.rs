@@ -269,6 +269,7 @@ pub fn fit_to_cubic(
                     best = Some(err);
                 }
             }
+            // Unwrap unreachable due to `intersections.is_empty()` call above
             max_err2 = best.unwrap().max(max_err2);
             if max_err2 > acc2 {
                 break;
@@ -464,7 +465,10 @@ fn fit_to_bezpath_opt_inner(
         } else {
             range.end
         };
-        let (c, _) = fit_to_cubic(source, t0..t1, HUGE).unwrap();
+        let Some((c, _)) = fit_to_cubic(source, t0..t1, HUGE) else {
+            // bail if we can't find a good fit
+            break
+        };
         if i == 0 && range.start == 0.0 {
             path.move_to(c.p0);
         }
