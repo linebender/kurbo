@@ -548,7 +548,7 @@ fn fit_to_bezpath_opt_inner(
         Ok(x) => x,
         Err(t) => return Some(t),
     };
-    eprintln!("got fit with n={}, err={}", n, x);
+    //println!("got fit with n={}, err={}", n, x);
     let path_len = path.elements().len();
     for i in 0..n {
         let t1 = if i < n - 1 {
