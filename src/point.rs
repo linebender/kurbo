@@ -13,6 +13,15 @@ use crate::Vec2;
 use crate::common::FloatFuncs;
 
 /// A 2D point.
+///
+/// This type represents a point in 2D space. It has the same layout as [`Vec2`][crate::Vec2], but
+/// its meaning is different: `Vec2` represents a change in location (for example velocity).
+///
+/// In general, `kurbo` overloads math operators where it makes sense, for example implementing
+/// `Affine * Point` as the point under the affine transformation. However `Point + Point` and
+/// `f64 * Point` are not implemented, because the operations do not make geometric sense. If you
+/// need to apply these operations, then 1) check what you're doing makes geometric sense, then 2)
+/// use [`Point::to_vec2`] to convert the point to a `Vec2`.
 #[derive(Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
