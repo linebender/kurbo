@@ -235,6 +235,18 @@ impl Vec2 {
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
+
+    /// Divides this Vec2 by a scalar.
+    ///
+    /// Unlike the division by scalar operator, which multiplies by the
+    /// reciprocal for performance, this performs the division
+    /// per-component for consistent rounding behavior.
+    pub(crate) fn div_exact(self, divisor: f64) -> Vec2 {
+        Vec2 {
+            x: self.x / divisor,
+            y: self.y / divisor,
+        }
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {
