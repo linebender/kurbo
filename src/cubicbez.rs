@@ -259,8 +259,8 @@ impl CubicBez {
     /// Rust port of cu2qu [calc_cubic_points](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L63-L68)
     fn from_parameters(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> Self {
         let p0 = d.to_point();
-        let p1 = (c / 3.0).to_point() + d;
-        let p2 = ((b + c) / 3.0).to_point() + p1.to_vec2();
+        let p1 = c.div_exact(3.0).to_point() + d;
+        let p2 = (b + c).div_exact(3.0).to_point() + p1.to_vec2();
         let p3 = (a + d + c + b).to_point();
         CubicBez::new(p0, p1, p2, p3)
     }
@@ -272,13 +272,17 @@ impl CubicBez {
             self.p2.to_vec2(),
             self.p3.to_vec2(),
         );
-        let mid1 = ((8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3) / 27.0).to_point();
-        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0) / 27.0;
-        let mid2 = ((p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3) / 27.0).to_point();
-        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0) / 27.0;
+        let mid1 = (8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3)
+            .div_exact(27.0)
+            .to_point();
+        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0).div_exact(27.0);
+        let mid2 = (p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3)
+            .div_exact(27.0)
+            .to_point();
+        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0).div_exact(27.0);
         let left = CubicBez::new(
             self.p0,
-            ((2.0 * p0 + p1) / 3.0).to_point(),
+            (2.0 * p0 + p1).div_exact(3.0).to_point(),
             mid1 - deriv1,
             mid1,
         );
@@ -286,7 +290,7 @@ impl CubicBez {
         let right = CubicBez::new(
             mid2,
             mid2 + deriv2,
-            ((p2 + 2.0 * p3) / 3.0).to_point(),
+            (p2 + 2.0 * p3).div_exact(3.0).to_point(),
             self.p3,
         );
         (left, mid, right)
@@ -919,6 +923,32 @@ mod tests {
         assert!(
             converted[0].points()[2].distance(Point::new(88639.0 / 90.0, 52584.0 / 90.0)) < 0.0001
         );
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_div_exact() {
+        // Ensure rounding behavior for division matches fonttools
+        // cu2qu.
+        // See <https://github.com/linebender/kurbo/issues/272>
+        let cubic = CubicBez::new(
+            Point::new(408.0, 321.0),
+            Point::new(408.0, 452.0),
+            Point::new(342.0, 560.0),
+            Point::new(260.0, 560.0),
+        );
+        let spline = cubic.approx_spline(1.0).unwrap();
+        assert_eq!(
+            spline.points(),
+            &[
+                Point::new(408.0, 321.0),
+                // Previous behavior produced 386.49999999999994 for the
+                // y coordinate leading to inconsistent rounding.
+                Point::new(408.0, 386.5),
+                Point::new(368.16666666666663, 495.0833333333333),
+                Point::new(301.0, 560.0),
+                Point::new(260.0, 560.0)
+            ]
+        )
     }
 
     #[test]
