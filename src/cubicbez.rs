@@ -652,6 +652,7 @@ mod tests {
     use crate::{
         cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
         ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
+        QuadSpline,
     };
 
     #[test]
@@ -982,5 +983,46 @@ mod tests {
 
         // FontTools can solve this with accuracy 0.001, we can too
         assert!(cubics_to_quadratic_splines(&[cubic], 0.001).is_some());
+    }
+
+    #[test]
+    fn cubics_to_quadratic_splines_matches_python() {
+        // https://github.com/linebender/kurbo/pull/273
+        let light = CubicBez::new((378., 608.), (378., 524.), (355., 455.), (266., 455.));
+        let regular = CubicBez::new((367., 607.), (367., 511.), (338., 472.), (243., 472.));
+        let bold = CubicBez::new(
+            (372.425, 593.05),
+            (372.425, 524.95),
+            (355.05, 485.95),
+            (274., 485.95),
+        );
+        let qsplines = cubics_to_quadratic_splines(&[light, regular, bold], 1.0).unwrap();
+        assert_eq!(
+            qsplines,
+            [
+                QuadSpline::new(vec![
+                    (378.0, 608.0).into(),
+                    (378.0, 566.0).into(),
+                    (359.0833333333333, 496.5).into(),
+                    (310.5, 455.0).into(),
+                    (266.0, 455.0).into(),
+                ]),
+                QuadSpline::new(vec![
+                    (367.0, 607.0).into(),
+                    (367.0, 559.0).into(),
+                    // Previous behavior produced 496.5 for the y coordinate
+                    (344.5833333333333, 499.49999999999994).into(),
+                    (290.5, 472.0).into(),
+                    (243.0, 472.0).into(),
+                ]),
+                QuadSpline::new(vec![
+                    (372.425, 593.05).into(),
+                    (372.425, 559.0).into(),
+                    (356.98333333333335, 511.125).into(),
+                    (314.525, 485.95).into(),
+                    (274.0, 485.95).into(),
+                ]),
+            ]
+        )
     }
 }
