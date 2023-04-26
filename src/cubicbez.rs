@@ -272,14 +272,19 @@ impl CubicBez {
             self.p2.to_vec2(),
             self.p3.to_vec2(),
         );
-        let mid1 = (8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3)
-            .div_exact(27.0)
-            .to_point();
-        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0).div_exact(27.0);
-        let mid2 = (p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3)
-            .div_exact(27.0)
-            .to_point();
-        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0).div_exact(27.0);
+        // The original Python cu2qu code here does not use division operator to divide by 27 but
+        // instead uses multiplication by the reciprocal 1 / 27. We want to match it exactly
+        // to avoid any floating point differences, hence in this particular case we do not use div_exact.
+        // I could directly use the Vec2 Div trait (also implemented as multiplication by reciprocal)
+        // but I prefer to be explicit here.
+        // Source: https://github.com/fonttools/fonttools/blob/85c80be/Lib/fontTools/cu2qu/cu2qu.py#L215-L218
+        // See also: https://github.com/linebender/kurbo/issues/272
+        let one_27th = 27.0_f64.recip();
+        let mid1 = ((8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3) * one_27th).to_point();
+        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0) * one_27th;
+        let mid2 = ((p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3) * one_27th).to_point();
+        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0) * one_27th;
+
         let left = CubicBez::new(
             self.p0,
             (2.0 * p0 + p1).div_exact(3.0).to_point(),
