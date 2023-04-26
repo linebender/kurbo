@@ -272,14 +272,19 @@ impl CubicBez {
             self.p2.to_vec2(),
             self.p3.to_vec2(),
         );
-        let mid1 = (8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3)
-            .div_exact(27.0)
-            .to_point();
-        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0).div_exact(27.0);
-        let mid2 = (p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3)
-            .div_exact(27.0)
-            .to_point();
-        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0).div_exact(27.0);
+        // The original Python cu2qu code here does not use division operator to divide by 27 but
+        // instead uses multiplication by the reciprocal 1 / 27. We want to match it exactly
+        // to avoid any floating point differences, hence in this particular case we do not use div_exact.
+        // I could directly use the Vec2 Div trait (also implemented as multiplication by reciprocal)
+        // but I prefer to be explicit here.
+        // Source: https://github.com/fonttools/fonttools/blob/85c80be/Lib/fontTools/cu2qu/cu2qu.py#L215-L218
+        // See also: https://github.com/linebender/kurbo/issues/272
+        let one_27th = 27.0_f64.recip();
+        let mid1 = ((8.0 * p0 + 12.0 * p1 + 6.0 * p2 + p3) * one_27th).to_point();
+        let deriv1 = (p3 + 3.0 * p2 - 4.0 * p0) * one_27th;
+        let mid2 = ((p0 + 6.0 * p1 + 12.0 * p2 + 8.0 * p3) * one_27th).to_point();
+        let deriv2 = (4.0 * p3 - 3.0 * p1 - p0) * one_27th;
+
         let left = CubicBez::new(
             self.p0,
             (2.0 * p0 + p1).div_exact(3.0).to_point(),
@@ -652,6 +657,7 @@ mod tests {
     use crate::{
         cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
         ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
+        QuadSpline,
     };
 
     #[test]
@@ -982,5 +988,46 @@ mod tests {
 
         // FontTools can solve this with accuracy 0.001, we can too
         assert!(cubics_to_quadratic_splines(&[cubic], 0.001).is_some());
+    }
+
+    #[test]
+    fn cubics_to_quadratic_splines_matches_python() {
+        // https://github.com/linebender/kurbo/pull/273
+        let light = CubicBez::new((378., 608.), (378., 524.), (355., 455.), (266., 455.));
+        let regular = CubicBez::new((367., 607.), (367., 511.), (338., 472.), (243., 472.));
+        let bold = CubicBez::new(
+            (372.425, 593.05),
+            (372.425, 524.95),
+            (355.05, 485.95),
+            (274., 485.95),
+        );
+        let qsplines = cubics_to_quadratic_splines(&[light, regular, bold], 1.0).unwrap();
+        assert_eq!(
+            qsplines,
+            [
+                QuadSpline::new(vec![
+                    (378.0, 608.0).into(),
+                    (378.0, 566.0).into(),
+                    (359.0833333333333, 496.5).into(),
+                    (310.5, 455.0).into(),
+                    (266.0, 455.0).into(),
+                ]),
+                QuadSpline::new(vec![
+                    (367.0, 607.0).into(),
+                    (367.0, 559.0).into(),
+                    // Previous behavior produced 496.5 for the y coordinate
+                    (344.5833333333333, 499.49999999999994).into(),
+                    (290.5, 472.0).into(),
+                    (243.0, 472.0).into(),
+                ]),
+                QuadSpline::new(vec![
+                    (372.425, 593.05).into(),
+                    (372.425, 559.0).into(),
+                    (356.98333333333335, 511.125).into(),
+                    (314.525, 485.95).into(),
+                    (274.0, 485.95).into(),
+                ]),
+            ]
+        )
     }
 }
