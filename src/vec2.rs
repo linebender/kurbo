@@ -69,9 +69,20 @@ impl Vec2 {
     }
 
     /// Magnitude of vector.
+    ///
+    /// This is similar to `self.hypot2().sqrt()` but defers to the platform `hypot` method, which
+    /// in general will handle the case where `self.hypot2() > f64::MAX`.
     #[inline]
     pub fn hypot(self) -> f64 {
         self.x.hypot(self.y)
+    }
+
+    /// Magnitude of vector.
+    ///
+    /// This is an alias for [`Vec2::hypot`].
+    #[inline]
+    pub fn length(self) -> f64 {
+        self.hypot()
     }
 
     /// Magnitude squared of vector.
@@ -80,13 +91,31 @@ impl Vec2 {
         self.dot(self)
     }
 
-    /// Angle of vector.
+    /// Magnitude squared of vector.
+    ///
+    /// This is an alias for [`Vec2::hypot2`].
+    #[inline]
+    pub fn length_squared(self) -> f64 {
+        self.hypot2()
+    }
+
+    /// Find the angle in radians between this vector and the vector `Vec2 { x: 1.0, y: 0.0 }`
+    /// in the positive `y` direction.
     ///
     /// If the vector is interpreted as a complex number, this is the argument.
     /// The angle is expressed in radians.
     #[inline]
     pub fn atan2(self) -> f64 {
         self.y.atan2(self.x)
+    }
+
+    /// Find the angle in radians between this vector and the vector `Vec2 { x: 1.0, y: 0.0 }`
+    /// in the positive `y` direction.
+    ///
+    /// This is an alias for [`Vec2::atan2`].
+    #[inline]
+    pub fn angle(self) -> f64 {
+        self.atan2()
     }
 
     /// A unit vector of the given angle.
