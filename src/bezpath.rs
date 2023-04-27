@@ -263,6 +263,11 @@ impl BezPath {
         &self.0
     }
 
+    /// Get the path elements (mut version).
+    pub fn elements_mut(&mut self) -> &mut [PathEl] {
+        &mut self.0
+    }
+
     /// Returns an iterator over the path's elements.
     pub fn iter(&self) -> impl Iterator<Item = PathEl> + '_ {
         self.0.iter().copied()
@@ -796,6 +801,15 @@ impl ParamCurveExtrema for PathSeg {
 }
 
 impl PathSeg {
+    /// Get the [`PathEl`] that is equivalent to discarding the segment start point.
+    pub fn as_path_el(&self) -> PathEl {
+        match self {
+            PathSeg::Line(line) => PathEl::LineTo(line.p1),
+            PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
+            PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3),
+        }
+    }
+
     /// Returns a new `PathSeg` describing the same path as `self`, but with
     /// the points reversed.
     pub fn reverse(&self) -> PathSeg {
