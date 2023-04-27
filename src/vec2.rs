@@ -96,7 +96,7 @@ impl Vec2 {
     /// This is an alias for [`Vec2::hypot2`].
     #[inline]
     pub fn length_squared(self) -> f64 {
-        self.dot(self)
+        self.hypot2()
     }
 
     /// Find the angle in radians between this vector and the vector `Vec2 { x: 1.0, y: 0.0 }`
