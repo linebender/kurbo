@@ -304,6 +304,19 @@ impl CurveDist {
     }
 }
 
+/// As described in [Simplifying Bézier paths], strictly optimizing for
+/// Fréchet distance can create bumps. The problem is curves with long
+/// control arms (distance from the control point to the corresponding
+/// endpoint). We mitigate that by applying a penalty as a multiplier to
+/// the measured error (approximate Fréchet distance). This is ReLU-like,
+/// with a value of 1.0 below the elbow, and a given slope above it. The
+/// values here have been determined empirically to give good results.
+/// 
+/// [Simplifying Bézier paths]:
+/// https://raphlinus.github.io/curves/2023/04/18/bezpath-simplify.html
+const D_PENALTY_ELBOW: f64 = 0.65;
+const D_PENALTY_SLOPE: f64 = 2.0;
+
 /// Fit a single cubic to a range of the source curve.
 ///
 /// Returns the cubic segment and the square of the error.
@@ -365,7 +378,7 @@ pub fn fit_to_cubic(
         let c = aff * cand;
         if let Some(err2) = curve_dist.eval_dist(source, c, acc2) {
             fn scale_f(d: f64) -> f64 {
-                1.0 + (d - 0.65).max(0.0) * 2.0
+                1.0 + (d - D_PENALTY_ELBOW).max(0.0) * D_PENALTY_SLOPE
             }
             let scale = scale_f(d0).max(scale_f(d1)).powi(2);
             let err2 = err2 * scale;
