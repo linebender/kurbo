@@ -15,7 +15,7 @@ use crate::{
         factor_quartic_inner, solve_cubic, solve_itp_fallible, solve_quadratic,
         GAUSS_LEGENDRE_COEFFS_16,
     },
-    Affine, BezPath, CubicBez, ParamCurve, Point, Vec2,
+    Affine, BezPath, CubicBez, ParamCurve, ParamCurveArclen, Point, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -189,6 +189,134 @@ fn fit_to_bezpath_rec(
     }
 }
 
+const N_SAMPLE: usize = 20;
+
+/// An acceleration structure for estimating curve distance
+struct CurveDist {
+    samples: ArrayVec<CurveFitSample, N_SAMPLE>,
+    arcparams: ArrayVec<f64, N_SAMPLE>,
+    range: Range<f64>,
+    /// A "spicy" curve is one with potentially extreme curvature variation,
+    /// so use arc length measurement for better accuracy.
+    spicy: bool,
+}
+
+impl CurveDist {
+    fn from_curve(source: &impl ParamCurveFit, range: Range<f64>) -> Self {
+        let step = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
+        let mut last_tan = None;
+        let mut spicy = false;
+        const SPICY_THRESH: f64 = 0.2;
+        let mut samples = ArrayVec::new();
+        for i in 0..N_SAMPLE + 2 {
+            let sample = source.sample_pt_tangent(range.start + i as f64 * step, 1.0);
+            if let Some(last_tan) = last_tan {
+                let cross = sample.tangent.cross(last_tan);
+                let dot = sample.tangent.dot(last_tan);
+                if cross.abs() > SPICY_THRESH * dot.abs() {
+                    spicy = true;
+                }
+            }
+            last_tan = Some(sample.tangent);
+            if i > 0 && i < N_SAMPLE + 1 {
+                samples.push(sample);
+            }
+        }
+        CurveDist {
+            samples,
+            arcparams: Default::default(),
+            range,
+            spicy,
+        }
+    }
+
+    fn compute_arc_params(&mut self, source: &impl ParamCurveFit) {
+        const N_SUBSAMPLE: usize = 10;
+        let (start, end) = (self.range.start, self.range.end);
+        let dt = (end - start) * (1.0 / ((N_SAMPLE + 1) * N_SUBSAMPLE) as f64);
+        let mut arclen = 0.0;
+        for i in 0..N_SAMPLE + 1 {
+            for j in 0..N_SUBSAMPLE {
+                let t = start + dt * ((i * N_SUBSAMPLE + j) as f64 + 0.5);
+                let (_, deriv) = source.sample_pt_deriv(t);
+                arclen += deriv.hypot();
+            }
+            if i < N_SAMPLE {
+                self.arcparams.push(arclen);
+            }
+        }
+        let arclen_inv = arclen.recip();
+        for x in &mut self.arcparams {
+            *x *= arclen_inv;
+        }
+    }
+
+    /// Evaluate distance based on arc length parametrization
+    fn eval_arc(&self, c: CubicBez, acc2: f64) -> Option<f64> {
+        // TODO: this could perhaps be tuned.
+        const EPS: f64 = 1e-9;
+        let c_arclen = c.arclen(EPS);
+        let mut max_err2 = 0.0;
+        for (sample, s) in self.samples.iter().zip(&self.arcparams) {
+            let t = c.inv_arclen(c_arclen * s, EPS);
+            let err = sample.p.distance_squared(c.eval(t));
+            max_err2 = err.max(max_err2);
+            if max_err2 > acc2 {
+                return None;
+            }
+        }
+        Some(max_err2)
+    }
+
+    /// Evaluate distance to a cubic approximation.
+    ///
+    /// If distance exceeds stated accuracy, can return None. Note that
+    /// `acc2` is the square of the target.
+    ///
+    /// Returns the squre of the error, which is intended to be a good
+    /// approximation of the Fréchet distance.
+    fn eval_ray(&self, c: CubicBez, acc2: f64) -> Option<f64> {
+        let mut max_err2 = 0.0;
+        for sample in &self.samples {
+            let mut best = acc2 + 1.0;
+            for t in sample.intersect(c) {
+                let err = sample.p.distance_squared(c.eval(t));
+                best = best.min(err);
+            }
+            max_err2 = best.max(max_err2);
+            if max_err2 > acc2 {
+                return None;
+            }
+        }
+        Some(max_err2)
+    }
+
+    fn eval_dist(&mut self, source: &impl ParamCurveFit, c: CubicBez, acc2: f64) -> Option<f64> {
+        // Always compute cheaper distance, hoping for early-out.
+        let ray_dist = self.eval_ray(c, acc2)?;
+        if !self.spicy {
+            return Some(ray_dist);
+        }
+        if self.arcparams.is_empty() {
+            self.compute_arc_params(source);
+        }
+        self.eval_arc(c, acc2)
+    }
+}
+
+/// As described in [Simplifying Bézier paths], strictly optimizing for
+/// Fréchet distance can create bumps. The problem is curves with long
+/// control arms (distance from the control point to the corresponding
+/// endpoint). We mitigate that by applying a penalty as a multiplier to
+/// the measured error (approximate Fréchet distance). This is ReLU-like,
+/// with a value of 1.0 below the elbow, and a given slope above it. The
+/// values here have been determined empirically to give good results.
+///
+/// [Simplifying Bézier paths]:
+/// https://raphlinus.github.io/curves/2023/04/18/bezpath-simplify.html
+const D_PENALTY_ELBOW: f64 = 0.65;
+const D_PENALTY_SLOPE: f64 = 2.0;
+
 /// Fit a single cubic to a range of the source curve.
 ///
 /// Returns the cubic segment and the square of the error.
@@ -207,8 +335,12 @@ pub fn fit_to_cubic(
     let d = end.p - start.p;
     let th = d.atan2();
     let chord2 = d.hypot2();
-    let th0 = start.tangent.atan2() - th;
-    let th1 = th - end.tangent.atan2();
+    fn mod_2pi(th: f64) -> f64 {
+        let th_scaled = th * core::f64::consts::FRAC_1_PI * 0.5;
+        core::f64::consts::PI * 2.0 * (th_scaled - th_scaled.round())
+    }
+    let th0 = mod_2pi(start.tangent.atan2() - th);
+    let th1 = mod_2pi(th - end.tangent.atan2());
 
     let (mut area, mut x, mut y) = source.moment_integrals(range.clone());
     let (x0, y0) = (start.p.x, start.p.y);
@@ -238,45 +370,22 @@ pub fn fit_to_cubic(
 
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
-    // A few things here.
-    //
-    // First, it's not awesome to sample `t` uniformly, it would be better to
-    // do an approximate arc length parametrization.
-    //
-    // Second, rejection of lower accuracy curves would be faster if we permuted
-    // the order of samples, for example bit-reversing.
-    const N_SAMPLE: usize = 10;
-    let step: f64 = (range.end - range.start) * (1.0 / (N_SAMPLE + 1) as f64);
-    let samples: ArrayVec<_, 10> = (0..N_SAMPLE)
-        .map(|i| source.sample_pt_tangent(range.start + (i + 1) as f64 * step, 1.0))
-        .collect();
+    let mut curve_dist = CurveDist::from_curve(source, range);
     let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
-    for cand in cubic_fit(th0, th1, unit_area, mx) {
+    for (cand, d0, d1) in cubic_fit(th0, th1, unit_area, mx) {
         let c = aff * cand;
-        let mut max_err2 = 0.0;
-        for sample in &samples {
-            let intersections = sample.intersect(c);
-            if intersections.is_empty() {
-                max_err2 = acc2 + 1.0;
-                break;
+        if let Some(err2) = curve_dist.eval_dist(source, c, acc2) {
+            fn scale_f(d: f64) -> f64 {
+                1.0 + (d - D_PENALTY_ELBOW).max(0.0) * D_PENALTY_SLOPE
             }
-            let mut best = None;
-            for t in intersections {
-                let err = sample.p.distance_squared(c.eval(t));
-                if best.map(|best| err < best).unwrap_or(true) {
-                    best = Some(err);
-                }
+            let scale = scale_f(d0).max(scale_f(d1)).powi(2);
+            let err2 = err2 * scale;
+            if err2 < acc2 && best_err2.map(|best| err2 < best).unwrap_or(true) {
+                best_c = Some(c);
+                best_err2 = Some(err2);
             }
-            max_err2 = best.unwrap().max(max_err2);
-            if max_err2 > acc2 {
-                break;
-            }
-        }
-        if max_err2 < acc2 && best_err2.map(|best| max_err2 < best).unwrap_or(true) {
-            best_c = Some(c);
-            best_err2 = Some(max_err2);
         }
     }
     match (best_c, best_err2) {
@@ -286,7 +395,7 @@ pub fn fit_to_cubic(
 }
 
 /// Returns curves matching area and moment, given unit chord.
-fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
+fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<(CubicBez, f64, f64), 4> {
     // Note: maybe we want to take unit vectors instead of angle? Shouldn't
     // matter much either way though.
     let (s0, c0) = th0.sin_cos();
@@ -355,12 +464,17 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
             } else {
                 (0.0, s0 / s01)
             };
+            // We could implement a maximum d value here.
             if d0 >= 0.0 && d1 >= 0.0 {
-                Some(CubicBez::new(
-                    (0.0, 0.0),
-                    (d0 * c0, d0 * s0),
-                    (1.0 - d1 * c1, d1 * s1),
-                    (1.0, 0.0),
+                Some((
+                    CubicBez::new(
+                        (0.0, 0.0),
+                        (d0 * c0, d0 * s0),
+                        (1.0 - d1 * c1, d1 * s1),
+                        (1.0, 0.0),
+                    ),
+                    d0,
+                    d1,
                 ))
             } else {
                 None
@@ -368,8 +482,6 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<CubicBez, 4> {
         })
         .collect()
 }
-
-const HUGE: f64 = 1e12;
 
 /// Generate a highly optimized Bézier path that fits the source curve.
 ///
@@ -413,7 +525,7 @@ fn fit_to_bezpath_opt_inner(
         return Some(t);
     }
     let err;
-    if let Some((c, err2)) = fit_to_cubic(source, range.clone(), HUGE) {
+    if let Some((c, err2)) = fit_to_cubic(source, range.clone(), accuracy) {
         err = err2.sqrt();
         if err < accuracy {
             if range.start == 0.0 {
@@ -441,11 +553,11 @@ fn fit_to_bezpath_opt_inner(
     }
     t0 = range.start;
     const EPS: f64 = 1e-9;
-    let f = |x| fit_opt_err_delta(source, x, t0..t1, n);
+    let f = |x| fit_opt_err_delta(source, x, accuracy, t0..t1, n);
     let k1 = 0.2 / accuracy;
     let ya = -err;
     let yb = accuracy - last_err;
-    let x = match solve_itp_fallible(f, 0.0, accuracy, EPS, 1, k1, ya, yb) {
+    let (_, x) = match solve_itp_fallible(f, 0.0, accuracy, EPS, 1, k1, ya, yb) {
         Ok(x) => x,
         Err(t) => return Some(t),
     };
@@ -464,7 +576,7 @@ fn fit_to_bezpath_opt_inner(
         } else {
             range.end
         };
-        let (c, _) = fit_to_cubic(source, t0..t1, HUGE).unwrap();
+        let (c, _) = fit_to_cubic(source, t0..t1, accuracy).unwrap();
         if i == 0 && range.start == 0.0 {
             path.move_to(c.p0);
         }
@@ -478,8 +590,8 @@ fn fit_to_bezpath_opt_inner(
     None
 }
 
-fn measure_one_seg(source: &impl ParamCurveFit, range: Range<f64>) -> Option<f64> {
-    fit_to_cubic(source, range, HUGE).map(|(_, err2)| err2.sqrt())
+fn measure_one_seg(source: &impl ParamCurveFit, range: Range<f64>, limit: f64) -> Option<f64> {
+    fit_to_cubic(source, range, limit).map(|(_, err2)| err2.sqrt())
 }
 
 enum FitResult {
@@ -496,7 +608,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
         return FitResult::CuspFound(t);
     }
     let missing_err = accuracy * 2.0;
-    let err = measure_one_seg(source, range.clone()).unwrap_or(missing_err);
+    let err = measure_one_seg(source, range.clone(), accuracy).unwrap_or(missing_err);
     if err <= accuracy {
         return FitResult::SegmentError(err);
     }
@@ -505,13 +617,13 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
         if let Some(t) = source.break_cusp(range.clone()) {
             return Err(t);
         }
-        let err = measure_one_seg(source, t0..x).unwrap_or(missing_err);
+        let err = measure_one_seg(source, t0..x, accuracy).unwrap_or(missing_err);
         Ok(err - accuracy)
     };
     const EPS: f64 = 1e-9;
     let k1 = 2.0 / (t1 - t0);
     match solve_itp_fallible(f, t0, t1, EPS, 1, k1, -accuracy, err - accuracy) {
-        Ok(t1) => FitResult::ParamVal(t1),
+        Ok((t1, _)) => FitResult::ParamVal(t1),
         Err(t) => FitResult::CuspFound(t),
     }
 }
@@ -521,6 +633,7 @@ fn fit_opt_segment(source: &impl ParamCurveFit, accuracy: f64, range: Range<f64>
 fn fit_opt_err_delta(
     source: &impl ParamCurveFit,
     accuracy: f64,
+    limit: f64,
     range: Range<f64>,
     n: usize,
 ) -> Result<f64, f64> {
@@ -534,6 +647,6 @@ fn fit_opt_err_delta(
             FitResult::CuspFound(t) => return Err(t),
         }
     }
-    let err = measure_one_seg(source, t0..t1).unwrap_or(accuracy * 2.0);
+    let err = measure_one_seg(source, t0..t1, limit).unwrap_or(accuracy * 2.0);
     Ok(accuracy - err)
 }

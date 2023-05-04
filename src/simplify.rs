@@ -38,7 +38,8 @@ use core::ops::Range;
 use crate::common::FloatFuncs;
 
 use crate::{
-    CubicBez, CurveFitSample, ParamCurve, ParamCurveDeriv, ParamCurveFit, PathEl, Point, Vec2,
+    fit_to_bezpath, fit_to_bezpath_opt, BezPath, CubicBez, CurveFitSample, Line, ParamCurve,
+    ParamCurveDeriv, ParamCurveFit, PathEl, PathSeg, Point, QuadBez, Vec2,
 };
 
 /// A Bézier path which has been prepared for simplification.
@@ -53,6 +54,31 @@ struct SimplifyCubic {
     c: CubicBez,
     // The inclusive prefix sum of the moment integrals
     moments: (f64, f64, f64),
+}
+
+/// Options for simplifying paths.
+pub struct SimplifyOptions {
+    /// The tangent of the minimum angle below which the path is considered smooth.
+    angle_thresh: f64,
+    opt_level: SimplifyOptLevel,
+}
+
+/// Optimization level for simplification.
+pub enum SimplifyOptLevel {
+    /// Subdivide; faster but not as optimized results.
+    Subdivide,
+    /// Optimize subdivision points.
+    Optimize,
+}
+
+impl Default for SimplifyOptions {
+    fn default() -> Self {
+        let opt_level = SimplifyOptLevel::Subdivide;
+        SimplifyOptions {
+            angle_thresh: 1e-3,
+            opt_level,
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -210,5 +236,127 @@ impl ParamCurveFit for SimplifyBezPath {
 
     fn break_cusp(&self, _: Range<f64>) -> Option<f64> {
         None
+    }
+}
+
+#[derive(Default)]
+struct SimplifyState {
+    queue: BezPath,
+    result: BezPath,
+    needs_moveto: bool,
+}
+
+impl SimplifyState {
+    fn add_seg(&mut self, seg: PathSeg) {
+        if self.queue.is_empty() {
+            self.queue.move_to(seg.start());
+        }
+        match seg {
+            PathSeg::Quad(q) => self.queue.quad_to(q.p1, q.p2),
+            PathSeg::Cubic(c) => self.queue.curve_to(c.p1, c.p2, c.p3),
+            _ => unreachable!(),
+        }
+    }
+
+    fn flush(&mut self, accuracy: f64, options: &SimplifyOptions) {
+        if self.queue.is_empty() {
+            return;
+        }
+        // TODO: if queue is one segment, just output that
+        let s = SimplifyBezPath::new(&self.queue);
+        let b = match options.opt_level {
+            SimplifyOptLevel::Subdivide => fit_to_bezpath(&s, accuracy),
+            SimplifyOptLevel::Optimize => fit_to_bezpath_opt(&s, accuracy),
+        };
+        self.result
+            .extend(b.iter().skip(!self.needs_moveto as usize));
+        self.needs_moveto = false;
+        self.queue.truncate(0);
+    }
+}
+
+/// Simplify a Bézier path.
+///
+/// This function simplifies an arbitrary Bézier path; it is designed to handle
+/// multiple subpaths and also corners.
+pub fn simplify_bezpath(
+    path: impl IntoIterator<Item = PathEl>,
+    accuracy: f64,
+    options: &SimplifyOptions,
+) -> BezPath {
+    let mut last_pt = None;
+    let mut last_seg: Option<PathSeg> = None;
+    let mut state = SimplifyState::default();
+    for el in path {
+        let mut this_seg = None;
+        match el {
+            PathEl::MoveTo(p) => {
+                state.flush(accuracy, options);
+                state.needs_moveto = true;
+                last_pt = Some(p);
+            }
+            PathEl::LineTo(p) => {
+                let last = last_pt.unwrap();
+                if last == p {
+                    continue;
+                }
+                state.flush(accuracy, options);
+                this_seg = Some(PathSeg::Line(Line::new(last, p)));
+            }
+            PathEl::QuadTo(p1, p2) => {
+                let last = last_pt.unwrap();
+                if last == p1 && last == p2 {
+                    continue;
+                }
+                this_seg = Some(PathSeg::Quad(QuadBez::new(last, p1, p2)));
+            }
+            PathEl::CurveTo(p1, p2, p3) => {
+                let last = last_pt.unwrap();
+                if last == p1 && last == p2 && last == p3 {
+                    continue;
+                }
+                this_seg = Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3)));
+            }
+            PathEl::ClosePath => {
+                state.flush(accuracy, options);
+                state.result.close_path();
+                state.needs_moveto = true;
+                last_seg = None;
+                continue;
+            }
+        }
+        if let Some(seg) = this_seg {
+            if let Some(last) = last_seg {
+                let last_tan = last.tangents().1;
+                let this_tan = seg.tangents().0;
+                if last_tan.cross(this_tan).abs()
+                    > last_tan.dot(this_tan).abs() * options.angle_thresh
+                {
+                    state.flush(accuracy, options);
+                }
+            }
+            last_pt = Some(seg.end());
+            state.add_seg(seg);
+        }
+        last_seg = this_seg;
+    }
+    state.flush(accuracy, options);
+    state.result
+}
+
+impl SimplifyOptions {
+    /// Set optimization level.
+    pub fn opt_level(mut self, level: SimplifyOptLevel) -> Self {
+        self.opt_level = level;
+        self
+    }
+
+    /// Set angle threshold.
+    ///
+    /// The tangent of the angle below which joins are considered smooth and
+    /// not corners. The default is approximately 1 milliradian.
+    pub fn angle_thresh(mut self, thresh: f64) -> Self {
+        self.angle_thresh = thresh;
+        self
     }
 }
