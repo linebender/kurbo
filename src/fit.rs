@@ -311,7 +311,7 @@ impl CurveDist {
 /// the measured error (approximate Fréchet distance). This is ReLU-like,
 /// with a value of 1.0 below the elbow, and a given slope above it. The
 /// values here have been determined empirically to give good results.
-/// 
+///
 /// [Simplifying Bézier paths]:
 /// https://raphlinus.github.io/curves/2023/04/18/bezpath-simplify.html
 const D_PENALTY_ELBOW: f64 = 0.65;
