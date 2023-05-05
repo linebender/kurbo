@@ -269,12 +269,12 @@ impl BezPath {
     }
 
     /// Returns an iterator over the path's elements.
-    pub fn iter(&self) -> impl Iterator<Item = PathEl> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = PathEl> + Clone + '_ {
         self.0.iter().copied()
     }
 
     /// Iterate over the path segments.
-    pub fn segments(&self) -> impl Iterator<Item = PathSeg> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = PathSeg> + Clone + '_ {
         segments(self.iter())
     }
 
@@ -731,6 +731,15 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
             }
         }
         bbox.unwrap_or_default()
+    }
+}
+
+impl<I: Clone + Iterator<Item = PathEl>> Clone for Segments<I> {
+    fn clone(&self) -> Self {
+        Self {
+            start_last: self.start_last,
+            elements: self.elements.clone(),
+        }
     }
 }
 
