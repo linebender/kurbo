@@ -269,12 +269,12 @@ impl BezPath {
     }
 
     /// Returns an iterator over the path's elements.
-    pub fn iter(&self) -> impl Iterator<Item = PathEl> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = PathEl> + Clone + '_ {
         self.0.iter().copied()
     }
 
     /// Iterate over the path segments.
-    pub fn segments(&self) -> impl Iterator<Item = PathSeg> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = PathSeg> + Clone + '_ {
         segments(self.iter())
     }
 
@@ -650,6 +650,7 @@ where
 /// An iterator that transforms path elements to path segments.
 ///
 /// This struct is created by the [`segments`] function.
+#[derive(Clone)]
 pub struct Segments<I: Iterator<Item = PathEl>> {
     elements: I,
     start_last: Option<(Point, Point)>,
