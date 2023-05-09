@@ -650,6 +650,7 @@ where
 /// An iterator that transforms path elements to path segments.
 ///
 /// This struct is created by the [`segments`] function.
+#[derive(Clone)]
 pub struct Segments<I: Iterator<Item = PathEl>> {
     elements: I,
     start_last: Option<(Point, Point)>,
@@ -731,15 +732,6 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
             }
         }
         bbox.unwrap_or_default()
-    }
-}
-
-impl<I: Clone + Iterator<Item = PathEl>> Clone for Segments<I> {
-    fn clone(&self) -> Self {
-        Self {
-            start_last: self.start_last,
-            elements: self.elements.clone(),
-        }
     }
 }
 
