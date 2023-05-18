@@ -9,7 +9,7 @@ use crate::{
     Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, RoundedRectRadii, Vec2,
 };
 
-/// A transformation including scaling and translation.
+/// A transformation including uniform scaling and translation.
 ///
 /// If the translation is `(x, y)` and the scale is `s`, then this
 /// transformation represents this augmented matrix:
@@ -42,8 +42,10 @@ use crate::{
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TranslateScale {
-    translation: Vec2,
-    scale: f64,
+    /// The translation component of this transformation
+    pub translation: Vec2,
+    /// The scale component of this transformation
+    pub scale: f64,
 }
 
 impl TranslateScale {
@@ -55,19 +57,14 @@ impl TranslateScale {
 
     /// Create a new transformation with scale only.
     #[inline]
-    pub const fn scale(s: f64) -> TranslateScale {
+    pub const fn from_scale(s: f64) -> TranslateScale {
         TranslateScale::new(Vec2::ZERO, s)
     }
 
     /// Create a new transformation with translation only.
     #[inline]
-    pub const fn translate(t: Vec2) -> TranslateScale {
+    pub const fn from_translate(t: Vec2) -> TranslateScale {
         TranslateScale::new(t, 1.0)
-    }
-
-    /// Decompose transformation into translation and scale.
-    pub fn as_tuple(self) -> (Vec2, f64) {
-        (self.translation, self.scale)
     }
 
     /// Compute the inverse transform.
@@ -101,7 +98,7 @@ impl TranslateScale {
 impl Default for TranslateScale {
     #[inline]
     fn default() -> TranslateScale {
-        TranslateScale::scale(1.0)
+        TranslateScale::new(Vec2::ZERO, 1.0)
     }
 }
 
@@ -301,8 +298,11 @@ mod tests {
         let a: Affine = ts.into();
         assert_near(ts * p, a * p);
 
-        assert_near((s * p.to_vec2()).to_point(), TranslateScale::scale(s) * p);
-        assert_near(p + t, TranslateScale::translate(t) * p);
+        assert_near(
+            (s * p.to_vec2()).to_point(),
+            TranslateScale::from_scale(s) * p,
+        );
+        assert_near(p + t, TranslateScale::from_translate(t) * p);
     }
 
     #[test]
