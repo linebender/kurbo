@@ -302,7 +302,9 @@ mod tests {
         let center = Point::new(1., 1.);
         let ts = TranslateScale::from_scale_about(2., center);
         // Should keep the point (1., 1.) stationary
-        assert_near(center, ts * center);
+        assert_near(ts * center, center);
+        // (2., 2.) -> (3., 3.)
+        assert_near(ts * Point::new(2., 2.), Point::new(3., 3.));
     }
 
     #[test]
