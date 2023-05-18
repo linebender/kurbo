@@ -68,6 +68,21 @@ impl TranslateScale {
     }
 
     /// Create a transform that scales about a point other than the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kurbo::{Point, TranslateScale};
+    /// # fn assert_near(p0: Point, p1: Point) {
+    /// #   assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
+    /// # }
+    /// let center = Point::new(1., 1.);
+    /// let ts = TranslateScale::from_scale_about(2., center);
+    /// // Should keep the point (1., 1.) stationary
+    /// assert_near(ts * center, center);
+    /// // (2., 2.) -> (3., 3.)
+    /// assert_near(ts * Point::new(2., 2.), Point::new(3., 3.));
+    /// ```
     pub fn from_scale_about(scale: f64, focus: Point) -> Self {
         // We need to create a transform that is equivalent to translating `focus`
         // to the origin, followed by a normal scale, followed by reversing the translation.
@@ -295,16 +310,6 @@ mod tests {
         let ts = TranslateScale::new(Vec2::new(5.0, 6.0), 2.0);
 
         assert_near(ts * p, Point::new(11.0, 14.0));
-    }
-
-    #[test]
-    fn scale_about() {
-        let center = Point::new(1., 1.);
-        let ts = TranslateScale::from_scale_about(2., center);
-        // Should keep the point (1., 1.) stationary
-        assert_near(ts * center, center);
-        // (2., 2.) -> (3., 3.)
-        assert_near(ts * Point::new(2., 2.), Point::new(3., 3.));
     }
 
     #[test]
