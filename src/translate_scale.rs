@@ -9,7 +9,7 @@ use crate::{
     Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, RoundedRectRadii, Vec2,
 };
 
-/// A transformation including uniform scaling and translation.
+/// A transformation consisting of a uniform scaling followed by a translation.
 ///
 /// If the translation is `(x, y)` and the scale is `s`, then this
 /// transformation represents this augmented matrix:
@@ -63,8 +63,18 @@ impl TranslateScale {
 
     /// Create a new transformation with translation only.
     #[inline]
-    pub const fn from_translate(t: Vec2) -> TranslateScale {
-        TranslateScale::new(t, 1.0)
+    pub const fn from_translate(translation: Vec2) -> TranslateScale {
+        TranslateScale::new(translation, 1.0)
+    }
+
+    /// Create a transform that scales about a point other than the origin.
+    pub fn from_scale_about(scale: f64, focus: Point) -> Self {
+        // We need to create a transform that is equivalent to translating `focus`
+        // to the origin, followed by a normal scale, followed by reversing the translation.
+        // We need to find the (scale ∘ translation) that matches this.
+        let focus = focus.to_vec2();
+        let translation = focus - focus * scale;
+        Self::new(translation, scale)
     }
 
     /// Compute the inverse transform.
@@ -285,6 +295,14 @@ mod tests {
         let ts = TranslateScale::new(Vec2::new(5.0, 6.0), 2.0);
 
         assert_near(ts * p, Point::new(11.0, 14.0));
+    }
+
+    #[test]
+    fn scale_about() {
+        let center = Point::new(1., 1.);
+        let ts = TranslateScale::from_scale_about(2., center);
+        // Should keep the point (1., 1.) stationary
+        assert_near(center, ts * center);
     }
 
     #[test]
