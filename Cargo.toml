@@ -1,5 +1,6 @@
 [package]
 name = "kurbo"
+# This should be bumped to 0.10 at the next release, because master has breaking changes
 version = "0.9.5"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT/Apache-2.0"
