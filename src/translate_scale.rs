@@ -71,7 +71,7 @@ impl TranslateScale {
     pub fn from_scale_about(scale: f64, focus: Point) -> Self {
         // We need to create a transform that is equivalent to translating `focus`
         // to the origin, followed by a normal scale, followed by reversing the translation.
-        // We need to find the (scale ∘ translation) that matches this.
+        // We need to find the (translation ∘ scale) that matches this.
         let focus = focus.to_vec2();
         let translation = focus - focus * scale;
         Self::new(translation, scale)
