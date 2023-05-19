@@ -17,6 +17,9 @@ features = ["mint", "schemars", "serde"]
 default = ["std"]
 std = []
 
+[dependencies]
+smallvec = "1.10"
+
 [dependencies.arrayvec]
 version = "0.7.1"
 default-features = false
