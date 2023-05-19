@@ -57,13 +57,13 @@ impl TranslateScale {
 
     /// Create a new transformation with scale only.
     #[inline]
-    pub const fn from_scale(s: f64) -> TranslateScale {
+    pub const fn scale(s: f64) -> TranslateScale {
         TranslateScale::new(Vec2::ZERO, s)
     }
 
     /// Create a new transformation with translation only.
     #[inline]
-    pub const fn from_translate(translation: Vec2) -> TranslateScale {
+    pub const fn translate(translation: Vec2) -> TranslateScale {
         TranslateScale::new(translation, 1.0)
     }
 
@@ -83,6 +83,7 @@ impl TranslateScale {
     /// // (2., 2.) -> (3., 3.)
     /// assert_near(ts * Point::new(2., 2.), Point::new(3., 3.));
     /// ```
+    #[inline]
     pub fn from_scale_about(scale: f64, focus: Point) -> Self {
         // We need to create a transform that is equivalent to translating `focus`
         // to the origin, followed by a normal scale, followed by reversing the translation.
@@ -99,6 +100,7 @@ impl TranslateScale {
     /// (modulo floating point rounding errors).
     ///
     /// Produces NaN values when scale is zero.
+    #[inline]
     pub fn inverse(self) -> TranslateScale {
         let scale_recip = self.scale.recip();
         TranslateScale {
@@ -323,11 +325,8 @@ mod tests {
         let a: Affine = ts.into();
         assert_near(ts * p, a * p);
 
-        assert_near(
-            (s * p.to_vec2()).to_point(),
-            TranslateScale::from_scale(s) * p,
-        );
-        assert_near(p + t, TranslateScale::from_translate(t) * p);
+        assert_near((s * p.to_vec2()).to_point(), TranslateScale::scale(s) * p);
+        assert_near(p + t, TranslateScale::translate(t) * p);
     }
 
     #[test]
