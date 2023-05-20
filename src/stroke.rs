@@ -5,7 +5,9 @@ use core::borrow::Borrow;
 
 use smallvec::SmallVec;
 
-use crate::{PathEl, BezPath, Point, Vec2, PathSeg, CubicBez, offset::CubicOffset, fit_to_bezpath, QuadBez};
+use crate::{
+    fit_to_bezpath, offset::CubicOffset, BezPath, CubicBez, PathEl, PathSeg, Point, QuadBez, Vec2,
+};
 
 /// Defines the connection between two segments of a stroke.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -144,11 +146,7 @@ struct StrokeCtx {
 }
 
 /// Expand a stroke into a fill.
-pub fn stroke(
-    path: impl IntoIterator<Item = PathEl>,
-    style: &Stroke,
-    tolerance: f64,
-) -> BezPath {
+pub fn stroke(path: impl IntoIterator<Item = PathEl>, style: &Stroke, tolerance: f64) -> BezPath {
     let mut ctx = StrokeCtx::default();
     for el in path {
         let p0 = ctx.last_pt;

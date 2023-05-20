@@ -131,8 +131,8 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
-#[cfg(feature = "std")]
 pub use crate::stroke::*;
+#[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;
