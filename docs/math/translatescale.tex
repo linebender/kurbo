@@ -1,0 +1,43 @@
+% Input for inline MathML in kurbo docs
+
+% TranslateScale * Affine
+
+\begin{equation}
+\left(\begin{array}{ccc}
+    s & 0 & t_x \\
+    0 & s & t_y \\
+    0 & 0 & 1
+\end{array}\right)
+\left(\begin{array}{ccc}
+    m_{11} & m_{12} & m_{13} \\
+    m_{21} & m_{22} & m_{23} \\
+    0 & 0 & 1
+\end{array}\right)
+=
+\left(\begin{array}{ccc}
+    m_{11} s & m_{12} s & m_{13} s + t_x \\
+    m_{21} s & m_{22} s & m_{23} s + t_y \\
+    0 & 0 & 1
+\end{array}\right)
+\end{equation}
+
+% Affine * TranslateScale
+
+\begin{equation}
+\left(\begin{array}{ccc}
+    m_{11} & m_{12} & m_{13} \\
+    m_{21} & m_{22} & m_{23} \\
+    0 & 0 & 1
+\end{array}\right)
+\left(\begin{array}{ccc}
+    s & 0 & t_x \\
+    0 & s & t_y \\
+    0 & 0 & 1
+\end{array}\right)
+=
+\left(\begin{array}{ccc}
+    m_{11} s & m_{12} s & m_{11} t_x + m_{12} t_y + m_{13} \\
+    m_{21} s & m_{22} s & m_{21} t_x + m_{22} t_y + m_{23} \\
+    0 & 0 & 1
+\end{array}\right)
+\end{equation}

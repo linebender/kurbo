@@ -293,6 +293,19 @@ impl fmt::Display for Point {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use float_cmp::{ApproxEq, F64Margin};
+
+    /// One affine transform is approx equal to another if all its elements are.
+    impl ApproxEq for Point {
+        type Margin = F64Margin;
+
+        fn approx_eq<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
+            let margin = margin.into();
+            self.x.approx_eq(other.x, margin) && self.y.approx_eq(other.y, margin)
+        }
+    }
+
     #[test]
     fn point_arithmetic() {
         assert_eq!(

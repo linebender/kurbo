@@ -41,6 +41,7 @@ features = ["alloc", "derive"]
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
+float-cmp = "0.9.0"
 rand = "0.8.0"
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
