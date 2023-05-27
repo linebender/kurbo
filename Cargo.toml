@@ -14,8 +14,15 @@ categories = ["graphics"]
 features = ["mint", "schemars", "serde"]
 
 [features]
-default = ["std"]
+default = ["std", "svg_path"]
 std = []
+serde = ["smallvec/serde", "arrayvec/serde", "serde1"]
+svg_path = ["nom"]
+
+[dependencies]
+smallvec = "1.10.0"
+anyhow = "1.0.70"
+nom = { version = "7.1.3", optional = true }
 
 [dependencies.arrayvec]
 version = "0.7.1"
@@ -33,8 +40,9 @@ optional = true
 version = "0.8.6"
 optional = true
 
-[dependencies.serde]
+[dependencies.serde1]
 version = "1.0.105"
+package = "serde"
 optional = true
 default-features = false
 features = ["alloc", "derive"]
@@ -42,7 +50,10 @@ features = ["alloc", "derive"]
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
 rand = "0.8.0"
+snog = { git = "https://github.com/derekdreery/snog" }
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 getrandom = { version = "0.2.0", features = ["js"] }
 
+[patch.crates-io]
+kurbo = { path = "." }

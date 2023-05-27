@@ -98,6 +98,8 @@ mod line;
 mod mindist;
 pub mod offset;
 mod param_curve;
+#[cfg(any(feature = "svg_path"))]
+pub mod paths;
 mod point;
 mod quadbez;
 mod quadspline;
@@ -107,8 +109,8 @@ mod rounded_rect_radii;
 mod shape;
 pub mod simplify;
 mod size;
-#[cfg(feature = "std")]
-mod svg;
+//#[cfg(feature = "std")]
+//mod svg;
 mod translate_scale;
 mod vec2;
 
@@ -130,7 +132,7 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
-#[cfg(feature = "std")]
-pub use crate::svg::*;
+//#[cfg(feature = "std")]
+//pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;

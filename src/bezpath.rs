@@ -199,6 +199,31 @@ impl BezPath {
         BezPath(v)
     }
 
+    /// Create a BezPath with segments corresponding to the sequence of `PathSeg`s.
+    ///
+    /// This constructor will insert [`PathEl::MoveTo`]s as needed so that drawing the returned
+    /// `BezPath` is equivalent to drawing each of the `PathSeg`s.
+    pub fn from_path_segments(segments: impl Iterator<Item = PathSeg>) -> BezPath {
+        let mut path_elements = Vec::new();
+        let mut current_pos = None;
+
+        for segment in segments {
+            let start = segment.start();
+            if Some(start) != current_pos {
+                path_elements.push(PathEl::MoveTo(start));
+            };
+            path_elements.push(match segment {
+                PathSeg::Line(l) => PathEl::LineTo(l.p1),
+                PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
+                PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3),
+            });
+
+            current_pos = Some(segment.end());
+        }
+
+        BezPath::from_vec(path_elements)
+    }
+
     /// Removes the last [`PathEl`] from the path and returns it, or `None` if the path is empty.
     pub fn pop(&mut self) -> Option<PathEl> {
         self.0.pop()
