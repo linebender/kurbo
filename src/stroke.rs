@@ -3,14 +3,16 @@
 
 use core::{borrow::Borrow, f64::consts::PI};
 
+use alloc::vec::Vec;
+
 use smallvec::SmallVec;
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 use crate::{
-    fit_to_bezpath, offset::CubicOffset, Affine, Arc, BezPath, CubicBez, PathEl, PathSeg, Point,
-    QuadBez, Vec2,
+    fit_to_bezpath, offset::CubicOffset, Affine, Arc, BezPath, CubicBez, Line, ParamCurve,
+    ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -156,8 +158,24 @@ struct StrokeCtx {
 
 /// Expand a stroke into a fill.
 pub fn stroke(path: impl IntoIterator<Item = PathEl>, style: &Stroke, tolerance: f64) -> BezPath {
-    let mut ctx = StrokeCtx::default();
-    ctx.join_thresh = 2.0 * tolerance / style.width;
+    if style.dash_pattern.is_empty() {
+        stroke_undashed(path, style, tolerance)
+    } else {
+        let dashed = DashIterator::new(path.into_iter(), style.dash_offset, &style.dash_pattern);
+        stroke_undashed(dashed, style, tolerance)
+    }
+}
+
+/// Version of stroke expansion for styles with no dashes.
+fn stroke_undashed(
+    path: impl IntoIterator<Item = PathEl>,
+    style: &Stroke,
+    tolerance: f64,
+) -> BezPath {
+    let mut ctx = StrokeCtx {
+        join_thresh: 2.0 * tolerance / style.width,
+        ..Default::default()
+    };
     for el in path {
         let p0 = ctx.last_pt;
         match el {
@@ -365,5 +383,248 @@ impl StrokeCtx {
         let backward = fit_to_bezpath(&co, tolerance);
         self.backward_path.extend(backward.into_iter().skip(1));
         self.last_pt = c.p3;
+    }
+}
+
+/// Iterator for dashing.
+pub struct DashIterator<'a, T> {
+    inner: T,
+    input_done: bool,
+    closepath_pending: bool,
+    dashes: &'a [f64],
+    dash_ix: usize,
+    init_dash_ix: usize,
+    init_dash_remaining: f64,
+    init_is_active: bool,
+    is_active: bool,
+    state: DashState,
+    current_seg: PathSeg,
+    t: f64,
+    dash_remaining: f64,
+    seg_remaining: f64,
+    start_pt: Point,
+    last_pt: Point,
+    stash: Vec<PathEl>,
+    stash_ix: usize,
+}
+
+#[derive(PartialEq, Eq)]
+enum DashState {
+    NeedInput,
+    ToStash,
+    Working,
+    FromStash,
+}
+
+impl<'a, T: Iterator<Item = PathEl>> Iterator for DashIterator<'a, T> {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        loop {
+            match self.state {
+                DashState::NeedInput => {
+                    if self.input_done {
+                        return None;
+                    }
+                    self.get_input();
+                    if self.input_done {
+                        return None;
+                    }
+                    self.state = DashState::ToStash;
+                }
+                DashState::ToStash => {
+                    if let Some(el) = self.step() {
+                        self.stash.push(el);
+                    }
+                }
+                DashState::Working => {
+                    if let Some(el) = self.step() {
+                        return Some(el);
+                    }
+                }
+                DashState::FromStash => {
+                    if let Some(el) = self.stash.get(self.stash_ix) {
+                        self.stash_ix += 1;
+                        return Some(*el);
+                    } else {
+                        self.stash.clear();
+                        self.stash_ix = 0;
+                        if self.input_done {
+                            return None;
+                        }
+                        if self.closepath_pending {
+                            self.closepath_pending = false;
+                            self.state = DashState::NeedInput;
+                        } else {
+                            self.state = DashState::ToStash;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn seg_to_el(el: &PathSeg) -> PathEl {
+    match el {
+        PathSeg::Line(l) => PathEl::LineTo(l.p1),
+        PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),
+        PathSeg::Cubic(c) => PathEl::CurveTo(c.p1, c.p2, c.p3),
+    }
+}
+
+const DASH_ACCURACY: f64 = 1e-6;
+
+impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
+    /// Create a new dashing iterator.
+    pub fn new(inner: T, dash_offset: f64, dashes: &'a [f64]) -> Self {
+        let mut dash_ix = 0;
+        let mut dash_remaining = dash_offset;
+        let mut is_active = true;
+        // Find place in dashes array for initial offset.
+        while dash_remaining > 0.0 {
+            let dash_len = dashes[dash_ix];
+            if dash_remaining < dash_len {
+                break;
+            }
+            dash_remaining -= dash_len;
+            dash_ix = (dash_ix + 1) % dashes.len();
+            is_active = !is_active;
+        }
+        DashIterator {
+            inner,
+            input_done: false,
+            closepath_pending: false,
+            dashes,
+            dash_ix,
+            init_dash_ix: dash_ix,
+            init_dash_remaining: dash_remaining,
+            init_is_active: is_active,
+            is_active,
+            state: DashState::NeedInput,
+            current_seg: PathSeg::Line(Line::new(Point::ORIGIN, Point::ORIGIN)),
+            t: 0.0,
+            dash_remaining,
+            seg_remaining: 0.0,
+            start_pt: Point::ORIGIN,
+            last_pt: Point::ORIGIN,
+            stash: Vec::new(),
+            stash_ix: 0,
+        }
+    }
+
+    fn get_input(&mut self) {
+        loop {
+            if self.closepath_pending {
+                self.handle_closepath();
+                break;
+            }
+            let Some(next_el) = self.inner.next() else {
+                self.input_done = true;
+                self.state = DashState::FromStash;
+                return;
+            };
+            let p0 = self.last_pt;
+            match next_el {
+                PathEl::MoveTo(p) => {
+                    if !self.stash.is_empty() {
+                        self.state = DashState::FromStash;
+                    }
+                    self.start_pt = p;
+                    self.last_pt = p;
+                    self.reset_phase();
+                    continue;
+                }
+                PathEl::LineTo(p1) => {
+                    let l = Line::new(p0, p1);
+                    self.seg_remaining = l.arclen(DASH_ACCURACY);
+                    self.current_seg = PathSeg::Line(l);
+                    self.last_pt = p1;
+                }
+                PathEl::QuadTo(p1, p2) => {
+                    let q = QuadBez::new(p0, p1, p2);
+                    self.seg_remaining = q.arclen(DASH_ACCURACY);
+                    self.current_seg = PathSeg::Quad(q);
+                    self.last_pt = p2;
+                }
+                PathEl::CurveTo(p1, p2, p3) => {
+                    let c = CubicBez::new(p0, p1, p2, p3);
+                    self.seg_remaining = c.arclen(DASH_ACCURACY);
+                    self.current_seg = PathSeg::Cubic(c);
+                    self.last_pt = p3;
+                }
+                PathEl::ClosePath => {
+                    self.closepath_pending = true;
+                    if p0 != self.start_pt {
+                        let l = Line::new(p0, self.start_pt);
+                        self.seg_remaining = l.arclen(DASH_ACCURACY);
+                        self.current_seg = PathSeg::Line(l);
+                        self.last_pt = self.start_pt;
+                    } else {
+                        self.handle_closepath();
+                    }
+                }
+            }
+            break;
+        }
+        self.t = 0.0;
+    }
+
+    /// Move arc length forward to next event.
+    fn step(&mut self) -> Option<PathEl> {
+        let mut result = None;
+        if self.state == DashState::ToStash && self.stash.is_empty() {
+            if self.is_active {
+                result = Some(PathEl::MoveTo(self.current_seg.start()));
+            } else {
+                self.state = DashState::Working;
+            }
+        } else if self.dash_remaining < self.seg_remaining {
+            // next transition is a dash transition
+            let seg = self.current_seg.subsegment(self.t..1.0);
+            let t1 = seg.inv_arclen(self.dash_remaining, DASH_ACCURACY);
+            if self.is_active {
+                let subseg = seg.subsegment(0.0..t1);
+                result = Some(seg_to_el(&subseg));
+                self.state = DashState::Working;
+            } else {
+                let p = seg.eval(t1);
+                result = Some(PathEl::MoveTo(p));
+            }
+            self.is_active = !self.is_active;
+            self.t += t1 * (1.0 - self.t);
+            self.seg_remaining -= self.dash_remaining;
+            self.dash_ix += 1;
+            if self.dash_ix == self.dashes.len() {
+                self.dash_ix = 0;
+            }
+            self.dash_remaining = self.dashes[self.dash_ix];
+        } else {
+            if self.is_active {
+                let seg = self.current_seg.subsegment(self.t..1.0);
+                result = Some(seg_to_el(&seg));
+            }
+            self.dash_remaining -= self.seg_remaining;
+            self.get_input();
+        }
+        result
+    }
+
+    fn handle_closepath(&mut self) {
+        if self.state == DashState::ToStash {
+            // Have looped back without breaking a dash, just play it back
+            self.stash.push(PathEl::ClosePath);
+        } else if self.is_active {
+            // connect with path in stash, skip MoveTo.
+            self.stash_ix = 1;
+        }
+        self.state = DashState::FromStash;
+        self.reset_phase();
+    }
+
+    fn reset_phase(&mut self) {
+        self.dash_ix = self.init_dash_ix;
+        self.dash_remaining = self.init_dash_remaining;
+        self.is_active = self.init_is_active;
     }
 }
