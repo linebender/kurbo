@@ -63,8 +63,15 @@ impl TranslateScale {
 
     /// Create a new transformation with translation only.
     #[inline]
-    pub const fn translate(translation: Vec2) -> TranslateScale {
-        TranslateScale::new(translation, 1.0)
+    pub fn translate(translation: impl Into<Vec2>) -> TranslateScale {
+        TranslateScale::new(translation.into(), 1.0)
+    }
+
+    /// Decompose transformation into translation and scale.
+    #[deprecated(note = "use the struct fields directly")]
+    #[inline]
+    pub const fn as_tuple(self) -> (Vec2, f64) {
+        (self.translation, self.scale)
     }
 
     /// Create a transform that scales about a point other than the origin.
