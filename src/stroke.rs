@@ -147,13 +147,17 @@ struct StrokeCtx {
     backward_path: BezPath,
     start_pt: Point,
     start_norm: Vec2,
+    start_tan: Vec2,
     last_pt: Point,
     last_tan: Vec2,
+    // if hypot < (hypot + dot) * bend_thresh, omit join altogether
+    join_thresh: f64,
 }
 
 /// Expand a stroke into a fill.
 pub fn stroke(path: impl IntoIterator<Item = PathEl>, style: &Stroke, tolerance: f64) -> BezPath {
     let mut ctx = StrokeCtx::default();
+    ctx.join_thresh = 2.0 * tolerance / style.width;
     for el in path {
         let p0 = ctx.last_pt;
         match el {
@@ -165,7 +169,8 @@ pub fn stroke(path: impl IntoIterator<Item = PathEl>, style: &Stroke, tolerance:
             PathEl::LineTo(p1) => {
                 if p1 != p0 {
                     let tangent = p1 - p0;
-                    ctx.do_tangents(style, tangent, tangent);
+                    ctx.do_join(style, tangent);
+                    ctx.last_tan = tangent;
                     ctx.do_line(style, tangent, p1);
                 }
             }
@@ -173,7 +178,8 @@ pub fn stroke(path: impl IntoIterator<Item = PathEl>, style: &Stroke, tolerance:
                 if p1 != p0 && p2 != p0 {
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
-                    ctx.do_tangents(style, tan0, tan1);
+                    ctx.do_join(style, tan0);
+                    ctx.last_tan = tan1;
                     ctx.do_cubic(style, q.raise(), tolerance);
                 }
             }
@@ -181,11 +187,20 @@ pub fn stroke(path: impl IntoIterator<Item = PathEl>, style: &Stroke, tolerance:
                 if p1 != p0 && p2 != p0 && p3 != p0 {
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
-                    ctx.do_tangents(style, tan0, tan1);
+                    ctx.do_join(style, tan0);
+                    ctx.last_tan = tan1;
                     ctx.do_cubic(style, c, tolerance);
                 }
             }
-            _ => todo!(),
+            PathEl::ClosePath => {
+                if p0 != ctx.start_pt {
+                    let tangent = ctx.start_pt - p0;
+                    ctx.do_join(style, tangent);
+                    ctx.last_tan = tangent;
+                    ctx.do_line(style, tangent, ctx.start_pt);
+                }
+                ctx.finish_closed(style);
+            }
         }
     }
     ctx.finish(style);
@@ -219,6 +234,18 @@ fn square_cap(out: &mut BezPath, close: bool, center: Point, norm: Vec2) {
     }
 }
 
+fn extend_reversed(out: &mut BezPath, elements: &[PathEl]) {
+    for i in (1..elements.len()).rev() {
+        let end = elements[i - 1].end_point().unwrap();
+        match elements[i] {
+            PathEl::LineTo(_) => out.line_to(end),
+            PathEl::QuadTo(p1, _) => out.quad_to(p1, end),
+            PathEl::CurveTo(p1, p2, _) => out.curve_to(p2, p1, end),
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl StrokeCtx {
     /// Append forward and backward paths to output.
     fn finish(&mut self, style: &Stroke) {
@@ -236,15 +263,7 @@ impl StrokeCtx {
             Cap::Round => round_cap(&mut self.output, tolerance, self.last_pt, d),
             Cap::Square => square_cap(&mut self.output, false, self.last_pt, d),
         }
-        for i in (1..back_els.len()).rev() {
-            let end = back_els[i - 1].end_point().unwrap();
-            match back_els[i] {
-                PathEl::LineTo(_) => self.output.line_to(end),
-                PathEl::QuadTo(p1, _) => self.output.quad_to(p1, end),
-                PathEl::CurveTo(p1, p2, _) => self.output.curve_to(p2, p1, end),
-                _ => unreachable!(),
-            }
-        }
+        extend_reversed(&mut self.output, back_els);
         match style.start_cap {
             Cap::Butt => self.output.close_path(),
             Cap::Round => round_cap(&mut self.output, tolerance, self.start_pt, self.start_norm),
@@ -255,7 +274,21 @@ impl StrokeCtx {
         self.backward_path.truncate(0);
     }
 
-    fn do_tangents(&mut self, style: &Stroke, tan0: Vec2, tan1: Vec2) {
+    /// Finish a closed path
+    fn finish_closed(&mut self, style: &Stroke) {
+        self.do_join(style, self.start_tan);
+        self.output.extend(&self.forward_path);
+        self.output.close_path();
+        let back_els = self.backward_path.elements();
+        let last_pt = back_els[back_els.len() - 1].end_point().unwrap();
+        self.output.move_to(last_pt);
+        extend_reversed(&mut self.output, back_els);
+        self.output.close_path();
+        self.forward_path.truncate(0);
+        self.backward_path.truncate(0);
+    }
+
+    fn do_join(&mut self, style: &Stroke, tan0: Vec2) {
         // TODO: scale
         let tolerance = 1e-3;
         let scale = 0.5 * style.width / tan0.hypot();
@@ -264,58 +297,56 @@ impl StrokeCtx {
         if self.forward_path.is_empty() {
             self.forward_path.move_to(p0 - norm);
             self.backward_path.move_to(p0 + norm);
+            self.start_tan = tan0;
             self.start_norm = norm;
         } else {
-            // TODO: suppress if G1 continuous
-            match style.join {
-                Join::Bevel => {
-                    self.forward_path.line_to(p0 - norm);
-                    self.backward_path.line_to(p0 + norm);
-                }
-                Join::Miter => {
-                    let ab = self.last_tan;
-                    let cd = tan0;
-                    let cross = ab.cross(cd);
-                    let dot = ab.dot(cd);
-                    let hypot = cross.hypot(dot);
-                    if 2.0 * hypot < (hypot + dot) * style.miter_limit.powi(2) {
-                        // TODO: maybe better to store last_norm or derive from path?
-                        let last_scale = 0.5 * style.width / ab.hypot();
-                        let last_norm = last_scale * Vec2::new(-ab.y, ab.x);
-                        if cross > 0.0 {
-                            let fp_last = p0 - last_norm;
-                            let fp_this = p0 - norm;
-                            let h = ab.cross(fp_this - fp_last) / cross;
-                            let miter_pt = fp_this - cd * h;
-                            self.forward_path.line_to(miter_pt);
-                        } else if cross < 0.0 {
-                            let fp_last = p0 + last_norm;
-                            let fp_this = p0 + norm;
-                            let h = ab.cross(fp_this - fp_last) / cross;
-                            let miter_pt = fp_this - cd * h;
-                            self.backward_path.line_to(miter_pt);
-                        }
-                    }
-                    self.forward_path.line_to(p0 - norm);
-                    self.backward_path.line_to(p0 + norm);
-                }
-                Join::Round => {
-                    let ab = self.last_tan;
-                    let cd = tan0;
-                    let cross = ab.cross(cd);
-                    let dot = ab.dot(cd);
-                    let angle = cross.atan2(dot);
-                    if cross > 0.0 {
-                        self.backward_path.line_to(p0 + norm);
-                        round_join(&mut self.forward_path, tolerance, p0, norm, angle);
-                    } else {
+            let ab = self.last_tan;
+            let cd = tan0;
+            let cross = ab.cross(cd);
+            let dot = ab.dot(cd);
+            let hypot = cross.hypot(dot);
+            // possible TODO: a minor speedup could be squaring both sides
+            if cross.abs() >= hypot * self.join_thresh {
+                match style.join {
+                    Join::Bevel => {
                         self.forward_path.line_to(p0 - norm);
-                        round_join_rev(&mut self.backward_path, tolerance, p0, -norm, -angle);
+                        self.backward_path.line_to(p0 + norm);
+                    }
+                    Join::Miter => {
+                        if 2.0 * hypot < (hypot + dot) * style.miter_limit.powi(2) {
+                            // TODO: maybe better to store last_norm or derive from path?
+                            let last_scale = 0.5 * style.width / ab.hypot();
+                            let last_norm = last_scale * Vec2::new(-ab.y, ab.x);
+                            if cross > 0.0 {
+                                let fp_last = p0 - last_norm;
+                                let fp_this = p0 - norm;
+                                let h = ab.cross(fp_this - fp_last) / cross;
+                                let miter_pt = fp_this - cd * h;
+                                self.forward_path.line_to(miter_pt);
+                            } else if cross < 0.0 {
+                                let fp_last = p0 + last_norm;
+                                let fp_this = p0 + norm;
+                                let h = ab.cross(fp_this - fp_last) / cross;
+                                let miter_pt = fp_this - cd * h;
+                                self.backward_path.line_to(miter_pt);
+                            }
+                        }
+                        self.forward_path.line_to(p0 - norm);
+                        self.backward_path.line_to(p0 + norm);
+                    }
+                    Join::Round => {
+                        let angle = cross.atan2(dot);
+                        if cross > 0.0 {
+                            self.backward_path.line_to(p0 + norm);
+                            round_join(&mut self.forward_path, tolerance, p0, norm, angle);
+                        } else {
+                            self.forward_path.line_to(p0 - norm);
+                            round_join_rev(&mut self.backward_path, tolerance, p0, -norm, -angle);
+                        }
                     }
                 }
             }
         }
-        self.last_tan = tan1;
     }
 
     fn do_line(&mut self, style: &Stroke, tangent: Vec2, p1: Point) {
