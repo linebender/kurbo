@@ -349,11 +349,12 @@ impl CubicBez {
             .collect()
     }
 
-    /// Find lines from the point to the curve tangent to the curve.
+    /// Find points on the curve where the tangent line passes through the
+    /// given point.
     ///
-    /// Result is array of t values such that the line from the given point
-    /// to the curve evaluated at that value is tangent to the curve.
-    pub fn point_tangents(&self, p: Point) -> ArrayVec<f64, 4> {
+    /// Result is array of t values such that the tangent line from the curve
+    /// evaluated at that point goes through the argument point.
+    pub fn tangents_to_point(&self, p: Point) -> ArrayVec<f64, 4> {
         let (a, b, c, d_orig) = self.parameters();
         let d = d_orig - p.to_vec2();
         // coefficients of x(t) \cross x'(t)
