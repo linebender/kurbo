@@ -158,3 +158,27 @@ impl ParamCurveFit for CubicOffset {
         Some(x)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CubicOffset;
+    use crate::{fit_to_bezpath, fit_to_bezpath_opt, CubicBez, PathEl};
+
+    // This test tries combinations of parameters that have caused problems in the past.
+    #[test]
+    fn pathological_curves() {
+        let curve = CubicBez {
+            p0: (-1236.3746269978635, 152.17981429574826).into(),
+            p1: (-1175.18662093517, 108.04721798590596).into(),
+            p2: (-1152.142883879584, 105.76260301083356).into(),
+            p3: (-1151.842639804639, 105.73040758939104).into(),
+        };
+        let offset = 3603.7267536453924;
+        let accuracy = 0.1;
+        let offset_path = CubicOffset::new(curve, offset);
+        let path = fit_to_bezpath_opt(&offset_path, accuracy);
+        assert!(matches!(path.iter().next(), Some(PathEl::MoveTo(_))));
+        let path_opt = fit_to_bezpath(&offset_path, accuracy);
+        assert!(matches!(path_opt.iter().next(), Some(PathEl::MoveTo(_))));
+    }
+}
