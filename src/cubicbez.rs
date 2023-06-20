@@ -443,9 +443,9 @@ impl CubicBez {
                 let c = det_012;
                 let d = b * b - 4. * a * c;
                 if d > 0.0 {
-                    return Some(CuspType::DoubleInflection)
+                    return Some(CuspType::DoubleInflection);
                 } else {
-                    return Some(CuspType::Loop)
+                    return Some(CuspType::Loop);
                 }
             }
         }
