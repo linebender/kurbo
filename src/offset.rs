@@ -65,6 +65,11 @@ pub struct CubicOffset {
 
 impl CubicOffset {
     /// Create a new curve from Bézier segment and offset.
+    ///
+    /// This method should only be used if the Bézier is smooth. Use
+    /// [`new_regularized`]instead to deal with a wider range of inputs.
+    ///
+    /// [`new_regularized`]: Self::new_regularized
     pub fn new(c: CubicBez, d: f64) -> Self {
         let q = c.deriv();
         let d0 = q.p0.to_vec2();
@@ -78,6 +83,14 @@ impl CubicOffset {
             c1: d * 2.0 * d2.cross(d0),
             c2: d * d2.cross(d1),
         }
+    }
+
+    /// Create a new curve from Bézier segment and offset, with numerical robustness tweaks.
+    ///
+    /// The dimension represents a minimum feature size; the regularization is allowed to
+    /// perturb the curve by this amount in order to improve the robustness.
+    pub fn new_regularized(c: CubicBez, d: f64, dimension: f64) -> Self {
+        Self::new(c.regularize(dimension), d)
     }
 
     fn eval_offset(&self, t: f64) -> Vec2 {
