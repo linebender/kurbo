@@ -417,14 +417,15 @@ impl StrokeCtx {
     }
 
     fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: &StrokeOpts) {
-        let co = CubicOffset::new(c, -0.5 * style.width);
-        let forward = fit_with_opts(&co, tolerance, opts);
-        self.forward_path.extend(forward.into_iter().skip(1));
         // A tuning parameter for regularization. A value too large may distort the curve,
         // while a value too small may fail to generate smooth curves. This is a somewhat
         // arbitrary value, and should be revisited.
         const DIM_TUNE: f64 = 0.25;
-        let co = CubicOffset::new_regularized(c, 0.5 * style.width, tolerance * DIM_TUNE);
+        let dimension = tolerance * DIM_TUNE;
+        let co = CubicOffset::new_regularized(c, -0.5 * style.width, dimension);
+        let forward = fit_with_opts(&co, tolerance, opts);
+        self.forward_path.extend(forward.into_iter().skip(1));
+        let co = CubicOffset::new_regularized(c, 0.5 * style.width, dimension);
         let backward = fit_with_opts(&co, tolerance, opts);
         self.backward_path.extend(backward.into_iter().skip(1));
         self.last_pt = c.p3;
