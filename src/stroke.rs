@@ -227,7 +227,7 @@ fn stroke_undashed(
                 }
             }
             PathEl::QuadTo(p1, p2) => {
-                if p1 != p0 && p2 != p0 {
+                if p1 != p0 || p2 != p0 {
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
@@ -236,7 +236,7 @@ fn stroke_undashed(
                 }
             }
             PathEl::CurveTo(p1, p2, p3) => {
-                if p1 != p0 && p2 != p0 && p3 != p0 {
+                if p1 != p0 || p2 != p0 || p3 != p0 {
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
@@ -420,7 +420,11 @@ impl StrokeCtx {
         let co = CubicOffset::new(c, -0.5 * style.width);
         let forward = fit_with_opts(&co, tolerance, opts);
         self.forward_path.extend(forward.into_iter().skip(1));
-        let co = CubicOffset::new(c, 0.5 * style.width);
+        // A tuning parameter for regularization. A value too large may distort the curve,
+        // while a value too small may fail to generate smooth curves. This is a somewhat
+        // arbitrary value, and should be revisited.
+        const DIM_TUNE: f64 = 0.25;
+        let co = CubicOffset::new_regularized(c, 0.5 * style.width, tolerance * DIM_TUNE);
         let backward = fit_with_opts(&co, tolerance, opts);
         self.backward_path.extend(backward.into_iter().skip(1));
         self.last_pt = c.p3;
