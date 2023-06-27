@@ -15,7 +15,7 @@ use crate::{
         factor_quartic_inner, solve_cubic, solve_itp_fallible, solve_quadratic,
         GAUSS_LEGENDRE_COEFFS_16,
     },
-    Affine, BezPath, CubicBez, ParamCurve, ParamCurveArclen, Point, Vec2,
+    Affine, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveNearest, Point, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -172,6 +172,17 @@ fn fit_to_bezpath_rec(
 ) {
     let start = range.start;
     let end = range.end;
+    let start_p = source.sample_pt_tangent(range.start, 1.0).p;
+    let end_p = source.sample_pt_tangent(range.end, -1.0).p;
+    if start_p.distance_squared(end_p) <= accuracy * accuracy {
+        if let Some((c, _)) = try_fit_line(source, accuracy, range, start_p, end_p) {
+            if path.is_empty() {
+                path.move_to(c.p0);
+            }
+            path.curve_to(c.p1, c.p2, c.p3);
+            return;
+        }
+    }
     if let Some(t) = source.break_cusp(start..end) {
         fit_to_bezpath_rec(source, start..t, accuracy, path);
         fit_to_bezpath_rec(source, t..end, accuracy, path);
@@ -317,6 +328,42 @@ impl CurveDist {
 const D_PENALTY_ELBOW: f64 = 0.65;
 const D_PENALTY_SLOPE: f64 = 2.0;
 
+/// Try fitting a line.
+///
+/// This is especially useful for very short chords, in which the standard
+/// cubic fit is not numerically stable. The tangents are not considered, so
+/// it's useful in cusp and near-cusp situations where the tangents are not
+/// reliable, as well.
+///
+/// Returns the line raised to a cubic and the error, if within tolerance.
+fn try_fit_line(
+    source: &impl ParamCurveFit,
+    accuracy: f64,
+    range: Range<f64>,
+    start: Point,
+    end: Point,
+) -> Option<(CubicBez, f64)> {
+    let acc2 = accuracy * accuracy;
+    let chord_l = Line::new(start, end);
+    const SHORT_N: usize = 7;
+    let mut max_err2 = 0.0;
+    let dt = (range.end - range.start) / (SHORT_N + 1) as f64;
+    for i in 0..SHORT_N {
+        let t = range.start + (i + 1) as f64 * dt;
+        let p = source.sample_pt_deriv(t).0;
+        let err2 = chord_l.nearest(p, accuracy).distance_sq;
+        if err2 > acc2 {
+            // Not in tolerance; likely subdivision will help.
+            return None;
+        }
+        max_err2 = err2.max(max_err2);
+    }
+    let p1 = start.lerp(end, 1.0 / 3.0);
+    let p2 = end.lerp(start, 1.0 / 3.0);
+    let c = CubicBez::new(start, p1, p2, end);
+    Some((c, max_err2))
+}
+
 /// Fit a single cubic to a range of the source curve.
 ///
 /// Returns the cubic segment and the square of the error.
@@ -326,15 +373,16 @@ pub fn fit_to_cubic(
     range: Range<f64>,
     accuracy: f64,
 ) -> Option<(CubicBez, f64)> {
-    // TODO: handle case where chord is short; return `None` if subdivision
-    // will be useful (ie resulting chord is longer), otherwise simple short
-    // cubic (maybe raised line).
-
     let start = source.sample_pt_tangent(range.start, 1.0);
     let end = source.sample_pt_tangent(range.end, -1.0);
     let d = end.p - start.p;
-    let th = d.atan2();
     let chord2 = d.hypot2();
+    let acc2 = accuracy * accuracy;
+    if chord2 <= acc2 {
+        // Special case very short chords; try to fit a line.
+        return try_fit_line(source, accuracy, range, start.p, end.p);
+    }
+    let th = d.atan2();
     fn mod_2pi(th: f64) -> f64 {
         let th_scaled = th * core::f64::consts::FRAC_1_PI * 0.5;
         core::f64::consts::PI * 2.0 * (th_scaled - th_scaled.round())
@@ -371,7 +419,6 @@ pub fn fit_to_cubic(
     let chord = chord2.sqrt();
     let aff = Affine::translate(start.p.to_vec2()) * Affine::rotate(th) * Affine::scale(chord);
     let mut curve_dist = CurveDist::from_curve(source, range);
-    let acc2 = accuracy * accuracy;
     let mut best_c = None;
     let mut best_err2 = None;
     for (cand, d0, d1) in cubic_fit(th0, th1, unit_area, mx) {

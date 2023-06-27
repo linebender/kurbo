@@ -65,6 +65,11 @@ pub struct CubicOffset {
 
 impl CubicOffset {
     /// Create a new curve from Bézier segment and offset.
+    ///
+    /// This method should only be used if the Bézier is smooth. Use
+    /// [`new_regularized`]instead to deal with a wider range of inputs.
+    ///
+    /// [`new_regularized`]: Self::new_regularized
     pub fn new(c: CubicBez, d: f64) -> Self {
         let q = c.deriv();
         let d0 = q.p0.to_vec2();
@@ -78,6 +83,14 @@ impl CubicOffset {
             c1: d * 2.0 * d2.cross(d0),
             c2: d * d2.cross(d1),
         }
+    }
+
+    /// Create a new curve from Bézier segment and offset, with numerical robustness tweaks.
+    ///
+    /// The dimension represents a minimum feature size; the regularization is allowed to
+    /// perturb the curve by this amount in order to improve the robustness.
+    pub fn new_regularized(c: CubicBez, d: f64, dimension: f64) -> Self {
+        Self::new(c.regularize(dimension), d)
     }
 
     fn eval_offset(&self, t: f64) -> Vec2 {
@@ -156,5 +169,29 @@ impl ParamCurveFit for CubicOffset {
         const ITP_EPS: f64 = 1e-12;
         let x = solve_itp(f, a, b, ITP_EPS, 1, k1, s * cusp0, s * cusp1);
         Some(x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CubicOffset;
+    use crate::{fit_to_bezpath, fit_to_bezpath_opt, CubicBez, PathEl};
+
+    // This test tries combinations of parameters that have caused problems in the past.
+    #[test]
+    fn pathological_curves() {
+        let curve = CubicBez {
+            p0: (-1236.3746269978635, 152.17981429574826).into(),
+            p1: (-1175.18662093517, 108.04721798590596).into(),
+            p2: (-1152.142883879584, 105.76260301083356).into(),
+            p3: (-1151.842639804639, 105.73040758939104).into(),
+        };
+        let offset = 3603.7267536453924;
+        let accuracy = 0.1;
+        let offset_path = CubicOffset::new(curve, offset);
+        let path = fit_to_bezpath_opt(&offset_path, accuracy);
+        assert!(matches!(path.iter().next(), Some(PathEl::MoveTo(_))));
+        let path_opt = fit_to_bezpath(&offset_path, accuracy);
+        assert!(matches!(path_opt.iter().next(), Some(PathEl::MoveTo(_))));
     }
 }

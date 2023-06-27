@@ -9,7 +9,7 @@ use crate::{
     Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, RoundedRectRadii, Vec2,
 };
 
-/// A transformation including scaling and translation.
+/// A transformation consisting of a uniform scaling followed by a translation.
 ///
 /// If the translation is `(x, y)` and the scale is `s`, then this
 /// transformation represents this augmented matrix:
@@ -42,8 +42,10 @@ use crate::{
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TranslateScale {
-    translation: Vec2,
-    scale: f64,
+    /// The translation component of this transformation
+    pub translation: Vec2,
+    /// The scale component of this transformation
+    pub scale: f64,
 }
 
 impl TranslateScale {
@@ -61,13 +63,41 @@ impl TranslateScale {
 
     /// Create a new transformation with translation only.
     #[inline]
-    pub const fn translate(t: Vec2) -> TranslateScale {
-        TranslateScale::new(t, 1.0)
+    pub fn translate(translation: impl Into<Vec2>) -> TranslateScale {
+        TranslateScale::new(translation.into(), 1.0)
     }
 
     /// Decompose transformation into translation and scale.
-    pub fn as_tuple(self) -> (Vec2, f64) {
+    #[deprecated(note = "use the struct fields directly")]
+    #[inline]
+    pub const fn as_tuple(self) -> (Vec2, f64) {
         (self.translation, self.scale)
+    }
+
+    /// Create a transform that scales about a point other than the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kurbo::{Point, TranslateScale};
+    /// # fn assert_near(p0: Point, p1: Point) {
+    /// #   assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
+    /// # }
+    /// let center = Point::new(1., 1.);
+    /// let ts = TranslateScale::from_scale_about(2., center);
+    /// // Should keep the point (1., 1.) stationary
+    /// assert_near(ts * center, center);
+    /// // (2., 2.) -> (3., 3.)
+    /// assert_near(ts * Point::new(2., 2.), Point::new(3., 3.));
+    /// ```
+    #[inline]
+    pub fn from_scale_about(scale: f64, focus: Point) -> Self {
+        // We need to create a transform that is equivalent to translating `focus`
+        // to the origin, followed by a normal scale, followed by reversing the translation.
+        // We need to find the (translation ∘ scale) that matches this.
+        let focus = focus.to_vec2();
+        let translation = focus - focus * scale;
+        Self::new(translation, scale)
     }
 
     /// Compute the inverse transform.
@@ -77,6 +107,7 @@ impl TranslateScale {
     /// (modulo floating point rounding errors).
     ///
     /// Produces NaN values when scale is zero.
+    #[inline]
     pub fn inverse(self) -> TranslateScale {
         let scale_recip = self.scale.recip();
         TranslateScale {
@@ -101,7 +132,7 @@ impl TranslateScale {
 impl Default for TranslateScale {
     #[inline]
     fn default() -> TranslateScale {
-        TranslateScale::scale(1.0)
+        TranslateScale::new(Vec2::ZERO, 1.0)
     }
 }
 
