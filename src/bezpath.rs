@@ -1250,6 +1250,17 @@ impl PathEl {
             PathEl::ClosePath => false,
         }
     }
+
+    /// Get the end point of the path element, if it exists.
+    pub fn end_point(&self) -> Option<Point> {
+        match self {
+            PathEl::MoveTo(p) => Some(*p),
+            PathEl::LineTo(p1) => Some(*p1),
+            PathEl::QuadTo(_, p2) => Some(*p2),
+            PathEl::CurveTo(_, _, p3) => Some(*p3),
+            _ => None,
+        }
+    }
 }
 
 /// Implements [`Shape`] for a slice of [`PathEl`], provided that the first element of the slice is
