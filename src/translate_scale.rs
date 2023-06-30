@@ -305,20 +305,58 @@ impl Mul<CubicBez> for TranslateScale {
     }
 }
 
+/// Implementation follows the standard composition rules:
+///
+#[doc = include_str!("../docs/math/impl_mulaffine_for_translatescale.mathml")]
+impl Mul<Affine> for TranslateScale {
+    type Output = Affine;
+
+    #[inline]
+    fn mul(self, other: Affine) -> Affine {
+        let [m11, m21, m12, m22, m13, m23] = other.as_coeffs();
+        let TranslateScale {
+            translation: Vec2 { x, y },
+            scale: s,
+        } = self;
+        Affine::new([m11 * s, m21 * s, m12 * s, m22 * s, m13 * s + x, m23 * s + y])
+    }
+}
+
+/// Implementation follows the standard composition rules:
+///
+#[doc = include_str!("../docs/math/impl_multranslatescale_for_affine.mathml")]
+impl Mul<TranslateScale> for Affine {
+    type Output = Affine;
+
+    #[inline]
+    fn mul(self, other: TranslateScale) -> Affine {
+        let [m11, m21, m12, m22, m13, m23] = self.as_coeffs();
+        let TranslateScale {
+            translation: Vec2 { x, y },
+            scale: s,
+        } = other;
+        Affine::new([
+            m11 * s,
+            m21 * s,
+            m12 * s,
+            m22 * s,
+            m11 * x + m12 * y + m13,
+            m21 * x + m22 * y + m23,
+        ])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Affine, Point, TranslateScale, Vec2};
-
-    fn assert_near(p0: Point, p1: Point) {
-        assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
-    }
+    use float_cmp::assert_approx_eq;
 
     #[test]
     fn translate_scale() {
         let p = Point::new(3.0, 4.0);
         let ts = TranslateScale::new(Vec2::new(5.0, 6.0), 2.0);
 
-        assert_near(ts * p, Point::new(11.0, 14.0));
+        assert_approx_eq!(Point, ts * p, Point::new(11.0, 14.0));
     }
 
     #[test]
@@ -330,10 +368,14 @@ mod tests {
 
         // Test that conversion to affine is consistent.
         let a: Affine = ts.into();
-        assert_near(ts * p, a * p);
+        assert_approx_eq!(Point, ts * p, a * p);
 
-        assert_near((s * p.to_vec2()).to_point(), TranslateScale::scale(s) * p);
-        assert_near(p + t, TranslateScale::translate(t) * p);
+        assert_approx_eq!(
+            Point,
+            (s * p.to_vec2()).to_point(),
+            TranslateScale::scale(s) * p
+        );
+        assert_approx_eq!(Point, p + t, TranslateScale::translate(t) * p);
     }
 
     #[test]
@@ -341,7 +383,17 @@ mod tests {
         let p = Point::new(3.0, 4.0);
         let ts = TranslateScale::new(Vec2::new(5.0, 6.0), 2.0);
 
-        assert_near(p, (ts * ts.inverse()) * p);
-        assert_near(p, (ts.inverse() * ts) * p);
+        // Because the scale is uniform, accuracy here is higher than the general
+        // affine case.
+        assert_approx_eq!(Point, p, (ts * ts.inverse()) * p);
+        assert_approx_eq!(Point, p, (ts.inverse() * ts) * p);
+    }
+
+    #[test]
+    fn mul_affine() {
+        let ts = TranslateScale::new(Vec2::new(153.6, 34.), 1.265);
+        let affine = Affine::new([12.3, 31.6, 1.1, 0.0025, 5., 3.4]);
+        assert_approx_eq!(Affine, ts * affine, Affine::from(ts) * affine);
+        assert_approx_eq!(Affine, affine * ts, affine * Affine::from(ts));
     }
 }

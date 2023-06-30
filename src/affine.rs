@@ -223,6 +223,28 @@ impl Affine {
         self.0[0] * self.0[3] - self.0[1] * self.0[2]
     }
 
+    /// The ["entry-wise" L<sub>1</sub> norm][matrix-norm#entry-wise], also known as
+    /// the L<sub>1,1</sub> norm.
+    ///
+    /// This norm is equivalent to considering the affine matrix as a 3x3 vector, and
+    /// finding its L<sub>1</sub> norm. This is simply the sum of the coefficients + 1
+    /// (the extra 1 comes from the `0 0 1` implicit row).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kurbo::Affine;
+    /// # use float_cmp::assert_approx_eq;
+    /// let affine = Affine::new([1., 2., 3., 4., 5., 6.]);
+    /// assert_approx_eq!(f64, affine.norm_l_1_1(), affine.as_coeffs().into_iter().sum::<f64>() + 1.);
+    /// ```
+    ///
+    /// [matrix-norm#entry-wise]: https://en.wikipedia.org/wiki/Matrix_norm#%22Entry-wise%22_matrix_norms
+    pub fn norm_l_1_1(self) -> f64 {
+        let [m11, m21, m12, m22, m13, m23] = self.as_coeffs();
+        m11.abs() + m21.abs() + m12.abs() + m22.abs() + m13.abs() + m23.abs() + 1.
+    }
+
     /// Compute the inverse transform.
     ///
     /// Produces NaN values when the determinant is zero.
@@ -433,23 +455,34 @@ impl From<mint::ColumnMatrix2x3<f64>> for Affine {
 #[cfg(test)]
 mod tests {
     use crate::{Affine, Point};
+    use float_cmp::{assert_approx_eq, ApproxEq, F64Margin};
     use std::f64::consts::PI;
 
-    fn assert_near(p0: Point, p1: Point) {
-        assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
+    /// One affine transform is approx equal to another if all its elements are.
+    impl ApproxEq for Affine {
+        type Margin = F64Margin;
+
+        fn approx_eq<M: Into<Self::Margin>>(self, other: Affine, margin: M) -> bool {
+            self.as_coeffs()
+                .approx_eq(&other.as_coeffs(), margin.into())
+        }
     }
 
     #[test]
     fn affine_basic() {
         let p = Point::new(3.0, 4.0);
 
-        assert_near(Affine::default() * p, p);
-        assert_near(Affine::scale(2.0) * p, Point::new(6.0, 8.0));
-        assert_near(Affine::rotate(0.0) * p, p);
-        assert_near(Affine::rotate(PI / 2.0) * p, Point::new(-4.0, 3.0));
-        assert_near(Affine::translate((5.0, 6.0)) * p, Point::new(8.0, 10.0));
-        assert_near(Affine::skew(0.0, 0.0) * p, p);
-        assert_near(Affine::skew(2.0, 4.0) * p, Point::new(11.0, 16.0));
+        assert_approx_eq!(Point, Affine::default() * p, p);
+        assert_approx_eq!(Point, Affine::scale(2.0) * p, Point::new(6.0, 8.0));
+        assert_approx_eq!(Point, Affine::rotate(0.0) * p, p);
+        assert_approx_eq!(Point, Affine::rotate(PI / 2.0) * p, Point::new(-4.0, 3.0));
+        assert_approx_eq!(
+            Point,
+            Affine::translate((5.0, 6.0)) * p,
+            Point::new(8.0, 10.0)
+        );
+        assert_approx_eq!(Point, Affine::skew(0.0, 0.0) * p, p);
+        assert_approx_eq!(Point, Affine::skew(2.0, 4.0) * p, Point::new(11.0, 16.0));
     }
 
     #[test]
@@ -460,9 +493,9 @@ mod tests {
         let px = Point::new(1.0, 0.0);
         let py = Point::new(0.0, 1.0);
         let pxy = Point::new(1.0, 1.0);
-        assert_near(a1 * (a2 * px), (a1 * a2) * px);
-        assert_near(a1 * (a2 * py), (a1 * a2) * py);
-        assert_near(a1 * (a2 * pxy), (a1 * a2) * pxy);
+        assert_approx_eq!(Point, a1 * (a2 * px), (a1 * a2) * px);
+        assert_approx_eq!(Point, a1 * (a2 * py), (a1 * a2) * py);
+        assert_approx_eq!(Point, a1 * (a2 * pxy), (a1 * a2) * pxy);
     }
 
     #[test]
@@ -473,11 +506,13 @@ mod tests {
         let px = Point::new(1.0, 0.0);
         let py = Point::new(0.0, 1.0);
         let pxy = Point::new(1.0, 1.0);
-        assert_near(a * (a_inv * px), px);
-        assert_near(a * (a_inv * py), py);
-        assert_near(a * (a_inv * pxy), pxy);
-        assert_near(a_inv * (a * px), px);
-        assert_near(a_inv * (a * py), py);
-        assert_near(a_inv * (a * pxy), pxy);
+        // Taking an inverse is a lossy operation, especially for poorly conditioned
+        // matrices, so errors will be bigger for these tests.
+        assert_approx_eq!(Point, a * (a_inv * px), px, epsilon = 1e-14);
+        assert_approx_eq!(Point, a * (a_inv * py), py, epsilon = 1e-14);
+        assert_approx_eq!(Point, a * (a_inv * pxy), pxy, epsilon = 1e-14);
+        assert_approx_eq!(Point, a_inv * (a * px), px, epsilon = 1e-14);
+        assert_approx_eq!(Point, a_inv * (a * py), py, epsilon = 1e-14);
+        assert_approx_eq!(Point, a_inv * (a * pxy), pxy, epsilon = 1e-14);
     }
 }
