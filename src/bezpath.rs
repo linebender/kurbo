@@ -705,23 +705,23 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
     /// Here, `accuracy` specifies the accuracy for each Bézier segment. At worst,
     /// the total error is `accuracy` times the number of Bézier segments.
 
-    // TODO: pub? Or is this subsumed by method of &[PathEl]?
-    pub(crate) fn perimeter(self, accuracy: f64) -> f64 {
+    /// Version of [`Shape::perimeter`] which consumes the iterator.
+    pub fn perimeter(self, accuracy: f64) -> f64 {
         self.map(|seg| seg.arclen(accuracy)).sum()
     }
 
-    // Same
-    pub(crate) fn area(self) -> f64 {
+    /// Version of [`Shape::area] which consumes the iterator and needs no tolerance parameter.
+    pub fn area(self) -> f64 {
         self.map(|seg| seg.signed_area()).sum()
     }
 
-    // Same
-    pub(crate) fn winding(self, p: Point) -> i32 {
+    /// Version of [`Shape::winding`] which consumes the iterator and needs no tolerance parameter.
+    pub fn winding(self, p: Point) -> i32 {
         self.map(|seg| seg.winding(p)).sum()
     }
 
-    // Same
-    pub(crate) fn bounding_box(self) -> Rect {
+    /// Version of [`Shape::bounding_box`] which consumes the iterator and needs no tolerance parameter.
+    pub fn bounding_box(self) -> Rect {
         let mut bbox: Option<Rect> = None;
         for seg in self {
             let seg_bb = ParamCurveExtrema::bounding_box(&seg);
@@ -1204,8 +1204,8 @@ impl Shape for BezPath {
     }
 
     /// Signed area.
-    fn area(&self) -> f64 {
-        self.elements().area()
+    fn area(&self, tolerance: f64) -> f64 {
+        self.elements().area(tolerance)
     }
 
     fn perimeter(&self, accuracy: f64) -> f64 {
@@ -1213,12 +1213,12 @@ impl Shape for BezPath {
     }
 
     /// Winding number of point.
-    fn winding(&self, pt: Point) -> i32 {
-        self.elements().winding(pt)
+    fn winding(&self, pt: Point, tolerance: f64) -> i32 {
+        self.elements().winding(pt, tolerance)
     }
 
-    fn bounding_box(&self) -> Rect {
-        self.elements().bounding_box()
+    fn bounding_box(&self, tolerance: f64) -> Rect {
+        self.elements().bounding_box(tolerance)
     }
 
     fn as_path_slice(&self) -> Option<&[PathEl]> {
@@ -1282,7 +1282,7 @@ impl<'a> Shape for &'a [PathEl] {
     }
 
     /// Signed area.
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         segments(self.iter().copied()).area()
     }
 
@@ -1291,11 +1291,11 @@ impl<'a> Shape for &'a [PathEl] {
     }
 
     /// Winding number of point.
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         segments(self.iter().copied()).winding(pt)
     }
 
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         segments(self.iter().copied()).bounding_box()
     }
 
@@ -1322,7 +1322,7 @@ impl<const N: usize> Shape for [PathEl; N] {
     }
 
     /// Signed area.
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         segments(self.iter().copied()).area()
     }
 
@@ -1331,11 +1331,11 @@ impl<const N: usize> Shape for [PathEl; N] {
     }
 
     /// Winding number of point.
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         segments(self.iter().copied()).winding(pt)
     }
 
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         segments(self.iter().copied()).bounding_box()
     }
 
@@ -1362,7 +1362,7 @@ impl Shape for PathSeg {
     /// The area under the curve.
     ///
     /// We could just return 0, but this seems more useful.
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         self.signed_area()
     }
 
@@ -1371,12 +1371,12 @@ impl Shape for PathSeg {
         self.arclen(accuracy)
     }
 
-    fn winding(&self, _pt: Point) -> i32 {
+    fn winding(&self, _pt: Point, _tolerance: f64) -> i32 {
         0
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         ParamCurveExtrema::bounding_box(self)
     }
 
@@ -1496,8 +1496,8 @@ mod tests {
         path.line_to((1.0, 1.0));
         path.line_to((2.0, 0.0));
         path.close_path();
-        assert_eq!(path.winding(Point::new(1.0, 0.5)), -1);
-        assert!(path.contains(Point::new(1.0, 0.5)));
+        assert_eq!(path.winding(Point::new(1.0, 0.5), 1.0), -1);
+        assert!(path.contains(Point::new(1.0, 0.5), 1.0));
     }
 
     // get_seg(i) should produce the same results as path_segments().nth(i - 1).

@@ -225,7 +225,7 @@ impl Shape for RoundedRect {
     }
 
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         // A corner is a quarter-circle, i.e.
         // .............#
         // .       ######
@@ -289,7 +289,7 @@ impl Shape for RoundedRect {
     }
 
     #[inline]
-    fn winding(&self, mut pt: Point) -> i32 {
+    fn winding(&self, mut pt: Point, _tolerance: f64) -> i32 {
         let center = self.center();
 
         // 1. Translate the point relative to the center of the rectangle.
@@ -339,8 +339,8 @@ impl Shape for RoundedRect {
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
-        self.rect.bounding_box()
+    fn bounding_box(&self, accuracy: f64) -> Rect {
+        self.rect.bounding_box(accuracy)
     }
 
     #[inline]
@@ -443,26 +443,26 @@ mod tests {
         // Extremum: 0.0 radius corner -> rectangle
         let rect = Rect::new(0.0, 0.0, 100.0, 100.0);
         let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 0.0);
-        assert!((rect.area() - rounded_rect.area()).abs() < epsilon);
+        assert!((rect.area() - rounded_rect.area(1.0)).abs() < epsilon);
 
         // Extremum: half-size radius corner -> circle
         let circle = Circle::new((0.0, 0.0), 50.0);
         let rounded_rect = RoundedRect::new(0.0, 0.0, 100.0, 100.0, 50.0);
-        assert!((circle.area() - rounded_rect.area()).abs() < epsilon);
+        assert!((circle.area(1.0) - rounded_rect.area(1.0)).abs() < epsilon);
     }
 
     #[test]
     fn winding() {
         let rect = RoundedRect::new(-5.0, -5.0, 10.0, 20.0, (5.0, 5.0, 5.0, 0.0));
-        assert_eq!(rect.winding(Point::new(0.0, 0.0)), 1);
-        assert_eq!(rect.winding(Point::new(-5.0, 0.0)), 1); // left edge
-        assert_eq!(rect.winding(Point::new(0.0, 20.0)), 1); // bottom edge
-        assert_eq!(rect.winding(Point::new(10.0, 20.0)), 0); // bottom-right corner
-        assert_eq!(rect.winding(Point::new(-5.0, 20.0)), 1); // bottom-left corner (has a radius of 0)
-        assert_eq!(rect.winding(Point::new(-10.0, 0.0)), 0);
+        assert_eq!(rect.winding(Point::new(0.0, 0.0), 1.0), 1);
+        assert_eq!(rect.winding(Point::new(-5.0, 0.0), 1.0), 1); // left edge
+        assert_eq!(rect.winding(Point::new(0.0, 20.0), 1.0), 1); // bottom edge
+        assert_eq!(rect.winding(Point::new(10.0, 20.0), 1.0), 0); // bottom-right corner
+        assert_eq!(rect.winding(Point::new(-5.0, 20.0), 1.0), 1); // bottom-left corner (has a radius of 0)
+        assert_eq!(rect.winding(Point::new(-10.0, 0.0), 1.0), 0);
 
         let rect = RoundedRect::new(-10.0, -20.0, 10.0, 20.0, 0.0); // rectangle
-        assert_eq!(rect.winding(Point::new(10.0, 20.0)), 1); // bottom-right corner
+        assert_eq!(rect.winding(Point::new(10.0, 20.0), 1.0), 1); // bottom-right corner
     }
 
     #[test]
@@ -471,7 +471,7 @@ mod tests {
         let p = rect.to_path(1e-9);
         // Note: could be more systematic about tolerance tightness.
         let epsilon = 1e-7;
-        assert!((rect.area() - p.area()).abs() < epsilon);
-        assert_eq!(p.winding(Point::new(0.0, 0.0)), 1);
+        assert!((rect.area(1.0) - p.area(1.0)).abs() < epsilon);
+        assert_eq!(p.winding(Point::new(0.0, 0.0), 1.0), 1);
     }
 }

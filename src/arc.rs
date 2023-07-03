@@ -165,7 +165,7 @@ impl Shape for Arc {
 
     /// Note: shape isn't closed so area is not well defined.
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         let Vec2 { x, y } = self.radii;
         PI * x * y
     }
@@ -183,12 +183,12 @@ impl Shape for Arc {
 
     /// Note: shape isn't closed, so a point's winding number is not well defined.
     #[inline]
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         self.path_segments(0.1).winding(pt)
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         self.path_segments(0.1).bounding_box()
     }
 }

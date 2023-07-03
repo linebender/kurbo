@@ -111,11 +111,29 @@ pub trait Shape: Sized {
     /// positive. Thus, it is clockwise when down is increasing y (the
     /// usual convention for graphics), and anticlockwise when
     /// up is increasing y (the usual convention for math).
-    fn area(&self) -> f64;
+    /// 
+    /// The tolerance parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a bezier path.
+    /// Note this allows the returned area to be off by a most the tolerance times the perimiter.
+    /// 
+    /// Tolerance should be ignored (by implementing this method directly)
+    /// if there is an easy way to return a precice result.
+    fn area(&self, tolerance: f64) -> f64 {
+        segments(self.path_elements(tolerance)).area()
+    }
 
     /// Total length of perimeter.
-    //FIXME: document the accuracy param
-    fn perimeter(&self, accuracy: f64) -> f64;
+    /// 
+    /// The tolerance parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a bezier path.
+    /// In addition, it may also be used to control the accuracy of integration of the arc length
+    /// (note that varying a sufficiently smooth curve will vary the perimiter by a simillar amount as the deflection).
+    /// 
+    /// Tolerance should be ignored (by implementing this method directly)
+    /// if there is an easy way to return a precice result.
+    fn perimeter(&self, tolerance: f64) -> f64 {
+        segments(self.path_elements(tolerance)).perimeter(tolerance)
+    }
 
     /// The [winding number] of a point.
     ///
@@ -125,20 +143,35 @@ pub trait Shape: Sized {
     /// meaning it is +1 when the point is inside a positive area shape
     /// and -1 when it is inside a negative area shape. Of course, greater
     /// magnitude values are also possible when the shape is more complex.
+    /// 
+    /// The tolerance parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a bezier path.
+    /// As a result, the returned value is allowed to be the tinging number of
+    /// a point at most tolerance away from p.
+    /// 
+    /// Tolerance should be ignored (by implementing this method directly)
+    /// if there is an easy way to return a precice result.
     ///
     /// [`area`]: Shape::area
     /// [winding number]: https://mathworld.wolfram.com/ContourWindingNumber.html
-    fn winding(&self, pt: Point) -> i32;
+    fn winding(&self, pt: Point, tolerance: f64) -> i32{
+        segments(self.path_elements(tolerance)).winding(pt)
+    }
 
-    /// Returns `true` if the [`Point`] is inside this shape.
+    /// Returns `true` if the [`Point`] (up to tolerance, see [`winding`]) is inside this shape.
     ///
     /// This is only meaningful for closed shapes.
-    fn contains(&self, pt: Point) -> bool {
-        self.winding(pt) != 0
+    fn contains(&self, pt: Point, tolerance: f64) -> bool {
+        self.winding(pt, tolerance) != 0
     }
 
     /// The smallest rectangle that encloses the shape.
-    fn bounding_box(&self) -> Rect;
+    /// 
+    /// The tolerance parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a bezier path.
+    /// It should be ignored (by implementing this method directly)
+    /// if there is an easy way to return a precice result.
+    fn bounding_box(&self, tolerance: f64) -> Rect;
 
     /// If the shape is a line, make it available.
     fn as_line(&self) -> Option<Line> {
@@ -189,20 +222,20 @@ impl<'a, T: Shape> Shape for &'a T {
         (*self).path_segments(tolerance)
     }
 
-    fn area(&self) -> f64 {
-        (*self).area()
+    fn area(&self, tolerance: f64) -> f64 {
+        (*self).area(tolerance)
     }
 
-    fn perimeter(&self, accuracy: f64) -> f64 {
-        (*self).perimeter(accuracy)
+    fn perimeter(&self, tolerance: f64) -> f64 {
+        (*self).perimeter(tolerance)
     }
 
-    fn winding(&self, pt: Point) -> i32 {
-        (*self).winding(pt)
+    fn winding(&self, pt: Point, tolerance: f64) -> i32 {
+        (*self).winding(pt, tolerance)
     }
 
-    fn bounding_box(&self) -> Rect {
-        (*self).bounding_box()
+    fn bounding_box(&self, tolerance: f64) -> Rect {
+        (*self).bounding_box(tolerance)
     }
 
     fn as_line(&self) -> Option<Line> {

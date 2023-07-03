@@ -220,7 +220,7 @@ impl Shape for Ellipse {
     }
 
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         let Vec2 { x, y } = self.radii();
         PI * x * y
     }
@@ -236,7 +236,7 @@ impl Shape for Ellipse {
         self.path_segments(0.1).perimeter(accuracy)
     }
 
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         // Strategy here is to apply the inverse map to the point and see if it is in the unit
         // circle.
         let inv = self.inner.inverse();
@@ -259,7 +259,7 @@ impl Shape for Ellipse {
     //
     //  We can then use the method in the link with the translation to get the bounding box.
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         let aff = self.inner.as_coeffs();
         let a2 = aff[0] * aff[0];
         let b2 = aff[1] * aff[1];
@@ -293,23 +293,23 @@ mod tests {
     fn area_sign() {
         let center = Point::new(5.0, 5.0);
         let e = Ellipse::new(center, (5.0, 5.0), 1.0);
-        assert_approx_eq(e.area(), 25.0 * PI);
+        assert_approx_eq(e.area(1.0), 25.0 * PI);
         let e = Ellipse::new(center, (5.0, 10.0), 1.0);
-        assert_approx_eq(e.area(), 50.0 * PI);
+        assert_approx_eq(e.area(1.0), 50.0 * PI);
 
-        assert_eq!(e.winding(center), 1);
+        assert_eq!(e.winding(center, 1.0), 1);
 
         let p = e.to_path(1e-9);
-        assert_approx_eq(e.area(), p.area());
-        assert_eq!(e.winding(center), p.winding(center));
+        assert_approx_eq(e.area(1.0), p.area(1.0));
+        assert_eq!(e.winding(center, 1.0), p.winding(center, 1.0));
 
         let e_neg_radius = Ellipse::new(center, (-5.0, 10.0), 1.0);
-        assert_approx_eq(e_neg_radius.area(), 50.0 * PI);
+        assert_approx_eq(e_neg_radius.area(1.0), 50.0 * PI);
 
-        assert_eq!(e_neg_radius.winding(center), 1);
+        assert_eq!(e_neg_radius.winding(center, 1.0), 1);
 
         let p_neg_radius = e_neg_radius.to_path(1e-9);
-        assert_approx_eq(e_neg_radius.area(), p_neg_radius.area());
-        assert_eq!(e_neg_radius.winding(center), p_neg_radius.winding(center));
+        assert_approx_eq(e_neg_radius.area(1.0), p_neg_radius.area(1.0));
+        assert_eq!(e_neg_radius.winding(center, 1.0), p_neg_radius.winding(center, 1.0));
     }
 }
