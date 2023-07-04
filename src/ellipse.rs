@@ -310,6 +310,9 @@ mod tests {
 
         let p_neg_radius = e_neg_radius.to_path(1e-9);
         assert_approx_eq(e_neg_radius.area(1.0), p_neg_radius.area(1.0));
-        assert_eq!(e_neg_radius.winding(center, 1.0), p_neg_radius.winding(center, 1.0));
+        assert_eq!(
+            e_neg_radius.winding(center, 1.0),
+            p_neg_radius.winding(center, 1.0)
+        );
     }
 }
