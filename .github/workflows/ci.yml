@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     name: cargo fmt
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -37,7 +37,7 @@ jobs:
         os: [macOS-latest, windows-2019, ubuntu-latest]
     name: cargo clippy+test
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -76,7 +76,7 @@ jobs:
 
     name: cargo clippy+test (wasm32)
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -107,7 +107,7 @@ jobs:
         os: [macOS-latest, windows-2019, ubuntu-latest]
     name: cargo test nightly
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install nightly toolchain
         uses: actions-rs/toolchain@v1
@@ -129,7 +129,7 @@ jobs:
       matrix:
         os: [macOS-latest, windows-2019, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
         uses: actions-rs/toolchain@v1
