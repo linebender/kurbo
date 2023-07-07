@@ -11,24 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     name: cargo fmt
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
-          profile: minimal
+          toolchain: "stable"
           components: rustfmt
-          override: true
-
-      - name: install rustfmt
-        run: rustup component add rustfmt
 
       - name: cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
   test-stable:
     runs-on: ${{ matrix.os }}
@@ -37,29 +29,21 @@ jobs:
         os: [macOS-latest, windows-2019, ubuntu-latest]
     name: cargo clippy+test
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: "stable"
           components: clippy
-          profile: minimal
-          override: true
 
       - run: rustup target add thumbv7m-none-eabi
 
       - name: cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features --all-targets -- -D warnings
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+        run: cargo test --all-features
 
       - name: Build with no default features
         # Use no-std target to ensure we don't link to std.
@@ -76,29 +60,21 @@ jobs:
 
     name: cargo clippy+test (wasm32)
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: "stable"
           target: wasm32-unknown-unknown
           components: clippy
-          profile: minimal
-          override: true
 
       - name: cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features --all-targets --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy --all-features --all-targets --target wasm32-unknown-unknown -- -D warnings
 
       # TODO: Find a way to make tests work. Until then the tests are merely compiled.
       - name: cargo test compile
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --no-run --target wasm32-unknown-unknown
+        run: cargo test --all-features --no-run --target wasm32-unknown-unknown
 
   test-nightly:
     runs-on: ${{ matrix.os }}
@@ -107,20 +83,15 @@ jobs:
         os: [macOS-latest, windows-2019, ubuntu-latest]
     name: cargo test nightly
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install nightly toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly
-          profile: minimal
-          override: true
+          toolchain: "nightly"
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+        run: cargo test --all-features
 
   check-docs:
     name: Docs
@@ -129,17 +100,12 @@ jobs:
       matrix:
         os: [macOS-latest, windows-2019, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
+          toolchain: "stable"
 
       - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all-features --document-private-items
+        run: cargo doc --all-features --document-private-items
