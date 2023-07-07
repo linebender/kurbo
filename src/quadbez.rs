@@ -328,6 +328,8 @@ impl ParamCurveNearest for QuadBez {
         let mut r_best = None;
         let mut t_best = 0.0;
         let mut need_ends = false;
+        // There must be a case where there are no roots returned - this is the only
+        // way we could get a panic
         for &t in &roots {
             need_ends |= try_t(self, p, &mut t_best, &mut r_best, t);
         }
@@ -336,9 +338,20 @@ impl ParamCurveNearest for QuadBez {
             eval_t(p, &mut t_best, &mut r_best, 1.0, self.p2);
         }
 
+        let r_best = match r_best {
+            Some(v) => v,
+            None => {
+                tracing::error!("no solutions to `QuadBez::nearest`: curve = {self:?}, p = {p:?}");
+                let mut r_best = None;
+                eval_t(p, &mut t_best, &mut r_best, 0.0, self.p0);
+                eval_t(p, &mut t_best, &mut r_best, 1.0, self.p2);
+                r_best.unwrap() // this really cannot fail
+            }
+        };
+
         Nearest {
             t: t_best,
-            distance_sq: r_best.unwrap(),
+            distance_sq: r_best,
         }
     }
 }

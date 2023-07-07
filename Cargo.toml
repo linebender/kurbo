@@ -19,6 +19,7 @@ std = []
 
 [dependencies]
 smallvec = "1.10"
+tracing = "0.1.37"
 
 [dependencies.arrayvec]
 version = "0.7.1"
