@@ -20,10 +20,7 @@ jobs:
           components: rustfmt
 
       - name: cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
   test-stable:
     runs-on: ${{ matrix.os }}
@@ -43,16 +40,10 @@ jobs:
       - run: rustup target add thumbv7m-none-eabi
 
       - name: cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features --all-targets -- -D warnings
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+        run: cargo test --all-features
 
       - name: Build with no default features
         # Use no-std target to ensure we don't link to std.
@@ -79,17 +70,11 @@ jobs:
           components: clippy
 
       - name: cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features --all-targets --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy --all-features --all-targets --target wasm32-unknown-unknown -- -D warnings
 
       # TODO: Find a way to make tests work. Until then the tests are merely compiled.
       - name: cargo test compile
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features --no-run --target wasm32-unknown-unknown
+        run: cargo test --all-features --no-run --target wasm32-unknown-unknown
 
   test-nightly:
     runs-on: ${{ matrix.os }}
@@ -106,10 +91,7 @@ jobs:
           toolchain: "nightly"
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+        run: cargo test --all-features
 
   check-docs:
     name: Docs
@@ -126,7 +108,4 @@ jobs:
           toolchain: "stable"
 
       - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all-features --document-private-items
+        run: cargo doc --all-features --document-private-items
