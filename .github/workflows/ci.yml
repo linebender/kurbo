@@ -76,6 +76,20 @@ jobs:
       - name: cargo test compile
         run: cargo test --all-features --no-run --target wasm32-unknown-unknown
 
+  test-msrv:
+    runs-on: ubuntu-latest
+    name: cargo test msrv
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: install msrv toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.65"
+
+      - name: cargo test
+        run: cargo test --all-features
+
   test-nightly:
     runs-on: ${{ matrix.os }}
     strategy:
