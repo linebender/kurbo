@@ -67,7 +67,7 @@ impl CubicOffset {
     /// Create a new curve from Bézier segment and offset.
     ///
     /// This method should only be used if the Bézier is smooth. Use
-    /// [`new_regularized`]instead to deal with a wider range of inputs.
+    /// [`new_regularized`] instead to deal with a wider range of inputs.
     ///
     /// [`new_regularized`]: Self::new_regularized
     pub fn new(c: CubicBez, d: f64) -> Self {

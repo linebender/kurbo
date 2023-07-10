@@ -1361,7 +1361,7 @@ impl Shape for PathSeg {
 
     /// The area under the curve.
     ///
-    /// We could just return 0, but this seems more useful.
+    /// We could just return `0`, but this seems more useful.
     fn area(&self) -> f64 {
         self.signed_area()
     }

@@ -74,7 +74,7 @@ impl RoundedRectRadii {
         )
     }
 
-    /// Returns true if all radius values are finite.
+    /// Returns `true` if all radius values are finite.
     pub fn is_finite(&self) -> bool {
         self.top_left.is_finite()
             && self.top_right.is_finite()
@@ -82,7 +82,7 @@ impl RoundedRectRadii {
             && self.bottom_left.is_finite()
     }
 
-    /// Returns true if any corner radius value is NaN.
+    /// Returns `true` if any corner radius value is NaN.
     pub fn is_nan(&self) -> bool {
         self.top_left.is_nan()
             || self.top_right.is_nan()
