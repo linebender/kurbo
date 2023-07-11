@@ -4,6 +4,7 @@ version = "0.9.5"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2021"
+rust-version = "1.65" # When updating this, also update the README.md and CI.
 keywords = ["graphics", "curve", "curves", "bezier", "geometry"]
 repository = "https://github.com/linebender/kurbo"
 description = "A 2D curves library"
