@@ -125,10 +125,15 @@ pub trait ParamCurveArclen: ParamCurve {
 
 /// A parametrized curve that can have its signed area measured.
 pub trait ParamCurveArea {
-    /// Compute the signed area under the curve.
+    /// Compute the signed (counterclockwise) area between the curve and the origin.
+    /// Equivalently, this is integral of the form `x*dy - y*dx` along the curve.
+    /// 
+    /// For closed curves, this is the curve's area.
+    /// For open curves, this is the the area of the resulting shape that would be created if
+    /// the curve was closed with two line segments between the endpoints and the origin.
+    /// This allows the area of a piecewise curve to be computed by adding the areas of its segments,
+    /// generalizing the "shoelace formula."
     ///
-    /// For a closed path, the signed area of the path is the sum of signed
-    /// areas of the segments. This is a variant of the "shoelace formula."
     /// See:
     /// <https://github.com/Pomax/bezierinfo/issues/44> and
     /// <http://ich.deanmcnamee.com/graphics/2016/03/30/CurveArea.html>
