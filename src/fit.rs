@@ -281,7 +281,7 @@ impl CurveDist {
 
     /// Evaluate distance to a cubic approximation.
     ///
-    /// If distance exceeds stated accuracy, can return None. Note that
+    /// If distance exceeds stated accuracy, can return `None`. Note that
     /// `acc2` is the square of the target.
     ///
     /// Returns the squre of the error, which is intended to be a good

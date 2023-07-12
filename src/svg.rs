@@ -33,7 +33,7 @@ pub struct SvgArc {
 }
 
 impl BezPath {
-    /// Create a BezPath with segments corresponding to the sequence of
+    /// Create a `BezPath` with segments corresponding to the sequence of
     /// `PathSeg`s
     pub fn from_path_segments(segments: impl Iterator<Item = PathSeg>) -> BezPath {
         let mut path_elements = Vec::new();
