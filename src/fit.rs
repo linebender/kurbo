@@ -71,7 +71,7 @@ pub trait ParamCurveFit {
     /// to derive the moments needed for curve fitting.
     ///
     /// A default implementation is proved which does quadrature integration
-    /// with Green's theorem, in terms of samples evaulated with
+    /// with Green's theorem, in terms of samples evaluated with
     /// [`sample_pt_deriv`].
     ///
     /// [`sample_pt_deriv`]: ParamCurveFit::sample_pt_deriv
@@ -284,7 +284,7 @@ impl CurveDist {
     /// If distance exceeds stated accuracy, can return `None`. Note that
     /// `acc2` is the square of the target.
     ///
-    /// Returns the squre of the error, which is intended to be a good
+    /// Returns the square of the error, which is intended to be a good
     /// approximation of the Fréchet distance.
     fn eval_ray(&self, c: CubicBez, acc2: f64) -> Option<f64> {
         let mut max_err2 = 0.0;
