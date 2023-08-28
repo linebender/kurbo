@@ -348,6 +348,18 @@ impl Mul<f64> for Vec2 {
     }
 }
 
+impl Mul for Vec2 {
+    type Output = Vec2;
+
+    #[inline]
+    fn mul(self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x * other.x,
+            y: self.y * other.y,
+        }
+    }
+}
+
 impl MulAssign<f64> for Vec2 {
     #[inline]
     fn mul_assign(&mut self, other: f64) {
@@ -377,6 +389,18 @@ impl Div<f64> for Vec2 {
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, other: f64) -> Vec2 {
         self * other.recip()
+    }
+}
+
+impl Div for Vec2 {
+    type Output = Vec2;
+
+    #[inline]
+    fn div(self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x / other.x,
+            y: self.y / other.y,
+        }
     }
 }
 
