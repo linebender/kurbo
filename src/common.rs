@@ -302,7 +302,7 @@ fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<
 
 /// Factor a quartic into two quadratics.
 ///
-/// Attempt to factor a quartic equation into two quadratic equations. Returns None either if there
+/// Attempt to factor a quartic equation into two quadratic equations. Returns `None` either if there
 /// is overflow (in which case rescaling might succeed) or the factorization would result in
 /// complex coefficients.
 ///

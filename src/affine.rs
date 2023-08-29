@@ -112,6 +112,50 @@ impl Affine {
         Affine([1.0, skew_y, skew_x, 1.0, 0.0, 0.0])
     }
 
+    /// Create an affine transform that represents reflection about the line `point + direction * t, t in (-infty, infty)`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use kurbo::{Point, Vec2, Affine};
+    /// # fn assert_near(p0: Point, p1: Point) {
+    /// #     assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
+    /// # }
+    /// let point = Point::new(1., 0.);
+    /// let vec = Vec2::new(1., 1.);
+    /// let map = Affine::reflect(point, vec);
+    /// assert_near(map * Point::new(1., 0.), Point::new(1., 0.));
+    /// assert_near(map * Point::new(2., 1.), Point::new(2., 1.));
+    /// assert_near(map * Point::new(2., 2.), Point::new(3., 1.));
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn reflect(point: impl Into<Point>, direction: impl Into<Vec2>) -> Self {
+        let point = point.into();
+        let direction = direction.into();
+
+        let n = Vec2 {
+            x: direction.y,
+            y: -direction.x,
+        }
+        .normalize();
+
+        // Compute Householder reflection matrix
+        let x2 = n.x * n.x;
+        let xy = n.x * n.y;
+        let y2 = n.y * n.y;
+        // Here we also add in the post translation, because it doesn't require any further calc.
+        let aff = Affine::new([
+            1. - 2. * x2,
+            -2. * xy,
+            -2. * xy,
+            1. - 2. * y2,
+            point.x,
+            point.y,
+        ]);
+        aff.pre_translate(-point.to_vec2())
+    }
+
     /// A rotation by `th` followed by `self`.
     ///
     /// Equivalent to `self * Affine::rotate(th)`
@@ -432,11 +476,17 @@ impl From<mint::ColumnMatrix2x3<f64>> for Affine {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Affine, Point};
+    use crate::{Affine, Point, Vec2};
     use std::f64::consts::PI;
 
     fn assert_near(p0: Point, p1: Point) {
         assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");
+    }
+
+    fn affine_assert_near(a0: Affine, a1: Affine) {
+        for i in 0..6 {
+            assert!((a0.0[i] - a1.0[i]).abs() < 1e-9, "{a0:?} != {a1:?}");
+        }
     }
 
     #[test]
@@ -479,5 +529,38 @@ mod tests {
         assert_near(a_inv * (a * px), px);
         assert_near(a_inv * (a * py), py);
         assert_near(a_inv * (a * pxy), pxy);
+    }
+
+    #[test]
+    fn reflection() {
+        affine_assert_near(
+            Affine::reflect(Point::ZERO, (1., 0.)),
+            Affine::new([1., 0., 0., -1., 0., 0.]),
+        );
+        affine_assert_near(
+            Affine::reflect(Point::ZERO, (0., 1.)),
+            Affine::new([-1., 0., 0., 1., 0., 0.]),
+        );
+        // y = x
+        affine_assert_near(
+            Affine::reflect(Point::ZERO, (1., 1.)),
+            Affine::new([0., 1., 1., 0., 0., 0.]),
+        );
+
+        // no translate
+        let point = Point::new(0., 0.);
+        let vec = Vec2::new(1., 1.);
+        let map = Affine::reflect(point, vec);
+        assert_near(map * Point::new(0., 0.), Point::new(0., 0.));
+        assert_near(map * Point::new(1., 1.), Point::new(1., 1.));
+        assert_near(map * Point::new(1., 2.), Point::new(2., 1.));
+
+        // with translate
+        let point = Point::new(1., 0.);
+        let vec = Vec2::new(1., 1.);
+        let map = Affine::reflect(point, vec);
+        assert_near(map * Point::new(1., 0.), Point::new(1., 0.));
+        assert_near(map * Point::new(2., 1.), Point::new(2., 1.));
+        assert_near(map * Point::new(2., 2.), Point::new(3., 1.));
     }
 }
