@@ -1359,7 +1359,7 @@ impl Shape for PathSeg {
         PathSegIter { seg: *self, ix: 0 }
     }
 
-    /// The area under the curve.
+    /// The area between the curve and the origin.
     ///
     /// We could just return `0`, but this seems more useful.
     fn area(&self, _tolerance: f64) -> f64 {

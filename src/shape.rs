@@ -112,25 +112,25 @@ pub trait Shape: Sized {
     /// usual convention for graphics), and anticlockwise when
     /// up is increasing y (the usual convention for math).
     ///
-    /// The tolerance parameter behaves the same as in [`path_elements()`],
-    /// allowing the default implmentation that first converts to a bezier path.
+    /// The `tolerance` parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a Beziér path.
     /// Note this allows the returned area to be off by a most the tolerance times the perimiter.
     ///
     /// Tolerance should be ignored (by implementing this method directly)
-    /// if there is an easy way to return a precice result.
+    /// if there is an easy way to return an accurate result.
     fn area(&self, tolerance: f64) -> f64 {
         segments(self.path_elements(tolerance)).area()
     }
 
     /// Total length of perimeter.
     ///
-    /// The tolerance parameter behaves the same as in [`path_elements()`],
-    /// allowing the default implmentation that first converts to a bezier path.
+    /// The `tolerance` parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a Beziér path.
     /// In addition, it may also be used to control the accuracy of integration of the arc length
-    /// (note that varying a sufficiently smooth curve will vary the perimiter by a simillar amount as the deflection).
+    /// (note that varying a sufficiently smooth curve will vary the perimeter by a similar amount as the deflection).
     ///
     /// Tolerance should be ignored (by implementing this method directly)
-    /// if there is an easy way to return a precice result.
+    /// if there is an easy way to return an accurate result.
     fn perimeter(&self, tolerance: f64) -> f64 {
         segments(self.path_elements(tolerance)).perimeter(tolerance)
     }
@@ -144,13 +144,13 @@ pub trait Shape: Sized {
     /// and -1 when it is inside a negative area shape. Of course, greater
     /// magnitude values are also possible when the shape is more complex.
     ///
-    /// The tolerance parameter behaves the same as in [`path_elements()`],
-    /// allowing the default implmentation that first converts to a bezier path.
-    /// As a result, the returned value is allowed to be the tinging number of
+    /// The `tolerance` parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a Beziér path.
+    /// As a result, the returned value is allowed to be the winding number of
     /// a point at most tolerance away from p.
     ///
     /// Tolerance should be ignored (by implementing this method directly)
-    /// if there is an easy way to return a precice result.
+    /// if there is an easy way to return an accurate result.
     ///
     /// [`area`]: Shape::area
     /// [winding number]: https://mathworld.wolfram.com/ContourWindingNumber.html
@@ -167,8 +167,8 @@ pub trait Shape: Sized {
 
     /// The smallest rectangle that encloses the shape.
     ///
-    /// The tolerance parameter behaves the same as in [`path_elements()`],
-    /// allowing the default implmentation that first converts to a bezier path.
+    /// The `tolerance` parameter behaves the same as in [`path_elements()`],
+    /// allowing the default implmentation that first converts to a Beziér path.
     /// It should be ignored (by implementing this method directly)
     /// if there is an easy way to return a precice result.
     fn bounding_box(&self, tolerance: f64) -> Rect;

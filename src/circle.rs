@@ -370,24 +370,24 @@ mod tests {
     fn area_sign() {
         let center = Point::new(5.0, 5.0);
         let c = Circle::new(center, 5.0);
-        assert_approx_eq(c.area(1.0), 25.0 * PI);
+        assert_approx_eq(c.area(1e-9), 25.0 * PI);
 
-        assert_eq!(c.winding(center, 1.0), 1);
+        assert_eq!(c.winding(center, 1e-9), 1);
 
         let p = c.to_path(1e-9);
-        assert_approx_eq(c.area(1.0), p.area(1.0));
-        assert_eq!(c.winding(center, 1.0), p.winding(center, 1.0));
+        assert_approx_eq(c.area(1e-9), p.area(1e-9));
+        assert_eq!(c.winding(center, 1e-9), p.winding(center, 1e-9));
 
         let c_neg_radius = Circle::new(center, -5.0);
-        assert_approx_eq(c_neg_radius.area(1.0), 25.0 * PI);
+        assert_approx_eq(c_neg_radius.area(1e-9), 25.0 * PI);
 
-        assert_eq!(c_neg_radius.winding(center, 1.0), 1);
+        assert_eq!(c_neg_radius.winding(center, 1e-9), 1);
 
         let p_neg_radius = c_neg_radius.to_path(1e-9);
-        assert_approx_eq(c_neg_radius.area(1.0), p_neg_radius.area(1.0));
+        assert_approx_eq(c_neg_radius.area(1e-9), p_neg_radius.area(1e-9));
         assert_eq!(
-            c_neg_radius.winding(center, 1.0),
-            p_neg_radius.winding(center, 1.0)
+            c_neg_radius.winding(center, 1e-9),
+            p_neg_radius.winding(center, 1e-9)
         );
     }
 }
