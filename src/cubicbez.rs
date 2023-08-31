@@ -970,7 +970,7 @@ mod tests {
         let spline = c1.approx_spline_n(2, 343.0);
         assert!(spline.is_some());
         let spline = spline.unwrap();
-        let expected = vec![
+        let expected = [
             Point::new(550.0, 258.0),
             Point::new(920.5, 426.0),
             Point::new(2005.25, 1769.25),
@@ -982,7 +982,7 @@ mod tests {
         }
 
         let spline = c1.approx_spline(5.0);
-        let expected = vec![
+        let expected = [
             Point::new(550.0, 258.0),
             Point::new(673.5, 314.0),
             Point::new(984.8777777777776, 584.2666666666667),
