@@ -11,6 +11,9 @@ description = "A 2D curves library"
 readme = "README.md"
 categories = ["graphics"]
 
+[workspace]
+members = [".", "proptest"]
+
 [package.metadata.docs.rs]
 features = ["mint", "schemars", "serde"]
 
