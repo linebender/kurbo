@@ -11,8 +11,8 @@ use smallvec::SmallVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    fit_to_bezpath, fit_to_bezpath_opt, offset::CubicOffset, Affine, Arc, BezPath, CubicBez, Line,
-    ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
+    common::solve_quadratic, fit_to_bezpath, fit_to_bezpath_opt, offset::CubicOffset, Affine, Arc,
+    BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -231,8 +231,8 @@ fn stroke_undashed(
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.last_tan = tan1;
                     ctx.do_cubic(style, q.raise(), tolerance, opts);
+                    ctx.last_tan = tan1;
                 }
             }
             PathEl::CurveTo(p1, p2, p3) => {
@@ -240,8 +240,8 @@ fn stroke_undashed(
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.last_tan = tan1;
                     ctx.do_cubic(style, c, tolerance, opts);
+                    ctx.last_tan = tan1;
                 }
             }
             PathEl::ClosePath => {
@@ -353,7 +353,7 @@ impl StrokeCtx {
         let scale = 0.5 * style.width / tan0.hypot();
         let norm = scale * Vec2::new(-tan0.y, tan0.x);
         let p0 = self.last_pt;
-        if self.forward_path.is_empty() {
+        if self.forward_path.elements().is_empty() {
             self.forward_path.move_to(p0 - norm);
             self.backward_path.move_to(p0 + norm);
             self.start_tan = tan0;
@@ -365,7 +365,7 @@ impl StrokeCtx {
             let dot = ab.dot(cd);
             let hypot = cross.hypot(dot);
             // possible TODO: a minor speedup could be squaring both sides
-            if cross.abs() >= hypot * self.join_thresh {
+            if dot <= 0.0 || cross.abs() >= hypot * self.join_thresh {
                 match style.join {
                     Join::Bevel => {
                         self.forward_path.line_to(p0 - norm);
@@ -395,7 +395,7 @@ impl StrokeCtx {
                     }
                     Join::Round => {
                         let angle = cross.atan2(dot);
-                        if cross > 0.0 {
+                        if angle > 0.0 {
                             self.backward_path.line_to(p0 + norm);
                             round_join(&mut self.forward_path, tolerance, p0, norm, angle);
                         } else {
@@ -417,6 +417,48 @@ impl StrokeCtx {
     }
 
     fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: &StrokeOpts) {
+        // First, detect degenerate linear case
+
+        // Ordinarily, this is the direction of the chord, but if the chord is very
+        // short, we take the longer control arm.
+        let mut chord_ref = c.p3 - c.p0;
+        let mut chord_ref_hypot2 = chord_ref.hypot2();
+        let d01 = c.p1 - c.p0;
+        if d01.hypot2() > chord_ref_hypot2 {
+            chord_ref = d01;
+            chord_ref_hypot2 = d01.hypot2();
+        }
+        let d23 = c.p3 - c.p2;
+        if d23.hypot2() > chord_ref_hypot2 {
+            chord_ref = d23;
+            chord_ref_hypot2 = d23.hypot2();
+        }
+        // Project Bézier onto chord
+        let p0 = c.p0.to_vec2().dot(chord_ref);
+        let p1 = c.p1.to_vec2().dot(chord_ref);
+        let p2 = c.p2.to_vec2().dot(chord_ref);
+        let p3 = c.p3.to_vec2().dot(chord_ref);
+        const ENDPOINT_D: f64 = 0.01;
+        if p3 <= p0
+            || p1 > p2
+            || p1 < p0 + ENDPOINT_D * (p3 - p0)
+            || p2 > p3 - ENDPOINT_D * (p3 - p0)
+        {
+            // potentially a cusp inside
+            let x01 = d01.cross(chord_ref);
+            let x23 = d23.cross(chord_ref);
+            let thresh = tolerance.powi(2) * chord_ref_hypot2;
+            if x01 * x01 < thresh && x23 * x23 < thresh {
+                // control points are nearly co-linear
+                let midpoint = c.p0.midpoint(c.p3);
+                // Mapping back from projection of reference chord
+                let ref_vec = chord_ref / chord_ref_hypot2;
+                let ref_pt = midpoint - 0.5 * (p0 + p3) * ref_vec;
+                self.do_linear(style, c, [p0, p1, p2, p3], ref_pt, ref_vec);
+                return;
+            }
+        }
+
         // A tuning parameter for regularization. A value too large may distort the curve,
         // while a value too small may fail to generate smooth curves. This is a somewhat
         // arbitrary value, and should be revisited.
@@ -429,6 +471,47 @@ impl StrokeCtx {
         let backward = fit_with_opts(&co, tolerance, opts);
         self.backward_path.extend(backward.into_iter().skip(1));
         self.last_pt = c.p3;
+    }
+
+    /// Do a cubic which is actually linear.
+    ///
+    /// The `p` argument is the control points projected to the reference chord.
+    /// The ref arguments are the inverse map of a projection back to the client
+    /// coordinate space.
+    fn do_linear(
+        &mut self,
+        style: &Stroke,
+        c: CubicBez,
+        p: [f64; 4],
+        ref_pt: Point,
+        ref_vec: Vec2,
+    ) {
+        // Always do round join, to model cusp as limit of finite curvature (see Nehab).
+        let style = Stroke::new(style.width).with_join(Join::Round);
+        // Tangents of endpoints (for connecting to joins)
+        let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+        self.last_tan = tan0;
+        // find cusps
+        let c0 = p[1] - p[0];
+        let c1 = 2.0 * p[2] - 4.0 * p[1] + 2.0 * p[0];
+        let c2 = p[3] - 3.0 * p[2] + 3.0 * p[1] - p[0];
+        let roots = solve_quadratic(c0, c1, c2);
+        for t in roots {
+            if t > 0.0 && t < 1.0 {
+                let mt = 1.0 - t;
+                let z = mt * (mt * mt * p[0] + 3.0 * t * (mt * p[1] + t * p[2])) + t * t * t * p[3];
+                let p = ref_pt + z * ref_vec;
+                let tan = p - self.last_pt;
+                self.do_join(&style, tan);
+                self.do_line(&style, tan, p);
+                self.last_tan = tan;
+            }
+        }
+        let tan = c.p3 - self.last_pt;
+        self.do_join(&style, tan);
+        self.do_line(&style, tan, c.p3);
+        self.last_tan = tan;
+        self.do_join(&style, tan1);
     }
 }
 
