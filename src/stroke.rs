@@ -421,17 +421,18 @@ impl StrokeCtx {
 
         // Ordinarily, this is the direction of the chord, but if the chord is very
         // short, we take the longer control arm.
-        let mut chord_ref = c.p3 - c.p0;
+        let chord = c.p3 - c.p0;
+        let mut chord_ref = chord;
         let mut chord_ref_hypot2 = chord_ref.hypot2();
         let d01 = c.p1 - c.p0;
         if d01.hypot2() > chord_ref_hypot2 {
             chord_ref = d01;
-            chord_ref_hypot2 = d01.hypot2();
+            chord_ref_hypot2 = chord_ref.hypot2();
         }
         let d23 = c.p3 - c.p2;
         if d23.hypot2() > chord_ref_hypot2 {
             chord_ref = d23;
-            chord_ref_hypot2 = d23.hypot2();
+            chord_ref_hypot2 = chord_ref.hypot2();
         }
         // Project Bézier onto chord
         let p0 = c.p0.to_vec2().dot(chord_ref);
@@ -447,8 +448,9 @@ impl StrokeCtx {
             // potentially a cusp inside
             let x01 = d01.cross(chord_ref);
             let x23 = d23.cross(chord_ref);
+            let x03 = chord.cross(chord_ref);
             let thresh = tolerance.powi(2) * chord_ref_hypot2;
-            if x01 * x01 < thresh && x23 * x23 < thresh {
+            if x01 * x01 < thresh && x23 * x23 < thresh && x03 * x03 < thresh {
                 // control points are nearly co-linear
                 let midpoint = c.p0.midpoint(c.p3);
                 // Mapping back from projection of reference chord
