@@ -195,6 +195,16 @@ fn fit_to_bezpath_rec(
         // A smarter approach is possible than midpoint subdivision, but would be
         // a significant increase in complexity.
         let t = 0.5 * (start + end);
+        if t == start || t == end {
+            // infinite recursion, just draw a line
+            let p1 = start_p.lerp(end_p, 1.0 / 3.0);
+            let p2 = end_p.lerp(start_p, 1.0 / 3.0);
+            if path.is_empty() {
+                path.move_to(start_p);
+            }
+            path.curve_to(p1, p2, end_p);
+            return;
+        }
         fit_to_bezpath_rec(source, start..t, accuracy, path);
         fit_to_bezpath_rec(source, t..end, accuracy, path);
     }
