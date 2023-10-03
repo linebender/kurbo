@@ -463,8 +463,7 @@ impl BezPath {
                 }
                 PathEl::ClosePath => {
                     if start_ix < ix {
-                        start_pt =
-                            reverse_subpath(start_pt, elements.get(start_ix..ix)?, &mut reversed);
+                        reverse_subpath(start_pt, elements.get(start_ix..ix)?, &mut reversed);
                         reversed.push(PathEl::ClosePath);
                     }
                     start_ix = ix + 1;
@@ -482,12 +481,11 @@ impl BezPath {
 /// Helper for reversing a subpath.
 ///
 /// The `els` parameter must not contain any `MoveTo` or `ClosePath` elements.
-/// Returns the final point of the subpath.
-fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) -> Point {
-    let mut end_pt = els.last().and_then(|el| el.end_point()).unwrap_or(start_pt);
+fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) {
+    let end_pt = els.last().and_then(|el| el.end_point()).unwrap_or(start_pt);
     reversed.push(PathEl::MoveTo(end_pt));
     for (ix, el) in els.iter().enumerate().rev() {
-        end_pt = if ix > 0 {
+        let end_pt = if ix > 0 {
             els[ix - 1].end_point().unwrap()
         } else {
             start_pt
@@ -499,7 +497,6 @@ fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) -> P
             _ => panic!("reverse_subpath expects MoveTo and ClosePath to be removed"),
         }
     }
-    end_pt
 }
 
 impl FromIterator<PathEl> for BezPath {
