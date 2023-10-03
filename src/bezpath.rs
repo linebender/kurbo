@@ -440,6 +440,82 @@ impl BezPath {
         }
         cbox.unwrap_or_default()
     }
+
+    /// Returns a new path with the winding direction of all subpaths reversed.
+    ///
+    /// If the path does not start with a move, returns `None`.
+    pub fn reverse_subpaths(&self) -> Option<BezPath> {
+        let elements = self.elements();
+        if !elements.is_empty() && !matches!(elements.first(), Some(PathEl::MoveTo(_))) {
+            return None;
+        }
+        let mut start_ix = 1;
+        let mut start_pt = Point::default();
+        let mut reversed = BezPath(Vec::with_capacity(elements.len()));
+        for (ix, el) in elements.iter().enumerate() {
+            match el {
+                PathEl::MoveTo(pt) => {
+                    if start_ix < ix {
+                        reverse_subpath(
+                            start_pt,
+                            false,
+                            elements.get(start_ix..ix)?,
+                            &mut reversed,
+                        );
+                    }
+                    start_pt = *pt;
+                    start_ix = ix + 1;
+                }
+                PathEl::ClosePath => {
+                    if start_ix < ix {
+                        start_pt = reverse_subpath(
+                            start_pt,
+                            true,
+                            elements.get(start_ix..ix)?,
+                            &mut reversed,
+                        );
+                    }
+                    start_ix = ix + 1;
+                }
+                _ => {}
+            }
+        }
+        if start_ix < elements.len() {
+            reverse_subpath(start_pt, false, elements.get(start_ix..)?, &mut reversed);
+        }
+        Some(reversed)
+    }
+}
+
+/// Helper for reversing a subpath.
+///
+/// The `els` parameter must not contain any `MoveTo` or `ClosePath` elements.
+/// Returns the final point of the subpath.
+fn reverse_subpath(
+    start_pt: Point,
+    is_closed: bool,
+    els: &[PathEl],
+    reversed: &mut BezPath,
+) -> Point {
+    let mut end_pt = els.last().and_then(|el| el.end_point()).unwrap_or(start_pt);
+    reversed.push(PathEl::MoveTo(end_pt));
+    for (ix, el) in els.iter().enumerate().rev() {
+        end_pt = if ix > 0 {
+            els[ix - 1].end_point().unwrap()
+        } else {
+            start_pt
+        };
+        match el {
+            PathEl::LineTo(_) => reversed.push(PathEl::LineTo(end_pt)),
+            PathEl::QuadTo(c0, _) => reversed.push(PathEl::QuadTo(*c0, end_pt)),
+            PathEl::CurveTo(c0, c1, _) => reversed.push(PathEl::CurveTo(*c1, *c0, end_pt)),
+            _ => panic!("reverse_subpath expects MoveTo and ClosePath to be removed"),
+        }
+    }
+    if is_closed {
+        reversed.push(PathEl::ClosePath);
+    }
+    end_pt
 }
 
 impl FromIterator<PathEl> for BezPath {
@@ -1534,5 +1610,66 @@ mod tests {
             .map_while(|i| circle.get_seg(i))
             .collect::<Vec<_>>();
         assert_eq!(segments, get_segs);
+    }
+
+    #[test]
+    fn test_control_box() {
+        // a sort of map ping looking thing drawn with a single cubic
+        // cbox is wildly different than tight box
+        let path = BezPath::from_svg("M200,300 C50,50 350,50 200,300").unwrap();
+        assert_eq!(Rect::new(50.0, 50.0, 350.0, 300.0), path.control_box());
+        assert!(path.control_box().area() > path.bounding_box().area());
+    }
+
+    #[test]
+    fn test_reverse_unclosed() {
+        let path = BezPath::from_svg("M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60").unwrap();
+        let reversed = path.reverse_subpaths().unwrap();
+        assert_eq!(
+            "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10",
+            reversed.to_svg()
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_triangle() {
+        let path = BezPath::from_svg("M100,100 L150,200 L50,200 Z").unwrap();
+        let reversed = path.reverse_subpaths().unwrap();
+        assert_eq!("M50,200 L150,200 L100,100 Z", reversed.to_svg());
+    }
+
+    #[test]
+    fn test_reverse_closed_shape() {
+        let path = BezPath::from_svg(
+            "M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z",
+        )
+        .unwrap();
+        let reversed = path.reverse_subpaths().unwrap();
+        assert_eq!(
+            "M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z",
+            reversed.to_svg()
+        );
+    }
+
+    #[test]
+    fn test_reverse_multiple_subpaths() {
+        let svg = "M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60 M100,100 L150,200 L50,200 Z M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z";
+        let expected_svg = "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10 M50,200 L150,200 L100,100 Z M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z";
+        let path = BezPath::from_svg(svg).unwrap();
+        let reversed = path.reverse_subpaths().unwrap();
+        assert_eq!(expected_svg, reversed.to_svg());
+    }
+
+    /// https://github.com/fonttools/fonttools/blob/bf265ce49e0cae6f032420a4c80c31d8e16285b8/Tests/pens/reverseContourPen_test.py#L7
+    #[test]
+    fn test_reverse_lines() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((1.0, 1.0));
+        path.line_to((2.0, 2.0));
+        path.line_to((3.0, 3.0));
+        path.close_path();
+        let rev = path.reverse_subpaths().unwrap();
+        assert_eq!("M3,3 L2,2 L1,1 L0,0 Z", rev.to_svg());
     }
 }
