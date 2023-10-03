@@ -456,24 +456,16 @@ impl BezPath {
             match el {
                 PathEl::MoveTo(pt) => {
                     if start_ix < ix {
-                        reverse_subpath(
-                            start_pt,
-                            false,
-                            elements.get(start_ix..ix)?,
-                            &mut reversed,
-                        );
+                        reverse_subpath(start_pt, elements.get(start_ix..ix)?, &mut reversed);
                     }
                     start_pt = *pt;
                     start_ix = ix + 1;
                 }
                 PathEl::ClosePath => {
                     if start_ix < ix {
-                        start_pt = reverse_subpath(
-                            start_pt,
-                            true,
-                            elements.get(start_ix..ix)?,
-                            &mut reversed,
-                        );
+                        start_pt =
+                            reverse_subpath(start_pt, elements.get(start_ix..ix)?, &mut reversed);
+                        reversed.push(PathEl::ClosePath);
                     }
                     start_ix = ix + 1;
                 }
@@ -481,7 +473,7 @@ impl BezPath {
             }
         }
         if start_ix < elements.len() {
-            reverse_subpath(start_pt, false, elements.get(start_ix..)?, &mut reversed);
+            reverse_subpath(start_pt, elements.get(start_ix..)?, &mut reversed);
         }
         Some(reversed)
     }
@@ -491,12 +483,7 @@ impl BezPath {
 ///
 /// The `els` parameter must not contain any `MoveTo` or `ClosePath` elements.
 /// Returns the final point of the subpath.
-fn reverse_subpath(
-    start_pt: Point,
-    is_closed: bool,
-    els: &[PathEl],
-    reversed: &mut BezPath,
-) -> Point {
+fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) -> Point {
     let mut end_pt = els.last().and_then(|el| el.end_point()).unwrap_or(start_pt);
     reversed.push(PathEl::MoveTo(end_pt));
     for (ix, el) in els.iter().enumerate().rev() {
@@ -511,9 +498,6 @@ fn reverse_subpath(
             PathEl::CurveTo(c0, c1, _) => reversed.push(PathEl::CurveTo(*c1, *c0, end_pt)),
             _ => panic!("reverse_subpath expects MoveTo and ClosePath to be removed"),
         }
-    }
-    if is_closed {
-        reversed.push(PathEl::ClosePath);
     }
     end_pt
 }
