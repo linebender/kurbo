@@ -54,11 +54,6 @@ pub struct Stroke {
     pub dash_pattern: Dashes,
     /// Offset of the first dash.
     pub dash_offset: f64,
-    /// True if the stroke width should be affected by the scale of a
-    /// transform.
-    ///
-    /// Discussion question: does this make sense here?
-    pub scale: bool,
 }
 
 /// Options for path stroking.
@@ -91,7 +86,6 @@ impl Default for Stroke {
             end_cap: Cap::Round,
             dash_pattern: Default::default(),
             dash_offset: 0.0,
-            scale: true,
         }
     }
 }
@@ -148,13 +142,6 @@ impl Stroke {
             .extend(pattern.into_iter().map(|dash| *dash.borrow()));
         self
     }
-
-    /// Builder method for setting whether or not the stroke should be affected
-    /// by the scale of any applied transform.
-    pub fn with_scale(mut self, yes: bool) -> Self {
-        self.scale = yes;
-        self
-    }
 }
 
 impl StrokeOpts {
@@ -171,7 +158,9 @@ pub type Dashes = SmallVec<[f64; 4]>;
 /// Internal structure used for creating strokes.
 #[derive(Default)]
 struct StrokeCtx {
-    // Probably don't need both output and forward, can just concat
+    // As a possible future optimization, we might not need separate storage
+    // for forward and backward paths, we can add forward to the output in-place.
+    // However, this structure is clearer and the cost fairly modest.
     output: BezPath,
     forward_path: BezPath,
     backward_path: BezPath,
@@ -180,11 +169,25 @@ struct StrokeCtx {
     start_tan: Vec2,
     last_pt: Point,
     last_tan: Vec2,
-    // if hypot < (hypot + dot) * bend_thresh, omit join altogether
+    // Precomputation of the join threshold, to optimize per-join logic.
+    // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
 }
 
 /// Expand a stroke into a fill.
+///
+/// The `tolerance` parameter controls the accuracy of the result. In general,
+/// the number of subdivisions in the output scales to the -1/6 power of the
+/// parameter, for example making it 1/64 as big generates twice as many
+/// segments. The appropriate value depends on the application; if the result
+/// of the stroke will be scaled up, a smaller value is needed.
+///
+/// This method attempts a fairly high degree of correctness, but ultimately
+/// is based on computing parallel curves and adding joins and caps, rather than
+/// computing the rigorously correct parallel sweep (which requires evolutes in
+/// the general case). See [Nehab 2020] for more discussion.
+///
+/// [Nehab 2020]: https://dl.acm.org/doi/10.1145/3386569.3392392
 pub fn stroke(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
