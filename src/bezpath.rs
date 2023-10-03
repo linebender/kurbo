@@ -442,13 +442,8 @@ impl BezPath {
     }
 
     /// Returns a new path with the winding direction of all subpaths reversed.
-    ///
-    /// If the path does not start with a move, returns `None`.
-    pub fn reverse_subpaths(&self) -> Option<BezPath> {
+    pub fn reverse_subpaths(&self) -> BezPath {
         let elements = self.elements();
-        if !elements.is_empty() && !matches!(elements.first(), Some(PathEl::MoveTo(_))) {
-            return None;
-        }
         let mut start_ix = 1;
         let mut start_pt = Point::default();
         let mut reversed = BezPath(Vec::with_capacity(elements.len()));
@@ -456,14 +451,14 @@ impl BezPath {
             match el {
                 PathEl::MoveTo(pt) => {
                     if start_ix < ix {
-                        reverse_subpath(start_pt, elements.get(start_ix..ix)?, &mut reversed);
+                        reverse_subpath(start_pt, &elements[start_ix..ix], &mut reversed);
                     }
                     start_pt = *pt;
                     start_ix = ix + 1;
                 }
                 PathEl::ClosePath => {
                     if start_ix < ix {
-                        reverse_subpath(start_pt, elements.get(start_ix..ix)?, &mut reversed);
+                        reverse_subpath(start_pt, &elements[start_ix..ix], &mut reversed);
                         reversed.push(PathEl::ClosePath);
                     }
                     start_ix = ix + 1;
@@ -472,9 +467,9 @@ impl BezPath {
             }
         }
         if start_ix < elements.len() {
-            reverse_subpath(start_pt, elements.get(start_ix..)?, &mut reversed);
+            reverse_subpath(start_pt, &elements[start_ix..], &mut reversed);
         }
-        Some(reversed)
+        reversed
     }
 }
 
@@ -1605,7 +1600,7 @@ mod tests {
     #[test]
     fn test_reverse_unclosed() {
         let path = BezPath::from_svg("M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60").unwrap();
-        let reversed = path.reverse_subpaths().unwrap();
+        let reversed = path.reverse_subpaths();
         assert_eq!(
             "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10",
             reversed.to_svg()
@@ -1615,7 +1610,7 @@ mod tests {
     #[test]
     fn test_reverse_closed_triangle() {
         let path = BezPath::from_svg("M100,100 L150,200 L50,200 Z").unwrap();
-        let reversed = path.reverse_subpaths().unwrap();
+        let reversed = path.reverse_subpaths();
         assert_eq!("M50,200 L150,200 L100,100 Z", reversed.to_svg());
     }
 
@@ -1625,7 +1620,7 @@ mod tests {
             "M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z",
         )
         .unwrap();
-        let reversed = path.reverse_subpaths().unwrap();
+        let reversed = path.reverse_subpaths();
         assert_eq!(
             "M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z",
             reversed.to_svg()
@@ -1637,7 +1632,7 @@ mod tests {
         let svg = "M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60 M100,100 L150,200 L50,200 Z M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z";
         let expected_svg = "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10 M50,200 L150,200 L100,100 Z M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z";
         let path = BezPath::from_svg(svg).unwrap();
-        let reversed = path.reverse_subpaths().unwrap();
+        let reversed = path.reverse_subpaths();
         assert_eq!(expected_svg, reversed.to_svg());
     }
 
@@ -1650,7 +1645,7 @@ mod tests {
         path.line_to((2.0, 2.0));
         path.line_to((3.0, 3.0));
         path.close_path();
-        let rev = path.reverse_subpaths().unwrap();
+        let rev = path.reverse_subpaths();
         assert_eq!("M3,3 L2,2 L1,1 L0,0 Z", rev.to_svg());
     }
 }
