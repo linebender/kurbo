@@ -6,9 +6,8 @@
 //! The kurbo library contains data structures and algorithms for curves and
 //! vector paths. It was designed to serve the needs of 2D graphics applications,
 //! but it is intended to be general enough to be useful for other applications.
-//!
-//! Kurbo is designed to be used by [`Piet`], a crate for drawing 2D graphics,
-//! and is in turn used by [`Druid`], a cross-platform GUI toolkit.
+//! It can be used as "vocabulary types" for representing curves and paths, and
+//! also contains a number of computational geometry methods.
 //!
 //! # Examples
 //!

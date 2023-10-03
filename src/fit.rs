@@ -154,6 +154,12 @@ impl CurveFitSample {
 /// the provided `accuracy` parameter. However, this is not a rigorous guarantee, as
 /// the error metric is computed approximately.
 ///
+/// This function is intended for use when the source curve is piecewise continuous,
+/// with the discontinuities reported by the cusp method. In applications (such as
+/// stroke expansion) where this property may not hold, it is up to the client to
+/// detect and handle such cases. Even so, best effort is made to avoid infinite
+/// subdivision.
+///
 /// When a higher degree of optimization is desired (at considerably more runtime cost),
 /// consider [`fit_to_bezpath_opt`] instead.
 pub fn fit_to_bezpath(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
