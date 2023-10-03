@@ -415,6 +415,31 @@ impl BezPath {
     pub fn is_nan(&self) -> bool {
         self.0.iter().any(|v| v.is_nan())
     }
+
+    /// Returns a rectangle that conservatively encloses the path.
+    /// 
+    /// Unlike the `bounding_box` method, this uses control points directly
+    /// rather than computing tight bounds for curve elements.
+    pub fn control_box(&self) -> Rect {
+        let mut cbox: Option<Rect> = None;
+        let mut add_pts = |pts: &[Point]| {
+            for pt in pts {
+                cbox = match cbox {
+                    Some(cbox) => Some(cbox.union_pt(*pt)),
+                    _ => Some(Rect::from_points(*pt, *pt)),
+                };
+            }
+        };
+        for &el in self.elements() {
+            match el {
+                PathEl::MoveTo(p0) | PathEl::LineTo(p0) => add_pts(&[p0]),
+                PathEl::QuadTo(p0, p1) => add_pts(&[p0, p1]),
+                PathEl::CurveTo(p0, p1, p2) => add_pts(&[p0, p1, p2]),
+                PathEl::ClosePath => {}
+            }
+        }
+        cbox.unwrap_or_default()
+    }
 }
 
 impl FromIterator<PathEl> for BezPath {
