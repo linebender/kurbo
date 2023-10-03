@@ -417,7 +417,7 @@ impl BezPath {
     }
 
     /// Returns a rectangle that conservatively encloses the path.
-    /// 
+    ///
     /// Unlike the `bounding_box` method, this uses control points directly
     /// rather than computing tight bounds for curve elements.
     pub fn control_box(&self) -> Rect {
