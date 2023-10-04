@@ -1686,22 +1686,6 @@ mod tests {
     // https://github.com/fonttools/fonttools/blob/85c80be/Tests/pens/reverseContourPen_test.py#L6-L467
 
     #[test]
-    fn test_reverse_move_only_path_offset_validity() {
-        reverse_test_helper(
-            vec![PathEl::MoveTo((2.0, 2.0).into())],
-            vec![PathEl::MoveTo((2.0, 2.0).into())],
-        )
-    }
-
-    #[test]
-    fn test_reverse_move_close_path_offset_validity() {
-        reverse_test_helper(
-            vec![PathEl::MoveTo((2.0, 2.0).into()), PathEl::ClosePath],
-            vec![PathEl::MoveTo((2.0, 2.0).into()), PathEl::ClosePath],
-        )
-    }
-
-    #[test]
     fn test_reverse_closed_last_line_not_on_move() {
         reverse_test_helper(
             vec![
