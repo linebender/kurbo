@@ -1157,11 +1157,11 @@ impl PathSeg {
         a
     }
 
-    /// Minimum distance between two PathSegs
+    /// Minimum distance between two [`PathSeg`]s.
     ///
     /// Returns a tuple of the distance, the path time `t1` of the closest point
-    /// on the first PathSeg, and the path time `t2` of the closest point on the
-    /// second PathSeg.
+    /// on the first `PathSeg`, and the path time `t2` of the closest point on the
+    /// second `PathSeg`.
     pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> MinDistance {
         let (distance, t1, t2) = crate::mindist::min_dist_param(
             &self.as_vec2_vec(),
@@ -1648,7 +1648,7 @@ mod tests {
         assert_eq!(expected_svg, reversed.to_svg());
     }
 
-    /// https://github.com/fonttools/fonttools/blob/bf265ce49e0cae6f032420a4c80c31d8e16285b8/Tests/pens/reverseContourPen_test.py#L7
+    // https://github.com/fonttools/fonttools/blob/bf265ce49e0cae6f032420a4c80c31d8e16285b8/Tests/pens/reverseContourPen_test.py#L7
     #[test]
     fn test_reverse_lines() {
         let mut path = BezPath::new();

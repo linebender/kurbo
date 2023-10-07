@@ -70,7 +70,7 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
-#![warn(rustdoc::broken_intra_doc_links)]
+#![warn(clippy::doc_markdown, rustdoc::broken_intra_doc_links)]
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,

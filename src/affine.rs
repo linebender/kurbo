@@ -78,7 +78,7 @@ impl Affine {
 
     /// An affine transform representing a rotation of `th` radians about `center`.
     ///
-    /// See [Affine::rotate] for more info.
+    /// See [`Affine::rotate()`] for more info.
     #[inline]
     pub fn rotate_about(th: f64, center: Point) -> Affine {
         let center = center.to_vec2();
@@ -96,7 +96,7 @@ impl Affine {
 
     /// An affine transformation representing a skew.
     ///
-    /// The skew_x and skew_y parameters represent skew factors for the
+    /// The `skew_x` and `skew_y` parameters represent skew factors for the
     /// horizontal and vertical directions, respectively.
     ///
     /// This is commonly used to generate a faux oblique transform for
@@ -210,7 +210,7 @@ impl Affine {
         Affine::rotate(th) * self
     }
 
-    /// `self` followed by a rotation of `th` about `center.
+    /// `self` followed by a rotation of `th` about `center`.
     ///
     /// Equivalent to `Affine::rotate_about(th, center) * self`
     #[inline]
