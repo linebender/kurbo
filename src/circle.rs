@@ -355,6 +355,16 @@ impl Shape for CircleSegment {
     }
 }
 
+#[inline]
+fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
+    let (angle_sin, angle_cos) = angle.sin_cos();
+    center
+        + Vec2 {
+            x: angle_cos * radius,
+            y: angle_sin * radius,
+        }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Circle, Point, Shape};
@@ -387,14 +397,4 @@ mod tests {
         assert_approx_eq(c_neg_radius.area(), p_neg_radius.area());
         assert_eq!(c_neg_radius.winding(center), p_neg_radius.winding(center));
     }
-}
-
-#[inline]
-fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
-    let (angle_sin, angle_cos) = angle.sin_cos();
-    center
-        + Vec2 {
-            x: angle_cos * radius,
-            y: angle_sin * radius,
-        }
 }
