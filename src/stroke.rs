@@ -501,8 +501,10 @@ impl StrokeCtx {
         let c1 = 2.0 * p[2] - 4.0 * p[1] + 2.0 * p[0];
         let c2 = p[3] - 3.0 * p[2] + 3.0 * p[1] - p[0];
         let roots = solve_quadratic(c0, c1, c2);
+        // discard cusps right at endpoints
+        const EPSILON: f64 = 1e-12;
         for t in roots {
-            if t > 0.0 && t < 1.0 {
+            if t > EPSILON && t < 1.0 - EPSILON {
                 let mt = 1.0 - t;
                 let z = mt * (mt * mt * p[0] + 3.0 * t * (mt * p[1] + t * p[2])) + t * t * t * p[3];
                 let p = ref_pt + z * ref_vec;
@@ -760,5 +762,27 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         self.dash_ix = self.init_dash_ix;
         self.dash_remaining = self.init_dash_remaining;
         self.is_active = self.init_is_active;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{stroke, CubicBez, Shape, Stroke};
+
+    // A degenerate stroke with a cusp at the endpoint.
+    #[test]
+    fn pathological_stroke() {
+        let curve = CubicBez::new(
+            (602.469, 286.585),
+            (641.975, 286.585),
+            (562.963, 286.585),
+            (562.963, 286.585),
+        );
+        let path = curve.into_path(0.1);
+        let stroke_style = Stroke::new(1.);
+        let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
+        for el in stroked.elements() {
+            assert!(el.is_finite());
+        }
     }
 }
