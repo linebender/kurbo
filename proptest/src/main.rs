@@ -3,7 +3,7 @@ use std::{
     panic::catch_unwind,
 };
 
-use kurbo::{fit_to_bezpath, offset::CubicOffset, CubicBez, Point};
+use kurbo::{fit_to_bezpath, offset::CubicOffset, CubicBez, ParamCurveNearest, Point, QuadBez};
 use rand::{thread_rng, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
@@ -13,27 +13,17 @@ fn main() {
     let mut runner = Runner {
         rng: ChaCha8Rng::seed_from_u64(seed),
     };
-    let mut stdout = stdout().lock();
-    for _ in 0..1_000_000 {
-        let bez = CubicBez::new(
-            runner.point(),
-            runner.point(),
-            runner.point(),
-            runner.point(),
-        );
-        let dist = runner.rational();
-        writeln!(
-            stdout,
-            "let bez = CubicBez::new({:?}, {:?}, {:?}, {:?});\nlet d = {dist:?};",
-            bez.p0, bez.p1, bez.p2, bez.p3
-        )
-        .unwrap();
+    //let mut stdout = stdout().lock();
+    for _ in 0..100_000_000 {
+        let bez = QuadBez::new(runner.point(), runner.point(), runner.point());
+        let test = runner.point();
         match catch_unwind(|| {
-            let offset = CubicOffset::new(bez, dist);
-            fit_to_bezpath(&offset, 1e-9)
+            let nearest_ = bez.nearest(test, 1e-3);
         }) {
             Ok(_) => (),
-            Err(_) => println!("error running offset test is cubic_bezier={bez:?}, dist={dist}"),
+            Err(_) => {
+                println!("error running offset test is quad_bezier={bez:?}, test point={test:?}")
+            }
         }
     }
 }
@@ -44,7 +34,7 @@ struct Runner<R> {
 
 impl<R: Rng> Runner<R> {
     fn point(&mut self) -> Point {
-        Point::new(self.rational(), self.rational())
+        Point::new(self.number(), self.number())
     }
 
     /// Get an f64
