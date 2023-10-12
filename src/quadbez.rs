@@ -328,6 +328,9 @@ impl ParamCurveNearest for QuadBez {
         let mut r_best = None;
         let mut t_best = 0.0;
         let mut need_ends = false;
+        if roots.is_empty() {
+            need_ends = true;
+        }
         for &t in &roots {
             need_ends |= try_t(self, p, &mut t_best, &mut r_best, t);
         }
@@ -506,6 +509,19 @@ mod tests {
 
         verify(q.nearest((0.0, 0.0).into(), 1e-3), 0.5);
         verify(q.nearest((0.0, 1.0).into(), 1e-3), 0.5);
+    }
+
+    #[test]
+    fn quadbez_nearest_rounding_panic() {
+        let quad = QuadBez::new(
+            (-1.0394736842105263, 0.0),
+            (0.8210526315789474, -1.511111111111111),
+            (0.0, 1.9333333333333333),
+        );
+        let test = Point::new(-1.7976931348623157e308, 0.8571428571428571);
+        // accuracy ignored
+        let _res = quad.nearest(test, 1e-6);
+        // if we got here then we didn't panic
     }
 
     #[test]
