@@ -767,7 +767,7 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{stroke, CubicBez, Shape, Stroke};
+    use crate::{stroke, Cap::Butt, CubicBez, Join::Miter, Shape, Stroke};
 
     // A degenerate stroke with a cusp at the endpoint.
     #[test]
@@ -781,8 +781,34 @@ mod tests {
         let path = curve.into_path(0.1);
         let stroke_style = Stroke::new(1.);
         let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
-        for el in stroked.elements() {
-            assert!(el.is_finite());
+        assert!(stroked.is_finite());
+    }
+
+    // Test cases adapted from https://github.com/linebender/vello/pull/388
+    #[test]
+    fn broken_strokes() {
+        let broken_cubics = [
+            [(0., -0.01), (128., 128.001), (128., -0.01), (0., 128.001)], // Near-cusp
+            [(0., 0.), (0., -10.), (0., -10.), (0., 10.)],                // Flat line with 180
+            [(10., 0.), (0., 0.), (20., 0.), (10., 0.)],                  // Flat line with 2 180s
+            [(39., -39.), (40., -40.), (40., -40.), (0., 0.)],            // Flat diagonal with 180
+            [(40., 40.), (0., 0.), (200., 200.), (0., 0.)],               // Diag w/ an internal 180
+            [(0., 0.), (1e-2, 0.), (-1e-2, 0.), (0., 0.)],                // Circle
+            // Flat line with no turns:
+            [
+                (400.75, 100.05),
+                (400.75, 100.05),
+                (100.05, 300.95),
+                (100.05, 300.95),
+            ],
+            [(0.5, 0.), (0., 0.), (20., 0.), (10., 0.)], // Flat line with 2 180s
+            [(10., 0.), (0., 0.), (10., 0.), (10., 0.)], // Flat line with a 180
+        ];
+        let stroke_style = Stroke::new(30.).with_caps(Butt).with_join(Miter);
+        for cubic in &broken_cubics {
+            let path = CubicBez::new(cubic[0], cubic[1], cubic[2], cubic[3]).into_path(0.1);
+            let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
+            assert!(stroked.is_finite());
         }
     }
 }

@@ -437,7 +437,7 @@ impl CubicBez {
             let d = q.eval(nearest.t);
             let d2 = q.deriv().eval(nearest.t);
             let cross = d.to_vec2().cross(d2.to_vec2());
-            if nearest.distance_sq.powi(3) < (cross * dimension).powi(2) {
+            if nearest.distance_sq.powi(3) <= (cross * dimension).powi(2) {
                 let a = 3. * det_012 + det_023 - 2. * det_013;
                 let b = -3. * det_012 + det_013;
                 let c = det_012;
