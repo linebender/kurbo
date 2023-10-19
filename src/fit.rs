@@ -189,31 +189,31 @@ fn fit_to_bezpath_rec(
             return;
         }
     }
-    if let Some(t) = source.break_cusp(start..end) {
-        fit_to_bezpath_rec(source, start..t, accuracy, path);
-        fit_to_bezpath_rec(source, t..end, accuracy, path);
+    let t = if let Some(t) = source.break_cusp(start..end) {
+        t
     } else if let Some((c, _)) = fit_to_cubic(source, start..end, accuracy) {
         if path.is_empty() {
             path.move_to(c.p0);
         }
         path.curve_to(c.p1, c.p2, c.p3);
+        return;
     } else {
         // A smarter approach is possible than midpoint subdivision, but would be
         // a significant increase in complexity.
-        let t = 0.5 * (start + end);
-        if t == start || t == end {
-            // infinite recursion, just draw a line
-            let p1 = start_p.lerp(end_p, 1.0 / 3.0);
-            let p2 = end_p.lerp(start_p, 1.0 / 3.0);
-            if path.is_empty() {
-                path.move_to(start_p);
-            }
-            path.curve_to(p1, p2, end_p);
-            return;
+        0.5 * (start + end)
+    };
+    if t == start || t == end {
+        // infinite recursion, just draw a line
+        let p1 = start_p.lerp(end_p, 1.0 / 3.0);
+        let p2 = end_p.lerp(start_p, 1.0 / 3.0);
+        if path.is_empty() {
+            path.move_to(start_p);
         }
-        fit_to_bezpath_rec(source, start..t, accuracy, path);
-        fit_to_bezpath_rec(source, t..end, accuracy, path);
+        path.curve_to(p1, p2, end_p);
+        return;
     }
+    fit_to_bezpath_rec(source, start..t, accuracy, path);
+    fit_to_bezpath_rec(source, t..end, accuracy, path);
 }
 
 const N_SAMPLE: usize = 20;
