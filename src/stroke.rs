@@ -522,7 +522,7 @@ impl StrokeCtx {
     }
 }
 
-/// Iterator for dashing.
+/// An implementation of dashing as an iterator-to-iterator transformation.
 pub struct DashIterator<'a, T> {
     inner: T,
     input_done: bool,
@@ -613,6 +613,18 @@ const DASH_ACCURACY: f64 = 1e-6;
 
 impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
     /// Create a new dashing iterator.
+    ///
+    /// Handling of dashes is fairly orthogonal to stroke expansion. This iterator
+    /// is an internal detail of the stroke expansion logic, but is also available
+    /// separately, and is expected to be useful when doing stroke expansion on
+    /// GPU.
+    ///
+    /// It is implemented as an iterator-to-iterator transform. Because it consumes
+    /// the input sequentially and produces consistent output with correct joins,
+    /// it requires internal state and may allocate.
+    ///
+    /// Accuracy is currently hard-coded to 1e-6. This is better than generally
+    /// expected, and care is taken to get cusps correct, among other things.
     pub fn new(inner: T, dash_offset: f64, dashes: &'a [f64]) -> Self {
         let mut dash_ix = 0;
         let mut dash_remaining = dash_offset;
