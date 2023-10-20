@@ -197,7 +197,7 @@ pub fn stroke(
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, opts)
     } else {
-        let dashed = DashIterator::new(path.into_iter(), style.dash_offset, &style.dash_pattern);
+        let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
         stroke_undashed(dashed, style, tolerance, opts)
     }
 }
@@ -522,7 +522,8 @@ impl StrokeCtx {
     }
 }
 
-/// Iterator for dashing.
+/// An implementation of dashing as an iterator-to-iterator transformation.
+#[doc(hidden)]
 pub struct DashIterator<'a, T> {
     inner: T,
     input_done: bool,
@@ -611,42 +612,73 @@ fn seg_to_el(el: &PathSeg) -> PathEl {
 
 const DASH_ACCURACY: f64 = 1e-6;
 
+/// Create a new dashing iterator.
+///
+/// Handling of dashes is fairly orthogonal to stroke expansion. This iterator
+/// is an internal detail of the stroke expansion logic, but is also available
+/// separately, and is expected to be useful when doing stroke expansion on
+/// GPU.
+///
+/// It is implemented as an iterator-to-iterator transform. Because it consumes
+/// the input sequentially and produces consistent output with correct joins,
+/// it requires internal state and may allocate.
+///
+/// Accuracy is currently hard-coded to 1e-6. This is better than generally
+/// expected, and care is taken to get cusps correct, among other things.
+pub fn dash<'a>(
+    inner: impl Iterator<Item = PathEl> + 'a,
+    dash_offset: f64,
+    dashes: &'a [f64],
+) -> impl Iterator<Item = PathEl> + 'a {
+    dash_impl(inner, dash_offset, dashes)
+}
+
+// This is only a separate function to make `DashIterator::new()` typecheck.
+fn dash_impl<T: Iterator<Item = PathEl>>(
+    inner: T,
+    dash_offset: f64,
+    dashes: &[f64],
+) -> DashIterator<T> {
+    let mut dash_ix = 0;
+    let mut dash_remaining = dash_offset;
+    let mut is_active = true;
+    // Find place in dashes array for initial offset.
+    while dash_remaining > 0.0 {
+        let dash_len = dashes[dash_ix];
+        if dash_remaining < dash_len {
+            break;
+        }
+        dash_remaining -= dash_len;
+        dash_ix = (dash_ix + 1) % dashes.len();
+        is_active = !is_active;
+    }
+    DashIterator {
+        inner,
+        input_done: false,
+        closepath_pending: false,
+        dashes,
+        dash_ix,
+        init_dash_ix: dash_ix,
+        init_dash_remaining: dash_remaining,
+        init_is_active: is_active,
+        is_active,
+        state: DashState::NeedInput,
+        current_seg: PathSeg::Line(Line::new(Point::ORIGIN, Point::ORIGIN)),
+        t: 0.0,
+        dash_remaining,
+        seg_remaining: 0.0,
+        start_pt: Point::ORIGIN,
+        last_pt: Point::ORIGIN,
+        stash: Vec::new(),
+        stash_ix: 0,
+    }
+}
+
 impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
-    /// Create a new dashing iterator.
+    #[doc(hidden)]
+    #[deprecated(since = "0.10.4", note = "use dash() instead")]
     pub fn new(inner: T, dash_offset: f64, dashes: &'a [f64]) -> Self {
-        let mut dash_ix = 0;
-        let mut dash_remaining = dash_offset;
-        let mut is_active = true;
-        // Find place in dashes array for initial offset.
-        while dash_remaining > 0.0 {
-            let dash_len = dashes[dash_ix];
-            if dash_remaining < dash_len {
-                break;
-            }
-            dash_remaining -= dash_len;
-            dash_ix = (dash_ix + 1) % dashes.len();
-            is_active = !is_active;
-        }
-        DashIterator {
-            inner,
-            input_done: false,
-            closepath_pending: false,
-            dashes,
-            dash_ix,
-            init_dash_ix: dash_ix,
-            init_dash_remaining: dash_remaining,
-            init_is_active: is_active,
-            is_active,
-            state: DashState::NeedInput,
-            current_seg: PathSeg::Line(Line::new(Point::ORIGIN, Point::ORIGIN)),
-            t: 0.0,
-            dash_remaining,
-            seg_remaining: 0.0,
-            start_pt: Point::ORIGIN,
-            last_pt: Point::ORIGIN,
-            stash: Vec::new(),
-            stash_ix: 0,
-        }
+        dash_impl(inner, dash_offset, dashes)
     }
 
     fn get_input(&mut self) {
