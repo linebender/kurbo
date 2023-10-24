@@ -393,7 +393,7 @@ impl<'a> SvgLexer<'a> {
 impl SvgArc {
     /// Checks that arc is actually a straight line.
     ///
-    /// In this case, it can be replaced with a LineTo.
+    /// In this case, it can be replaced with a `LineTo`.
     pub fn is_straight_line(&self) -> bool {
         self.radii.x.abs() <= 1e-5 || self.radii.y.abs() <= 1e-5 || self.from == self.to
     }

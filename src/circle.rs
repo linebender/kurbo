@@ -355,6 +355,16 @@ impl Shape for CircleSegment {
     }
 }
 
+#[inline]
+fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
+    let (angle_sin, angle_cos) = angle.sin_cos();
+    center
+        + Vec2 {
+            x: angle_cos * radius,
+            y: angle_sin * radius,
+        }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Circle, Point, Shape};
@@ -390,14 +400,4 @@ mod tests {
             p_neg_radius.winding(center, 1e-9)
         );
     }
-}
-
-#[inline]
-fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
-    let (angle_sin, angle_cos) = angle.sin_cos();
-    center
-        + Vec2 {
-            x: angle_cos * radius,
-            y: angle_sin * radius,
-        }
 }

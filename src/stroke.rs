@@ -11,8 +11,8 @@ use smallvec::SmallVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    fit_to_bezpath, fit_to_bezpath_opt, offset::CubicOffset, Affine, Arc, BezPath, CubicBez, Line,
-    ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
+    common::solve_quadratic, fit_to_bezpath, fit_to_bezpath_opt, offset::CubicOffset, Affine, Arc,
+    BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -54,11 +54,6 @@ pub struct Stroke {
     pub dash_pattern: Dashes,
     /// Offset of the first dash.
     pub dash_offset: f64,
-    /// True if the stroke width should be affected by the scale of a
-    /// transform.
-    ///
-    /// Discussion question: does this make sense here?
-    pub scale: bool,
 }
 
 /// Options for path stroking.
@@ -91,7 +86,6 @@ impl Default for Stroke {
             end_cap: Cap::Round,
             dash_pattern: Default::default(),
             dash_offset: 0.0,
-            scale: true,
         }
     }
 }
@@ -148,13 +142,6 @@ impl Stroke {
             .extend(pattern.into_iter().map(|dash| *dash.borrow()));
         self
     }
-
-    /// Builder method for setting whether or not the stroke should be affected
-    /// by the scale of any applied transform.
-    pub fn with_scale(mut self, yes: bool) -> Self {
-        self.scale = yes;
-        self
-    }
 }
 
 impl StrokeOpts {
@@ -171,7 +158,9 @@ pub type Dashes = SmallVec<[f64; 4]>;
 /// Internal structure used for creating strokes.
 #[derive(Default)]
 struct StrokeCtx {
-    // Probably don't need both output and forward, can just concat
+    // As a possible future optimization, we might not need separate storage
+    // for forward and backward paths, we can add forward to the output in-place.
+    // However, this structure is clearer and the cost fairly modest.
     output: BezPath,
     forward_path: BezPath,
     backward_path: BezPath,
@@ -180,11 +169,25 @@ struct StrokeCtx {
     start_tan: Vec2,
     last_pt: Point,
     last_tan: Vec2,
-    // if hypot < (hypot + dot) * bend_thresh, omit join altogether
+    // Precomputation of the join threshold, to optimize per-join logic.
+    // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
 }
 
 /// Expand a stroke into a fill.
+///
+/// The `tolerance` parameter controls the accuracy of the result. In general,
+/// the number of subdivisions in the output scales to the -1/6 power of the
+/// parameter, for example making it 1/64 as big generates twice as many
+/// segments. The appropriate value depends on the application; if the result
+/// of the stroke will be scaled up, a smaller value is needed.
+///
+/// This method attempts a fairly high degree of correctness, but ultimately
+/// is based on computing parallel curves and adding joins and caps, rather than
+/// computing the rigorously correct parallel sweep (which requires evolutes in
+/// the general case). See [Nehab 2020] for more discussion.
+///
+/// [Nehab 2020]: https://dl.acm.org/doi/10.1145/3386569.3392392
 pub fn stroke(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
@@ -194,7 +197,7 @@ pub fn stroke(
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, opts)
     } else {
-        let dashed = DashIterator::new(path.into_iter(), style.dash_offset, &style.dash_pattern);
+        let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
         stroke_undashed(dashed, style, tolerance, opts)
     }
 }
@@ -231,8 +234,8 @@ fn stroke_undashed(
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.last_tan = tan1;
                     ctx.do_cubic(style, q.raise(), tolerance, opts);
+                    ctx.last_tan = tan1;
                 }
             }
             PathEl::CurveTo(p1, p2, p3) => {
@@ -240,8 +243,8 @@ fn stroke_undashed(
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.last_tan = tan1;
                     ctx.do_cubic(style, c, tolerance, opts);
+                    ctx.last_tan = tan1;
                 }
             }
             PathEl::ClosePath => {
@@ -353,7 +356,7 @@ impl StrokeCtx {
         let scale = 0.5 * style.width / tan0.hypot();
         let norm = scale * Vec2::new(-tan0.y, tan0.x);
         let p0 = self.last_pt;
-        if self.forward_path.is_empty() {
+        if self.forward_path.elements().is_empty() {
             self.forward_path.move_to(p0 - norm);
             self.backward_path.move_to(p0 + norm);
             self.start_tan = tan0;
@@ -365,7 +368,7 @@ impl StrokeCtx {
             let dot = ab.dot(cd);
             let hypot = cross.hypot(dot);
             // possible TODO: a minor speedup could be squaring both sides
-            if cross.abs() >= hypot * self.join_thresh {
+            if dot <= 0.0 || cross.abs() >= hypot * self.join_thresh {
                 match style.join {
                     Join::Bevel => {
                         self.forward_path.line_to(p0 - norm);
@@ -395,7 +398,7 @@ impl StrokeCtx {
                     }
                     Join::Round => {
                         let angle = cross.atan2(dot);
-                        if cross > 0.0 {
+                        if angle > 0.0 {
                             self.backward_path.line_to(p0 + norm);
                             round_join(&mut self.forward_path, tolerance, p0, norm, angle);
                         } else {
@@ -417,6 +420,50 @@ impl StrokeCtx {
     }
 
     fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: &StrokeOpts) {
+        // First, detect degenerate linear case
+
+        // Ordinarily, this is the direction of the chord, but if the chord is very
+        // short, we take the longer control arm.
+        let chord = c.p3 - c.p0;
+        let mut chord_ref = chord;
+        let mut chord_ref_hypot2 = chord_ref.hypot2();
+        let d01 = c.p1 - c.p0;
+        if d01.hypot2() > chord_ref_hypot2 {
+            chord_ref = d01;
+            chord_ref_hypot2 = chord_ref.hypot2();
+        }
+        let d23 = c.p3 - c.p2;
+        if d23.hypot2() > chord_ref_hypot2 {
+            chord_ref = d23;
+            chord_ref_hypot2 = chord_ref.hypot2();
+        }
+        // Project Bézier onto chord
+        let p0 = c.p0.to_vec2().dot(chord_ref);
+        let p1 = c.p1.to_vec2().dot(chord_ref);
+        let p2 = c.p2.to_vec2().dot(chord_ref);
+        let p3 = c.p3.to_vec2().dot(chord_ref);
+        const ENDPOINT_D: f64 = 0.01;
+        if p3 <= p0
+            || p1 > p2
+            || p1 < p0 + ENDPOINT_D * (p3 - p0)
+            || p2 > p3 - ENDPOINT_D * (p3 - p0)
+        {
+            // potentially a cusp inside
+            let x01 = d01.cross(chord_ref);
+            let x23 = d23.cross(chord_ref);
+            let x03 = chord.cross(chord_ref);
+            let thresh = tolerance.powi(2) * chord_ref_hypot2;
+            if x01 * x01 < thresh && x23 * x23 < thresh && x03 * x03 < thresh {
+                // control points are nearly co-linear
+                let midpoint = c.p0.midpoint(c.p3);
+                // Mapping back from projection of reference chord
+                let ref_vec = chord_ref / chord_ref_hypot2;
+                let ref_pt = midpoint - 0.5 * (p0 + p3) * ref_vec;
+                self.do_linear(style, c, [p0, p1, p2, p3], ref_pt, ref_vec);
+                return;
+            }
+        }
+
         // A tuning parameter for regularization. A value too large may distort the curve,
         // while a value too small may fail to generate smooth curves. This is a somewhat
         // arbitrary value, and should be revisited.
@@ -430,9 +477,53 @@ impl StrokeCtx {
         self.backward_path.extend(backward.into_iter().skip(1));
         self.last_pt = c.p3;
     }
+
+    /// Do a cubic which is actually linear.
+    ///
+    /// The `p` argument is the control points projected to the reference chord.
+    /// The ref arguments are the inverse map of a projection back to the client
+    /// coordinate space.
+    fn do_linear(
+        &mut self,
+        style: &Stroke,
+        c: CubicBez,
+        p: [f64; 4],
+        ref_pt: Point,
+        ref_vec: Vec2,
+    ) {
+        // Always do round join, to model cusp as limit of finite curvature (see Nehab).
+        let style = Stroke::new(style.width).with_join(Join::Round);
+        // Tangents of endpoints (for connecting to joins)
+        let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+        self.last_tan = tan0;
+        // find cusps
+        let c0 = p[1] - p[0];
+        let c1 = 2.0 * p[2] - 4.0 * p[1] + 2.0 * p[0];
+        let c2 = p[3] - 3.0 * p[2] + 3.0 * p[1] - p[0];
+        let roots = solve_quadratic(c0, c1, c2);
+        // discard cusps right at endpoints
+        const EPSILON: f64 = 1e-12;
+        for t in roots {
+            if t > EPSILON && t < 1.0 - EPSILON {
+                let mt = 1.0 - t;
+                let z = mt * (mt * mt * p[0] + 3.0 * t * (mt * p[1] + t * p[2])) + t * t * t * p[3];
+                let p = ref_pt + z * ref_vec;
+                let tan = p - self.last_pt;
+                self.do_join(&style, tan);
+                self.do_line(&style, tan, p);
+                self.last_tan = tan;
+            }
+        }
+        let tan = c.p3 - self.last_pt;
+        self.do_join(&style, tan);
+        self.do_line(&style, tan, c.p3);
+        self.last_tan = tan;
+        self.do_join(&style, tan1);
+    }
 }
 
-/// Iterator for dashing.
+/// An implementation of dashing as an iterator-to-iterator transformation.
+#[doc(hidden)]
 pub struct DashIterator<'a, T> {
     inner: T,
     input_done: bool,
@@ -521,42 +612,73 @@ fn seg_to_el(el: &PathSeg) -> PathEl {
 
 const DASH_ACCURACY: f64 = 1e-6;
 
+/// Create a new dashing iterator.
+///
+/// Handling of dashes is fairly orthogonal to stroke expansion. This iterator
+/// is an internal detail of the stroke expansion logic, but is also available
+/// separately, and is expected to be useful when doing stroke expansion on
+/// GPU.
+///
+/// It is implemented as an iterator-to-iterator transform. Because it consumes
+/// the input sequentially and produces consistent output with correct joins,
+/// it requires internal state and may allocate.
+///
+/// Accuracy is currently hard-coded to 1e-6. This is better than generally
+/// expected, and care is taken to get cusps correct, among other things.
+pub fn dash<'a>(
+    inner: impl Iterator<Item = PathEl> + 'a,
+    dash_offset: f64,
+    dashes: &'a [f64],
+) -> impl Iterator<Item = PathEl> + 'a {
+    dash_impl(inner, dash_offset, dashes)
+}
+
+// This is only a separate function to make `DashIterator::new()` typecheck.
+fn dash_impl<T: Iterator<Item = PathEl>>(
+    inner: T,
+    dash_offset: f64,
+    dashes: &[f64],
+) -> DashIterator<T> {
+    let mut dash_ix = 0;
+    let mut dash_remaining = dash_offset;
+    let mut is_active = true;
+    // Find place in dashes array for initial offset.
+    while dash_remaining > 0.0 {
+        let dash_len = dashes[dash_ix];
+        if dash_remaining < dash_len {
+            break;
+        }
+        dash_remaining -= dash_len;
+        dash_ix = (dash_ix + 1) % dashes.len();
+        is_active = !is_active;
+    }
+    DashIterator {
+        inner,
+        input_done: false,
+        closepath_pending: false,
+        dashes,
+        dash_ix,
+        init_dash_ix: dash_ix,
+        init_dash_remaining: dash_remaining,
+        init_is_active: is_active,
+        is_active,
+        state: DashState::NeedInput,
+        current_seg: PathSeg::Line(Line::new(Point::ORIGIN, Point::ORIGIN)),
+        t: 0.0,
+        dash_remaining,
+        seg_remaining: 0.0,
+        start_pt: Point::ORIGIN,
+        last_pt: Point::ORIGIN,
+        stash: Vec::new(),
+        stash_ix: 0,
+    }
+}
+
 impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
-    /// Create a new dashing iterator.
+    #[doc(hidden)]
+    #[deprecated(since = "0.10.4", note = "use dash() instead")]
     pub fn new(inner: T, dash_offset: f64, dashes: &'a [f64]) -> Self {
-        let mut dash_ix = 0;
-        let mut dash_remaining = dash_offset;
-        let mut is_active = true;
-        // Find place in dashes array for initial offset.
-        while dash_remaining > 0.0 {
-            let dash_len = dashes[dash_ix];
-            if dash_remaining < dash_len {
-                break;
-            }
-            dash_remaining -= dash_len;
-            dash_ix = (dash_ix + 1) % dashes.len();
-            is_active = !is_active;
-        }
-        DashIterator {
-            inner,
-            input_done: false,
-            closepath_pending: false,
-            dashes,
-            dash_ix,
-            init_dash_ix: dash_ix,
-            init_dash_remaining: dash_remaining,
-            init_is_active: is_active,
-            is_active,
-            state: DashState::NeedInput,
-            current_seg: PathSeg::Line(Line::new(Point::ORIGIN, Point::ORIGIN)),
-            t: 0.0,
-            dash_remaining,
-            seg_remaining: 0.0,
-            start_pt: Point::ORIGIN,
-            last_pt: Point::ORIGIN,
-            stash: Vec::new(),
-            stash_ix: 0,
-        }
+        dash_impl(inner, dash_offset, dashes)
     }
 
     fn get_input(&mut self) {
@@ -672,5 +794,53 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         self.dash_ix = self.init_dash_ix;
         self.dash_remaining = self.init_dash_remaining;
         self.is_active = self.init_is_active;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{stroke, Cap::Butt, CubicBez, Join::Miter, Shape, Stroke};
+
+    // A degenerate stroke with a cusp at the endpoint.
+    #[test]
+    fn pathological_stroke() {
+        let curve = CubicBez::new(
+            (602.469, 286.585),
+            (641.975, 286.585),
+            (562.963, 286.585),
+            (562.963, 286.585),
+        );
+        let path = curve.into_path(0.1);
+        let stroke_style = Stroke::new(1.);
+        let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
+        assert!(stroked.is_finite());
+    }
+
+    // Test cases adapted from https://github.com/linebender/vello/pull/388
+    #[test]
+    fn broken_strokes() {
+        let broken_cubics = [
+            [(0., -0.01), (128., 128.001), (128., -0.01), (0., 128.001)], // Near-cusp
+            [(0., 0.), (0., -10.), (0., -10.), (0., 10.)],                // Flat line with 180
+            [(10., 0.), (0., 0.), (20., 0.), (10., 0.)],                  // Flat line with 2 180s
+            [(39., -39.), (40., -40.), (40., -40.), (0., 0.)],            // Flat diagonal with 180
+            [(40., 40.), (0., 0.), (200., 200.), (0., 0.)],               // Diag w/ an internal 180
+            [(0., 0.), (1e-2, 0.), (-1e-2, 0.), (0., 0.)],                // Circle
+            // Flat line with no turns:
+            [
+                (400.75, 100.05),
+                (400.75, 100.05),
+                (100.05, 300.95),
+                (100.05, 300.95),
+            ],
+            [(0.5, 0.), (0., 0.), (20., 0.), (10., 0.)], // Flat line with 2 180s
+            [(10., 0.), (0., 0.), (10., 0.), (10., 0.)], // Flat line with a 180
+        ];
+        let stroke_style = Stroke::new(30.).with_caps(Butt).with_join(Miter);
+        for cubic in &broken_cubics {
+            let path = CubicBez::new(cubic[0], cubic[1], cubic[2], cubic[3]).into_path(0.1);
+            let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
+            assert!(stroked.is_finite());
+        }
     }
 }

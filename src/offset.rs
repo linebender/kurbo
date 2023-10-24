@@ -194,4 +194,19 @@ mod tests {
         let path_opt = fit_to_bezpath(&offset_path, accuracy);
         assert!(matches!(path_opt.iter().next(), Some(PathEl::MoveTo(_))));
     }
+
+    /// Cubic offset that used to trigger infinite recursion.
+    #[test]
+    fn infinite_recursion() {
+        const DIM_TUNE: f64 = 0.25;
+        const TOLERANCE: f64 = 0.1;
+        let c = CubicBez::new(
+            (1096.2962962962963, 593.90243902439033),
+            (1043.6213991769548, 593.90243902439033),
+            (1030.4526748971193, 593.90243902439033),
+            (1056.7901234567901, 593.90243902439033),
+        );
+        let co = CubicOffset::new_regularized(c, -0.5, DIM_TUNE * TOLERANCE);
+        fit_to_bezpath(&co, TOLERANCE);
+    }
 }

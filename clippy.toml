@@ -3,3 +3,5 @@
 # it makes sense to optimize for 64-bit and accept the performance hits on 32-bit.
 # 16 bytes is the number of bytes that fits into two 64-bit CPU registers.
 trivial-copy-size-limit = 16
+# Don't warn about these identifiers when using clippy::doc_markdown.
+doc-valid-idents = ["Direct2D", "PostScript", ".."]

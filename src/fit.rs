@@ -154,6 +154,12 @@ impl CurveFitSample {
 /// the provided `accuracy` parameter. However, this is not a rigorous guarantee, as
 /// the error metric is computed approximately.
 ///
+/// This function is intended for use when the source curve is piecewise continuous,
+/// with the discontinuities reported by the cusp method. In applications (such as
+/// stroke expansion) where this property may not hold, it is up to the client to
+/// detect and handle such cases. Even so, best effort is made to avoid infinite
+/// subdivision.
+///
 /// When a higher degree of optimization is desired (at considerably more runtime cost),
 /// consider [`fit_to_bezpath_opt`] instead.
 pub fn fit_to_bezpath(source: &impl ParamCurveFit, accuracy: f64) -> BezPath {
@@ -183,21 +189,31 @@ fn fit_to_bezpath_rec(
             return;
         }
     }
-    if let Some(t) = source.break_cusp(start..end) {
-        fit_to_bezpath_rec(source, start..t, accuracy, path);
-        fit_to_bezpath_rec(source, t..end, accuracy, path);
+    let t = if let Some(t) = source.break_cusp(start..end) {
+        t
     } else if let Some((c, _)) = fit_to_cubic(source, start..end, accuracy) {
         if path.is_empty() {
             path.move_to(c.p0);
         }
         path.curve_to(c.p1, c.p2, c.p3);
+        return;
     } else {
         // A smarter approach is possible than midpoint subdivision, but would be
         // a significant increase in complexity.
-        let t = 0.5 * (start + end);
-        fit_to_bezpath_rec(source, start..t, accuracy, path);
-        fit_to_bezpath_rec(source, t..end, accuracy, path);
+        0.5 * (start + end)
+    };
+    if t == start || t == end {
+        // infinite recursion, just draw a line
+        let p1 = start_p.lerp(end_p, 1.0 / 3.0);
+        let p2 = end_p.lerp(start_p, 1.0 / 3.0);
+        if path.is_empty() {
+            path.move_to(start_p);
+        }
+        path.curve_to(p1, p2, end_p);
+        return;
     }
+    fit_to_bezpath_rec(source, start..t, accuracy, path);
+    fit_to_bezpath_rec(source, t..end, accuracy, path);
 }
 
 const N_SAMPLE: usize = 20;
