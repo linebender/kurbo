@@ -177,19 +177,19 @@ impl Shape for Arc {
     ///
     /// [wikipedia]: https://en.wikipedia.org/wiki/Ellipse#Circumference
     #[inline]
-    fn perimeter(&self, accuracy: f64) -> f64 {
-        self.path_segments(0.1).perimeter(accuracy)
+    fn perimeter(&self, tolerance: f64) -> f64 {
+        self.path_segments(tolerance).perimeter(tolerance)
     }
 
     /// Note: shape isn't closed, so a point's winding number is not well defined.
     #[inline]
-    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
-        self.path_segments(0.1).winding(pt)
+    fn winding(&self, pt: Point, tolerance: f64) -> i32 {
+        self.path_segments(tolerance).winding(pt)
     }
 
     #[inline]
-    fn bounding_box(&self, _tolerance: f64) -> Rect {
-        self.path_segments(0.1).bounding_box()
+    fn bounding_box(&self, tolerance: f64) -> Rect {
+        self.path_segments(tolerance).bounding_box()
     }
 }
 

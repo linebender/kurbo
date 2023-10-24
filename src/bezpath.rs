@@ -799,7 +799,7 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
         self.map(|seg| seg.arclen(accuracy)).sum()
     }
 
-    /// Version of [`Shape::area] which consumes the iterator and needs no tolerance parameter.
+    /// Version of [`Shape::area`] which consumes the iterator and needs no tolerance parameter.
     pub fn area(self) -> f64 {
         self.map(|seg| seg.signed_area()).sum()
     }
@@ -1606,7 +1606,7 @@ mod tests {
         // cbox is wildly different than tight box
         let path = BezPath::from_svg("M200,300 C50,50 350,50 200,300").unwrap();
         assert_eq!(Rect::new(50.0, 50.0, 350.0, 300.0), path.control_box());
-        assert!(path.control_box().area() > path.bounding_box().area());
+        assert!(path.control_box().area() > path.bounding_box(1e-9).area());
     }
 
     #[test]
