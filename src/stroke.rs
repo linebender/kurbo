@@ -17,6 +17,8 @@ use crate::{
 
 /// Defines the connection between two segments of a stroke.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Join {
     /// A straight line connecting the segments.
     Bevel,
@@ -28,6 +30,8 @@ pub enum Join {
 
 /// Defines the shape to be drawn at the ends of a stroke.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Cap {
     /// Flat cap.
     Butt,
@@ -39,6 +43,8 @@ pub enum Cap {
 
 /// Describes the visual style of a stroke.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Stroke {
     /// Width of the stroke.
     pub width: f64,

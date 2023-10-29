@@ -17,6 +17,8 @@ features = ["mint", "schemars", "serde"]
 [features]
 default = ["std"]
 std = []
+serde=["smallvec/serde", "dep:serde"]
+schemars=["schemars/smallvec", "dep:schemars"]
 
 [dependencies]
 smallvec = "1.10"
