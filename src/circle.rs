@@ -190,6 +190,9 @@ impl Iterator for CirclePathIter {
 /// A segment of a circle.
 ///
 /// If `inner_radius > 0`, then the shape will be a doughnut segment.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CircleSegment {
     /// The center.
     pub center: Point,
