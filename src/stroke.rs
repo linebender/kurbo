@@ -338,6 +338,9 @@ impl StrokeCtx {
 
     /// Finish a closed path
     fn finish_closed(&mut self, style: &Stroke) {
+        if self.forward_path.is_empty() {
+            return;
+        }
         self.do_join(style, self.start_tan);
         self.output.extend(&self.forward_path);
         self.output.close_path();
@@ -502,7 +505,7 @@ impl StrokeCtx {
         let c2 = p[3] - 3.0 * p[2] + 3.0 * p[1] - p[0];
         let roots = solve_quadratic(c0, c1, c2);
         // discard cusps right at endpoints
-        const EPSILON: f64 = 1e-12;
+        const EPSILON: f64 = 1e-6;
         for t in roots {
             if t > EPSILON && t < 1.0 - EPSILON {
                 let mt = 1.0 - t;
@@ -820,6 +823,12 @@ mod tests {
     #[test]
     fn broken_strokes() {
         let broken_cubics = [
+            [
+                (465.24423, 107.11105),
+                (475.50754, 107.11105),
+                (475.50754, 107.11105),
+                (475.50754, 107.11105),
+            ],
             [(0., -0.01), (128., 128.001), (128., -0.01), (0., 128.001)], // Near-cusp
             [(0., 0.), (0., -10.), (0., -10.), (0., 10.)],                // Flat line with 180
             [(10., 0.), (0., 0.), (20., 0.), (10., 0.)],                  // Flat line with 2 180s
