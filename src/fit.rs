@@ -509,8 +509,16 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<(CubicBez, f64,
         }
     } else if a3.abs() > EPS {
         roots.extend(solve_cubic(a0, a1, a2, a3));
-    } else {
+    } else if a2.abs() > EPS || a1.abs() > EPS || a0.abs() > EPS {
         roots.extend(solve_quadratic(a0, a1, a2));
+    } else {
+        return [(
+            CubicBez::new((0.0, 0.0), (1. / 3., 0.0), (2. / 3., 0.0), (1., 0.0)),
+            1f64 / 3.,
+            1f64 / 3.,
+        )]
+        .into_iter()
+        .collect();
     }
 
     let s01 = s0 * c1 + s1 * c0;

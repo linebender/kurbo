@@ -209,4 +209,11 @@ mod tests {
         let co = CubicOffset::new_regularized(c, -0.5, DIM_TUNE * TOLERANCE);
         fit_to_bezpath(&co, TOLERANCE);
     }
+
+    #[test]
+    fn test_cubic_offset_simple_line() {
+        let cubic = CubicBez::new((0., 0.), (10., 0.), (20., 0.), (30., 0.));
+        let offset = CubicOffset::new(cubic, 5.);
+        let _optimized = fit_to_bezpath(&offset, 1e-6);
+    }
 }
