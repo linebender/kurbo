@@ -103,6 +103,7 @@ use crate::common::FloatFuncs;
 #[derive(Clone, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg(feature = "alloc")]
 pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
@@ -173,6 +174,7 @@ pub struct MinDistance {
     pub t2: f64,
 }
 
+#[cfg(feature = "alloc")]
 impl BezPath {
     /// Create a new path.
     pub fn new() -> BezPath {
@@ -488,6 +490,7 @@ impl BezPath {
 /// Helper for reversing a subpath.
 ///
 /// The `els` parameter must not contain any `MoveTo` or `ClosePath` elements.
+#[cfg(feature = "alloc")]
 fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) {
     let end_pt = els.last().and_then(|el| el.end_point()).unwrap_or(start_pt);
     reversed.push(PathEl::MoveTo(end_pt));
@@ -506,6 +509,7 @@ fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl FromIterator<PathEl> for BezPath {
     fn from_iter<T: IntoIterator<Item = PathEl>>(iter: T) -> Self {
         let el_vec: Vec<_> = iter.into_iter().collect();
@@ -517,6 +521,7 @@ impl FromIterator<PathEl> for BezPath {
 ///
 /// Note: the semantics are slightly different from simply iterating over the
 /// slice, as it returns `PathEl` items, rather than references.
+#[cfg(feature = "alloc")]
 impl<'a> IntoIterator for &'a BezPath {
     type Item = PathEl;
     type IntoIter = core::iter::Cloned<core::slice::Iter<'a, PathEl>>;
@@ -526,6 +531,7 @@ impl<'a> IntoIterator for &'a BezPath {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl IntoIterator for BezPath {
     type Item = PathEl;
     type IntoIter = alloc::vec::IntoIter<PathEl>;
@@ -535,6 +541,7 @@ impl IntoIterator for BezPath {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl Extend<PathEl> for BezPath {
     fn extend<I: IntoIterator<Item = PathEl>>(&mut self, iter: I) {
         self.0.extend(iter);
@@ -662,6 +669,7 @@ impl Mul<PathSeg> for Affine {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl Mul<BezPath> for Affine {
     type Output = BezPath;
 
@@ -670,6 +678,7 @@ impl Mul<BezPath> for Affine {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Mul<&'a BezPath> for Affine {
     type Output = BezPath;
 
@@ -704,6 +713,7 @@ impl Mul<PathSeg> for TranslateScale {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl Mul<BezPath> for TranslateScale {
     type Output = BezPath;
 
@@ -712,6 +722,7 @@ impl Mul<BezPath> for TranslateScale {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a> Mul<&'a BezPath> for TranslateScale {
     type Output = BezPath;
 
@@ -1277,6 +1288,7 @@ impl From<QuadBez> for PathSeg {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl Shape for BezPath {
     type PathElementsIter<'iter> = core::iter::Copied<core::slice::Iter<'iter, PathEl>>;
 
@@ -1366,6 +1378,7 @@ impl<'a> Shape for &'a [PathEl] {
         self.iter().copied()
     }
 
+    #[cfg(feature = "alloc")]
     fn to_path(&self, _tolerance: f64) -> BezPath {
         BezPath::from_vec(self.to_vec())
     }
@@ -1406,6 +1419,7 @@ impl<const N: usize> Shape for [PathEl; N] {
         self.iter().copied()
     }
 
+    #[cfg(feature = "alloc")]
     fn to_path(&self, _tolerance: f64) -> BezPath {
         BezPath::from_vec(self.to_vec())
     }

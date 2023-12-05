@@ -61,8 +61,11 @@
 //! math functionality. The `std` feature is enabled by default, but can be
 //! disabled, as long as the `libm` feature is enabled. This is useful for
 //! `no_std` environments. However, note that the `libm` crate is not as
-//! efficient as the standard library, and that this crate still uses the
-//! `alloc` crate regardless.
+//! efficient as the standard library.
+//!
+//! The `alloc` feature (which is enabled by default) may be turned off to
+//! disable all allocations. This removes support for [`BezPath`] and all
+//! features (including curve fitting and offsets) that depend on it.
 //!
 //! [`Piet`]: https://docs.rs/piet
 //! [`Druid`]: https://docs.rs/druid
@@ -78,6 +81,7 @@
     clippy::bool_to_int_with_if
 )]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![cfg_attr(not(feature = "alloc"), allow(dead_code, unused_imports))]
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
 compile_error!("kurbo requires either the `std` or `libm` feature");
@@ -91,10 +95,12 @@ mod circle;
 pub mod common;
 mod cubicbez;
 mod ellipse;
+#[cfg(feature = "alloc")]
 mod fit;
 mod insets;
 mod line;
 mod mindist;
+#[cfg(feature = "alloc")]
 pub mod offset;
 mod param_curve;
 mod point;
@@ -104,8 +110,10 @@ mod rect;
 mod rounded_rect;
 mod rounded_rect_radii;
 mod shape;
+#[cfg(feature = "alloc")]
 pub mod simplify;
 mod size;
+#[cfg(feature = "alloc")]
 mod stroke;
 #[cfg(feature = "std")]
 mod svg;
@@ -118,6 +126,7 @@ pub use crate::bezpath::*;
 pub use crate::circle::*;
 pub use crate::cubicbez::*;
 pub use crate::ellipse::*;
+#[cfg(feature = "alloc")]
 pub use crate::fit::*;
 pub use crate::insets::*;
 pub use crate::line::*;
@@ -130,6 +139,7 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
+#[cfg(feature = "alloc")]
 pub use crate::stroke::*;
 #[cfg(feature = "std")]
 pub use crate::svg::*;

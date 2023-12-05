@@ -3,7 +3,10 @@
 
 //! A generic trait for shapes.
 
-use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments};
+use crate::{segments, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments};
+
+#[cfg(feature = "alloc")]
+use crate::BezPath;
 
 /// A generic trait for open and closed shapes.
 ///
@@ -64,12 +67,14 @@ pub trait Shape: Sized {
     /// The `tolerance` parameter is the same as for [`path_elements`].
     ///
     /// [`path_elements`]: Shape::path_elements
+    #[cfg(feature = "alloc")]
     fn to_path(&self, tolerance: f64) -> BezPath {
         self.path_elements(tolerance).collect()
     }
 
     #[deprecated(since = "0.7.0", note = "Use path_elements instead")]
     #[doc(hidden)]
+    #[cfg(feature = "alloc")]
     fn to_bez_path(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         self.path_elements(tolerance)
     }
@@ -81,12 +86,14 @@ pub trait Shape: Sized {
     /// The `tolerance` parameter is the same as for [`path_elements()`].
     ///
     /// [`path_elements()`]: Shape::path_elements
+    #[cfg(feature = "alloc")]
     fn into_path(self, tolerance: f64) -> BezPath {
         self.to_path(tolerance)
     }
 
     #[deprecated(since = "0.7.0", note = "Use into_path instead")]
     #[doc(hidden)]
+    #[cfg(feature = "alloc")]
     fn into_bez_path(self, tolerance: f64) -> BezPath {
         self.into_path(tolerance)
     }
@@ -181,6 +188,7 @@ impl<'a, T: Shape> Shape for &'a T {
         (*self).path_elements(tolerance)
     }
 
+    #[cfg(feature = "alloc")]
     fn to_path(&self, tolerance: f64) -> BezPath {
         (*self).to_path(tolerance)
     }

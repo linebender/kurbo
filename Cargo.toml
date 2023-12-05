@@ -15,8 +15,9 @@ categories = ["graphics"]
 features = ["mint", "schemars", "serde"]
 
 [features]
-default = ["std"]
-std = []
+default = ["std", "alloc"]
+std = ["alloc"]
+alloc = ["serde/alloc"]
 
 [dependencies]
 smallvec = "1.10"
@@ -41,7 +42,7 @@ optional = true
 version = "1.0.105"
 optional = true
 default-features = false
-features = ["alloc", "derive"]
+features = ["derive"]
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]

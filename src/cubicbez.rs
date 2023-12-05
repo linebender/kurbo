@@ -3,8 +3,10 @@
 
 //! Cubic Bézier segments.
 
-use alloc::vec;
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use alloc::vec;
 use core::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
@@ -100,11 +102,13 @@ impl CubicBez {
     ///
     /// Returns `None` if no suitable approximation is found within the given
     /// tolerance.
+    #[cfg(feature = "alloc")]
     pub fn approx_spline(&self, accuracy: f64) -> Option<QuadSpline> {
         (1..=MAX_SPLINE_SPLIT).find_map(|n| self.approx_spline_n(n, accuracy))
     }
 
     // Approximate a cubic curve with a quadratic spline of `n` curves
+    #[cfg(feature = "alloc")]
     fn approx_spline_n(&self, n: usize, accuracy: f64) -> Option<QuadSpline> {
         if n == 1 {
             return self
@@ -734,6 +738,7 @@ impl Iterator for ToQuads {
 /// Ensures that the resulting splines have the same number of control points.
 ///
 /// Rust port of cu2qu [cubic_approx_quadratic](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L322)
+#[cfg(feature = "alloc")]
 pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option<Vec<QuadSpline>> {
     let mut result = Vec::new();
     let mut split_order = 0;
