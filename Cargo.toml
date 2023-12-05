@@ -17,10 +17,11 @@ features = ["mint", "schemars", "serde"]
 [features]
 default = ["std", "alloc"]
 std = ["alloc"]
-alloc = ["serde/alloc"]
+alloc = ["serde/alloc", "smallvec"]
 
-[dependencies]
-smallvec = "1.10"
+[dependencies.smallvec]
+version = "1.10"
+optional = true
 
 [dependencies.arrayvec]
 version = "0.7.1"

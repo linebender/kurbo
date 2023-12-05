@@ -4,9 +4,9 @@
 //! Cubic Bézier segments.
 
 #[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-#[cfg(feature = "alloc")]
 use alloc::vec;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::ops::{Mul, Range};
 
 use crate::MAX_EXTREMA;
