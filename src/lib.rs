@@ -86,6 +86,7 @@
 #[cfg(not(any(feature = "std", feature = "libm")))]
 compile_error!("kurbo requires either the `std` or `libm` feature");
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod affine;
@@ -105,6 +106,7 @@ pub mod offset;
 mod param_curve;
 mod point;
 mod quadbez;
+#[cfg(feature = "alloc")]
 mod quadspline;
 mod rect;
 mod rounded_rect;
@@ -133,6 +135,7 @@ pub use crate::line::*;
 pub use crate::param_curve::*;
 pub use crate::point::*;
 pub use crate::quadbez::*;
+#[cfg(feature = "alloc")]
 pub use crate::quadspline::*;
 pub use crate::rect::*;
 pub use crate::rounded_rect::*;

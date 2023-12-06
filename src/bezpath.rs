@@ -9,6 +9,7 @@ use core::iter::{Extend, FromIterator};
 use core::mem;
 use core::ops::{Mul, Range};
 
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use arrayvec::ArrayVec;
@@ -556,6 +557,7 @@ const TO_QUAD_TOL: f64 = 0.1;
 /// See [`BezPath::flatten`] for more discussion.
 /// This signature is a bit more general, allowing flattening of `&[PathEl]` slices
 /// and other iterators yielding `PathEl`.
+#[cfg(feature = "alloc")]
 pub fn flatten(
     path: impl IntoIterator<Item = PathEl>,
     tolerance: f64,

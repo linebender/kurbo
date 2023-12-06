@@ -9,8 +9,11 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::{Mul, Range};
 
+#[cfg(feature = "alloc")]
+use crate::QuadSpline;
+
 use crate::MAX_EXTREMA;
-use crate::{Line, QuadSpline, Vec2};
+use crate::{Line, Vec2};
 use arrayvec::ArrayVec;
 
 use crate::common::{
@@ -691,7 +694,7 @@ impl ParamCurveExtrema for CubicBez {
         let d2 = self.p3 - self.p2;
         one_coord(&mut result, d0.x, d1.x, d2.x);
         one_coord(&mut result, d0.y, d1.y, d2.y);
-        result.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        result.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         result
     }
 }
