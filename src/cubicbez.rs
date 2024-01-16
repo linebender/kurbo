@@ -930,7 +930,7 @@ mod tests {
         for i in 0..10 {
             let accuracy = 0.1f64.powi(i);
             let mut worst: f64 = 0.0;
-            for (_count, (t0, t1, q)) in c.to_quads(accuracy).enumerate() {
+            for (t0, t1, q) in c.to_quads(accuracy) {
                 let epsilon = 1e-12;
                 assert!((q.start() - c.eval(t0)).hypot() < epsilon);
                 assert!((q.end() - c.eval(t1)).hypot() < epsilon);

@@ -290,6 +290,22 @@ impl fmt::Display for Point {
     }
 }
 
+#[cfg(feature = "mint")]
+impl From<Point> for mint::Point2<f64> {
+    #[inline]
+    fn from(p: Point) -> mint::Point2<f64> {
+        mint::Point2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::Point2<f64>> for Point {
+    #[inline]
+    fn from(p: mint::Point2<f64>) -> Point {
+        Point { x: p.x, y: p.y }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,21 +340,5 @@ mod tests {
 
         let p = Point::new(0.12345, 9.87654);
         assert_eq!(format!("{p:.2}"), "(0.12, 9.88)");
-    }
-}
-
-#[cfg(feature = "mint")]
-impl From<Point> for mint::Point2<f64> {
-    #[inline]
-    fn from(p: Point) -> mint::Point2<f64> {
-        mint::Point2 { x: p.x, y: p.y }
-    }
-}
-
-#[cfg(feature = "mint")]
-impl From<mint::Point2<f64>> for Point {
-    #[inline]
-    fn from(p: mint::Point2<f64>) -> Point {
-        Point { x: p.x, y: p.y }
     }
 }
