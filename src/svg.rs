@@ -103,9 +103,9 @@ impl BezPath {
         while let Some(c) = lexer.get_cmd(last_cmd) {
             if c != b'm' && c != b'M' {
                 if path.elements().is_empty() {
-                    return Err(SvgParseError::UninitializedPath)
+                    return Err(SvgParseError::UninitializedPath);
                 }
-                
+
                 if let Some(pt) = implicit_moveto.take() {
                     path.move_to(pt);
                 }
@@ -256,7 +256,9 @@ impl Display for SvgParseError {
             SvgParseError::Wrong => write!(f, "Unable to parse a number"),
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
             SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
-            SvgParseError::UninitializedPath => write!(f, "Unititialized path (missing moveto command)"),
+            SvgParseError::UninitializedPath => {
+                write!(f, "Unititialized path (missing moveto command)")
+            }
         }
     }
 }
