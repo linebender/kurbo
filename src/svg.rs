@@ -102,6 +102,10 @@ impl BezPath {
         let mut implicit_moveto = None;
         while let Some(c) = lexer.get_cmd(last_cmd) {
             if c != b'm' && c != b'M' {
+                if path.elements().is_empty() {
+                    return Err(SvgParseError::UninitializedPath);
+                }
+
                 if let Some(pt) = implicit_moveto.take() {
                     path.move_to(pt);
                 }
@@ -242,6 +246,8 @@ pub enum SvgParseError {
     UnexpectedEof,
     /// Encountered an unknown command letter.
     UnknownCommand(char),
+    /// Encountered a command that precedes expected 'moveto' command.
+    UninitializedPath,
 }
 
 impl Display for SvgParseError {
@@ -250,6 +256,9 @@ impl Display for SvgParseError {
             SvgParseError::Wrong => write!(f, "Unable to parse a number"),
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
             SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
+            SvgParseError::UninitializedPath => {
+                write!(f, "Unititialized path (missing moveto command)")
+            }
         }
     }
 }
@@ -515,6 +524,12 @@ mod tests {
         // Approximate figures, but useful for regression testing
         assert_eq!(path.area().round(), -1473.0);
         assert_eq!(path.perimeter(1e-6).round(), 168.0);
+    }
+
+    #[test]
+    fn test_parse_svg_uninitialized() {
+        let path = BezPath::from_svg("L10 10 100 0 0 100");
+        assert!(path.is_err());
     }
 
     #[test]
