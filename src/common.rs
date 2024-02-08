@@ -61,7 +61,7 @@ macro_rules! define_float_funcs {
         }
 
         #[cfg(not(feature = "std"))]
-        impl sealed::FloatFuncsSealed for f64{}
+        impl sealed::FloatFuncsSealed for f64 {}
         #[cfg(not(feature = "std"))]
         impl FloatFuncs for f64 {
             #[inline]
