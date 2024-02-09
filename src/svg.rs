@@ -257,7 +257,7 @@ impl Display for SvgParseError {
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
             SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
             SvgParseError::UninitializedPath => {
-                write!(f, "Unititialized path (missing moveto command)")
+                write!(f, "Uninitialized path (missing moveto command)")
             }
         }
     }
