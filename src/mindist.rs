@@ -85,7 +85,7 @@ pub(crate) fn min_dist_param(
             if dij < dkj {
                 at_boundary0on_bez2 = false
             }
-            let dkj = D_rk(i, 2 * n, bez1, bez2);
+            let dkj = D_rk(i, 2 * m, bez1, bez2);
             if dij < dkj {
                 at_boundary1on_bez2 = false
             }
@@ -234,6 +234,7 @@ fn choose(n: usize, k: usize) -> u32 {
 mod tests {
     use crate::mindist::A_r;
     use crate::mindist::{choose, D_rk};
+    use crate::param_curve::ParamCurve;
     use crate::{CubicBez, Line, PathSeg, Vec2};
 
     #[test]
@@ -306,5 +307,27 @@ mod tests {
         let mindist1 = bez1.min_dist(bez2, 0.5);
         let mindist2 = bez2.min_dist(bez1, 0.5);
         assert!((mindist1.distance - mindist2.distance).abs() < 0.5);
+    }
+
+    #[test]
+    fn test_line_curve() {
+        let line = PathSeg::Line(Line::new((929.0, 335.0), (911.0, 340.0)));
+
+        let line_as_bez = PathSeg::Cubic(CubicBez::new(
+            line.eval(0.0),
+            line.eval(1.0 / 3.0),
+            line.eval(2.0 / 3.0),
+            line.eval(1.0),
+        ));
+
+        let bez2 = PathSeg::Cubic(CubicBez::new(
+            (1052.0, 401.0),
+            (1048.0, 305.0),
+            (1046.0, 216.0),
+            (1054.0, 146.0),
+        ));
+        let mindist_as_bez = line_as_bez.min_dist(bez2, 0.5);
+        let mindist_as_line = line.min_dist(bez2, 0.5);
+        assert!((mindist_as_line.distance - mindist_as_bez.distance).abs() < 0.5);
     }
 }
