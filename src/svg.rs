@@ -239,6 +239,7 @@ impl BezPath {
 
 /// An error which can be returned when parsing an SVG.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SvgParseError {
     /// A number was expected.
     Wrong,
