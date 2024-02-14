@@ -91,11 +91,11 @@ impl TranslateScale {
     /// assert_near(ts * Point::new(2., 2.), Point::new(3., 3.));
     /// ```
     #[inline]
-    pub fn from_scale_about(scale: f64, focus: Point) -> Self {
+    pub fn from_scale_about(scale: f64, focus: impl Into<Point>) -> Self {
         // We need to create a transform that is equivalent to translating `focus`
         // to the origin, followed by a normal scale, followed by reversing the translation.
         // We need to find the (translation ∘ scale) that matches this.
-        let focus = focus.to_vec2();
+        let focus = focus.into().to_vec2();
         let translation = focus - focus * scale;
         Self::new(translation, scale)
     }
