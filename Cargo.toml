@@ -1,6 +1,6 @@
 [package]
 name = "kurbo"
-version = "0.10.4"
+version = "0.11.0"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -51,4 +51,3 @@ rand = "0.8.0"
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 getrandom = { version = "0.2.0", features = ["js"] }
-
