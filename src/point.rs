@@ -187,6 +187,16 @@ impl Point {
     }
 }
 
+impl From<(f32, f32)> for Point {
+    #[inline]
+    fn from(v: (f32, f32)) -> Point {
+        Point {
+            x: v.0 as f64,
+            y: v.1 as f64,
+        }
+    }
+}
+
 impl From<(f64, f64)> for Point {
     #[inline]
     fn from(v: (f64, f64)) -> Point {
