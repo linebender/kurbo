@@ -214,7 +214,7 @@ pub trait ParamCurveExtrema: ParamCurve {
     fn bounding_box(&self) -> Rect {
         let mut bbox = Rect::from_points(self.start(), self.end());
         for t in self.extrema() {
-            bbox = bbox.union_pt(self.eval(t))
+            bbox = bbox.union_pt(self.eval(t));
         }
         bbox
     }

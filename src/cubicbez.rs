@@ -978,7 +978,7 @@ mod tests {
         ];
         assert_eq!(spline.points().len(), expected.len());
         for (got, &wanted) in spline.points().iter().zip(expected.iter()) {
-            assert!(got.distance(wanted) < 5.0)
+            assert!(got.distance(wanted) < 5.0);
         }
 
         let spline = c1.approx_spline(5.0);
@@ -996,7 +996,7 @@ mod tests {
         let spline = spline.unwrap();
         assert_eq!(spline.points().len(), expected.len());
         for (got, &wanted) in spline.points().iter().zip(expected.iter()) {
-            assert!(got.distance(wanted) < 5.0)
+            assert!(got.distance(wanted) < 5.0);
         }
     }
 
@@ -1057,7 +1057,7 @@ mod tests {
                 Point::new(301.0, 560.0),
                 Point::new(260.0, 560.0)
             ]
-        )
+        );
     }
 
     #[test]
@@ -1131,6 +1131,6 @@ mod tests {
                     (274.0, 485.95).into(),
                 ]),
             ]
-        )
+        );
     }
 }

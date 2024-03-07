@@ -340,7 +340,7 @@ impl<'a> SvgLexer<'a> {
             if c == b'e' || c == b'E' {
                 let mut c = self.get_byte().ok_or(SvgParseError::Wrong)?;
                 if c == b'-' || c == b'+' {
-                    c = self.get_byte().ok_or(SvgParseError::Wrong)?
+                    c = self.get_byte().ok_or(SvgParseError::Wrong)?;
                 }
                 if c.is_ascii_digit() {
                     return Err(SvgParseError::Wrong);

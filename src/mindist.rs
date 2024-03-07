@@ -75,19 +75,19 @@ pub(crate) fn min_dist_param(
             let dij = D_rk(i, j, bez1, bez2);
             let dkj = D_rk(0, j, bez1, bez2);
             if dij < dkj {
-                at_boundary0on_bez1 = false
+                at_boundary0on_bez1 = false;
             }
             let dkj = D_rk(2 * n, j, bez1, bez2);
             if dij < dkj {
-                at_boundary1on_bez1 = false
+                at_boundary1on_bez1 = false;
             }
             let dkj = D_rk(i, 0, bez1, bez2);
             if dij < dkj {
-                at_boundary0on_bez2 = false
+                at_boundary0on_bez2 = false;
             }
             let dkj = D_rk(i, 2 * n, bez1, bez2);
             if dij < dkj {
-                at_boundary1on_bez2 = false
+                at_boundary1on_bez2 = false;
             }
         }
     }
@@ -160,7 +160,7 @@ fn S(u: f64, v: f64, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
     for r in 0..=2 * n {
         for k in 0..=2 * m {
             summand +=
-                D_rk(r, k, bez1, bez2) * basis_function(2 * n, r, u) * basis_function(2 * m, k, v)
+                D_rk(r, k, bez1, bez2) * basis_function(2 * n, r, u) * basis_function(2 * m, k, v);
         }
     }
     summand
