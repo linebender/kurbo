@@ -210,7 +210,7 @@ impl BezPath {
         debug_assert!(
             matches!(self.0.first(), Some(PathEl::MoveTo(_))),
             "BezPath must begin with MoveTo"
-        )
+        );
     }
 
     /// Push a "move to" element onto the path.
@@ -822,7 +822,7 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
             if let Some(bb) = bbox {
                 bbox = Some(bb.union(seg_bb));
             } else {
-                bbox = Some(seg_bb)
+                bbox = Some(seg_bb);
             }
         }
         bbox.unwrap_or_default()
@@ -1681,7 +1681,7 @@ mod tests {
                 PathEl::ClosePath,
                 PathEl::MoveTo((4.0, 4.0).into()),
             ],
-        )
+        );
     }
 
     // The following are direct port of fonttools'
@@ -1707,7 +1707,7 @@ mod tests {
                 PathEl::LineTo((0.0, 0.0).into()), // closing line NOT implied
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1727,7 +1727,7 @@ mod tests {
                 PathEl::LineTo((0.0, 0.0).into()), // closing line NOT implied
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1747,7 +1747,7 @@ mod tests {
                 PathEl::LineTo((0.0, 0.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1763,7 +1763,7 @@ mod tests {
                 PathEl::LineTo((0.0, 0.0).into()), // closing line NOT implied
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1781,7 +1781,7 @@ mod tests {
                 PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1799,7 +1799,7 @@ mod tests {
                 PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1819,7 +1819,7 @@ mod tests {
                 PathEl::LineTo((0.0, 0.0).into()), // ... does NOT become implied
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1837,7 +1837,7 @@ mod tests {
                 PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1855,7 +1855,7 @@ mod tests {
                 PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1873,12 +1873,12 @@ mod tests {
                 PathEl::LineTo((0.0, 0.0).into()), // ... does NOT become implied
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
     fn test_reverse_empty() {
-        reverse_test_helper(vec![], vec![])
+        reverse_test_helper(vec![], vec![]);
     }
 
     #[test]
@@ -1886,7 +1886,7 @@ mod tests {
         reverse_test_helper(
             vec![PathEl::MoveTo((0.0, 0.0).into())],
             vec![PathEl::MoveTo((0.0, 0.0).into())],
-        )
+        );
     }
 
     #[test]
@@ -1894,7 +1894,7 @@ mod tests {
         reverse_test_helper(
             vec![PathEl::MoveTo((0.0, 0.0).into()), PathEl::ClosePath],
             vec![PathEl::MoveTo((0.0, 0.0).into()), PathEl::ClosePath],
-        )
+        );
     }
 
     #[test]
@@ -1908,7 +1908,7 @@ mod tests {
                 PathEl::MoveTo((1.0, 1.0).into()),
                 PathEl::LineTo((0.0, 0.0).into()),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1922,7 +1922,7 @@ mod tests {
                 PathEl::MoveTo((3.0, 3.0).into()),
                 PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1938,7 +1938,7 @@ mod tests {
                 PathEl::LineTo((3.0, 3.0).into()),
                 PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1954,7 +1954,7 @@ mod tests {
                 PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
                 PathEl::LineTo((0.0, 0.0).into()),
             ],
-        )
+        );
     }
 
     #[test]
@@ -1976,7 +1976,7 @@ mod tests {
                 PathEl::LineTo((848.0, 348.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     #[test]
@@ -1999,7 +1999,7 @@ mod tests {
                 PathEl::LineTo((0.0, 651.0).into()),
                 PathEl::ClosePath,
             ],
-        )
+        );
     }
 
     fn reverse_test_helper(contour: Vec<PathEl>, expected: Vec<PathEl>) {
