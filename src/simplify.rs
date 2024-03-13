@@ -252,9 +252,9 @@ impl SimplifyState {
             self.queue.move_to(seg.start());
         }
         match seg {
+            PathSeg::Line(l) => self.queue.line_to(l.p1),
             PathSeg::Quad(q) => self.queue.quad_to(q.p1, q.p2),
             PathSeg::Cubic(c) => self.queue.curve_to(c.p1, c.p2, c.p3),
-            _ => unreachable!(),
         }
     }
 
@@ -262,14 +262,20 @@ impl SimplifyState {
         if self.queue.is_empty() {
             return;
         }
-        // TODO: if queue is one segment, just output that
-        let s = SimplifyBezPath::new(&self.queue);
-        let b = match options.opt_level {
-            SimplifyOptLevel::Subdivide => fit_to_bezpath(&s, accuracy),
-            SimplifyOptLevel::Optimize => fit_to_bezpath_opt(&s, accuracy),
-        };
-        self.result
-            .extend(b.iter().skip(!self.needs_moveto as usize));
+        if self.queue.elements().len() == 2 {
+            // Queue is just one segment (count is moveto + primitive)
+            // Just output the segment, no simplification is possible.
+            self.result
+                .extend(self.queue.iter().skip(!self.needs_moveto as usize));
+        } else {
+            let s = SimplifyBezPath::new(&self.queue);
+            let b = match options.opt_level {
+                SimplifyOptLevel::Subdivide => fit_to_bezpath(&s, accuracy),
+                SimplifyOptLevel::Optimize => fit_to_bezpath_opt(&s, accuracy),
+            };
+            self.result
+                .extend(b.iter().skip(!self.needs_moveto as usize));
+        }
         self.needs_moveto = false;
         self.queue.truncate(0);
     }
@@ -279,6 +285,16 @@ impl SimplifyState {
 ///
 /// This function simplifies an arbitrary Bézier path; it is designed to handle
 /// multiple subpaths and also corners.
+///
+/// The underlying curve-fitting approach works best if the source path is very
+/// smooth. If it contains higher frequency noise, then results may be poor, as
+/// the resulting curve matches the original with G1 continuity at each subdivision
+/// point, and also preserves the area. For such inputs, consider some form of
+/// smoothing or low-pass filtering before simplification. In particular, if the
+/// input is derived from a sequence of points, consider fitting a smooth spline.
+///
+/// We may add such capabilities in the future, possibly as opt-in smoothing
+/// specified through the options.
 pub fn simplify_bezpath(
     path: impl IntoIterator<Item = PathEl>,
     accuracy: f64,
@@ -300,7 +316,6 @@ pub fn simplify_bezpath(
                 if last == p {
                     continue;
                 }
-                state.flush(accuracy, options);
                 this_seg = Some(PathSeg::Line(Line::new(last, p)));
             }
             PathEl::QuadTo(p1, p2) => {
@@ -358,5 +373,24 @@ impl SimplifyOptions {
     pub fn angle_thresh(mut self, thresh: f64) -> Self {
         self.angle_thresh = thresh;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::BezPath;
+
+    use super::{simplify_bezpath, SimplifyOptions};
+
+    #[test]
+    fn simplify_lines_corner() {
+        // Make sure lines are passed through unchanged if there is a corner.
+        let mut path = BezPath::new();
+        path.move_to((1., 2.));
+        path.line_to((3., 4.));
+        path.line_to((10., 5.));
+        let options = SimplifyOptions::default();
+        let simplified = simplify_bezpath(path.clone(), 1.0, &options);
+        assert_eq!(path, simplified);
     }
 }
