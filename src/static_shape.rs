@@ -208,7 +208,7 @@ mod test {
         let r = crate::Rect::from_origin_size((0.0, 0.0), (1.0, 1.0));
         let l = crate::Line::new((0.0, 0.0), (0.5, 0.5));
         let shapes: Vec<StaticShape> = vec![r.into(), l.into()];
-        assert_eq!(shapes, vec![StaticShape::Rect(r), StaticShape::Line(l),])
+        assert_eq!(shapes, vec![StaticShape::Rect(r), StaticShape::Line(l),]);
     }
     #[test]
     fn test_external() {
