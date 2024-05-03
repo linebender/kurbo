@@ -163,7 +163,7 @@ pub(crate) struct FlattenParams {
     a2: f64,
     u0: f64,
     uscale: f64,
-    /// The number of subdivisions * 2 * sqrt_tol.
+    /// The number of `subdivisions * 2 * sqrt_tol`.
     pub(crate) val: f64,
 }
 
