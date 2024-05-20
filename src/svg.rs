@@ -609,7 +609,7 @@ mod tests {
 
         let length = rng.gen_range(0..MAX_LENGTH);
         for _ in 0..length {
-            let should_follow: bool = rand::random();
+            let should_follow: bool = random();
             let kind = rng.gen_range(0..3);
 
             let first = position
@@ -647,7 +647,7 @@ mod tests {
     #[test]
     fn test_serialize_deserialize() {
         const N_TESTS: u32 = 100;
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
 
         for _ in 0..N_TESTS {
             let vec = gen_random_path_sequence(&mut rng);
