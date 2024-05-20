@@ -72,6 +72,7 @@
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
 #![warn(clippy::doc_markdown, rustdoc::broken_intra_doc_links)]
 #![warn(clippy::semicolon_if_nothing_returned)]
+#![warn(unused_qualifications)]
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,

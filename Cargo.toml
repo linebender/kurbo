@@ -4,6 +4,7 @@ version = "0.11.0"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
+# TODO: When this hits 1.74, move lint configuration into this file via a lints table.
 rust-version = "1.65" # When updating this, also update the README.md and CI.
 keywords = ["graphics", "curve", "curves", "bezier", "geometry"]
 repository = "https://github.com/linebender/kurbo"
