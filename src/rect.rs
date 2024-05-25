@@ -222,6 +222,11 @@ impl Rect {
     ///
     /// The result is zero-area if either input has negative width or
     /// height. The result always has non-negative width and height.
+    ///
+    /// If you want to determine whether two rectangles intersect, use the
+    /// [`intersects`] method instead.
+    ///
+    /// [`intersects`]: Rect::intersects
     #[inline]
     pub fn intersect(&self, other: Rect) -> Rect {
         let x0 = self.x0.max(other.x0);
@@ -229,6 +234,29 @@ impl Rect {
         let x1 = self.x1.min(other.x1);
         let y1 = self.y1.min(other.y1);
         Rect::new(x0, y0, x1.max(x0), y1.max(y0))
+    }
+
+    /// Determines whether the this rectangle intersects with another in any way.
+    ///
+    /// Returns `true` if the rectangles intersect, `false` otherwise.
+    ///
+    /// If you want to compute the *intersection* of two rectangles, use the
+    /// [`intersect`] method instead.
+    ///
+    /// [`intersect`]: Rect::intersect
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Rect;
+    ///
+    /// let rect1 = Rect::new(0.0, 0.0, 10.0, 10.0);
+    /// let rect2 = Rect::new(5.0, 5.0, 15.0, 15.0);
+    /// assert!(rect1.intersects(rect2));
+    /// ```
+    #[inline]
+    pub fn intersects(&self, other: Rect) -> bool {
+        self.x0 < other.x1 && self.x1 > other.x0 && self.y0 < other.y1 && self.y1 > other.y0
     }
 
     /// Expand a rectangle by a constant amount in both directions.
