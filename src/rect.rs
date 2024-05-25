@@ -224,9 +224,9 @@ impl Rect {
     /// height. The result always has non-negative width and height.
     ///
     /// If you want to determine whether two rectangles intersect, use the
-    /// [`intersects`] method instead.
+    /// [`overlaps`] method instead.
     ///
-    /// [`intersects`]: Rect::intersects
+    /// [`overlaps`]: Rect::overlaps
     #[inline]
     pub fn intersect(&self, other: Rect) -> Rect {
         let x0 = self.x0.max(other.x0);
@@ -252,10 +252,10 @@ impl Rect {
     ///
     /// let rect1 = Rect::new(0.0, 0.0, 10.0, 10.0);
     /// let rect2 = Rect::new(5.0, 5.0, 15.0, 15.0);
-    /// assert!(rect1.intersects(rect2));
+    /// assert!(rect1.overlaps(rect2));
     /// ```
     #[inline]
-    pub fn intersects(&self, other: Rect) -> bool {
+    pub fn overlaps(&self, other: Rect) -> bool {
         self.x0 < other.x1 && self.x1 > other.x0 && self.y0 < other.y1 && self.y1 > other.y0
     }
 
@@ -826,32 +826,32 @@ mod tests {
     }
 
     #[test]
-    fn contained_rect_intersects() {
+    fn contained_rect_overlaps() {
         let outer = Rect::new(0.0, 0.0, 10.0, 10.0);
         let inner = Rect::new(2.0, 2.0, 4.0, 4.0);
-        assert!(outer.intersects(inner));
+        assert!(outer.overlaps(inner));
     }
 
     #[test]
-    fn overlapping_rect_intersects() {
+    fn overlapping_rect_overlaps() {
         let a = Rect::new(0.0, 0.0, 10.0, 10.0);
         let b = Rect::new(5.0, 5.0, 15.0, 15.0);
-        assert!(a.intersects(b));
+        assert!(a.overlaps(b));
     }
 
     #[test]
-    fn disjoint_rect_intersects() {
+    fn disjoint_rect_overlaps() {
         let a = Rect::new(0.0, 0.0, 10.0, 10.0);
         let b = Rect::new(11.0, 11.0, 15.0, 15.0);
-        assert!(!a.intersects(b));
+        assert!(!a.overlaps(b));
     }
 
     // Test the two other directions in case there is a bug that only appears in one direction.
     #[test]
-    fn disjoint_rect_intersects_negative() {
+    fn disjoint_rect_overlaps_negative() {
         let a = Rect::new(0.0, 0.0, 10.0, 10.0);
         let b = Rect::new(-10.0, -10.0, -5.0, -5.0);
-        assert!(!a.intersects(b));
+        assert!(!a.overlaps(b));
     }
 
     #[test]
