@@ -88,9 +88,9 @@ use crate::common::FloatFuncs;
 /// functionality available on `BezPath`:
 ///
 /// - [`flatten`] does Bézier flattening, converting a curve to a series of
-/// line segments
+///   line segments
 /// - [`intersect_line`] computes intersections of a path with a line, useful
-/// for things like subdividing
+///   for things like subdividing
 ///
 /// [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
 /// [`iter`]: BezPath::iter
