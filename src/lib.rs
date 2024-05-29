@@ -98,7 +98,6 @@ mod insets;
 mod line;
 mod mindist;
 pub mod offset;
-mod triangle;
 mod param_curve;
 mod point;
 mod quadbez;
@@ -113,6 +112,7 @@ mod stroke;
 #[cfg(feature = "std")]
 mod svg;
 mod translate_scale;
+mod triangle;
 mod vec2;
 
 pub use crate::affine::*;
@@ -124,7 +124,6 @@ pub use crate::ellipse::*;
 pub use crate::fit::*;
 pub use crate::insets::*;
 pub use crate::line::*;
-pub use crate::triangle::*;
 pub use crate::param_curve::*;
 pub use crate::point::*;
 pub use crate::quadbez::*;
@@ -138,4 +137,5 @@ pub use crate::stroke::*;
 #[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
+pub use crate::triangle::*;
 pub use crate::vec2::*;

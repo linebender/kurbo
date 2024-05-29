@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Triangle shape
-use crate::{Ellipse, Insets, PathEl, Rect, Point, RoundedRect, RoundedRectRadii, Shape, Size, Vec2};
+use crate::{
+    Ellipse, Insets, PathEl, Point, Rect, RoundedRect, RoundedRectRadii, Shape, Size, Vec2,
+};
 
 use core::ops::{Add, Sub};
 
@@ -37,13 +39,21 @@ impl Triangle {
     /// A new [`Triangle`] from three vertices ([`Points`])
     #[inline]
     pub fn new(a: impl Into<Point>, b: impl Into<Point>, c: impl Into<Point>) -> Self {
-        Self { a: a.into(), b: b.into(), c: c.into() }
+        Self {
+            a: a.into(),
+            b: b.into(),
+            c: c.into(),
+        }
     }
 
     /// A new [`Triangle`] from three float vertex coordinates
     #[inline]
     pub const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
-        Self { a: Point::new(a.0, a.1), b: Point::new(b.0, b.1), c: Point::new(c.0, c.1) }
+        Self {
+            a: Point::new(a.0, a.1),
+            b: Point::new(b.0, b.1),
+            c: Point::new(c.0, c.1),
+        }
     }
 
     /// A new `Triangle` from centroid and sizes
@@ -64,7 +74,8 @@ impl Triangle {
         const THETA: f64 = 60.0; // equilateral triangle guarantee
         let center = center.into().to_vec2();
 
-        let h = (radius/((THETA/2.0).tan()) *radius/((THETA/2.0).tan()) + radius*radius).sqrt();
+        let h = (radius / ((THETA / 2.0).tan()) * radius / ((THETA / 2.0).tan()) + radius * radius)
+            .sqrt();
         let a = center.y + radius;
         let b = center + Vec2::IDENTITY * h;
         let c = center - Vec2::IDENTITY * h;
@@ -88,8 +99,8 @@ impl Triangle {
     #[inline]
     pub fn centroid(&self) -> Point {
         Point::new(
-            (self.a.x + self.b.x + self.c.x)/3.0,
-            (self.a.y + self.b.y + self.c.y)/3.0,
+            (self.a.x + self.b.x + self.c.x) / 3.0,
+            (self.a.y + self.b.y + self.c.y) / 3.0,
         )
     }
 
@@ -101,7 +112,7 @@ impl Triangle {
         [
             self.a.distance(centroid),
             self.b.distance(centroid),
-            self.c.distance(centroid)
+            self.c.distance(centroid),
         ]
     }
 
@@ -113,10 +124,10 @@ impl Triangle {
         let bc = self.b.distance(self.c);
 
         // cos rule
-        let theta = ((bc*bc - ab*ab - ac*ac)/-2.0*ab*ac).acos();
+        let theta = ((bc * bc - ab * ab - ac * ac) / -2.0 * ab * ac).acos();
 
         // A = 1/2*a*b*sin(C)
-        (ab*ac*theta.sin())/2.0
+        (ab * ac * theta.sin()) / 2.0
     }
 
     // TODO: maybe make height functions for right and non right angled triangles
@@ -125,7 +136,7 @@ impl Triangle {
     #[inline]
     pub fn right_angled_area(&self) -> f64 {
         // A = 1/2*b*h
-        (self.b.distance(self.c)*self.b.midpoint(self.c).distance(self.a))/2.0
+        (self.b.distance(self.c) * self.b.midpoint(self.c).distance(self.a)) / 2.0
     }
 
     /// Maximum x-coordinate of the [`Triangle`]'s vertices
@@ -167,7 +178,10 @@ impl Triangle {
     /// `true` if `point` lies within `self`
     #[inline]
     pub fn contains(&self, point: Point) -> bool {
-        point.x >= self.min_x() && point.x < self.max_x() && point.y >= self.min_y() && point.y < self.max_y()
+        point.x >= self.min_x()
+            && point.x < self.max_x()
+            && point.y >= self.min_y()
+            && point.y < self.max_y()
     }
 
     /// The smallest radius of a circle that is within the [`Triangle`]
@@ -190,38 +204,26 @@ impl Triangle {
         Self::new(
             (self.a.to_vec2() + Vec2::IDENTITY * sizes[0]).to_point(),
             (self.b.to_vec2() + Vec2::IDENTITY * sizes[1]).to_point(),
-            (self.c.to_vec2() + Vec2::IDENTITY * sizes[2]).to_point()
+            (self.c.to_vec2() + Vec2::IDENTITY * sizes[2]).to_point(),
         )
     }
 
     /// A new [`Triangle`] with each vertecie's ordinates rounded to the nearest integer
     #[inline]
     pub fn round(self) -> Self {
-        Self::new(
-            self.a.round(),
-            self.b.round(),
-            self.c.round(),
-        )
+        Self::new(self.a.round(), self.b.round(), self.c.round())
     }
 
     /// A new [`Triangle`] with each vertecie's ordinates rounded up to the nearest integer
     #[inline]
     pub fn ceil(self) -> Self {
-        Self::new(
-            self.a.ceil(),
-            self.b.ceil(),
-            self.c.ceil(),
-        )
+        Self::new(self.a.ceil(), self.b.ceil(), self.c.ceil())
     }
 
     /// A new [`Triangle`] with each vertecie's ordinates rounded down to the nearest integer
     #[inline]
     pub fn floor(self) -> Self {
-        Self::new(
-            self.a.floor(),
-            self.b.floor(),
-            self.c.floor(),
-        )
+        Self::new(self.a.floor(), self.b.floor(), self.c.floor())
     }
 
     /// A new [`Triangle`],
@@ -231,11 +233,7 @@ impl Triangle {
     /// with integer coordinates that is a subset of `self`.
     #[inline]
     pub fn expand(self) -> Self {
-        Self::new(
-            self.a.expand(),
-            self.b.expand(),
-            self.c.expand(),
-        )
+        Self::new(self.a.expand(), self.b.expand(), self.c.expand())
     }
 
     /// Returns a new [`Triangle`],
@@ -245,11 +243,7 @@ impl Triangle {
     /// with integer coordinates that is a subset of `self`.
     #[inline]
     pub fn trunc(self) -> Self {
-        Self::new(
-            self.a.trunc(),
-            self.b.trunc(),
-            self.c.trunc()
-        )
+        Self::new(self.a.trunc(), self.b.trunc(), self.c.trunc())
     }
 
     /// Scales the [`Triangle`] by a `factor`
@@ -310,14 +304,17 @@ impl Sub<Vec2> for Triangle {
 #[doc(hidden)]
 pub struct TrianglePathIter {
     triangle: Triangle,
-    ix: usize
+    ix: usize,
 }
 
 impl Shape for Triangle {
     type PathElementsIter<'iter> = TrianglePathIter;
 
     fn path_elements(&self, _tolerance: f64) -> TrianglePathIter {
-        TrianglePathIter { triangle: *self, ix: 0 }
+        TrianglePathIter {
+            triangle: *self,
+            ix: 0,
+        }
     }
 
     #[inline]
@@ -327,9 +324,7 @@ impl Shape for Triangle {
 
     #[inline]
     fn perimeter(&self, _accuracy: f64) -> f64 {
-        self.a.distance(self.b) +
-            self.b.distance(self.c) +
-            self.c.distance(self.a)
+        self.a.distance(self.b) + self.b.distance(self.c) + self.c.distance(self.a)
     }
 
     #[inline]
@@ -353,12 +348,7 @@ impl Shape for Triangle {
 
     #[inline]
     fn bounding_box(&self) -> Rect {
-        Rect::new(
-            self.min_x(),
-            self.min_y(),
-            self.max_x(),
-            self.max_y()
-        )
+        Rect::new(self.min_x(), self.min_y(), self.max_x(), self.max_y())
     }
 
     #[inline]
