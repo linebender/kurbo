@@ -106,100 +106,49 @@ impl StaticShape {
     }
 }
 
+macro_rules! match_shape {
+    ($x:ident, $it:ident, $e: expr) => {{
+        use StaticShape as S;
+        match $x {
+            S::PathSeg($it) => $e,
+            S::Arc($it) => $e,
+            S::BezPath($it) => $e,
+            S::Circle($it) => $e,
+            S::CircleSegment($it) => $e,
+            S::CubicBez($it) => $e,
+            S::Ellipse($it) => $e,
+            S::Line($it) => $e,
+            S::QuadBez($it) => $e,
+            S::Rect($it) => $e,
+            S::RoundedRect($it) => $e,
+            S::External($it) => $e,
+        }
+    }}
+}
+
 impl<External> Shape for StaticShape<External>
 where
     External: Shape,
 {
     type PathElementsIter<'iter> = Box<dyn Iterator<Item = crate::PathEl> + 'iter> where External: 'iter;
     fn path_elements(&self, tol: f64) -> Box<dyn Iterator<Item = crate::PathEl> + '_> {
-        use StaticShape as S;
-        match self {
-            S::PathSeg(it) => Box::new(it.path_elements(tol)),
-            S::Arc(it) => Box::new(it.path_elements(tol)),
-            S::BezPath(it) => Box::new(it.path_elements(tol)),
-            S::Circle(it) => Box::new(it.path_elements(tol)),
-            S::CircleSegment(it) => Box::new(it.path_elements(tol)),
-            S::CubicBez(it) => Box::new(it.path_elements(tol)),
-            S::Ellipse(it) => Box::new(it.path_elements(tol)),
-            S::Line(it) => Box::new(it.path_elements(tol)),
-            S::QuadBez(it) => Box::new(it.path_elements(tol)),
-            S::Rect(it) => Box::new(it.path_elements(tol)),
-            S::RoundedRect(it) => Box::new(it.path_elements(tol)),
-            S::External(it) => Box::new(it.path_elements(tol)),
-        }
+            match_shape!(self, it, Box::new(it.path_elements(tol)))
     }
 
     fn perimeter(&self, acc: f64) -> f64 {
-        use StaticShape as S;
-        match self {
-            S::PathSeg(it) => it.perimeter(acc),
-            S::Arc(it) => it.perimeter(acc),
-            S::BezPath(it) => it.perimeter(acc),
-            S::Circle(it) => it.perimeter(acc),
-            S::CircleSegment(it) => it.perimeter(acc),
-            S::CubicBez(it) => it.perimeter(acc),
-            S::Ellipse(it) => it.perimeter(acc),
-            S::Line(it) => it.perimeter(acc),
-            S::QuadBez(it) => it.perimeter(acc),
-            S::Rect(it) => it.perimeter(acc),
-            S::RoundedRect(it) => it.perimeter(acc),
-            S::External(it) => it.perimeter(acc),
-        }
+            match_shape!(self, it, it.perimeter(acc))
     }
 
     fn area(&self) -> f64 {
-        use StaticShape as S;
-        match self {
-            S::PathSeg(it) => it.area(),
-            S::Arc(it) => it.area(),
-            S::BezPath(it) => it.area(),
-            S::Circle(it) => it.area(),
-            S::CircleSegment(it) => it.area(),
-            S::CubicBez(it) => it.area(),
-            S::Ellipse(it) => it.area(),
-            S::Line(it) => it.area(),
-            S::QuadBez(it) => it.area(),
-            S::Rect(it) => it.area(),
-            S::RoundedRect(it) => it.area(),
-            S::External(it) => it.area(),
-        }
+        match_shape!(self, it, it.area())
     }
 
     fn winding(&self, pt: Point) -> i32 {
-        use StaticShape as S;
-        match self {
-            S::PathSeg(it) => it.winding(pt),
-            S::Arc(it) => it.winding(pt),
-            S::BezPath(it) => it.winding(pt),
-            S::Circle(it) => it.winding(pt),
-            S::CircleSegment(it) => it.winding(pt),
-            S::CubicBez(it) => it.winding(pt),
-            S::Ellipse(it) => it.winding(pt),
-            S::Line(it) => it.winding(pt),
-            S::QuadBez(it) => it.winding(pt),
-            S::Rect(it) => it.winding(pt),
-            S::RoundedRect(it) => it.winding(pt),
-            S::External(it) => it.winding(pt),
-        }
+        match_shape!(self, it, it.winding(pt))
     }
 
     fn bounding_box(&self) -> Rect {
-        use StaticShape as S;
-        match self {
-            S::PathSeg(it) => it.bounding_box(),
-            S::Arc(it) => it.bounding_box(),
-            S::BezPath(it) => it.bounding_box(),
-            S::Circle(it) => it.bounding_box(),
-
-            S::CircleSegment(it) => it.bounding_box(),
-            S::CubicBez(it) => it.bounding_box(),
-            S::Ellipse(it) => it.bounding_box(),
-            S::Line(it) => it.bounding_box(),
-            S::QuadBez(it) => it.bounding_box(),
-            S::Rect(it) => it.bounding_box(),
-            S::RoundedRect(it) => it.bounding_box(),
-            S::External(it) => it.bounding_box(),
-        }
+        match_shape!(self, it, it.bounding_box())
     }
 }
 
