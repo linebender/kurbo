@@ -110,6 +110,7 @@ mod size;
 mod stroke;
 mod svg;
 mod translate_scale;
+mod triangle;
 mod vec2;
 
 pub use crate::affine::Affine;
@@ -143,4 +144,5 @@ pub use crate::stroke::{
 };
 pub use crate::svg::{SvgArc, SvgParseError};
 pub use crate::translate_scale::TranslateScale;
+pub use crate::triangle::{Triangle, TrianglePathIter};
 pub use crate::vec2::Vec2;
