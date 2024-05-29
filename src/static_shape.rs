@@ -1,6 +1,8 @@
 // Copyright 2024 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+#![allow(unused_qualifications)]
+
 use crate::{Point, Rect, Shape};
 use alloc::boxed::Box;
 
@@ -65,7 +67,7 @@ where
     /// Corresponds to a `QuadBez`
     QuadBez(crate::QuadBez),
     /// Corresponds to a `Rect`
-    Rect(crate::Rect),
+    Rect(Rect),
     /// Corresponds to a `RoundedRect`
     RoundedRect(crate::RoundedRect),
     /// A type implementing shape that may be defined by an external crate.
@@ -107,23 +109,22 @@ impl StaticShape {
 }
 
 macro_rules! match_shape {
-    ($x:ident, $it:ident, $e: expr) => {{
-        use StaticShape as S;
+    ($x:ident, $it:ident, $e: expr) => {
         match $x {
-            S::PathSeg($it) => $e,
-            S::Arc($it) => $e,
-            S::BezPath($it) => $e,
-            S::Circle($it) => $e,
-            S::CircleSegment($it) => $e,
-            S::CubicBez($it) => $e,
-            S::Ellipse($it) => $e,
-            S::Line($it) => $e,
-            S::QuadBez($it) => $e,
-            S::Rect($it) => $e,
-            S::RoundedRect($it) => $e,
-            S::External($it) => $e,
+            StaticShape::PathSeg($it) => $e,
+            StaticShape::Arc($it) => $e,
+            StaticShape::BezPath($it) => $e,
+            StaticShape::Circle($it) => $e,
+            StaticShape::CircleSegment($it) => $e,
+            StaticShape::CubicBez($it) => $e,
+            StaticShape::Ellipse($it) => $e,
+            StaticShape::Line($it) => $e,
+            StaticShape::QuadBez($it) => $e,
+            StaticShape::Rect($it) => $e,
+            StaticShape::RoundedRect($it) => $e,
+            StaticShape::External($it) => $e,
         }
-    }}
+    };
 }
 
 impl<External> Shape for StaticShape<External>
@@ -132,11 +133,11 @@ where
 {
     type PathElementsIter<'iter> = Box<dyn Iterator<Item = crate::PathEl> + 'iter> where External: 'iter;
     fn path_elements(&self, tol: f64) -> Box<dyn Iterator<Item = crate::PathEl> + '_> {
-            match_shape!(self, it, Box::new(it.path_elements(tol)))
+        match_shape!(self, it, Box::new(it.path_elements(tol)))
     }
 
     fn perimeter(&self, acc: f64) -> f64 {
-            match_shape!(self, it, it.perimeter(acc))
+        match_shape!(self, it, it.perimeter(acc))
     }
 
     fn area(&self) -> f64 {
