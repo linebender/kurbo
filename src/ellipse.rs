@@ -9,7 +9,7 @@ use core::{
     ops::{Add, Mul, Sub},
 };
 
-use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size, Vec2};
+use crate::{Affine, Arc, ArcAppendIter, Circle, PathEl, Point, Rect, Shape, Size, Triangle, Vec2};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -56,6 +56,24 @@ impl Ellipse {
         let center = rect.center().to_vec2();
         let Size { width, height } = rect.size() / 2.0;
         Ellipse::private_new(center, width, height, 0.0)
+    }
+
+    // TODO: this returns the largest circle not ellipse
+    /// Returns the largest ellipse that can be bounded by this [`Triangle`].
+    ///
+    /// This ellipse is always axis-aligned; to apply rotation you can call
+    /// [`with_rotation`] with the result.
+    ///
+    /// [`with_rotation`]: Ellipse::with_rotation
+    #[inline]
+    pub fn from_triangle(triangle: Triangle) -> Self {
+        let radius = triangle.radius();
+        Ellipse::private_new(
+            triangle.centroid().to_vec2(),
+            radius / 2.0,
+            radius / 2.0,
+            0.0,
+        )
     }
 
     /// Create an ellipse from an affine transformation of the unit circle.

@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Triangle shape
-use crate::{
-    Ellipse, Insets, PathEl, Point, Rect, RoundedRect, RoundedRectRadii, Shape, Size, Vec2,
-};
+use crate::{Ellipse, PathEl, Point, Rect, Shape, Vec2};
 
-use core::ops::{Add, Sub};
 use core::f64::consts::FRAC_PI_3;
+use core::ops::{Add, Sub};
 
 /// Triangle
 //     A
@@ -20,8 +18,11 @@ use core::f64::consts::FRAC_PI_3;
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Triangle {
+    /// vertex a
     pub a: Point,
+    /// vertex b
     pub b: Point,
+    /// vertex c
     pub c: Point,
 }
 
@@ -35,7 +36,8 @@ impl Triangle {
     /// The empty triangle at the origin
     pub const ZERO: Self = Self::from_coords((0., 0.), (0., 0.), (0., 0.));
 
-    pub const IDENTITY: Self = Self::from_coords((1.0, 1.0), (0.0, 0.0), (2.0, 0.0));
+    /// Triangle identity
+    pub const IDENTITY: Self = Self::from_coords((3.0, 6.0), (0.0, 0.0), (6.0, 0.0));
 
     /// A new [`Triangle`] from three vertices ([`Points`])
     #[inline]
@@ -185,7 +187,7 @@ impl Triangle {
             && point.y < self.max_y()
     }
 
-    /// The smallest radius of a circle that is within the [`Triangle`]
+    /// The greatest radius of a circle that is within the [`Triangle`]
     #[inline]
     pub fn radius(&self) -> f64 {
         let ab = self.a.distance(self.b);
@@ -257,7 +259,23 @@ impl Triangle {
         )
     }
 
-    // TODO: functions: insets, to_ellipse (see ellipse TODO), aspect ratio, finite & nan
+    /// Returns the [`Ellipse`] that is bounded by this [`Triangle`].
+    #[inline]
+    pub fn to_ellipse(self) -> Ellipse {
+        Ellipse::from_triangle(self)
+    }
+
+    /// Is this [`Triangle`] finite?
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.a.is_finite() && self.b.is_finite() && self.c.is_finite()
+    }
+
+    /// Is this [`Triangle`] NaN?
+    #[inline]
+    pub fn is_nan(&self) -> bool {
+        self.a.is_nan() || self.b.is_nan() || self.c.is_nan()
+    }
 }
 
 impl From<(Point, Point, Point)> for Triangle {
@@ -297,8 +315,6 @@ impl Sub<Vec2> for Triangle {
         )
     }
 }
-
-// TODO: sub, see insets TODO
 
 #[doc(hidden)]
 pub struct TrianglePathIter {
@@ -363,7 +379,7 @@ impl Shape for Triangle {
 
 // Anticlockwise direction from vertices a, b, c
 // NOTE: vertices a, b and c are not garunteed to be in order as described in the struct comments
-//       (i.e. vertex a is topmost, vertex b is leftmost, and vertex c is rightmost)
+//       (i.e. as "vertex a is topmost, vertex b is leftmost, and vertex c is rightmost")
 impl Iterator for TrianglePathIter {
     type Item = PathEl;
 
