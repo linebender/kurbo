@@ -7,6 +7,7 @@ use crate::{
 };
 
 use core::ops::{Add, Sub};
+use core::f64::consts::FRAC_PI_3;
 
 /// Triangle
 //     A
@@ -71,7 +72,7 @@ impl Triangle {
     /// takes the center and a point equidistant to the midpoints of the vertices (radius)
     #[inline]
     pub fn from_center_size(center: impl Into<Point>, radius: f64) -> Self {
-        const THETA: f64 = 60.0; // equilateral triangle guarantee
+        const THETA: f64 = FRAC_PI_3; // equilateral triangle guarantee
         let center = center.into().to_vec2();
 
         let h = (radius / ((THETA / 2.0).tan()) * radius / ((THETA / 2.0).tan()) + radius * radius)
@@ -299,8 +300,6 @@ impl Sub<Vec2> for Triangle {
 
 // TODO: sub, see insets TODO
 
-// TEMP
-// TODO: implement
 #[doc(hidden)]
 pub struct TrianglePathIter {
     triangle: Triangle,
@@ -359,6 +358,24 @@ impl Shape for Triangle {
     #[inline]
     fn contains(&self, pt: Point) -> bool {
         self.contains(pt)
+    }
+}
+
+// Anticlockwise direction from vertices a, b, c
+// NOTE: vertices a, b and c are not garunteed to be in order as described in the struct comments
+//       (i.e. vertex a is topmost, vertex b is leftmost, and vertex c is rightmost)
+impl Iterator for TrianglePathIter {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        self.ix += 1;
+        match self.ix {
+            1 => Some(PathEl::MoveTo(self.triangle.a)),
+            2 => Some(PathEl::LineTo(self.triangle.b)),
+            3 => Some(PathEl::LineTo(self.triangle.c)),
+            4 => Some(PathEl::ClosePath),
+            _ => None,
+        }
     }
 }
 
