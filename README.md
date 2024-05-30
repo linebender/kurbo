@@ -33,7 +33,7 @@ To learn more about Bézier curves, [A Primer on Bézier Curves] by Pomax is ind
 
 ## Contributing
 
-Contributions are welcome. The [Rust Code of Conduct] applies. Please feel free to add your name to the [AUTHORS] file in any substantive pull request.
+Contributions are welcome. The [Rust Code of Conduct] applies. Please document any changes in [CHANGELOG.md] as part of your PR, and feel free to add your name to the [AUTHORS] file in any substantive pull request.
 
 [Rust Code of Conduct]: https://www.rust-lang.org/policies/code-of-conduct
 [lyon_geom]: https://crates.io/crates/lyon_geom
@@ -41,3 +41,4 @@ Contributions are welcome. The [Rust Code of Conduct] applies. Please feel free 
 [vek]: https://crates.io/crates/vek
 [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
 [AUTHORS]: ./AUTHORS
+[CHANGELOG.md]: ./CHANGELOG.md
