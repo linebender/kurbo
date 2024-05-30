@@ -7,6 +7,9 @@ use crate::{Ellipse, PathEl, Point, Rect, Shape, Vec2};
 use core::f64::consts::FRAC_PI_3;
 use core::ops::{Add, Sub};
 
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
+
 /// Triangle
 //     A
 //     *
