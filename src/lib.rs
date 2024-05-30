@@ -108,7 +108,7 @@ mod rounded_rect_radii;
 mod shape;
 pub mod simplify;
 mod size;
-mod static_shape;
+mod primitive_shape;
 mod stroke;
 #[cfg(feature = "std")]
 mod svg;
@@ -133,7 +133,7 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
-pub use crate::static_shape::*;
+pub use crate::primitive_shape::*;
 pub use crate::stroke::*;
 #[cfg(feature = "std")]
 pub use crate::svg::*;

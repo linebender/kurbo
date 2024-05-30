@@ -44,7 +44,7 @@ mod _never_shape {
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
-pub enum StaticShape<External = _never_shape::NeverShape>
+pub enum PrimitiveShape<External = _never_shape::NeverShape>
 where
     External: Shape,
 {
@@ -76,7 +76,7 @@ where
 
 macro_rules! from_shape {
     ($it: ident) => {
-        impl From<crate::$it> for StaticShape {
+        impl From<crate::$it> for PrimitiveShape {
             fn from(it: crate::$it) -> Self {
                 Self::$it(it)
             }
@@ -96,38 +96,38 @@ from_shape!(QuadBez);
 from_shape!(Rect);
 from_shape!(RoundedRect);
 
-impl StaticShape {
+impl PrimitiveShape {
     /// Builds a static shape from an external shape implementation.
     ///
     /// For a kurbo provided shape implementation, you would normally use the `from` impl instead.
-    pub fn from_external_shape<External>(shape: External) -> StaticShape<External>
+    pub fn from_external_shape<External>(shape: External) -> PrimitiveShape<External>
     where
         External: Shape,
     {
-        StaticShape::External(shape)
+        PrimitiveShape::External(shape)
     }
 }
 
 macro_rules! match_shape {
     ($x:ident, $it:ident, $e: expr) => {
         match $x {
-            StaticShape::PathSeg($it) => $e,
-            StaticShape::Arc($it) => $e,
-            StaticShape::BezPath($it) => $e,
-            StaticShape::Circle($it) => $e,
-            StaticShape::CircleSegment($it) => $e,
-            StaticShape::CubicBez($it) => $e,
-            StaticShape::Ellipse($it) => $e,
-            StaticShape::Line($it) => $e,
-            StaticShape::QuadBez($it) => $e,
-            StaticShape::Rect($it) => $e,
-            StaticShape::RoundedRect($it) => $e,
-            StaticShape::External($it) => $e,
+            PrimitiveShape::PathSeg($it) => $e,
+            PrimitiveShape::Arc($it) => $e,
+            PrimitiveShape::BezPath($it) => $e,
+            PrimitiveShape::Circle($it) => $e,
+            PrimitiveShape::CircleSegment($it) => $e,
+            PrimitiveShape::CubicBez($it) => $e,
+            PrimitiveShape::Ellipse($it) => $e,
+            PrimitiveShape::Line($it) => $e,
+            PrimitiveShape::QuadBez($it) => $e,
+            PrimitiveShape::Rect($it) => $e,
+            PrimitiveShape::RoundedRect($it) => $e,
+            PrimitiveShape::External($it) => $e,
         }
     };
 }
 
-impl<External> Shape for StaticShape<External>
+impl<External> Shape for PrimitiveShape<External>
 where
     External: Shape,
 {
@@ -160,15 +160,15 @@ mod test {
     fn test_collection() {
         let r = crate::Rect::from_origin_size((0.0, 0.0), (1.0, 1.0));
         let l = crate::Line::new((0.0, 0.0), (0.5, 0.5));
-        let shapes: Vec<StaticShape> = vec![r.into(), l.into()];
-        assert_eq!(shapes, vec![StaticShape::Rect(r), StaticShape::Line(l),]);
+        let shapes: Vec<PrimitiveShape> = vec![r.into(), l.into()];
+        assert_eq!(shapes, vec![PrimitiveShape::Rect(r), PrimitiveShape::Line(l),]);
     }
     #[test]
     fn test_external() {
         let l = crate::Line::new((0.0, 0.0), (0.5, 0.5));
         assert_eq!(
-            StaticShape::from_external_shape(l),
-            StaticShape::External(l)
+            PrimitiveShape::from_external_shape(l),
+            PrimitiveShape::External(l)
         );
     }
 }
