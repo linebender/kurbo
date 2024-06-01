@@ -5,7 +5,7 @@
 use crate::{Ellipse, PathEl, Point, Rect, Shape, Size, Vec2};
 
 use core::cmp::*;
-use core::f64::consts::FRAC_PI_3;
+use core::f64::consts::FRAC_PI_4;
 use core::ops::{Add, Sub};
 
 #[cfg(not(feature = "std"))]
@@ -94,30 +94,41 @@ impl Triangle {
 
         Self::new(
             centroid + (0.0, distances[0]),
-            centroid - Vec2::ONE * distances[1] / 2.0,
-            centroid + Vec2::ONE * distances[2] / 2.0,
+            centroid + distances[1] * Vec2::from_angle(5.0 * FRAC_PI_4),
+            centroid + distances[2] * Vec2::from_angle(7.0 * FRAC_PI_4),
         )
     }
 
     /// A new equilateral [`Triangle`]
     /// takes the center and a point equidistant to the midpoints of the vertices (radius)
     #[inline]
-    pub fn from_center_radius(center: impl Into<Point>, radius: f64) -> Self {
-        const THETA: f64 = FRAC_PI_3; // equilateral triangle guarantee
-        let center = center.into().to_vec2();
+    pub fn from_radius(radius: f64) -> Self {
+        // sqrt(3) (until https://github.com/rust-lang/rust/issues/103883)
+        pub const SQRT_3: f64 = 1.732050807568877293527446341505872367_f64;
 
-        let h = (radius / ((THETA / 2.0).tan()) * radius / ((THETA / 2.0).tan()) + radius * radius)
-            .sqrt();
-        let a = center.y + radius;
-        let b = center + Vec2::ONE * h;
-        let c = center - Vec2::ONE * h;
+        let center = Point::new(0.0, 0.0); // self.centroid().to_vec2();
 
-        Self::new((center.x, a), b.to_point(), c.to_point())
+        let length = 2.0 * SQRT_3 * radius;
+        let height = length * SQRT_3 / 2.0;
+        let distance = height / 3.0;
+
+        let sizes: [Size; 3] = [
+            (0.0, 2.0 * distance).into(),
+            (-length / 2.0, -height / 3.0).into(),
+            (length / 2.0, -height / 3.0).into(),
+        ];
+
+        // let a = (center.x, center.y + 2.0 * distance);
+        // let b = (center + Vec2::ONE * h;
+        // let c = center - Vec2::ONE * h;
+
+        // Self::new(a, b.to_point(), c.to_point())
+        Self::from_centroid_sizes(center, sizes)
     }
 
     /// A new [`Triangle`] moved to `centroid`
     #[inline]
-    pub fn with_centroid(self, centroid: impl Into<Point>) -> Self {
+    pub fn with_centroid(&self, centroid: impl Into<Point>) -> Self {
         Self::from_centroid_sizes(centroid, self.sizes())
     }
 
@@ -294,6 +305,7 @@ impl Triangle {
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
+        // semi perimeter
         let s = (ab + bc + ac) / 2.0;
 
         // Heron's formula
@@ -394,7 +406,7 @@ impl From<(Point, Point, Point)> for Triangle {
 
 impl From<(Point, f64)> for Triangle {
     fn from(params: (Point, f64)) -> Triangle {
-        Triangle::from_center_radius(params.0, params.1)
+        Triangle::from_radius(params.1).with_centroid(params.0)
     }
 }
 
@@ -423,6 +435,8 @@ impl Sub<Vec2> for Triangle {
         )
     }
 }
+
+// TODO: Insets
 
 #[doc(hidden)]
 pub struct TrianglePathIter {
@@ -508,24 +522,52 @@ mod tests {
     use crate::{Point, Size, Triangle};
 
     #[test]
-    fn from_centroid_distances() {
-        let test = Triangle::from_centroid_distances((0.6, 12.2), [11.9, 1.2, 12.3]);
-        let expected = Triangle::new((0.0, 0.0), (0.1882, 4.3293), (0.8494, 18.1853));
+    fn from_centroid_sizes() {
+        let test = Triangle::from_centroid_distances((0.06, 12.2), [11.9, 1.2, 12.3]);
+        let expected = Triangle::from_coords(
+            (0.06, 24.1),
+            (-0.7885281374238573, 11.351471862576142),
+            (8.757413408594534, 3.5025865914054624),
+        );
 
         assert_eq!(test, expected);
     }
 
     #[test]
-    fn from_center_radius() {
-        let test = Triangle::from_center_radius((0.2, 3.3), 10.1);
-        let expected = Triangle::new((20.4, 3.3), (-9.9, 20.779), (-9.9, -14.179));
+    fn from_centroid_distances() {
+        let test = Triangle::from_centroid_distances((0.6, 12.2), [11.9, 1.2, 12.3]);
+        let expected = Triangle::from_coords(
+            (0.6, 24.1),
+            (-0.24852813742385726, 11.351471862576142),
+            (9.297413408594533, 3.5025865914054624),
+        );
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn from_radius() {
+        let test = Triangle::from_radius(10.1);
+        let expected = Triangle::from_coords(
+            (0.0, 20.199999999999996),
+            (-17.493713156445658, -10.099999999999998),
+            (17.493713156445658, -10.099999999999998),
+        );
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn with_centroid() {
+        let test = Triangle::EQUILATERAL.with_centroid((12.2, -2.3));
+        let expected = Triangle::from_coords((12.2, 1.7000000000000002), (9.2, -4.3), (15.2, -4.3));
 
         assert_eq!(test, expected);
     }
 
     #[test]
     fn centroid() {
-        let test = Triangle::new((-90.02, 3.5), (7.2, -9.3), (8.0, 9.1)).centroid();
+        let test = Triangle::from_coords((-90.02, 3.5), (7.2, -9.3), (8.0, 9.1)).centroid();
         let expected = Point::new(-24.939999999999998, 1.0999999999999996);
 
         assert_eq!(test, expected);
@@ -533,7 +575,7 @@ mod tests {
 
     #[test]
     fn sizes() {
-        let test = Triangle::new((-20.0, 180.2), (1.2, 0.0), (290.0, 100.0)).sizes();
+        let test = Triangle::from_coords((-20.0, 180.2), (1.2, 0.0), (290.0, 100.0)).sizes();
         let expected = [
             Size::new(-110.39999999999999, 86.8),
             Size::new(-89.19999999999999, -93.39999999999999),
@@ -571,7 +613,7 @@ mod tests {
 
     #[test]
     fn right_angled_area() {
-        let test = Triangle::new((1.2, 5.3), (1.2, 1.6), (10.0, 1.6)).right_angled_area();
+        let test = Triangle::from_coords((1.2, 5.3), (1.2, 1.6), (10.0, 1.6)).right_angled_area();
         let expected = 16.28;
 
         assert_eq!(test, expected);
@@ -579,7 +621,7 @@ mod tests {
 
     #[test]
     fn vertex_from_x() {
-        let test = Triangle::new((1.0, 3.2), (63.8, 30.2), (2.0, 2.0))
+        let test = Triangle::from_coords((1.0, 3.2), (63.8, 30.2), (2.0, 2.0))
             .vertex_from_x(63.8)
             .unwrap();
         let expected = Point::new(63.8, 30.2);
@@ -589,8 +631,8 @@ mod tests {
 
     #[test]
     fn organise() {
-        let test = Triangle::new((-20.1, 3.2), (12.3, 12.3), (9.2, -100.8)).organise();
-        let expected = Triangle::new((12.3, 12.3), (-20.1, 3.2), (9.2, -100.8));
+        let test = Triangle::from_coords((-20.1, 3.2), (12.3, 12.3), (9.2, -100.8)).organise();
+        let expected = Triangle::from_coords((12.3, 12.3), (-20.1, 3.2), (9.2, -100.8));
 
         assert_eq!(test, expected);
     }

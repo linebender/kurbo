@@ -163,16 +163,6 @@ impl Vec2 {
         }
     }
 
-    /// A [`Vec2`] with magnitude `magnitude` with components in `direction` direction
-    ///
-    /// see [`Self::from_angle`] to get a unit vector from an angle
-    ///
-    /// NOTE: direction should be a unit vector because it is not [`Self::normalize`]d in this function
-    // #[inline]
-    pub fn from_magnitude(magnitude: f64, direction: Vec2) -> Vec2 {
-        todo!()
-    }
-
     /// Linearly interpolate between two vectors.
     #[inline]
     pub fn lerp(self, other: Vec2, t: f64) -> Vec2 {
