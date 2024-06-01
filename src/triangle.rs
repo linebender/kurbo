@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Triangle shape
-use crate::{Ellipse, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Ellipse, PathEl, Point, Rect, Shape, Size, Vec2};
 
 use core::f64::consts::FRAC_PI_3;
 use core::ops::{Add, Sub};
+use std::cmp::*;
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -17,7 +18,7 @@ use crate::common::FloatFuncs;
 //   /   \
 //  *-----*
 //  B     C
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Triangle {
@@ -62,29 +63,45 @@ impl Triangle {
         }
     }
 
-    /// A new `Triangle` from centroid and sizes
+    /// A new [`Triangle`] from centroid and sizes ([`Size`]) - offset of each vertex from the centroid
     #[inline]
-    pub fn from_centroid_sizes(centroid: impl Into<Point>, sizes: [f64; 3]) -> Self {
+    pub fn from_centroid_sizes(centroid: impl Into<Point>, sizes: [impl Into<Size>; 3]) -> Self {
         let centroid = centroid.into();
+
+        let mut points: [Point; 3] = Default::default();
+        for (i, size) in sizes.into_iter().enumerate() {
+            points[i] = centroid + size.into().to_vec2();
+        }
+
+        Self::new(points[0], points[1], points[2])
+    }
+
+    /// A new [`Triangle`] with vertex distances of `distances` from the `centroid`
+    ///
+    /// NOTE: the new [`Triangle`] does not keep `centroid`
+    #[inline]
+    pub fn from_centroid_distances(centroid: impl Into<Point>, distances: [f64; 3]) -> Self {
+        let centroid = centroid.into();
+
         Self::new(
-            (centroid.x, centroid.y + sizes[0]),
-            centroid + Vec2::IDENTITY * sizes[1],
-            centroid + Vec2::IDENTITY * sizes[2],
+            centroid + (0.0, distances[0]),
+            centroid - Vec2::ONE * distances[1] / 2.0,
+            centroid + Vec2::ONE * distances[2] / 2.0,
         )
     }
 
     /// A new equilateral [`Triangle`]
     /// takes the center and a point equidistant to the midpoints of the vertices (radius)
     #[inline]
-    pub fn from_center_size(center: impl Into<Point>, radius: f64) -> Self {
+    pub fn from_center_radius(center: impl Into<Point>, radius: f64) -> Self {
         const THETA: f64 = FRAC_PI_3; // equilateral triangle guarantee
         let center = center.into().to_vec2();
 
         let h = (radius / ((THETA / 2.0).tan()) * radius / ((THETA / 2.0).tan()) + radius * radius)
             .sqrt();
         let a = center.y + radius;
-        let b = center + Vec2::IDENTITY * h;
-        let c = center - Vec2::IDENTITY * h;
+        let b = center + Vec2::ONE * h;
+        let c = center - Vec2::ONE * h;
 
         Self::new((center.x, a), b.to_point(), c.to_point())
     }
@@ -95,10 +112,16 @@ impl Triangle {
         Self::from_centroid_sizes(centroid, self.sizes())
     }
 
-    /// Creates a new [`Triangle`] with new `sizes`
+    /// Creates a new [`Triangle`] with `sizes`
     #[inline]
-    pub fn with_sizes(self, sizes: [f64; 3]) -> Self {
+    pub fn with_sizes(self, sizes: [impl Into<Size>; 3]) -> Self {
         Self::from_centroid_sizes(self.centroid(), sizes)
+    }
+
+    /// Creates a new [`Triangle`] with each vertice's `distances` offset from centroid
+    #[inline]
+    pub fn with_distances(self, distances: [f64; 3]) -> Self {
+        Self::from_centroid_distances(self.centroid(), distances)
     }
 
     /// The centroid of the [`Triangle`]
@@ -110,15 +133,27 @@ impl Triangle {
         )
     }
 
-    /// The distance of each vertex from the centroid
+    /// The euclidean distance of each vertex from the centroid
     #[inline]
-    pub fn sizes(&self) -> [f64; 3] {
+    pub fn distance(&self) -> [f64; 3] {
         let centroid = self.centroid();
 
         [
             self.a.distance(centroid),
             self.b.distance(centroid),
             self.c.distance(centroid),
+        ]
+    }
+
+    /// The offset of each vertex from the centroid
+    #[inline]
+    pub fn sizes(&self) -> [Size; 3] {
+        let centroid = self.centroid().to_vec2();
+
+        [
+            (centroid - self.a.to_vec2()).to_size(),
+            (centroid - self.b.to_vec2()).to_size(),
+            (centroid - self.c.to_vec2()).to_size(),
         ]
     }
 
@@ -143,6 +178,65 @@ impl Triangle {
     pub fn right_angled_area(&self) -> f64 {
         // A = 1/2*b*h
         (self.b.distance(self.c) * self.b.midpoint(self.c).distance(self.a)) / 2.0
+    }
+
+    /// Updates [`Triangle`]'s vertice positions
+    /// such that [`Triangle::a`] is topmost, [`Triangle::b`] is leftmost, and [`Triangle::c`] is rightmost
+    #[inline]
+    pub fn organise(self) -> Self {
+        Self::new(self.topmost(), self.leftmost(), self.rightmost())
+    }
+
+    /// Vertex coordinate ([`Point`]) of [`Triangle`] with `x` ordinate
+    #[inline]
+    pub fn vertex_from_x(&self, x: f64) -> Option<Point> {
+        self.as_array().iter().find(|&v| v.x == x).copied()
+    }
+
+    /// Vertex coordinate ([`Point`]) of [`Triangle`] with `y` ordinate
+    #[inline]
+    pub fn vertex_from_y(&self, y: f64) -> Option<Point> {
+        self.as_array().iter().find(|&v| v.y == y).copied()
+    }
+
+    /// The topmost vertex of `self` as a [`Point`]
+    #[inline]
+    pub fn topmost(&self) -> Point {
+        *self
+            .as_array()
+            .iter()
+            .max_by(|x, y| x.y.total_cmp(&y.y))
+            .unwrap()
+    }
+
+    /// The bottommost vertex of `self` as a [`Point`]
+    #[inline]
+    pub fn bottommost(&self) -> Point {
+        *self
+            .as_array()
+            .iter()
+            .max_by(|x, y| y.y.total_cmp(&x.y))
+            .unwrap()
+    }
+
+    /// The rightmost vertex of `self` as a [`Point`]
+    #[inline]
+    pub fn rightmost(&self) -> Point {
+        *self
+            .as_array()
+            .iter()
+            .max_by(|x, y| x.x.total_cmp(&y.x))
+            .unwrap()
+    }
+
+    /// The leftmost vertex of `self` as a [`Point`]
+    #[inline]
+    pub fn leftmost(&self) -> Point {
+        *self
+            .as_array()
+            .iter()
+            .max_by(|x, y| y.x.total_cmp(&x.x))
+            .unwrap()
     }
 
     /// Maximum x-coordinate of the [`Triangle`]'s vertices
@@ -208,9 +302,9 @@ impl Triangle {
     /// Expand the triangle by a constant amount (`sizes`) in all directions
     pub fn inflate(&self, sizes: [f64; 3]) -> Self {
         Self::new(
-            (self.a.to_vec2() + Vec2::IDENTITY * sizes[0]).to_point(),
-            (self.b.to_vec2() + Vec2::IDENTITY * sizes[1]).to_point(),
-            (self.c.to_vec2() + Vec2::IDENTITY * sizes[2]).to_point(),
+            (self.a.to_vec2() + Vec2::ONE * sizes[0]).to_point(),
+            (self.b.to_vec2() + Vec2::ONE * sizes[1]).to_point(),
+            (self.c.to_vec2() + Vec2::ONE * sizes[2]).to_point(),
         )
     }
 
@@ -279,6 +373,12 @@ impl Triangle {
     pub fn is_nan(&self) -> bool {
         self.a.is_nan() || self.b.is_nan() || self.c.is_nan()
     }
+
+    /// [`Triangle`]'s vertices as an array of Points
+    #[inline]
+    pub fn as_array(&self) -> [Point; 3] {
+        [self.a, self.b, self.c]
+    }
 }
 
 impl From<(Point, Point, Point)> for Triangle {
@@ -289,7 +389,7 @@ impl From<(Point, Point, Point)> for Triangle {
 
 impl From<(Point, f64)> for Triangle {
     fn from(params: (Point, f64)) -> Triangle {
-        Triangle::from_center_size(params.0, params.1)
+        Triangle::from_center_radius(params.0, params.1)
     }
 }
 
@@ -398,4 +498,40 @@ impl Iterator for TrianglePathIter {
     }
 }
 
-// TODO: tests
+#[cfg(test)]
+mod tests {
+    use crate::{Point, Triangle};
+
+    #[test]
+    fn from_centroid_distances() {
+        let test = Triangle::from_centroid_distances((0.6, 12.2), [11.9, 1.2, 12.3]);
+        let expected = Triangle::new((0.0, 0.0), (0.1882, 4.3293), (0.8494, 18.1853));
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn from_center_radius() {
+        let test = Triangle::from_center_radius((0.2, 3.3), 10.1);
+        let expected = Triangle::new((20.4, 3.3), (-9.9, 20.779), (-9.9, -14.179));
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn centroid() {
+        let test = Triangle::new((-90.02, 3.5), (7.2, -9.3), (8.0, 9.1)).centroid();
+        let expected = Point::new(-24.939999999999998, 1.0999999999999996);
+
+        assert_eq!(test, expected);
+    }
+
+    // should only need one out of Triangle:: topmost, rightmost, leftmost, bottommost
+    #[test]
+    fn topmost() {
+        let test = Triangle::new((-20.1, 3.2), (12.3, 12.3), (9.2, -100.8)).topmost();
+        let expected = Point::new(12.3, 12.3);
+
+        assert_eq!(test, expected);
+    }
+}
