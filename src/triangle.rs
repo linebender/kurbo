@@ -212,9 +212,13 @@ impl Triangle {
     /// such that [`Triangle::a`] is topmost, [`Triangle::b`] is leftmost, and [`Triangle::c`] is rightmost
     #[inline]
     pub fn organise(self) -> Self {
-        let t = Self::new(self.topmost(), self.leftmost(), self.rightmost());
+        let mut points = self.as_array();
+        points.sort_by(|x, y| x.rightmost(y));
 
-        t
+        let a = self.topmost();
+        let b = *points.iter().find(|&&p| p != a).unwrap();
+        let c = *points.iter().rev().find(|&&p| p != a).unwrap();
+        Self::new(a, b, c)
     }
 
     /// Vertex coordinate ([`Point`]) of [`Triangle`] with `x` ordinate
