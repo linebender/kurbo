@@ -70,8 +70,8 @@ impl Ellipse {
         let radius = triangle.radius();
         Ellipse::private_new(
             triangle.centroid().to_vec2(),
-            radius / 2.0,
-            radius / 2.0,
+            radius,
+            radius,
             0.0,
         )
     }
