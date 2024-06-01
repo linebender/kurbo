@@ -32,7 +32,7 @@ impl Vec2 {
     pub const ZERO: Vec2 = Vec2::new(0., 0.);
 
     /// The vector (1, 1)
-    pub const IDENTITY: Vec2 = Vec2::new(1., 1.);
+    pub const ONE: Vec2 = Vec2::new(1., 1.);
 
     /// Create a new vector.
     #[inline]
@@ -162,6 +162,14 @@ impl Vec2 {
             y: th_sin,
         }
     }
+
+    /// A vector with magnitude `magnitude` with components in `direction` direction
+    ///
+    /// see [`Self::from_angle`] to get a unit vector from an angle
+    ///
+    /// NOTE: direction should be a unit vector, it is not normalized in this function
+    // #[inline]
+    // pub fn from_magnitude(magnitude: f64, direction: Vec2) -> Vec2 {}
 
     /// Linearly interpolate between two vectors.
     #[inline]

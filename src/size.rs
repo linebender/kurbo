@@ -358,6 +358,16 @@ impl SubAssign<Size> for Size {
     }
 }
 
+impl From<f64> for Size {
+    #[inline]
+    fn from(s: f64) -> Size {
+        Size {
+            width: s,
+            height: s,
+        }
+    }
+}
+
 impl From<(f64, f64)> for Size {
     #[inline]
     fn from(v: (f64, f64)) -> Size {
