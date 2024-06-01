@@ -4,9 +4,9 @@
 //! Triangle shape
 use crate::{Ellipse, PathEl, Point, Rect, Shape, Size, Vec2};
 
+use core::cmp::*;
 use core::f64::consts::FRAC_PI_3;
 use core::ops::{Add, Sub};
-use std::cmp::*;
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -32,16 +32,25 @@ pub struct Triangle {
 
 impl Default for Triangle {
     fn default() -> Self {
-        Self::IDENTITY
+        Self::EQUILATERAL
     }
 }
 
+macro_rules! most_ordering {
+    ($x: ident, $by: block) => {
+        *$x.as_array().iter().max_by($by).unwrap()
+    };
+}
+
 impl Triangle {
-    /// The empty triangle at the origin
+    /// The empty [`Triangle`] at the origin
     pub const ZERO: Self = Self::from_coords((0., 0.), (0., 0.), (0., 0.));
 
-    /// Triangle identity
-    pub const IDENTITY: Self = Self::from_coords((3.0, 6.0), (0.0, 0.0), (6.0, 0.0));
+    /// empty [`Triangle`] at (1.0, 1.0)
+    pub const ONE: Self = Self::from_coords((1.0, 1.0), (1.0, 1.0), (1.0, 1.0));
+
+    /// equilateral [`Triangle`] identity
+    pub const EQUILATERAL: Self = Self::from_coords((3.0, 6.0), (0.0, 0.0), (6.0, 0.0));
 
     /// A new [`Triangle`] from three vertices ([`Points`])
     #[inline]
@@ -151,10 +160,16 @@ impl Triangle {
         let centroid = self.centroid().to_vec2();
 
         [
-            (centroid - self.a.to_vec2()).to_size(),
-            (centroid - self.b.to_vec2()).to_size(),
-            (centroid - self.c.to_vec2()).to_size(),
+            (self.a.to_vec2() - centroid).to_size(),
+            (self.b.to_vec2() - centroid).to_size(),
+            (self.c.to_vec2() - centroid).to_size(),
         ]
+    }
+
+    /// The perimeter of the [`Triangle`]
+    #[inline]
+    fn perimeter(&self) -> f64 {
+        self.a.distance(self.b) + self.b.distance(self.c) + self.c.distance(self.a)
     }
 
     /// The area of the [`Triangle`]
@@ -165,7 +180,7 @@ impl Triangle {
         let bc = self.b.distance(self.c);
 
         // cos rule
-        let theta = ((bc * bc - ab * ab - ac * ac) / -2.0 * ab * ac).acos();
+        let theta = ((bc * bc - ab * ab - ac * ac) / (-2.0 * ab * ac)).acos();
 
         // A = 1/2*a*b*sin(C)
         (ab * ac * theta.sin()) / 2.0
@@ -174,17 +189,21 @@ impl Triangle {
     // TODO: maybe make height functions for right and non right angled triangles
 
     /// The area of a right angled [`Triangle`]
+    ///
+    /// NOTE: assumed [`Triangle::organise`]d positions
     #[inline]
     pub fn right_angled_area(&self) -> f64 {
         // A = 1/2*b*h
-        (self.b.distance(self.c) * self.b.midpoint(self.c).distance(self.a)) / 2.0
+        (self.b.distance(self.c) * (self.a.y - self.b.y)) / 2.0
     }
 
     /// Updates [`Triangle`]'s vertice positions
     /// such that [`Triangle::a`] is topmost, [`Triangle::b`] is leftmost, and [`Triangle::c`] is rightmost
     #[inline]
     pub fn organise(self) -> Self {
-        Self::new(self.topmost(), self.leftmost(), self.rightmost())
+        let t = Self::new(self.topmost(), self.leftmost(), self.rightmost());
+
+        t
     }
 
     /// Vertex coordinate ([`Point`]) of [`Triangle`] with `x` ordinate
@@ -202,41 +221,25 @@ impl Triangle {
     /// The topmost vertex of `self` as a [`Point`]
     #[inline]
     pub fn topmost(&self) -> Point {
-        *self
-            .as_array()
-            .iter()
-            .max_by(|x, y| x.y.total_cmp(&y.y))
-            .unwrap()
+        most_ordering!(self, { |x, y| x.topmost(y) })
     }
 
     /// The bottommost vertex of `self` as a [`Point`]
     #[inline]
     pub fn bottommost(&self) -> Point {
-        *self
-            .as_array()
-            .iter()
-            .max_by(|x, y| y.y.total_cmp(&x.y))
-            .unwrap()
+        most_ordering!(self, { |x, y| x.bottommost(y) })
     }
 
     /// The rightmost vertex of `self` as a [`Point`]
     #[inline]
     pub fn rightmost(&self) -> Point {
-        *self
-            .as_array()
-            .iter()
-            .max_by(|x, y| x.x.total_cmp(&y.x))
-            .unwrap()
+        most_ordering!(self, { |x, y| x.x.total_cmp(&y.x) })
     }
 
     /// The leftmost vertex of `self` as a [`Point`]
     #[inline]
     pub fn leftmost(&self) -> Point {
-        *self
-            .as_array()
-            .iter()
-            .max_by(|x, y| y.x.total_cmp(&x.x))
-            .unwrap()
+        most_ordering!(self, { |x, y| y.x.total_cmp(&x.x) })
     }
 
     /// Maximum x-coordinate of the [`Triangle`]'s vertices
@@ -300,11 +303,13 @@ impl Triangle {
     }
 
     /// Expand the triangle by a constant amount (`sizes`) in all directions
-    pub fn inflate(&self, sizes: [f64; 3]) -> Self {
+    pub fn inflate(&self, size: impl Into<Size>) -> Self {
+        let size = size.into();
+
         Self::new(
-            (self.a.to_vec2() + Vec2::ONE * sizes[0]).to_point(),
-            (self.b.to_vec2() + Vec2::ONE * sizes[1]).to_point(),
-            (self.c.to_vec2() + Vec2::ONE * sizes[2]).to_point(),
+            (self.a.to_vec2() + size.to_vec2()).to_point(),
+            (self.b.to_vec2() + size.to_vec2()).to_point(),
+            (self.c.to_vec2() + size.to_vec2()).to_point(),
         )
     }
 
@@ -442,7 +447,7 @@ impl Shape for Triangle {
 
     #[inline]
     fn perimeter(&self, _accuracy: f64) -> f64 {
-        self.a.distance(self.b) + self.b.distance(self.c) + self.c.distance(self.a)
+        self.perimeter()
     }
 
     #[inline]
@@ -500,7 +505,7 @@ impl Iterator for TrianglePathIter {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Point, Triangle};
+    use crate::{Point, Size, Triangle};
 
     #[test]
     fn from_centroid_distances() {
@@ -526,11 +531,74 @@ mod tests {
         assert_eq!(test, expected);
     }
 
-    // should only need one out of Triangle:: topmost, rightmost, leftmost, bottommost
     #[test]
-    fn topmost() {
-        let test = Triangle::new((-20.1, 3.2), (12.3, 12.3), (9.2, -100.8)).topmost();
-        let expected = Point::new(12.3, 12.3);
+    fn sizes() {
+        let test = Triangle::new((-20.0, 180.2), (1.2, 0.0), (290.0, 100.0)).sizes();
+        let expected = [
+            Size::new(-110.39999999999999, 86.8),
+            Size::new(-89.19999999999999, -93.39999999999999),
+            Size::new(199.60000000000002, 6.6000000000000085),
+        ];
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn perimeter() {
+        let test = Triangle::new(
+            (781239.273894, 789234.234789),
+            (234897.823471, 378902.234789),
+            (789241.789234, 789234.234897),
+        )
+        .perimeter();
+        let expected = 1380963.0638877784;
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn area() {
+        let test = Triangle::new(
+            (12123.423, 2382.7834),
+            (7892.729, 238.459),
+            (7820.2, 712.23),
+        )
+        .area();
+        let expected = 1079952.91574081;
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn right_angled_area() {
+        let test = Triangle::new((1.2, 5.3), (1.2, 1.6), (10.0, 1.6)).right_angled_area();
+        let expected = 16.28;
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn vertex_from_x() {
+        let test = Triangle::new((1.0, 3.2), (63.8, 30.2), (2.0, 2.0))
+            .vertex_from_x(63.8)
+            .unwrap();
+        let expected = Point::new(63.8, 30.2);
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn organise() {
+        let test = Triangle::new((-20.1, 3.2), (12.3, 12.3), (9.2, -100.8)).organise();
+        let expected = Triangle::new((12.3, 12.3), (-20.1, 3.2), (9.2, -100.8));
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn radius() {
+        let test = Triangle::EQUILATERAL.radius();
+        let expected = 1.8541019662496845;
 
         assert_eq!(test, expected);
     }
