@@ -68,12 +68,7 @@ impl Ellipse {
     #[inline]
     pub fn from_triangle(triangle: Triangle) -> Self {
         let radius = triangle.radius();
-        Ellipse::private_new(
-            triangle.centroid().to_vec2(),
-            radius,
-            radius,
-            0.0,
-        )
+        Ellipse::private_new(triangle.centroid().to_vec2(), radius, radius, 0.0)
     }
 
     /// Create an ellipse from an affine transformation of the unit circle.

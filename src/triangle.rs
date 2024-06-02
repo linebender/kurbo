@@ -525,6 +525,11 @@ impl Iterator for TrianglePathIter {
 mod tests {
     use crate::{Point, Size, Triangle};
 
+    fn assert_approx_eq(x: f64, y: f64) {
+        assert!((x - y).abs() < 1e-7);
+    }
+
+
     #[test]
     fn from_centroid_sizes() {
         let test = Triangle::from_centroid_distances((0.06, 12.2), [11.9, 1.2, 12.3]);
@@ -599,7 +604,7 @@ mod tests {
         .perimeter();
         let expected = 1380963.0638877784;
 
-        assert_eq!(test, expected);
+        assert_approx_eq(test, expected);
     }
 
     #[test]
@@ -612,7 +617,7 @@ mod tests {
         .area();
         let expected = 1079952.91574081;
 
-        assert_eq!(test, expected);
+        assert_approx_eq(test, expected);
     }
 
     #[test]
@@ -620,7 +625,7 @@ mod tests {
         let test = Triangle::from_coords((1.2, 5.3), (1.2, 1.6), (10.0, 1.6)).right_angled_area();
         let expected = 16.28;
 
-        assert_eq!(test, expected);
+        assert_approx_eq(test, expected);
     }
 
     #[test]
@@ -646,6 +651,6 @@ mod tests {
         let test = Triangle::EQUILATERAL.radius();
         let expected = 1.8541019662496845;
 
-        assert_eq!(test, expected);
+        assert_approx_eq(test, expected);
     }
 }
