@@ -529,7 +529,6 @@ mod tests {
         assert!((x - y).abs() < 1e-7);
     }
 
-
     #[test]
     fn from_centroid_sizes() {
         let test = Triangle::from_centroid_distances((0.06, 12.2), [11.9, 1.2, 12.3]);
