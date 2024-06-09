@@ -123,20 +123,29 @@ pub trait ParamCurveArclen: ParamCurve {
     }
 }
 
-/// A parametrized curve that can have its signed area measured.
+/// A parametrized curve (or a section of one) that can have its signed area measured.
 pub trait ParamCurveArea {
-    /// Compute the signed area under the curve.
+    /// Compute the signed (counterclockwise from +x to +y) area between the curve and the origin.
+    /// Equivalently (using Green's theorem),
+    /// this is integral of the form `(x*dy - y*dx)/2` along the curve.
     ///
-    /// For a closed path, the signed area of the path is the sum of signed
-    /// areas of the segments. This is a variant of the "shoelace formula."
+    /// For closed curves, this is the curve's area.
+    /// For open curves, this is the the area of the resulting shape that would be created if
+    /// the curve was closed with two line segments between the endpoints and the origin.
+    /// This allows the area of a piecewise curve to be computed by adding the areas of its segments,
+    /// generalizing the "shoelace formula."
+    ///
+    /// For an open curve with endpoints `(x0, y0)` and `(x1, y1)`, this value
+    /// is also equivalent to `-integral(y*dx) - (x0*y0 + x1*y1)/2`.
+    ///
     /// See:
     /// <https://github.com/Pomax/bezierinfo/issues/44> and
     /// <http://ich.deanmcnamee.com/graphics/2016/03/30/CurveArea.html>
     ///
-    /// This can be computed exactly for Béziers thanks to Green's theorem,
-    /// and also for simple curves such as circular arcs. For more exotic
-    /// curves, it's probably best to subdivide to cubics. We leave that
-    /// to the caller, which is why we don't give an accuracy param here.
+    /// This can be computed exactly for Béziers,
+    /// and also for simple curves such as circular arcs.
+    /// For more exotic curves, it's probably best to subdivide to cubics.
+    /// We leave that to the caller, which is why we don't give an accuracy param here.
     fn signed_area(&self) -> f64;
 }
 
