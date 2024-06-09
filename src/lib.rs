@@ -112,6 +112,7 @@ mod stroke;
 #[cfg(feature = "std")]
 mod svg;
 mod translate_scale;
+mod triangle;
 mod vec2;
 
 pub use crate::affine::*;
@@ -136,4 +137,5 @@ pub use crate::stroke::*;
 #[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
+pub use crate::triangle::*;
 pub use crate::vec2::*;
