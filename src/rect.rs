@@ -236,14 +236,17 @@ impl Rect {
         Rect::new(x0, y0, x1.max(x0), y1.max(y0))
     }
 
-    /// Determines whether the this rectangle intersects with another in any way.
+    /// Determines whether this rectangle overlaps with another in any way.
     ///
-    /// Returns `true` if the rectangles intersect, `false` otherwise.
+    /// Note that the edge of the rectangle is considered to be part of itself, meaning
+    /// that two rectangles that share an edge are considered to overlap.
+    ///
+    /// Returns `true` if the rectangles overlap, `false` otherwise.
     ///
     /// If you want to compute the *intersection* of two rectangles, use the
     /// [`intersect`] method instead.
     ///
-    /// [`intersect`]: Rect::intersects
+    /// [`intersect`]: Rect::intersect
     ///
     /// # Examples
     ///
@@ -253,10 +256,14 @@ impl Rect {
     /// let rect1 = Rect::new(0.0, 0.0, 10.0, 10.0);
     /// let rect2 = Rect::new(5.0, 5.0, 15.0, 15.0);
     /// assert!(rect1.overlaps(rect2));
+    ///
+    /// let rect1 = Rect::new(0.0, 0.0, 10.0, 10.0);
+    /// let rect2 = Rect::new(10.0, 0.0, 20.0, 10.0);
+    /// assert!(rect1.overlaps(rect2));
     /// ```
     #[inline]
     pub fn overlaps(&self, other: Rect) -> bool {
-        self.x0 < other.x1 && self.x1 > other.x0 && self.y0 < other.y1 && self.y1 > other.y0
+        self.x0 <= other.x1 && self.x1 >= other.x0 && self.y0 <= other.y1 && self.y1 >= other.y0
     }
 
     /// Returns whether this rectangle contains another rectangle.
@@ -844,6 +851,13 @@ mod tests {
         let a = Rect::new(0.0, 0.0, 10.0, 10.0);
         let b = Rect::new(11.0, 11.0, 15.0, 15.0);
         assert!(!a.overlaps(b));
+    }
+
+    #[test]
+    fn sharing_edge_overlaps() {
+        let a = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let b = Rect::new(10.0, 0.0, 20.0, 10.0);
+        assert!(a.overlaps(b));
     }
 
     // Test the two other directions in case there is a bug that only appears in one direction.
