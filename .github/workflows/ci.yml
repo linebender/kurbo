@@ -123,3 +123,12 @@ jobs:
 
       - name: cargo doc
         run: cargo doc --all-features --document-private-items
+
+  # If this fails, consider changing your text or adding something to .typos.toml
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check typos
+        uses: crate-ci/typos@v1.23.2
