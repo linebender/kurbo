@@ -5,7 +5,9 @@ authors = ["Raph Levien <raph.levien@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 # TODO: When this hits 1.74, move lint configuration into this file via a lints table.
-rust-version = "1.65" # When updating this, also update the README.md and CI.
+# Keep in sync with RUST_MIN_VER in .github/workflows/ci.yml, with the README.md file,
+# and with the MSRV in the `Unreleased` section of CHANGELOG.md.
+rust-version = "1.65"
 keywords = ["graphics", "curve", "curves", "bezier", "geometry"]
 repository = "https://github.com/linebender/kurbo"
 description = "A 2D curves library"
