@@ -3,12 +3,19 @@
 
 //! SVG path representation.
 
+use alloc::vec::Vec;
+use core::f64::consts::PI;
+use core::fmt::{self, Display, Formatter};
+// MSRV: Once our MSRV is 1.81, we can switch to `core::error`
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::f64::consts::PI;
-use std::fmt::{self, Display, Formatter};
+#[cfg(feature = "std")]
 use std::io::{self, Write};
 
 use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
@@ -60,6 +67,7 @@ impl BezPath {
     ///
     /// The current implementation doesn't take any special care to produce a
     /// short string (reducing precision, using relative movement).
+    #[cfg(feature = "std")]
     pub fn to_svg(&self) -> String {
         let mut buffer = Vec::new();
         self.write_to(&mut buffer).unwrap();
@@ -67,6 +75,7 @@ impl BezPath {
     }
 
     /// Write the SVG representation of this path to the provided buffer.
+    #[cfg(feature = "std")]
     pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
         for (i, el) in self.elements().iter().enumerate() {
             if i > 0 {
@@ -264,6 +273,7 @@ impl Display for SvgParseError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for SvgParseError {}
 
 struct SvgLexer<'a> {
