@@ -79,6 +79,7 @@
     clippy::excessive_precision,
     clippy::bool_to_int_with_if
 )]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
