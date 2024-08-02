@@ -1,128 +1,268 @@
+env:
+  # We aim to always test with the latest stable Rust toolchain, however we pin to a specific
+  # version like 1.70. Note that we only specify MAJOR.MINOR and not PATCH so that bugfixes still
+  # come automatically. If the version specified here is no longer the latest stable version,
+  # then please feel free to submit a PR that adjusts it along with the potential clippy fixes.
+  RUST_STABLE_VER: "1.79" # In quotes because otherwise (e.g.) 1.70 would be interpreted as 1.7
+  # The purpose of checking with the minimum supported Rust toolchain is to detect its staleness.
+  # If the compilation fails, then the version specified here needs to be bumped up to reality.
+  # Be sure to also update the rust-version property in the workspace Cargo.toml file,
+  # plus all the README.md files of the affected packages.
+  RUST_MIN_VER: "1.65"
+  # List of packages that will be checked with the minimum supported Rust version.
+  # This should be limited to packages that are intended for publishing.
+  RUST_MIN_VER_PKGS: "-p kurbo"
+  # List of features that depend on the standard library and will be excluded from no_std checks.
+  FEATURES_DEPENDING_ON_STD: "std,default,schemars"
+
+
+# Rationale
+#
+# We don't run clippy with --all-targets because then even --lib and --bins are compiled with
+# dev dependencies enabled, which does not match how they would be compiled by users.
+# A dev dependency might enable a feature that we need for a regular dependency,
+# and checking with --all-targets would not find our feature requirements lacking.
+# This problem still applies to cargo resolver version 2.
+# Thus we split all the targets into two steps, one with --lib --bins
+# and another with --tests --benches --examples.
+# Also, we can't give --lib --bins explicitly because then cargo will error on binary-only packages.
+# Luckily the default behavior of cargo with no explicit targets is the same but without the error.
+#
+# We use cargo-hack for a similar reason. Cargo's --workspace will do feature unification across
+# the whole workspace. While cargo-hack will instead check each workspace package separately.
+#
+# Using cargo-hack also allows us to more easily test the feature matrix of our packages.
+# We use --each-feature & --optional-deps which will run a separate check for every feature.
+#
+# The MSRV jobs run only cargo check because different clippy versions can disagree on goals and
+# running tests introduces dev dependencies which may require a higher MSRV than the bare package.
+#
+# For no_std checks we target x86_64-unknown-none, because this target doesn't support std
+# and as such will error out if our dependency tree accidentally tries to use std.
+# https://doc.rust-lang.org/stable/rustc/platform-support/x86_64-unknown-none.html
+#
+# We don't save caches in the merge-group cases, because those caches will never be re-used (apart
+# from the very rare cases where there are multiple PRs in the merge queue).
+# This is because GitHub doesn't share caches between merge queues and `main`.
+
 name: CI
 
 on:
+  pull_request:
+  merge_group:
+  # We run on push, even though the commit is the same as when we ran in merge_group.
+  # This allows the cache to be primed.
+  # See https://github.com/orgs/community/discussions/66430
   push:
     branches:
       - main
-  pull_request:
 
 jobs:
-  rustfmt:
-    runs-on: ubuntu-latest
+  fmt:
     name: cargo fmt
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "stable"
+          toolchain: ${{ env.RUST_STABLE_VER }}
           components: rustfmt
 
       - name: cargo fmt
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all --check
+
+      - name: install ripgrep
+        run: |
+          sudo apt update
+          sudo apt install ripgrep
+
+      - name: check copyright headers
+        run: bash .github/copyright.sh
+
+  clippy-stable:
+    name: cargo clippy
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
+
+      - name: install stable toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_STABLE_VER }}
+          targets: x86_64-unknown-none
+          components: clippy
+
+      - name: install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      - name: cargo clippy (no_std)
+        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none -- -D warnings
+
+      - name: cargo clippy
+        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --features std -- -D warnings
+
+      - name: cargo clippy (auxiliary)
+        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --features std --tests --benches --examples -- -D warnings
+
+  clippy-stable-wasm:
+    name: cargo clippy (wasm32)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
+
+      - name: install stable toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_STABLE_VER }}
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - name: install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      - name: cargo clippy
+        run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --features std -- -D warnings
+
+      - name: cargo clippy (auxiliary)
+        run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --features std --tests --benches --examples -- -D warnings
 
   test-stable:
+    name: cargo test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macOS-latest, windows-2019, ubuntu-latest]
-    name: cargo clippy+test
+        os: [windows-latest, macos-latest, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "stable"
-          components: clippy
-
-      - run: rustup target add thumbv7m-none-eabi
-
-      - name: cargo clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
+          toolchain: ${{ env.RUST_STABLE_VER }}
 
       - name: cargo test
-        run: cargo test --all-features
-
-      - name: Build with no default features
-        # Use no-std target to ensure we don't link to std.
-        run: cargo build --no-default-features --features libm --target thumbv7m-none-eabi
-
-      - name: cargo test --features=serde
-        run: cargo test --features=serde
+        run: cargo test --workspace --locked --all-features
 
   test-stable-wasm:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macOS-latest, windows-2019, ubuntu-latest]
-
-    name: cargo clippy+test (wasm32)
+    name: cargo test (wasm32)
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "stable"
-          target: wasm32-unknown-unknown
-          components: clippy
-
-      - name: cargo clippy
-        run: cargo clippy --all-features --all-targets --target wasm32-unknown-unknown -- -D warnings
+          toolchain: ${{ env.RUST_STABLE_VER }}
+          targets: wasm32-unknown-unknown
 
       # TODO: Find a way to make tests work. Until then the tests are merely compiled.
       - name: cargo test compile
-        run: cargo test --all-features --no-run --target wasm32-unknown-unknown
+        run: cargo test --workspace --locked --target wasm32-unknown-unknown --all-features --no-run
 
-  test-msrv:
-    runs-on: ubuntu-latest
-    name: cargo test msrv
+  check-msrv:
+    name: cargo check (msrv)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: install msrv toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.65"
+          toolchain: ${{ env.RUST_MIN_VER }}
+          targets: x86_64-unknown-none
 
-      - name: cargo test
-        run: cargo test --all-features
+      - name: install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
 
-  test-nightly:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macOS-latest, windows-2019, ubuntu-latest]
-    name: cargo test nightly
+      - name: cargo check (no_std)
+        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none
+
+      - name: cargo check
+        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --features std
+
+  check-msrv-wasm:
+    name: cargo check (msrv) (wasm32)
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
+
+      - name: install msrv toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_MIN_VER }}
+          targets: wasm32-unknown-unknown
+
+      - name: install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      - name: cargo check
+        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --target wasm32-unknown-unknown --optional-deps --each-feature --features std
+
+  doc:
+    name: cargo doc
+    # NOTE: We don't have any platform specific docs in this workspace, so we only run on Ubuntu.
+    #       If we get per-platform docs (win/macos/linux/wasm32/..) then doc jobs should match that.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: install nightly toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "nightly"
+        uses: dtolnay/rust-toolchain@nightly
 
-      - name: cargo test
-        run: cargo test --all-features
-
-  check-docs:
-    name: Docs
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macOS-latest, windows-2019, ubuntu-latest]
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: install stable toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "stable"
-
+      # We test documentation using nightly to match docs.rs. This prevents potential breakages
       - name: cargo doc
-        run: cargo doc --all-features --document-private-items
+        run: cargo doc --workspace --locked --all-features --no-deps --document-private-items -Zunstable-options -Zrustdoc-scrape-examples
 
   # If this fails, consider changing your text or adding something to .typos.toml
   typos:
