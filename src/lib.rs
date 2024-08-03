@@ -64,8 +64,6 @@
 //! efficient as the standard library, and that this crate still uses the
 //! `alloc` crate regardless.
 //!
-//! [`Piet`]: https://docs.rs/piet
-//! [`Druid`]: https://docs.rs/druid
 //! [`libm`]: https://docs.rs/libm
 
 #![forbid(unsafe_code)]
