@@ -18,6 +18,7 @@ This release has an [MSRV][] of 1.65.
 ### Added
 
 - Add `From (f32, f32)` for `Point`. ([#339] by [@rsheeter])
+- Add `Rect::overlaps` and `Rect::contains_rect`. ([#347] by [@nils-mathieu])
 
 ### Changed
 
@@ -35,6 +36,7 @@ This release has an [MSRV][] of 1.65.
 
 Note: A changelog was not kept for or before this release
 
+[@nils-mathieu]: https://github.com/nils-mathieu
 [@platlas]: https://github.com/platlas
 [@raphlinus]: https://github.com/raphlinus
 [@rsheeter]: https://github.com/rsheeter
@@ -45,6 +47,7 @@ Note: A changelog was not kept for or before this release
 [#339]: https://github.com/linebender/kurbo/pull/339
 [#340]: https://github.com/linebender/kurbo/pull/340
 [#343]: https://github.com/linebender/kurbo/pull/343
+[#347]: https://github.com/linebender/kurbo/pull/347
 [#354]: https://github.com/linebender/kurbo/pull/354
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.0...HEAD
