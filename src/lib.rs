@@ -110,7 +110,6 @@ mod shape;
 pub mod simplify;
 mod size;
 mod stroke;
-#[cfg(feature = "std")]
 mod svg;
 mod translate_scale;
 mod vec2;
@@ -134,7 +133,6 @@ pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
 pub use crate::stroke::*;
-#[cfg(feature = "std")]
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;
