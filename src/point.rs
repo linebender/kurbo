@@ -64,12 +64,22 @@ impl Point {
     }
 
     /// Euclidean distance.
+    ///
+    /// # See also
+    ///
+    /// * [`Point::distance_squared`]
+    /// * [`Vec2::hypot`]
     #[inline]
     pub fn distance(self, other: Point) -> f64 {
         (self - other).hypot()
     }
 
     /// Squared Euclidean distance.
+    ///
+    /// # See also
+    ///
+    /// * [`Point::distance`]
+    /// * [`Vec2::hypot2`]
     #[inline]
     pub fn distance_squared(self, other: Point) -> f64 {
         (self - other).hypot2()
@@ -89,6 +99,14 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::round`]
+    /// * [`Point::ceil`]
+    /// * [`Point::expand`]
+    /// * [`Point::floor`]
+    /// * [`Point::trunc`]
     #[inline]
     pub fn round(self) -> Point {
         Point::new(self.x.round(), self.y.round())
@@ -109,6 +127,14 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::ceil`]
+    /// * [`Point::expand`]
+    /// * [`Point::floor`]
+    /// * [`Point::round`]
+    /// * [`Point::trunc`]
     #[inline]
     pub fn ceil(self) -> Point {
         Point::new(self.x.ceil(), self.y.ceil())
@@ -129,6 +155,14 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -4.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::floor`]
+    /// * [`Point::ceil`]
+    /// * [`Point::expand`]
+    /// * [`Point::round`]
+    /// * [`Point::trunc`]
     #[inline]
     pub fn floor(self) -> Point {
         Point::new(self.x.floor(), self.y.floor())
@@ -149,6 +183,14 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -4.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`FloatExt::expand`]
+    /// * [`Point::ceil`]
+    /// * [`Point::floor`]
+    /// * [`Point::round`]
+    /// * [`Point::trunc`]
     #[inline]
     pub fn expand(self) -> Point {
         Point::new(self.x.expand(), self.y.expand())
@@ -169,18 +211,36 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::trunc`]
+    /// * [`Point::ceil`]
+    /// * [`Point::expand`]
+    /// * [`Point::floor`]
+    /// * [`Point::round`]
     #[inline]
     pub fn trunc(self) -> Point {
         Point::new(self.x.trunc(), self.y.trunc())
     }
 
     /// Is this point finite?
+    ///
+    /// # See also
+    ///
+    /// * [`f64::is_finite`]
+    /// * [`Point::is_nan`]
     #[inline]
     pub fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite()
     }
 
-    /// Is this point NaN?
+    /// Is this point `NaN`?
+    ///
+    /// # See also
+    ///
+    /// * [`f64::is_nan`]
+    /// * [`Point::is_finite`]
     #[inline]
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()

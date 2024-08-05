@@ -16,7 +16,7 @@ use crate::common::FloatFuncs;
 ///
 /// This is intended primarily for a vector in the mathematical sense,
 /// but it can be interpreted as a translation, and converted to and
-/// from a point (vector relative to the origin) and size.
+/// from a [`Point`] (vector relative to the origin) and [`Size`].
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -37,13 +37,13 @@ impl Vec2 {
         Vec2 { x, y }
     }
 
-    /// Convert this vector into a `Point`.
+    /// Convert this vector into a [`Point`].
     #[inline]
     pub const fn to_point(self) -> Point {
         Point::new(self.x, self.y)
     }
 
-    /// Convert this vector into a `Size`.
+    /// Convert this vector into a [`Size`].
     #[inline]
     pub const fn to_size(self) -> Size {
         Size::new(self.x, self.y)
@@ -55,6 +55,10 @@ impl Vec2 {
     }
 
     /// Dot product of two vectors.
+    ///
+    /// # See also
+    ///
+    /// * [`Vec2::cross`]
     #[inline]
     pub fn dot(self, other: Vec2) -> f64 {
         self.x * other.x + self.y * other.y
@@ -62,7 +66,11 @@ impl Vec2 {
 
     /// Cross product of two vectors.
     ///
-    /// This is signed so that (0, 1) × (1, 0) = 1.
+    /// This is signed so that `(0, 1) × (1, 0) = 1`.
+    ///
+    /// # See also
+    ///
+    /// * [`Vec2::dot`]
     #[inline]
     pub fn cross(self, other: Vec2) -> f64 {
         self.x * other.y - self.y * other.x
@@ -72,6 +80,23 @@ impl Vec2 {
     ///
     /// This is similar to `self.hypot2().sqrt()` but defers to the platform `hypot` method, which
     /// in general will handle the case where `self.hypot2() > f64::MAX`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    /// let v = Vec2::new(3.0, 4.0);
+    /// assert_eq!(v.hypot(), 5.0);
+    /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::hypot`]
+    /// * [`Point::distance`]
+    /// * [`Vec2::hypot2`]
+    /// * [`Vec2::length`]
+    /// * [`Vec2::length_squared`]
+    /// * [`Vec2::normalize`]
     #[inline]
     pub fn hypot(self) -> f64 {
         self.x.hypot(self.y)
@@ -86,6 +111,23 @@ impl Vec2 {
     }
 
     /// Magnitude squared of vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Vec2;
+    /// let v = Vec2::new(3.0, 4.0);
+    /// assert_eq!(v.hypot2(), 25.0);
+    /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`Point::distance_squared`]
+    /// * [`Vec2::dot`]
+    /// * [`Vec2::hypot`]
+    /// * [`Vec2::length`]
+    /// * [`Vec2::length_squared`]
+    /// * [`Vec2::normalize`]
     #[inline]
     pub fn hypot2(self) -> f64 {
         self.dot(self)
@@ -145,10 +187,12 @@ impl Vec2 {
         self + t * (other - self)
     }
 
-    /// Returns a vector of magnitude 1.0 with the same angle as `self`; i.e.
+    /// Returns a vector of [magnitude] 1.0 with the same angle as `self`; i.e.
     /// a unit/direction vector.
     ///
     /// This produces `NaN` values when the magnitude is `0`.
+    ///
+    /// [magnitude]: Self::hypot
     #[inline]
     pub fn normalize(self) -> Vec2 {
         self / self.hypot()
@@ -168,6 +212,14 @@ impl Vec2 {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::round`]
+    /// * [`Vec2::ceil`]
+    /// * [`Vec2::expand`]
+    /// * [`Vec2::floor`]
+    /// * [`Vec2::trunc`]
     #[inline]
     pub fn round(self) -> Vec2 {
         Vec2::new(self.x.round(), self.y.round())
@@ -188,6 +240,14 @@ impl Vec2 {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::ceil`]
+    /// * [`Vec2::expand`]
+    /// * [`Vec2::floor`]
+    /// * [`Vec2::round`]
+    /// * [`Vec2::trunc`]
     #[inline]
     pub fn ceil(self) -> Vec2 {
         Vec2::new(self.x.ceil(), self.y.ceil())
@@ -208,6 +268,14 @@ impl Vec2 {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -4.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::floor`]
+    /// * [`Vec2::ceil`]
+    /// * [`Vec2::expand`]
+    /// * [`Vec2::round`]
+    /// * [`Vec2::trunc`]
     #[inline]
     pub fn floor(self) -> Vec2 {
         Vec2::new(self.x.floor(), self.y.floor())
@@ -228,6 +296,14 @@ impl Vec2 {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -4.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`FloatExt::expand`]
+    /// * [`Vec2::ceil`]
+    /// * [`Vec2::floor`]
+    /// * [`Vec2::round`]
+    /// * [`Vec2::trunc`]
     #[inline]
     pub fn expand(self) -> Vec2 {
         Vec2::new(self.x.expand(), self.y.expand())
@@ -248,24 +324,42 @@ impl Vec2 {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// # See also
+    ///
+    /// * [`f64::trunc`]
+    /// * [`Vec2::ceil`]
+    /// * [`Vec2::expand`]
+    /// * [`Vec2::floor`]
+    /// * [`Vec2::round`]
     #[inline]
     pub fn trunc(self) -> Vec2 {
         Vec2::new(self.x.trunc(), self.y.trunc())
     }
 
-    /// Is this Vec2 finite?
+    /// Is this `Vec2` finite?
+    ///
+    /// # See also
+    ///
+    /// * [`f64::is_finite`]
+    /// * [`Vec2::is_nan`]
     #[inline]
     pub fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite()
     }
 
-    /// Is this Vec2 NaN?
+    /// Is this `Vec2` `NaN`?
+    ///
+    /// # See also
+    ///
+    /// * [`f64::is_nan`]
+    /// * [`Vec2::is_finite`]
     #[inline]
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
 
-    /// Divides this Vec2 by a scalar.
+    /// Divides this `Vec2` by a scalar.
     ///
     /// Unlike the division by scalar operator, which multiplies by the
     /// reciprocal for performance, this performs the division
