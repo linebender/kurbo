@@ -24,6 +24,7 @@ This release has an [MSRV][] of 1.65.
 
 - Move `Self: Sized` bound from `Shape` to methods. ([#340] by [@waywardmonkeys])
 - Enable partial SVG path support in `no_std` builds. ([#356] by [@waywardmonkeys])
+- Deprecate `BezPath::flatten`, prefer `flatten`. ([#361] by [@waywardmonkeys])
 
 ### Fixed
 
@@ -51,6 +52,7 @@ Note: A changelog was not kept for or before this release
 [#347]: https://github.com/linebender/kurbo/pull/347
 [#354]: https://github.com/linebender/kurbo/pull/354
 [#356]: https://github.com/linebender/kurbo/pull/356
+[#361]: https://github.com/linebender/kurbo/pull/361
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
