@@ -112,25 +112,35 @@ mod svg;
 mod translate_scale;
 mod vec2;
 
-pub use crate::affine::*;
-pub use crate::arc::*;
-pub use crate::bezpath::*;
-pub use crate::circle::*;
-pub use crate::cubicbez::*;
-pub use crate::ellipse::*;
-pub use crate::fit::*;
-pub use crate::insets::*;
-pub use crate::line::*;
-pub use crate::param_curve::*;
-pub use crate::point::*;
-pub use crate::quadbez::*;
-pub use crate::quadspline::*;
-pub use crate::rect::*;
-pub use crate::rounded_rect::*;
-pub use crate::rounded_rect_radii::*;
-pub use crate::shape::*;
-pub use crate::size::*;
-pub use crate::stroke::*;
-pub use crate::svg::*;
-pub use crate::translate_scale::*;
-pub use crate::vec2::*;
+pub use crate::affine::Affine;
+pub use crate::arc::{Arc, ArcAppendIter};
+pub use crate::bezpath::{
+    flatten, segments, BezPath, LineIntersection, MinDistance, PathEl, PathSeg, PathSegIter,
+    Segments,
+};
+pub use crate::circle::{Circle, CirclePathIter, CircleSegment};
+pub use crate::cubicbez::{cubics_to_quadratic_splines, CubicBez, CubicBezIter, CuspType};
+pub use crate::ellipse::Ellipse;
+pub use crate::fit::{
+    fit_to_bezpath, fit_to_bezpath_opt, fit_to_cubic, CurveFitSample, ParamCurveFit,
+};
+pub use crate::insets::Insets;
+pub use crate::line::{ConstPoint, Line, LinePathIter};
+pub use crate::param_curve::{
+    Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
+    ParamCurveExtrema, ParamCurveNearest, DEFAULT_ACCURACY, MAX_EXTREMA,
+};
+pub use crate::point::Point;
+pub use crate::quadbez::{QuadBez, QuadBezIter};
+pub use crate::quadspline::QuadSpline;
+pub use crate::rect::{Rect, RectPathIter};
+pub use crate::rounded_rect::{RoundedRect, RoundedRectPathIter};
+pub use crate::rounded_rect_radii::RoundedRectRadii;
+pub use crate::shape::Shape;
+pub use crate::size::Size;
+pub use crate::stroke::{
+    dash, stroke, Cap, DashIterator, Dashes, Join, Stroke, StrokeOptLevel, StrokeOpts,
+};
+pub use crate::svg::{SvgArc, SvgParseError};
+pub use crate::translate_scale::TranslateScale;
+pub use crate::vec2::Vec2;
