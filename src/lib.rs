@@ -110,6 +110,7 @@ mod size;
 mod stroke;
 mod svg;
 mod translate_scale;
+mod triangle;
 mod vec2;
 
 pub use crate::affine::*;
@@ -133,4 +134,5 @@ pub use crate::size::*;
 pub use crate::stroke::*;
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
+pub use crate::triangle::*;
 pub use crate::vec2::*;
