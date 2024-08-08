@@ -126,7 +126,7 @@ impl Shape for QuadBez {
         QuadBezIter { quad: *self, ix: 0 }
     }
 
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         0.0
     }
 
@@ -135,12 +135,12 @@ impl Shape for QuadBez {
         self.arclen(accuracy)
     }
 
-    fn winding(&self, _pt: Point) -> i32 {
+    fn winding(&self, _pt: Point, _tolerance: f64) -> i32 {
         0
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         ParamCurveExtrema::bounding_box(self)
     }
 }
