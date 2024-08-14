@@ -352,11 +352,11 @@ impl<'a> SvgLexer<'a> {
                 if c == b'-' || c == b'+' {
                     c = self.get_byte().ok_or(SvgParseError::Wrong)?;
                 }
-                if c.is_ascii_digit() {
+                if !c.is_ascii_digit() {
                     return Err(SvgParseError::Wrong);
                 }
                 while let Some(c) = self.get_byte() {
-                    if c.is_ascii_digit() {
+                    if !c.is_ascii_digit() {
                         self.unget();
                         break;
                     }
@@ -506,7 +506,7 @@ impl Arc {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BezPath, CubicBez, Line, ParamCurve, PathSeg, Point, QuadBez, Shape};
+    use crate::{BezPath, CubicBez, Line, ParamCurve, PathEl, PathSeg, Point, QuadBez, Shape};
 
     #[test]
     fn test_parse_svg() {
@@ -541,6 +541,22 @@ mod tests {
     fn test_parse_svg_uninitialized() {
         let path = BezPath::from_svg("L10 10 100 0 0 100");
         assert!(path.is_err());
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_parse_scientific_notation() {
+        let path = BezPath::from_svg("M 0 0 L 1e-123 -4E+5").unwrap();
+        assert_eq!(
+            path.elements(),
+            &[
+                PathEl::MoveTo(Point { x: 0.0, y: 0.0 }),
+                PathEl::LineTo(Point {
+                    x: 1e-123,
+                    y: -4E+5
+                })
+            ]
+        );
     }
 
     #[test]
