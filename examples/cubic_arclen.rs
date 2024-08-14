@@ -133,7 +133,7 @@ fn est_min_deriv_norm2(c: CubicBez) -> f64 {
     let mut min = d.eval(1.0).to_vec2().hypot2();
     for i in 0..n {
         let t = (i as f64) * (n as f64).recip();
-        min = min.min(d.eval(t).to_vec2().hypot2())
+        min = min.min(d.eval(t).to_vec2().hypot2());
     }
     min
 }

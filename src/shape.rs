@@ -14,7 +14,7 @@ use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, S
 /// [`area`]: Shape::area
 /// [`bounding_box`]: Shape::bounding_box
 /// [`winding`]: Shape::winding
-pub trait Shape: Sized {
+pub trait Shape {
     /// The iterator returned by the [`path_elements`] method.
     ///
     /// [`path_elements`]: Shape::path_elements
@@ -73,6 +73,7 @@ pub trait Shape: Sized {
     fn to_bez_path(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         self.path_elements(tolerance)
     }
+
     /// Convert into a Bézier path.
     ///
     /// This allocates in the general case, but is zero-cost if the
@@ -81,13 +82,19 @@ pub trait Shape: Sized {
     /// The `tolerance` parameter is the same as for [`path_elements()`].
     ///
     /// [`path_elements()`]: Shape::path_elements
-    fn into_path(self, tolerance: f64) -> BezPath {
+    fn into_path(self, tolerance: f64) -> BezPath
+    where
+        Self: Sized,
+    {
         self.to_path(tolerance)
     }
 
     #[deprecated(since = "0.7.0", note = "Use into_path instead")]
     #[doc(hidden)]
-    fn into_bez_path(self, tolerance: f64) -> BezPath {
+    fn into_bez_path(self, tolerance: f64) -> BezPath
+    where
+        Self: Sized,
+    {
         self.into_path(tolerance)
     }
 

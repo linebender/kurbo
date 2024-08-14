@@ -31,9 +31,9 @@ pub struct RoundedRectRadii {
 }
 
 impl RoundedRectRadii {
-    /// Create a new RoundedRectRadii. This function takes radius values for
-    /// the four corners. The argument order is "top_left, top_right,
-    /// bottom_right, bottom_left", or clockwise starting from top_left.
+    /// Create a new `RoundedRectRadii`. This function takes radius values for
+    /// the four corners. The argument order is `top_left`, `top_right`,
+    /// `bottom_right`, `bottom_left`, or clockwise starting from `top_left`.
     pub const fn new(top_left: f64, top_right: f64, bottom_right: f64, bottom_left: f64) -> Self {
         RoundedRectRadii {
             top_left,
@@ -43,7 +43,7 @@ impl RoundedRectRadii {
         }
     }
 
-    /// Create a new RoundedRectRadii from a single radius. The `radius`
+    /// Create a new `RoundedRectRadii` from a single radius. The `radius`
     /// argument will be set as the radius for all four corners.
     pub const fn from_single_radius(radius: f64) -> Self {
         RoundedRectRadii {
@@ -74,7 +74,7 @@ impl RoundedRectRadii {
         )
     }
 
-    /// Returns true if all radius values are finite.
+    /// Returns `true` if all radius values are finite.
     pub fn is_finite(&self) -> bool {
         self.top_left.is_finite()
             && self.top_right.is_finite()
@@ -82,7 +82,7 @@ impl RoundedRectRadii {
             && self.bottom_left.is_finite()
     }
 
-    /// Returns true if any corner radius value is NaN.
+    /// Returns `true` if any corner radius value is NaN.
     pub fn is_nan(&self) -> bool {
         self.top_left.is_nan()
             || self.top_right.is_nan()

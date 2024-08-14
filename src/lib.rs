@@ -6,9 +6,8 @@
 //! The kurbo library contains data structures and algorithms for curves and
 //! vector paths. It was designed to serve the needs of 2D graphics applications,
 //! but it is intended to be general enough to be useful for other applications.
-//!
-//! Kurbo is designed to be used by [`Piet`], a crate for drawing 2D graphics,
-//! and is in turn used by [`Druid`], a cross-platform GUI toolkit.
+//! It can be used as "vocabulary types" for representing curves and paths, and
+//! also contains a number of computational geometry methods.
 //!
 //! # Examples
 //!
@@ -65,19 +64,20 @@
 //! efficient as the standard library, and that this crate still uses the
 //! `alloc` crate regardless.
 //!
-//! [`Piet`]: https://docs.rs/piet
-//! [`Druid`]: https://docs.rs/druid
 //! [`libm`]: https://docs.rs/libm
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
-#![warn(rustdoc::broken_intra_doc_links)]
+#![warn(clippy::doc_markdown, rustdoc::broken_intra_doc_links)]
+#![warn(clippy::semicolon_if_nothing_returned)]
+#![warn(unused_qualifications)]
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,
     clippy::excessive_precision,
     clippy::bool_to_int_with_if
 )]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
@@ -107,7 +107,7 @@ mod rounded_rect_radii;
 mod shape;
 pub mod simplify;
 mod size;
-#[cfg(feature = "std")]
+mod stroke;
 mod svg;
 mod translate_scale;
 mod vec2;
@@ -130,7 +130,7 @@ pub use crate::rounded_rect::*;
 pub use crate::rounded_rect_radii::*;
 pub use crate::shape::*;
 pub use crate::size::*;
-#[cfg(feature = "std")]
+pub use crate::stroke::*;
 pub use crate::svg::*;
 pub use crate::translate_scale::*;
 pub use crate::vec2::*;

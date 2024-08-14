@@ -187,6 +187,16 @@ impl Point {
     }
 }
 
+impl From<(f32, f32)> for Point {
+    #[inline]
+    fn from(v: (f32, f32)) -> Point {
+        Point {
+            x: v.0 as f64,
+            y: v.1 as f64,
+        }
+    }
+}
+
 impl From<(f64, f64)> for Point {
     #[inline]
     fn from(v: (f64, f64)) -> Point {
@@ -213,7 +223,7 @@ impl Add<Vec2> for Point {
 impl AddAssign<Vec2> for Point {
     #[inline]
     fn add_assign(&mut self, other: Vec2) {
-        *self = Point::new(self.x + other.x, self.y + other.y)
+        *self = Point::new(self.x + other.x, self.y + other.y);
     }
 }
 
@@ -229,7 +239,7 @@ impl Sub<Vec2> for Point {
 impl SubAssign<Vec2> for Point {
     #[inline]
     fn sub_assign(&mut self, other: Vec2) {
-        *self = Point::new(self.x - other.x, self.y - other.y)
+        *self = Point::new(self.x - other.x, self.y - other.y);
     }
 }
 
@@ -245,7 +255,7 @@ impl Add<(f64, f64)> for Point {
 impl AddAssign<(f64, f64)> for Point {
     #[inline]
     fn add_assign(&mut self, (x, y): (f64, f64)) {
-        *self = Point::new(self.x + x, self.y + y)
+        *self = Point::new(self.x + x, self.y + y);
     }
 }
 
@@ -261,7 +271,7 @@ impl Sub<(f64, f64)> for Point {
 impl SubAssign<(f64, f64)> for Point {
     #[inline]
     fn sub_assign(&mut self, (x, y): (f64, f64)) {
-        *self = Point::new(self.x - x, self.y - y)
+        *self = Point::new(self.x - x, self.y - y);
     }
 }
 
@@ -287,6 +297,22 @@ impl fmt::Display for Point {
         write!(formatter, ", ")?;
         fmt::Display::fmt(&self.y, formatter)?;
         write!(formatter, ")")
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<Point> for mint::Point2<f64> {
+    #[inline]
+    fn from(p: Point) -> mint::Point2<f64> {
+        mint::Point2 { x: p.x, y: p.y }
+    }
+}
+
+#[cfg(feature = "mint")]
+impl From<mint::Point2<f64>> for Point {
+    #[inline]
+    fn from(p: mint::Point2<f64>) -> Point {
+        Point { x: p.x, y: p.y }
     }
 }
 
@@ -324,21 +350,5 @@ mod tests {
 
         let p = Point::new(0.12345, 9.87654);
         assert_eq!(format!("{p:.2}"), "(0.12, 9.88)");
-    }
-}
-
-#[cfg(feature = "mint")]
-impl From<Point> for mint::Point2<f64> {
-    #[inline]
-    fn from(p: Point) -> mint::Point2<f64> {
-        mint::Point2 { x: p.x, y: p.y }
-    }
-}
-
-#[cfg(feature = "mint")]
-impl From<mint::Point2<f64>> for Point {
-    #[inline]
-    fn from(p: mint::Point2<f64>) -> Point {
-        Point { x: p.x, y: p.y }
     }
 }

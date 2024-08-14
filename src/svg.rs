@@ -3,12 +3,19 @@
 
 //! SVG path representation.
 
+use alloc::vec::Vec;
+use core::f64::consts::PI;
+use core::fmt::{self, Display, Formatter};
+// MSRV: Once our MSRV is 1.81, we can switch to `core::error`
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::f64::consts::PI;
-use std::fmt::{self, Display, Formatter};
+#[cfg(feature = "std")]
 use std::io::{self, Write};
 
 use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
@@ -33,7 +40,7 @@ pub struct SvgArc {
 }
 
 impl BezPath {
-    /// Create a BezPath with segments corresponding to the sequence of
+    /// Create a `BezPath` with segments corresponding to the sequence of
     /// `PathSeg`s
     pub fn from_path_segments(segments: impl Iterator<Item = PathSeg>) -> BezPath {
         let mut path_elements = Vec::new();
@@ -60,6 +67,7 @@ impl BezPath {
     ///
     /// The current implementation doesn't take any special care to produce a
     /// short string (reducing precision, using relative movement).
+    #[cfg(feature = "std")]
     pub fn to_svg(&self) -> String {
         let mut buffer = Vec::new();
         self.write_to(&mut buffer).unwrap();
@@ -67,6 +75,7 @@ impl BezPath {
     }
 
     /// Write the SVG representation of this path to the provided buffer.
+    #[cfg(feature = "std")]
     pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
         for (i, el) in self.elements().iter().enumerate() {
             if i > 0 {
@@ -102,6 +111,10 @@ impl BezPath {
         let mut implicit_moveto = None;
         while let Some(c) = lexer.get_cmd(last_cmd) {
             if c != b'm' && c != b'M' {
+                if path.elements().is_empty() {
+                    return Err(SvgParseError::UninitializedPath);
+                }
+
                 if let Some(pt) = implicit_moveto.take() {
                     path.move_to(pt);
                 }
@@ -235,6 +248,7 @@ impl BezPath {
 
 /// An error which can be returned when parsing an SVG.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SvgParseError {
     /// A number was expected.
     Wrong,
@@ -242,6 +256,8 @@ pub enum SvgParseError {
     UnexpectedEof,
     /// Encountered an unknown command letter.
     UnknownCommand(char),
+    /// Encountered a command that precedes expected 'moveto' command.
+    UninitializedPath,
 }
 
 impl Display for SvgParseError {
@@ -250,10 +266,14 @@ impl Display for SvgParseError {
             SvgParseError::Wrong => write!(f, "Unable to parse a number"),
             SvgParseError::UnexpectedEof => write!(f, "Unexpected EOF"),
             SvgParseError::UnknownCommand(letter) => write!(f, "Unknown command, \"{letter}\""),
+            SvgParseError::UninitializedPath => {
+                write!(f, "Uninitialized path (missing moveto command)")
+            }
         }
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for SvgParseError {}
 
 struct SvgLexer<'a> {
@@ -330,13 +350,13 @@ impl<'a> SvgLexer<'a> {
             if c == b'e' || c == b'E' {
                 let mut c = self.get_byte().ok_or(SvgParseError::Wrong)?;
                 if c == b'-' || c == b'+' {
-                    c = self.get_byte().ok_or(SvgParseError::Wrong)?
+                    c = self.get_byte().ok_or(SvgParseError::Wrong)?;
                 }
-                if c.is_ascii_digit() {
+                if !c.is_ascii_digit() {
                     return Err(SvgParseError::Wrong);
                 }
                 while let Some(c) = self.get_byte() {
-                    if c.is_ascii_digit() {
+                    if !c.is_ascii_digit() {
                         self.unget();
                         break;
                     }
@@ -393,7 +413,7 @@ impl<'a> SvgLexer<'a> {
 impl SvgArc {
     /// Checks that arc is actually a straight line.
     ///
-    /// In this case, it can be replaced with a LineTo.
+    /// In this case, it can be replaced with a `LineTo`.
     pub fn is_straight_line(&self) -> bool {
         self.radii.x.abs() <= 1e-5 || self.radii.y.abs() <= 1e-5 || self.from == self.to
     }
@@ -486,7 +506,7 @@ impl Arc {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BezPath, CubicBez, Line, ParamCurve, PathSeg, Point, QuadBez, Shape};
+    use crate::{BezPath, CubicBez, Line, ParamCurve, PathEl, PathSeg, Point, QuadBez, Shape};
 
     #[test]
     fn test_parse_svg() {
@@ -515,6 +535,28 @@ mod tests {
         // Approximate figures, but useful for regression testing
         assert_eq!(path.area().round(), -1473.0);
         assert_eq!(path.perimeter(1e-6).round(), 168.0);
+    }
+
+    #[test]
+    fn test_parse_svg_uninitialized() {
+        let path = BezPath::from_svg("L10 10 100 0 0 100");
+        assert!(path.is_err());
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_parse_scientific_notation() {
+        let path = BezPath::from_svg("M 0 0 L 1e-123 -4E+5").unwrap();
+        assert_eq!(
+            path.elements(),
+            &[
+                PathEl::MoveTo(Point { x: 0.0, y: 0.0 }),
+                PathEl::LineTo(Point {
+                    x: 1e-123,
+                    y: -4E+5
+                })
+            ]
+        );
     }
 
     #[test]
@@ -593,7 +635,7 @@ mod tests {
 
         let length = rng.gen_range(0..MAX_LENGTH);
         for _ in 0..length {
-            let should_follow: bool = rand::random();
+            let should_follow: bool = random();
             let kind = rng.gen_range(0..3);
 
             let first = position
@@ -631,7 +673,7 @@ mod tests {
     #[test]
     fn test_serialize_deserialize() {
         const N_TESTS: u32 = 100;
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
 
         for _ in 0..N_TESTS {
             let vec = gen_random_path_sequence(&mut rng);

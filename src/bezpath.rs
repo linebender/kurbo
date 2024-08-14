@@ -88,9 +88,9 @@ use crate::common::FloatFuncs;
 /// functionality available on `BezPath`:
 ///
 /// - [`flatten`] does Bézier flattening, converting a curve to a series of
-/// line segments
+///   line segments
 /// - [`intersect_line`] computes intersections of a path with a line, useful
-/// for things like subdividing
+///   for things like subdividing
 ///
 /// [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
 /// [`iter`]: BezPath::iter
@@ -210,7 +210,7 @@ impl BezPath {
         debug_assert!(
             matches!(self.0.first(), Some(PathEl::MoveTo(_))),
             "BezPath must begin with MoveTo"
-        )
+        );
     }
 
     /// Push a "move to" element onto the path.
@@ -220,42 +220,47 @@ impl BezPath {
 
     /// Push a "line to" element onto the path.
     ///
-    /// Will panic with a debug assert when the current subpath does not
-    /// start with `move_to`.
+    /// Will panic with a debug assert when the path is empty and there is no
+    /// "move to" element on the path.
+    ///
+    /// If `line_to` is called immediately after `close_path` then the current
+    /// subpath starts at the initial point of the previous subpath.
     pub fn line_to<P: Into<Point>>(&mut self, p: P) {
-        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
+        debug_assert!(!self.0.is_empty(), "uninitialized subpath (missing MoveTo)");
         self.push(PathEl::LineTo(p.into()));
     }
 
     /// Push a "quad to" element onto the path.
     ///
-    /// Will panic with a debug assert when the current subpath does not
-    /// start with `move_to`.
+    /// Will panic with a debug assert when the path is empty and there is no
+    /// "move to" element on the path.
+    ///
+    /// If `quad_to` is called immediately after `close_path` then the current
+    /// subpath starts at the initial point of the previous subpath.
     pub fn quad_to<P: Into<Point>>(&mut self, p1: P, p2: P) {
-        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
+        debug_assert!(!self.0.is_empty(), "uninitialized subpath (missing MoveTo)");
         self.push(PathEl::QuadTo(p1.into(), p2.into()));
     }
 
     /// Push a "curve to" element onto the path.
     ///
-    /// Will panic with a debug assert when the current subpath does not
-    /// start with `move_to`.
+    /// Will panic with a debug assert when the path is empty and there is no
+    /// "move to" element on the path.
+    ///
+    /// If `curve_to` is called immediately after `close_path` then the current
+    /// subpath starts at the initial point of the previous subpath.
     pub fn curve_to<P: Into<Point>>(&mut self, p1: P, p2: P, p3: P) {
-        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
+        debug_assert!(!self.0.is_empty(), "uninitialized subpath (missing MoveTo)");
         self.push(PathEl::CurveTo(p1.into(), p2.into(), p3.into()));
     }
 
     /// Push a "close path" element onto the path.
     ///
-    /// Will panic with a debug assert when the current subpath does not
-    /// start with `move_to`.
+    /// Will panic with a debug assert when the path is empty and there is no
+    /// "move to" element on the path.
     pub fn close_path(&mut self) {
-        debug_assert!(self.is_open_subpath(), "no open subpath (missing MoveTo)");
+        debug_assert!(!self.0.is_empty(), "uninitialized subpath (missing MoveTo)");
         self.push(PathEl::ClosePath);
-    }
-
-    fn is_open_subpath(&self) -> bool {
-        !self.0.is_empty() && self.0.last() != Some(&PathEl::ClosePath)
     }
 
     /// Get the path elements.
@@ -414,6 +419,95 @@ impl BezPath {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.0.iter().any(|v| v.is_nan())
+    }
+
+    /// Returns a rectangle that conservatively encloses the path.
+    ///
+    /// Unlike the `bounding_box` method, this uses control points directly
+    /// rather than computing tight bounds for curve elements.
+    pub fn control_box(&self) -> Rect {
+        let mut cbox: Option<Rect> = None;
+        let mut add_pts = |pts: &[Point]| {
+            for pt in pts {
+                cbox = match cbox {
+                    Some(cbox) => Some(cbox.union_pt(*pt)),
+                    _ => Some(Rect::from_points(*pt, *pt)),
+                };
+            }
+        };
+        for &el in self.elements() {
+            match el {
+                PathEl::MoveTo(p0) | PathEl::LineTo(p0) => add_pts(&[p0]),
+                PathEl::QuadTo(p0, p1) => add_pts(&[p0, p1]),
+                PathEl::CurveTo(p0, p1, p2) => add_pts(&[p0, p1, p2]),
+                PathEl::ClosePath => {}
+            }
+        }
+        cbox.unwrap_or_default()
+    }
+
+    /// Returns a new path with the winding direction of all subpaths reversed.
+    pub fn reverse_subpaths(&self) -> BezPath {
+        let elements = self.elements();
+        let mut start_ix = 1;
+        let mut start_pt = Point::default();
+        let mut reversed = BezPath(Vec::with_capacity(elements.len()));
+        // Pending move is used to capture degenerate subpaths that should
+        // remain in the reversed output.
+        let mut pending_move = false;
+        for (ix, el) in elements.iter().enumerate() {
+            match el {
+                PathEl::MoveTo(pt) => {
+                    if pending_move {
+                        reversed.push(PathEl::MoveTo(start_pt));
+                    }
+                    if start_ix < ix {
+                        reverse_subpath(start_pt, &elements[start_ix..ix], &mut reversed);
+                    }
+                    pending_move = true;
+                    start_pt = *pt;
+                    start_ix = ix + 1;
+                }
+                PathEl::ClosePath => {
+                    if start_ix <= ix {
+                        reverse_subpath(start_pt, &elements[start_ix..ix], &mut reversed);
+                    }
+                    reversed.push(PathEl::ClosePath);
+                    start_ix = ix + 1;
+                    pending_move = false;
+                }
+                _ => {
+                    pending_move = false;
+                }
+            }
+        }
+        if start_ix < elements.len() {
+            reverse_subpath(start_pt, &elements[start_ix..], &mut reversed);
+        } else if pending_move {
+            reversed.push(PathEl::MoveTo(start_pt));
+        }
+        reversed
+    }
+}
+
+/// Helper for reversing a subpath.
+///
+/// The `els` parameter must not contain any `MoveTo` or `ClosePath` elements.
+fn reverse_subpath(start_pt: Point, els: &[PathEl], reversed: &mut BezPath) {
+    let end_pt = els.last().and_then(|el| el.end_point()).unwrap_or(start_pt);
+    reversed.push(PathEl::MoveTo(end_pt));
+    for (ix, el) in els.iter().enumerate().rev() {
+        let end_pt = if ix > 0 {
+            els[ix - 1].end_point().unwrap()
+        } else {
+            start_pt
+        };
+        match el {
+            PathEl::LineTo(_) => reversed.push(PathEl::LineTo(end_pt)),
+            PathEl::QuadTo(c0, _) => reversed.push(PathEl::QuadTo(*c0, end_pt)),
+            PathEl::CurveTo(c0, c1, _) => reversed.push(PathEl::CurveTo(*c1, *c0, end_pt)),
+            _ => panic!("reverse_subpath expects MoveTo and ClosePath to be removed"),
+        }
     }
 }
 
@@ -728,7 +822,7 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
             if let Some(bb) = bbox {
                 bbox = Some(bb.union(seg_bb));
             } else {
-                bbox = Some(seg_bb)
+                bbox = Some(seg_bb);
             }
         }
         bbox.unwrap_or_default()
@@ -990,7 +1084,7 @@ impl PathSeg {
                 let c1 = dy * px1 - dx * py1;
                 let c2 = dy * px2 - dx * py2;
                 let invlen2 = (dx * dx + dy * dy).recip();
-                for t in crate::common::solve_quadratic(c0, c1, c2) {
+                for t in solve_quadratic(c0, c1, c2) {
                     if (-EPSILON..=(1.0 + EPSILON)).contains(&t) {
                         let x = px0 + t * px1 + t * t * px2;
                         let y = py0 + t * py1 + t * t * py2;
@@ -1010,7 +1104,7 @@ impl PathSeg {
                 let c2 = dy * px2 - dx * py2;
                 let c3 = dy * px3 - dx * py3;
                 let invlen2 = (dx * dx + dy * dy).recip();
-                for t in crate::common::solve_cubic(c0, c1, c2, c3) {
+                for t in solve_cubic(c0, c1, c2, c3) {
                     if (-EPSILON..=(1.0 + EPSILON)).contains(&t) {
                         let x = px0 + t * px1 + t * t * px2 + t * t * t * px3;
                         let y = py0 + t * py1 + t * t * py2 + t * t * t * py3;
@@ -1068,11 +1162,11 @@ impl PathSeg {
         a
     }
 
-    /// Minimum distance between two PathSegs
+    /// Minimum distance between two [`PathSeg`]s.
     ///
     /// Returns a tuple of the distance, the path time `t1` of the closest point
-    /// on the first PathSeg, and the path time `t2` of the closest point on the
-    /// second PathSeg.
+    /// on the first `PathSeg`, and the path time `t2` of the closest point on the
+    /// second `PathSeg`.
     pub fn min_dist(&self, other: PathSeg, accuracy: f64) -> MinDistance {
         let (distance, t1, t2) = crate::mindist::min_dist_param(
             &self.as_vec2_vec(),
@@ -1250,6 +1344,17 @@ impl PathEl {
             PathEl::ClosePath => false,
         }
     }
+
+    /// Get the end point of the path element, if it exists.
+    pub fn end_point(&self) -> Option<Point> {
+        match self {
+            PathEl::MoveTo(p) => Some(*p),
+            PathEl::LineTo(p1) => Some(*p1),
+            PathEl::QuadTo(_, p2) => Some(*p2),
+            PathEl::CurveTo(_, _, p3) => Some(*p3),
+            _ => None,
+        }
+    }
 }
 
 /// Implements [`Shape`] for a slice of [`PathEl`], provided that the first element of the slice is
@@ -1350,7 +1455,7 @@ impl Shape for PathSeg {
 
     /// The area under the curve.
     ///
-    /// We could just return 0, but this seems more useful.
+    /// We could just return `0`, but this seems more useful.
     fn area(&self) -> f64 {
         self.signed_area()
     }
@@ -1407,7 +1512,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "no open subpath")]
+    #[should_panic(expected = "uninitialized subpath")]
     fn test_elements_to_segments_starts_on_closepath() {
         let mut path = BezPath::new();
         path.close_path();
@@ -1429,7 +1534,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "no open subpath")]
+    #[should_panic(expected = "uninitialized subpath")]
     fn test_must_not_start_on_quad() {
         let mut path = BezPath::new();
         path.quad_to((5.0, 5.0), (10.0, 10.0));
@@ -1498,5 +1603,406 @@ mod tests {
             .map_while(|i| circle.get_seg(i))
             .collect::<Vec<_>>();
         assert_eq!(segments, get_segs);
+    }
+
+    #[test]
+    fn test_control_box() {
+        // a sort of map ping looking thing drawn with a single cubic
+        // cbox is wildly different than tight box
+        let path = BezPath::from_svg("M200,300 C50,50 350,50 200,300").unwrap();
+        assert_eq!(Rect::new(50.0, 50.0, 350.0, 300.0), path.control_box());
+        assert!(path.control_box().area() > path.bounding_box().area());
+    }
+
+    #[test]
+    fn test_reverse_unclosed() {
+        let path = BezPath::from_svg("M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60").unwrap();
+        let reversed = path.reverse_subpaths();
+        assert_eq!(
+            "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10",
+            reversed.to_svg()
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_triangle() {
+        let path = BezPath::from_svg("M100,100 L150,200 L50,200 Z").unwrap();
+        let reversed = path.reverse_subpaths();
+        assert_eq!("M50,200 L150,200 L100,100 Z", reversed.to_svg());
+    }
+
+    #[test]
+    fn test_reverse_closed_shape() {
+        let path = BezPath::from_svg(
+            "M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z",
+        )
+        .unwrap();
+        let reversed = path.reverse_subpaths();
+        assert_eq!(
+            "M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z",
+            reversed.to_svg()
+        );
+    }
+
+    #[test]
+    fn test_reverse_multiple_subpaths() {
+        let svg = "M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60 M100,100 L150,200 L50,200 Z M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z";
+        let expected_svg = "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10 M50,200 L150,200 L100,100 Z M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z";
+        let path = BezPath::from_svg(svg).unwrap();
+        let reversed = path.reverse_subpaths();
+        assert_eq!(expected_svg, reversed.to_svg());
+    }
+
+    // https://github.com/fonttools/fonttools/blob/bf265ce49e0cae6f032420a4c80c31d8e16285b8/Tests/pens/reverseContourPen_test.py#L7
+    #[test]
+    fn test_reverse_lines() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((1.0, 1.0));
+        path.line_to((2.0, 2.0));
+        path.line_to((3.0, 3.0));
+        path.close_path();
+        let rev = path.reverse_subpaths();
+        assert_eq!("M3,3 L2,2 L1,1 L0,0 Z", rev.to_svg());
+    }
+
+    #[test]
+    fn test_reverse_multiple_moves() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((2.0, 2.0).into()),
+                PathEl::MoveTo((3.0, 3.0).into()),
+                PathEl::ClosePath,
+                PathEl::MoveTo((4.0, 4.0).into()),
+            ],
+            vec![
+                PathEl::MoveTo((2.0, 2.0).into()),
+                PathEl::MoveTo((3.0, 3.0).into()),
+                PathEl::ClosePath,
+                PathEl::MoveTo((4.0, 4.0).into()),
+            ],
+        );
+    }
+
+    // The following are direct port of fonttools'
+    // reverseContourPen_test.py::test_reverse_pen, adapted to rust, excluding
+    // test cases that don't apply because we don't implement
+    // outputImpliedClosingLine=False.
+    // https://github.com/fonttools/fonttools/blob/85c80be/Tests/pens/reverseContourPen_test.py#L6-L467
+
+    #[test]
+    fn test_reverse_closed_last_line_not_on_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::LineTo((2.0, 2.0).into()),
+                PathEl::LineTo((3.0, 3.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((3.0, 3.0).into()),
+                PathEl::LineTo((2.0, 2.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()), // closing line NOT implied
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_last_line_overlaps_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::LineTo((2.0, 2.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((2.0, 2.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()), // closing line NOT implied
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_duplicate_line_following_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::LineTo((2.0, 2.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((2.0, 2.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()), // duplicate line retained
+                PathEl::LineTo((0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_two_lines() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()), // closing line NOT implied
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_last_curve_overlaps_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+                PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()), // no extra lineTo added here
+                PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
+                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_last_curve_not_on_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+                PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (6.0, 6.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((6.0, 6.0).into()), // the previously implied line
+                PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
+                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_line_curve_line() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()), // this line...
+                PathEl::CurveTo((2.0, 2.0).into(), (3.0, 3.0).into(), (4.0, 4.0).into()),
+                PathEl::CurveTo((5.0, 5.0).into(), (6.0, 6.0).into(), (7.0, 7.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((7.0, 7.0).into()),
+                PathEl::CurveTo((6.0, 6.0).into(), (5.0, 5.0).into(), (4.0, 4.0).into()),
+                PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()), // ... does NOT become implied
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_last_quad_overlaps_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::QuadTo((1.0, 1.0).into(), (2.0, 2.0).into()),
+                PathEl::QuadTo((3.0, 3.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()), // no extra lineTo added here
+                PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
+                PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_last_quad_not_on_move() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::QuadTo((1.0, 1.0).into(), (2.0, 2.0).into()),
+                PathEl::QuadTo((3.0, 3.0).into(), (4.0, 4.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((4.0, 4.0).into()), // the previously implied line
+                PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
+                PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_closed_line_quad_line() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()), // this line...
+                PathEl::QuadTo((2.0, 2.0).into(), (3.0, 3.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((3.0, 3.0).into()),
+                PathEl::QuadTo((2.0, 2.0).into(), (1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()), // ... does NOT become implied
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_empty() {
+        reverse_test_helper(vec![], vec![]);
+    }
+
+    #[test]
+    fn test_reverse_single_point() {
+        reverse_test_helper(
+            vec![PathEl::MoveTo((0.0, 0.0).into())],
+            vec![PathEl::MoveTo((0.0, 0.0).into())],
+        );
+    }
+
+    #[test]
+    fn test_reverse_single_point_closed() {
+        reverse_test_helper(
+            vec![PathEl::MoveTo((0.0, 0.0).into()), PathEl::ClosePath],
+            vec![PathEl::MoveTo((0.0, 0.0).into()), PathEl::ClosePath],
+        );
+    }
+
+    #[test]
+    fn test_reverse_single_line_open() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+            ],
+            vec![
+                PathEl::MoveTo((1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_single_curve_open() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+            ],
+            vec![
+                PathEl::MoveTo((3.0, 3.0).into()),
+                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_curve_line_open() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+                PathEl::LineTo((4.0, 4.0).into()),
+            ],
+            vec![
+                PathEl::MoveTo((4.0, 4.0).into()),
+                PathEl::LineTo((3.0, 3.0).into()),
+                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_line_curve_open() {
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((1.0, 1.0).into()),
+                PathEl::CurveTo((2.0, 2.0).into(), (3.0, 3.0).into(), (4.0, 4.0).into()),
+            ],
+            vec![
+                PathEl::MoveTo((4.0, 4.0).into()),
+                PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
+                PathEl::LineTo((0.0, 0.0).into()),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_duplicate_point_after_move() {
+        // Test case from: https://github.com/googlei18n/cu2qu/issues/51#issue-179370514
+        // Simplified to only use atomic PathEl::QuadTo (no QuadSplines).
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((848.0, 348.0).into()),
+                PathEl::LineTo((848.0, 348.0).into()),
+                PathEl::QuadTo((848.0, 526.0).into(), (449.0, 704.0).into()),
+                PathEl::QuadTo((848.0, 171.0).into(), (848.0, 348.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((848.0, 348.0).into()),
+                PathEl::QuadTo((848.0, 171.0).into(), (449.0, 704.0).into()),
+                PathEl::QuadTo((848.0, 526.0).into(), (848.0, 348.0).into()),
+                PathEl::LineTo((848.0, 348.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_reverse_duplicate_point_at_end() {
+        // Test case from: https://github.com/googlefonts/fontmake/issues/572
+        reverse_test_helper(
+            vec![
+                PathEl::MoveTo((0.0, 651.0).into()),
+                PathEl::LineTo((0.0, 101.0).into()),
+                PathEl::LineTo((0.0, 101.0).into()),
+                PathEl::LineTo((0.0, 651.0).into()),
+                PathEl::LineTo((0.0, 651.0).into()),
+                PathEl::ClosePath,
+            ],
+            vec![
+                PathEl::MoveTo((0.0, 651.0).into()),
+                PathEl::LineTo((0.0, 651.0).into()),
+                PathEl::LineTo((0.0, 101.0).into()),
+                PathEl::LineTo((0.0, 101.0).into()),
+                PathEl::LineTo((0.0, 651.0).into()),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    fn reverse_test_helper(contour: Vec<PathEl>, expected: Vec<PathEl>) {
+        assert_eq!(BezPath(contour).reverse_subpaths().0, expected);
     }
 }

@@ -5,6 +5,16 @@
 
 #![allow(missing_docs)]
 
+#[cfg(not(feature = "std"))]
+mod sealed {
+    /// A [sealed trait](https://predr.ag/blog/definitive-guide-to-sealed-traits-in-rust/)
+    /// which stops [`super::FloatFuncs`] from being implemented outside kurbo. This could
+    /// be relaxed in the future if there is are good reasons to allow external impls.
+    /// The benefit from being sealed is that we can add methods without breaking downstream
+    /// implementations.
+    pub trait FloatFuncsSealed {}
+}
+
 use arrayvec::ArrayVec;
 
 /// Defines a trait that chooses between libstd or libm implementations of float methods.
@@ -13,13 +23,22 @@ macro_rules! define_float_funcs {
         fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty
         => $lname:ident/$lfname:ident;
     )+) => {
+
+        /// Since core doesn't depend upon libm, this provides libm implementations
+        /// of float functions which are typically provided by the std library, when
+        /// the `std` feature is not enabled.
+        ///
+        /// For documentation see the respective functions in the std library.
         #[cfg(not(feature = "std"))]
-        pub(crate) trait FloatFuncs : Sized {
+        pub trait FloatFuncs : Sized + sealed::FloatFuncsSealed {
             /// Special implementation for signum, because libm doesn't have it.
             fn signum(self) -> Self;
 
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
         }
+
+        #[cfg(not(feature = "std"))]
+        impl sealed::FloatFuncsSealed for f32 {}
 
         #[cfg(not(feature = "std"))]
         impl FloatFuncs for f32 {
@@ -41,6 +60,8 @@ macro_rules! define_float_funcs {
             })+
         }
 
+        #[cfg(not(feature = "std"))]
+        impl sealed::FloatFuncsSealed for f64 {}
         #[cfg(not(feature = "std"))]
         impl FloatFuncs for f64 {
             #[inline]
@@ -79,6 +100,7 @@ define_float_funcs! {
     fn powi(self, n: i32) -> Self => pow/powf;
     fn powf(self, n: Self) -> Self => pow/powf;
     fn round(self) -> Self => round/roundf;
+    fn sin(self) -> Self => sin/sinf;
     fn sin_cos(self) -> (Self, Self) => sincos/sincosf;
     fn sqrt(self) -> Self => sqrt/sqrtf;
     fn tan(self) -> Self => tan/tanf;
@@ -302,7 +324,7 @@ fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<
 
 /// Factor a quartic into two quadratics.
 ///
-/// Attempt to factor a quartic equation into two quadratic equations. Returns None either if there
+/// Attempt to factor a quartic equation into two quadratic equations. Returns `None` either if there
 /// is overflow (in which case rescaling might succeed) or the factorization would result in
 /// complex coefficients.
 ///

@@ -31,7 +31,7 @@ impl Ellipse {
     ///
     /// The returned ellipse will be the result of taking a circle, stretching
     /// it by the `radii` along the x and y axes, then rotating it from the
-    /// x asix by `rotation` radians, before finally translating the center
+    /// x axis by `rotation` radians, before finally translating the center
     /// to `center`.
     ///
     /// Rotation is clockwise in a y-down coordinate system. For more on

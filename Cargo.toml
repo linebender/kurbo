@@ -1,9 +1,13 @@
 [package]
 name = "kurbo"
-version = "0.9.5"
+version = "0.11.0"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
+# TODO: When this hits 1.74, move lint configuration into this file via a lints table.
+# Keep in sync with RUST_MIN_VER in .github/workflows/ci.yml, with the README.md file,
+# and with the MSRV in the `Unreleased` section of CHANGELOG.md.
+rust-version = "1.65"
 keywords = ["graphics", "curve", "curves", "bezier", "geometry"]
 repository = "https://github.com/linebender/kurbo"
 description = "A 2D curves library"
@@ -16,33 +20,39 @@ features = ["mint", "schemars", "serde"]
 [features]
 default = ["std"]
 std = []
+libm = ["dep:libm"]
+mint = ["dep:mint"]
+serde=["smallvec/serde", "dep:serde"]
+schemars=["schemars/smallvec", "dep:schemars"]
+
+[dependencies]
+smallvec = "1.13.2"
 
 [dependencies.arrayvec]
-version = "0.7.1"
+version = "0.7.4"
 default-features = false
 
 [dependencies.libm]
-version = "0.2.6"
+version = "0.2.8"
 optional = true
 
 [dependencies.mint]
-version = "0.5.1"
+version = "0.5.9"
 optional = true
 
 [dependencies.schemars]
-version = "0.8.6"
+version = "0.8.21"
 optional = true
 
 [dependencies.serde]
-version = "1.0.105"
+version = "1.0.204"
 optional = true
 default-features = false
 features = ["alloc", "derive"]
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
-rand = "0.8.0"
+rand = "0.8.5"
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
-getrandom = { version = "0.2.0", features = ["js"] }
-
+getrandom = { version = "0.2.15", features = ["js"] }

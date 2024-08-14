@@ -44,6 +44,15 @@ struct ToQuads {
     n: usize,
 }
 
+/// Classification result for cusp detection.
+#[derive(Debug)]
+pub enum CuspType {
+    /// Cusp is a loop.
+    Loop,
+    /// Cusp has two closely spaced inflection points.
+    DoubleInflection,
+}
+
 impl CubicBez {
     /// Create a new cubic Bézier segment.
     #[inline]
@@ -152,7 +161,7 @@ impl CubicBez {
     /// Approximate a cubic with a single quadratic
     ///
     /// Returns a quadratic approximating the given cubic that maintains
-    /// endpoint tangents if that is within tolerance, or None otherwise.
+    /// endpoint tangents if that is within tolerance, or `None` otherwise.
     fn try_approx_quadratic(&self, accuracy: f64) -> Option<QuadBez> {
         if let Some(q1) = Line::new(self.p0, self.p1).crossing_point(Line::new(self.p2, self.p3)) {
             let c1 = self.p0.lerp(q1, 2.0 / 3.0);
@@ -368,6 +377,100 @@ impl CubicBez {
             .copied()
             .filter(|t| *t >= 0.0 && *t <= 1.0)
             .collect()
+    }
+
+    /// Preprocess a cubic Bézier to ease numerical robustness.
+    ///
+    /// If the cubic Bézier segment has zero or near-zero derivatives, perturb
+    /// the control points to make it easier to process (especially offset and
+    /// stroke), avoiding numerical robustness problems.
+    pub(crate) fn regularize(&self, dimension: f64) -> CubicBez {
+        let mut c = *self;
+        // First step: if control point is too near the endpoint, nudge it away
+        // along the tangent.
+        let dim2 = dimension * dimension;
+        if c.p0.distance_squared(c.p1) < dim2 {
+            let d02 = c.p0.distance_squared(c.p2);
+            if d02 >= dim2 {
+                // TODO: moderate if this would move closer to p3
+                c.p1 = c.p0.lerp(c.p2, (dim2 / d02).sqrt());
+            } else {
+                c.p1 = c.p0.lerp(c.p3, 1.0 / 3.0);
+                c.p2 = c.p3.lerp(c.p0, 1.0 / 3.0);
+                return c;
+            }
+        }
+        if c.p3.distance_squared(c.p2) < dim2 {
+            let d13 = c.p1.distance_squared(c.p2);
+            if d13 >= dim2 {
+                // TODO: moderate if this would move closer to p0
+                c.p2 = c.p3.lerp(c.p1, (dim2 / d13).sqrt());
+            } else {
+                c.p1 = c.p0.lerp(c.p3, 1.0 / 3.0);
+                c.p2 = c.p3.lerp(c.p0, 1.0 / 3.0);
+                return c;
+            }
+        }
+        if let Some(cusp_type) = self.detect_cusp(dimension) {
+            let d01 = c.p1 - c.p0;
+            let d01h = d01.hypot();
+            let d23 = c.p3 - c.p2;
+            let d23h = d23.hypot();
+            match cusp_type {
+                CuspType::Loop => {
+                    c.p1 += (dimension / d01h) * d01;
+                    c.p2 -= (dimension / d23h) * d23;
+                }
+                CuspType::DoubleInflection => {
+                    // Avoid making control distance smaller than dimension
+                    if d01h > 2.0 * dimension {
+                        c.p1 -= (dimension / d01h) * d01;
+                    }
+                    if d23h > 2.0 * dimension {
+                        c.p2 += (dimension / d23h) * d23;
+                    }
+                }
+            }
+        }
+        c
+    }
+
+    /// Detect whether there is a cusp.
+    ///
+    /// Return a cusp classification if there is a cusp with curvature greater than
+    /// the reciprocal of the given dimension.
+    fn detect_cusp(&self, dimension: f64) -> Option<CuspType> {
+        let d01 = self.p1 - self.p0;
+        let d02 = self.p2 - self.p0;
+        let d03 = self.p3 - self.p0;
+        let d12 = self.p2 - self.p1;
+        let d23 = self.p3 - self.p2;
+        let det_012 = d01.cross(d02);
+        let det_123 = d12.cross(d23);
+        let det_013 = d01.cross(d03);
+        let det_023 = d02.cross(d03);
+        if det_012 * det_123 > 0.0 && det_012 * det_013 < 0.0 && det_012 * det_023 < 0.0 {
+            let q = self.deriv();
+            // accuracy isn't used for quadratic nearest
+            let nearest = q.nearest(Point::ORIGIN, 1e-9);
+            // detect whether curvature at minimum derivative exceeds 1/dimension,
+            // without division.
+            let d = q.eval(nearest.t);
+            let d2 = q.deriv().eval(nearest.t);
+            let cross = d.to_vec2().cross(d2.to_vec2());
+            if nearest.distance_sq.powi(3) <= (cross * dimension).powi(2) {
+                let a = 3. * det_012 + det_023 - 2. * det_013;
+                let b = -3. * det_012 + det_013;
+                let c = det_012;
+                let d = b * b - 4. * a * c;
+                if d > 0.0 {
+                    return Some(CuspType::DoubleInflection);
+                } else {
+                    return Some(CuspType::Loop);
+                }
+            }
+        }
+        None
     }
 }
 
@@ -848,7 +951,7 @@ mod tests {
         for i in 0..10 {
             let accuracy = 0.1f64.powi(i);
             let mut worst: f64 = 0.0;
-            for (_count, (t0, t1, q)) in c.to_quads(accuracy).enumerate() {
+            for (t0, t1, q) in c.to_quads(accuracy) {
                 let epsilon = 1e-12;
                 assert!((q.start() - c.eval(t0)).hypot() < epsilon);
                 assert!((q.end() - c.eval(t1)).hypot() < epsilon);
@@ -888,7 +991,7 @@ mod tests {
         let spline = c1.approx_spline_n(2, 343.0);
         assert!(spline.is_some());
         let spline = spline.unwrap();
-        let expected = vec![
+        let expected = [
             Point::new(550.0, 258.0),
             Point::new(920.5, 426.0),
             Point::new(2005.25, 1769.25),
@@ -896,11 +999,11 @@ mod tests {
         ];
         assert_eq!(spline.points().len(), expected.len());
         for (got, &wanted) in spline.points().iter().zip(expected.iter()) {
-            assert!(got.distance(wanted) < 5.0)
+            assert!(got.distance(wanted) < 5.0);
         }
 
         let spline = c1.approx_spline(5.0);
-        let expected = vec![
+        let expected = [
             Point::new(550.0, 258.0),
             Point::new(673.5, 314.0),
             Point::new(984.8777777777776, 584.2666666666667),
@@ -914,7 +1017,7 @@ mod tests {
         let spline = spline.unwrap();
         assert_eq!(spline.points().len(), expected.len());
         for (got, &wanted) in spline.points().iter().zip(expected.iter()) {
-            assert!(got.distance(wanted) < 5.0)
+            assert!(got.distance(wanted) < 5.0);
         }
     }
 
@@ -975,7 +1078,7 @@ mod tests {
                 Point::new(301.0, 560.0),
                 Point::new(260.0, 560.0)
             ]
-        )
+        );
     }
 
     #[test]
@@ -1049,6 +1152,6 @@ mod tests {
                     (274.0, 485.95).into(),
                 ]),
             ]
-        )
+        );
     }
 }
