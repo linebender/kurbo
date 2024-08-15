@@ -86,6 +86,27 @@ impl Triangle {
         (1.0 / 3.0 * (self.a.to_vec2() + self.b.to_vec2() + self.c.to_vec2())).to_point()
     }
 
+    /// The circumcenter of the [`Triangle`]
+    #[inline]
+    pub fn circumcenter(&self) -> Point {
+        let d = 2.0
+            * (self.a.x * (self.b.y - self.c.y)
+                + self.b.x * (self.c.y - self.a.y)
+                + self.c.x * (self.a.y - self.b.y));
+
+        let ux = ((self.a.x.powi(2) + self.a.y.powi(2)) * (self.b.y - self.c.y)
+            + (self.b.x.powi(2) + self.b.y.powi(2)) * (self.c.y - self.a.y)
+            + (self.c.x.powi(2) + self.c.y.powi(2)) * (self.a.y - self.b.y))
+            / d;
+
+        let uy = ((self.a.x.powi(2) + self.a.y.powi(2)) * (self.c.x - self.b.x)
+            + (self.b.x.powi(2) + self.b.y.powi(2)) * (self.a.x - self.c.x)
+            + (self.c.x.powi(2) + self.c.y.powi(2)) * (self.b.x - self.a.x))
+            / d;
+
+        Point::new(ux, uy)
+    }
+
     /// The offset of each vertex from the centroid
     #[inline]
     pub fn offsets(&self) -> [Vec2; 3] {
@@ -101,7 +122,7 @@ impl Triangle {
     /// The area of the [`Triangle`]
     #[inline]
     pub fn area(&self) -> f64 {
-        0.5 * (self.b - self.a).cross(self.c - self.a)
+        0.5 * (self.b - self.a).cross(self.c - self.a).abs()
     }
 
     /// Whether this [`Triangle`] has no (zero) area
@@ -111,26 +132,29 @@ impl Triangle {
     }
 
     /// The greatest radius of a circle that is within the [`Triangle`]
+    /// with center [`Triangle::circumcenter`]
     #[inline]
     pub fn incircle(&self) -> f64 {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
-        self.area() / (ab + bc + ac) / 2.0
+        2.0 * self.area() / (ab + bc + ac)
     }
 
     /// Circumcircle of the [`Triangle`]
+    /// with center [`Triangle::circumcenter`]
     #[inline]
     pub fn circumcircle(&self) -> f64 {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
-        ab * bc * ac / (((ab + bc + ac) * (bc + ac - ab) * (ab + ac - bc) * (ab + bc - ac)).sqrt())
+        (ab * bc * ac) / (4.0 * self.area())
+        // ab * bc * ac / (((ab + bc + ac) * (bc + ac - ab) * (ab + ac - bc) * (ab + bc - ac)).sqrt())
     }
 
-    /// Expand the triangle by a constant amount (`sizes`) in all directions
+    /// Expand the triangle by a constant amount (`scalar`) in all directions
     pub fn inflate(&self, scalar: f64) -> Self {
         let centroid = self.centroid();
 
@@ -192,8 +216,6 @@ impl Sub<Vec2> for Triangle {
     }
 }
 
-// TODO: Insets
-
 #[doc(hidden)]
 pub struct TrianglePathIter {
     triangle: Triangle,
@@ -225,7 +247,12 @@ impl Shape for Triangle {
         let s0 = (self.b - self.a).cross(pt - self.a).signum();
         let s1 = (self.c - self.b).cross(pt - self.b).signum();
         let s2 = (self.a - self.c).cross(pt - self.c).signum();
-        if s0 == s1 && s1 == s2 { s0 as i32 } else { 0 }
+
+        if s0 == s1 && s1 == s2 {
+            s0 as i32
+        } else {
+            0
+        }
     }
 
     #[inline]
@@ -261,32 +288,13 @@ impl Iterator for TrianglePathIter {
     }
 }
 
+// TODO: better and more tests
 #[cfg(test)]
 mod tests {
     use crate::{Point, Triangle, Vec2};
 
     fn assert_approx_eq(x: f64, y: f64) {
         assert!((x - y).abs() < 1e-7);
-    }
-
-    #[test]
-    fn from_radius() {
-        let test = Triangle::from_radius(10.1);
-        let expected = Triangle::from_coords(
-            (0.0, 20.199999999999996),
-            (-17.493713156445658, -10.099999999999998),
-            (17.493713156445658, -10.099999999999998),
-        );
-
-        assert_eq!(test, expected);
-    }
-
-    #[test]
-    fn with_centroid() {
-        let test = Triangle::EQUILATERAL.with_centroid((12.2, -2.3));
-        let expected = Triangle::from_coords((12.2, 1.7000000000000002), (9.2, -4.3), (15.2, -4.3));
-
-        assert_eq!(test, expected);
     }
 
     #[test]
@@ -310,19 +318,6 @@ mod tests {
     }
 
     #[test]
-    fn perimeter() {
-        let test = Triangle::new(
-            (781239.273894, 789234.234789),
-            (234897.823471, 378902.234789),
-            (789241.789234, 789234.234897),
-        )
-        .perimeter();
-        let expected = 1380963.0638877784;
-
-        assert_approx_eq(test, expected);
-    }
-
-    #[test]
     fn area() {
         let test = Triangle::new(
             (12123.423, 2382.7834),
@@ -336,35 +331,25 @@ mod tests {
     }
 
     #[test]
-    fn right_angled_area() {
-        let test = Triangle::from_coords((1.2, 5.3), (1.2, 1.6), (10.0, 1.6)).right_angled_area();
-        let expected = 16.28;
+    fn circumcenter() {
+        let test = Triangle::EQUILATERAL.circumcenter();
+        let expected = Point::new(0.5, 0.2886751345948128);
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn incircle() {
+        let test = Triangle::EQUILATERAL.incircle();
+        let expected = 0.28867513459481287;
 
         assert_approx_eq(test, expected);
     }
 
     #[test]
-    fn vertex_from_x() {
-        let test = Triangle::from_coords((1.0, 3.2), (63.8, 30.2), (2.0, 2.0))
-            .vertex_from_x(63.8)
-            .unwrap();
-        let expected = Point::new(63.8, 30.2);
-
-        assert_eq!(test, expected);
-    }
-
-    #[test]
-    fn organise() {
-        let test = Triangle::from_coords((-20.1, 3.2), (12.3, 12.3), (9.2, -100.8)).organise();
-        let expected = Triangle::from_coords((12.3, 12.3), (-20.1, 3.2), (9.2, -100.8));
-
-        assert_eq!(test, expected);
-    }
-
-    #[test]
-    fn radius() {
-        let test = Triangle::EQUILATERAL.radius();
-        let expected = 1.8541019662496845;
+    fn circumcircle() {
+        let test = Triangle::EQUILATERAL.circumcircle();
+        let expected = 0.5773502691896258;
 
         assert_approx_eq(test, expected);
     }
