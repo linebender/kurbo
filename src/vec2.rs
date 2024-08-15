@@ -31,9 +31,6 @@ impl Vec2 {
     /// The vector (0, 0).
     pub const ZERO: Vec2 = Vec2::new(0., 0.);
 
-    /// The vector (1, 1)
-    pub const ONE: Vec2 = Vec2::new(1., 1.);
-
     /// Create a new vector.
     #[inline]
     pub const fn new(x: f64, y: f64) -> Vec2 {
