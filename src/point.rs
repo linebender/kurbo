@@ -64,19 +64,22 @@ impl Point {
     }
 
     /// Euclidean distance.
+    ///
+    /// See [`Vec2::hypot`] for the same operation on [`Vec2`].
     #[inline]
     pub fn distance(self, other: Point) -> f64 {
         (self - other).hypot()
     }
 
     /// Squared Euclidean distance.
+    ///
+    /// See [`Vec2::hypot2`] for the same operation on [`Vec2`].
     #[inline]
     pub fn distance_squared(self, other: Point) -> f64 {
         (self - other).hypot2()
     }
 
-    /// Returns a new `Point`,
-    /// with `x` and `y` rounded to the nearest integer.
+    /// Returns a new `Point`, with `x` and `y` [rounded] to the nearest integer.
     ///
     /// # Examples
     ///
@@ -89,13 +92,15 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// [rounded]: f64::round
     #[inline]
     pub fn round(self) -> Point {
         Point::new(self.x.round(), self.y.round())
     }
 
     /// Returns a new `Point`,
-    /// with `x` and `y` rounded up to the nearest integer,
+    /// with `x` and `y` [rounded up] to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -109,13 +114,15 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// [rounded up]: f64::ceil
     #[inline]
     pub fn ceil(self) -> Point {
         Point::new(self.x.ceil(), self.y.ceil())
     }
 
     /// Returns a new `Point`,
-    /// with `x` and `y` rounded down to the nearest integer,
+    /// with `x` and `y` [rounded down] to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -129,13 +136,15 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -4.0);
     /// ```
+    ///
+    /// [rounded down]: f64::floor
     #[inline]
     pub fn floor(self) -> Point {
         Point::new(self.x.floor(), self.y.floor())
     }
 
     /// Returns a new `Point`,
-    /// with `x` and `y` rounded away from zero to the nearest integer,
+    /// with `x` and `y` [rounded away] from zero to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -149,13 +158,15 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -4.0);
     /// ```
+    ///
+    /// [rounded away]: FloatExt::expand
     #[inline]
     pub fn expand(self) -> Point {
         Point::new(self.x.expand(), self.y.expand())
     }
 
     /// Returns a new `Point`,
-    /// with `x` and `y` rounded towards zero to the nearest integer,
+    /// with `x` and `y` [rounded towards] zero to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -169,18 +180,24 @@ impl Point {
     /// assert_eq!(b.x, 3.0);
     /// assert_eq!(b.y, -3.0);
     /// ```
+    ///
+    /// [rounded towards]: f64::trunc
     #[inline]
     pub fn trunc(self) -> Point {
         Point::new(self.x.trunc(), self.y.trunc())
     }
 
-    /// Is this point finite?
+    /// Is this point [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite()
     }
 
-    /// Is this point NaN?
+    /// Is this point [`NaN`]?
+    ///
+    /// [`NaN`]: f64::is_nan
     #[inline]
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
