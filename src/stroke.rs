@@ -649,16 +649,12 @@ fn dash_impl<T: Iterator<Item = PathEl>>(
     dashes: &[f64],
 ) -> DashIterator<T> {
     let mut dash_ix = 0;
-    let mut dash_remaining = dash_offset;
+    let mut dash_remaining = dashes[dash_ix] - dash_offset;
     let mut is_active = true;
     // Find place in dashes array for initial offset.
-    while dash_remaining > 0.0 {
-        let dash_len = dashes[dash_ix];
-        if dash_remaining < dash_len {
-            break;
-        }
-        dash_remaining -= dash_len;
+    while dash_remaining < 0.0 {
         dash_ix = (dash_ix + 1) % dashes.len();
+        dash_remaining += dashes[dash_ix];
         is_active = !is_active;
     }
     DashIterator {
@@ -808,7 +804,9 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{stroke, Cap::Butt, CubicBez, Join::Miter, Shape, Stroke};
+    use crate::{
+        dash, segments, stroke, Cap::Butt, CubicBez, Join::Miter, Line, PathSeg, Shape, Stroke,
+    };
 
     // A degenerate stroke with a cusp at the endpoint.
     #[test]
@@ -857,5 +855,35 @@ mod tests {
             let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
             assert!(stroked.is_finite());
         }
+    }
+
+    #[test]
+    fn dash_sequence() {
+        let shape = Line::new((0.0, 0.0), (21.0, 0.0));
+        let dashes = [1., 5., 2., 5.];
+        let expansion = [
+            PathSeg::Line(Line::new((6., 0.), (8., 0.))),
+            PathSeg::Line(Line::new((13., 0.), (14., 0.))),
+            PathSeg::Line(Line::new((19., 0.), (21., 0.))),
+            PathSeg::Line(Line::new((0., 0.), (1., 0.))),
+        ];
+        let iter = segments(dash(shape.path_elements(0.), 0., &dashes));
+        assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    #[test]
+    fn dash_sequence_offset() {
+        // Same as dash_sequence, but with a dash offset
+        // of 3, which skips the first dash and cuts into
+        // the first gap.
+        let shape = Line::new((0.0, 0.0), (21.0, 0.0));
+        let dashes = [1., 5., 2., 5.];
+        let expansion = [
+            PathSeg::Line(Line::new((3., 0.), (5., 0.))),
+            PathSeg::Line(Line::new((10., 0.), (11., 0.))),
+            PathSeg::Line(Line::new((16., 0.), (18., 0.))),
+        ];
+        let iter = segments(dash(shape.path_elements(0.), 3., &dashes));
+        assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
     }
 }
