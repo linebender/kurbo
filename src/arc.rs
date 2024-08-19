@@ -49,6 +49,22 @@ impl Arc {
         }
     }
 
+    /// Return a copy of this `Arc` in the opposite direction.
+    ///
+    /// The new `Arc` will sweep towards the original `Arc`s
+    /// start angle.
+    #[must_use]
+    #[inline]
+    pub fn flipped(&self) -> Arc {
+        Self {
+            center: self.center,
+            radii: self.radii,
+            start_angle: self.start_angle + self.sweep_angle,
+            sweep_angle: -self.sweep_angle,
+            x_rotation: self.x_rotation,
+        }
+    }
+
     /// Create an iterator generating Bezier path elements.
     ///
     /// The generated elements can be appended to an existing bezier path.
@@ -204,5 +220,26 @@ impl Mul<Arc> for Affine {
             start_angle: arc.start_angle,
             sweep_angle: arc.sweep_angle,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn flipped_arc() {
+        let a = Arc::new((0., 0.), (1., 0.), 0., PI, 0.);
+        let f = a.flipped();
+
+        // Most fields should be unchanged:
+        assert_eq!(a.center, f.center);
+        assert_eq!(a.radii, f.radii);
+        assert_eq!(a.x_rotation, f.x_rotation);
+
+        // Sweep angle should be in reverse
+        assert_eq!(a.sweep_angle, -f.sweep_angle);
+
+        // Flipping it again should result in the original arc
+        assert_eq!(a, f.flipped());
     }
 }
