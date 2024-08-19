@@ -145,13 +145,17 @@ impl Ellipse {
         self.inner.svd()
     }
 
-    /// Is this ellipse finite?
+    /// Is this ellipse [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.inner.is_finite()
     }
 
-    /// Is this ellipse NaN?
+    /// Is this ellipse [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.inner.is_nan()

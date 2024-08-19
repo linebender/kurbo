@@ -46,13 +46,17 @@ impl Circle {
         }
     }
 
-    /// Is this circle finite?
+    /// Is this circle [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.center.is_finite() && self.radius.is_finite()
     }
 
-    /// Is this circle NaN?
+    /// Is this circle [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.center.is_nan() || self.radius.is_nan()
@@ -224,7 +228,9 @@ impl CircleSegment {
         }
     }
 
-    /// Is this circle segment finite?
+    /// Is this circle segment [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.center.is_finite()
@@ -234,7 +240,9 @@ impl CircleSegment {
             && self.sweep_angle.is_finite()
     }
 
-    /// Is this circle segment NaN?
+    /// Is this circle segment [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.center.is_nan()

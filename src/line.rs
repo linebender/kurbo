@@ -52,13 +52,17 @@ impl Line {
         Some(other.p0 + cd * h)
     }
 
-    /// Is this line finite?
+    /// Is this line `finite`?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(self) -> bool {
         self.p0.is_finite() && self.p1.is_finite()
     }
 
-    /// Is this line NaN?
+    /// Is this line `NaN`?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(self) -> bool {
         self.p0.is_nan() || self.p1.is_nan()
@@ -157,13 +161,17 @@ impl ParamCurveExtrema for Line {
 pub struct ConstPoint(Point);
 
 impl ConstPoint {
-    /// Is this point finite?
+    /// Is this point [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(self) -> bool {
         self.0.is_finite()
     }
 
-    /// Is this point NaN?
+    /// Is this point [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(self) -> bool {
         self.0.is_nan()
