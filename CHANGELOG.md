@@ -20,6 +20,7 @@ This release has an [MSRV][] of 1.65.
 - Add `From (f32, f32)` for `Point`. ([#339] by [@rsheeter])
 - Add `Rect::overlaps` and `Rect::contains_rect`. ([#347] by [@nils-mathieu])
 - Add `CubicBez::tangents` ([#288] by [@raphlinus])
+- Add `Arc::flipped`. ([#367] by [@waywardmonkeys])
 
 ### Changed
 
@@ -55,6 +56,7 @@ Note: A changelog was not kept for or before this release
 [#354]: https://github.com/linebender/kurbo/pull/354
 [#356]: https://github.com/linebender/kurbo/pull/356
 [#361]: https://github.com/linebender/kurbo/pull/361
+[#367]: https://github.com/linebender/kurbo/pull/367
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
