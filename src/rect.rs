@@ -308,7 +308,7 @@ impl Rect {
     }
 
     /// Returns a new `Rect`,
-    /// with each coordinate value rounded to the nearest integer.
+    /// with each coordinate value [rounded] to the nearest integer.
     ///
     /// # Examples
     ///
@@ -320,6 +320,8 @@ impl Rect {
     /// assert_eq!(rect.x1, 3.0);
     /// assert_eq!(rect.y1, -3.0);
     /// ```
+    ///
+    /// [rounded]: f64::round
     #[inline]
     pub fn round(self) -> Rect {
         Rect::new(
@@ -331,7 +333,7 @@ impl Rect {
     }
 
     /// Returns a new `Rect`,
-    /// with each coordinate value rounded up to the nearest integer,
+    /// with each coordinate value [rounded up] to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -344,6 +346,8 @@ impl Rect {
     /// assert_eq!(rect.x1, 3.0);
     /// assert_eq!(rect.y1, -3.0);
     /// ```
+    ///
+    /// [rounded up]: f64::ceil
     #[inline]
     pub fn ceil(self) -> Rect {
         Rect::new(
@@ -355,7 +359,7 @@ impl Rect {
     }
 
     /// Returns a new `Rect`,
-    /// with each coordinate value rounded down to the nearest integer,
+    /// with each coordinate value [rounded down] to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -368,6 +372,8 @@ impl Rect {
     /// assert_eq!(rect.x1, 3.0);
     /// assert_eq!(rect.y1, -4.0);
     /// ```
+    ///
+    /// [rounded down]: f64::floor
     #[inline]
     pub fn floor(self) -> Rect {
         Rect::new(
@@ -510,7 +516,7 @@ impl Rect {
     }
 
     /// Creates a new [`RoundedRect`] from this `Rect` and the provided
-    /// corner radius.
+    /// corner [radius](RoundedRectRadii).
     #[inline]
     pub fn to_rounded_rect(self, radii: impl Into<RoundedRectRadii>) -> RoundedRect {
         RoundedRect::from_rect(self, radii)
@@ -581,13 +587,17 @@ impl Rect {
         }
     }
 
-    /// Is this rectangle finite?
+    /// Is this rectangle [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.x0.is_finite() && self.x1.is_finite() && self.y0.is_finite() && self.y1.is_finite()
     }
 
-    /// Is this rectangle NaN?
+    /// Is this rectangle [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.x0.is_nan() || self.y0.is_nan() || self.x1.is_nan() || self.y1.is_nan()

@@ -99,7 +99,7 @@ impl Size {
     }
 
     /// Returns a new `Size`,
-    /// with `width` and `height` rounded to the nearest integer.
+    /// with `width` and `height` [rounded] to the nearest integer.
     ///
     /// # Examples
     ///
@@ -112,13 +112,15 @@ impl Size {
     /// assert_eq!(size_neg.width, -3.0);
     /// assert_eq!(size_neg.height, -4.0);
     /// ```
+    ///
+    /// [rounded]: f64::round
     #[inline]
     pub fn round(self) -> Size {
         Size::new(self.width.round(), self.height.round())
     }
 
     /// Returns a new `Size`,
-    /// with `width` and `height` rounded up to the nearest integer,
+    /// with `width` and `height` [rounded up] to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -132,13 +134,15 @@ impl Size {
     /// assert_eq!(size_neg.width, -3.0);
     /// assert_eq!(size_neg.height, -3.0);
     /// ```
+    ///
+    /// [rounded up]: f64::ceil
     #[inline]
     pub fn ceil(self) -> Size {
         Size::new(self.width.ceil(), self.height.ceil())
     }
 
     /// Returns a new `Size`,
-    /// with `width` and `height` rounded down to the nearest integer,
+    /// with `width` and `height` [rounded down] to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -152,13 +156,15 @@ impl Size {
     /// assert_eq!(size_neg.width, -4.0);
     /// assert_eq!(size_neg.height, -4.0);
     /// ```
+    ///
+    /// [rounded down]: f64::floor
     #[inline]
     pub fn floor(self) -> Size {
         Size::new(self.width.floor(), self.height.floor())
     }
 
     /// Returns a new `Size`,
-    /// with `width` and `height` rounded away from zero to the nearest integer,
+    /// with `width` and `height` [rounded away] from zero to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -172,13 +178,15 @@ impl Size {
     /// assert_eq!(size_neg.width, -4.0);
     /// assert_eq!(size_neg.height, -4.0);
     /// ```
+    ///
+    /// [rounded away]: FloatExt::expand
     #[inline]
     pub fn expand(self) -> Size {
         Size::new(self.width.expand(), self.height.expand())
     }
 
     /// Returns a new `Size`,
-    /// with `width` and `height` rounded down towards zero the nearest integer,
+    /// with `width` and `height` [rounded towards] zero to the nearest integer,
     /// unless they are already an integer.
     ///
     /// # Examples
@@ -192,6 +200,8 @@ impl Size {
     /// assert_eq!(size_neg.width, -3.0);
     /// assert_eq!(size_neg.height, -3.0);
     /// ```
+    ///
+    /// [rounded towards]: f64::trunc
     #[inline]
     pub fn trunc(self) -> Size {
         Size::new(self.width.trunc(), self.height.trunc())
@@ -218,13 +228,17 @@ impl Size {
         self.to_rect().to_rounded_rect(radii)
     }
 
-    /// Is this size finite?
+    /// Is this size [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(self) -> bool {
         self.width.is_finite() && self.height.is_finite()
     }
 
-    /// Is this size NaN?
+    /// Is this size [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(self) -> bool {
         self.width.is_nan() || self.height.is_nan()

@@ -156,81 +156,99 @@ impl Affine {
         aff.pre_translate(-point.to_vec2())
     }
 
-    /// A rotation by `th` followed by `self`.
+    /// A [rotation] by `th` followed by `self`.
     ///
     /// Equivalent to `self * Affine::rotate(th)`
+    ///
+    /// [rotation]: Affine::rotate
     #[inline]
     #[must_use]
     pub fn pre_rotate(self, th: f64) -> Self {
         self * Affine::rotate(th)
     }
 
-    /// A rotation by `th` about `center` followed by `self`.
+    /// A [rotation] by `th` about `center` followed by `self`.
     ///
-    /// Equivalent to `self * Affine::rotate_about(th)`
+    /// Equivalent to `self * Affine::rotate_about(th, center)`
+    ///
+    /// [rotation]: Affine::rotate_about
     #[inline]
     #[must_use]
     pub fn pre_rotate_about(self, th: f64, center: Point) -> Self {
         Affine::rotate_about(th, center) * self
     }
 
-    /// A scale by `scale` followed by `self`.
+    /// A [scale] by `scale` followed by `self`.
     ///
     /// Equivalent to `self * Affine::scale(scale)`
+    ///
+    /// [scale]: Affine::scale
     #[inline]
     #[must_use]
     pub fn pre_scale(self, scale: f64) -> Self {
         self * Affine::scale(scale)
     }
 
-    /// A scale by `(scale_x, scale_y)` followed by `self`.
+    /// A [scale] by `(scale_x, scale_y)` followed by `self`.
     ///
     /// Equivalent to `self * Affine::scale_non_uniform(scale_x, scale_y)`
+    ///
+    /// [scale]: Affine::scale_non_uniform
     #[inline]
     #[must_use]
     pub fn pre_scale_non_uniform(self, scale_x: f64, scale_y: f64) -> Self {
         self * Affine::scale_non_uniform(scale_x, scale_y)
     }
 
-    /// A translation of `trans` followed by `self`.
+    /// A [translation] of `trans` followed by `self`.
     ///
     /// Equivalent to `self * Affine::translate(trans)`
+    ///
+    /// [translation]: Affine::translate
     #[inline]
     #[must_use]
     pub fn pre_translate(self, trans: Vec2) -> Self {
         self * Affine::translate(trans)
     }
 
-    /// `self` followed by a rotation of `th`.
+    /// `self` followed by a [rotation] of `th`.
     ///
     /// Equivalent to `Affine::rotate(th) * self`
+    ///
+    /// [rotation]: Affine::rotate
     #[inline]
     #[must_use]
     pub fn then_rotate(self, th: f64) -> Self {
         Affine::rotate(th) * self
     }
 
-    /// `self` followed by a rotation of `th` about `center`.
+    /// `self` followed by a [rotation] of `th` about `center`.
     ///
     /// Equivalent to `Affine::rotate_about(th, center) * self`
+    ///
+    /// [rotation]: Affine::rotate_about
     #[inline]
     #[must_use]
     pub fn then_rotate_about(self, th: f64, center: Point) -> Self {
         Affine::rotate_about(th, center) * self
     }
 
-    /// `self` followed by a scale of `scale`.
+    /// `self` followed by a [scale] of `scale`.
     ///
     /// Equivalent to `Affine::scale(scale) * self`
+    ///
+    /// [scale]: Affine::scale
     #[inline]
     #[must_use]
     pub fn then_scale(self, scale: f64) -> Self {
         Affine::scale(scale) * self
     }
 
-    /// `self` followed by a scale of `(scale_x, scale_y)`.
+    /// `self` followed by a [scale] of `(scale_x, scale_y)`.
     ///
     /// Equivalent to `Affine::scale_non_uniform(scale_x, scale_y) * self`
+    ///
+    /// [scale]: Affine::scale_non_uniform
     #[inline]
     #[must_use]
     pub fn then_scale_non_uniform(self, scale_x: f64, scale_y: f64) -> Self {
@@ -240,6 +258,8 @@ impl Affine {
     /// `self` followed by a translation of `trans`.
     ///
     /// Equivalent to `Affine::translate(trans) * self`
+    ///
+    /// [translation]: Affine::translate
     #[inline]
     #[must_use]
     pub fn then_translate(mut self, trans: Vec2) -> Self {
@@ -297,7 +317,9 @@ impl Affine {
         Rect::from_points(p00, p01).union(Rect::from_points(p10, p11))
     }
 
-    /// Is this map finite?
+    /// Is this map [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.0[0].is_finite()
@@ -308,7 +330,9 @@ impl Affine {
             && self.0[5].is_finite()
     }
 
-    /// Is this map NaN?
+    /// Is this map [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.0[0].is_nan()

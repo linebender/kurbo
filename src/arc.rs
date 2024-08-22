@@ -13,7 +13,7 @@ use core::{
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
-/// A single arc segment.
+/// A single elliptical arc segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -80,9 +80,9 @@ impl Arc {
         }
     }
 
-    /// Converts an Arc into a series of cubic bezier segments.
+    /// Converts an `Arc` into a series of cubic bezier segments.
     ///
-    /// Closure will be invoked for each segment.
+    /// The closure `p` will be invoked with the control points for each segment.
     pub fn to_cubic_beziers<P>(self, tolerance: f64, mut p: P)
     where
         P: FnMut(Point, Point, Point),

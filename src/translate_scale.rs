@@ -36,7 +36,7 @@ use crate::{
 /// `2.0 * TranslateScale::translate(Vec2::new(1.0, 0.0))` as this case
 /// has an implicit conversion).
 ///
-/// This transformation is less powerful than `Affine`, but can be applied
+/// This transformation is less powerful than [`Affine`], but can be applied
 /// to more primitives, especially including [`Rect`].
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -116,13 +116,17 @@ impl TranslateScale {
         }
     }
 
-    /// Is this translate/scale finite?
+    /// Is this translate/scale [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.translation.is_finite() && self.scale.is_finite()
     }
 
-    /// Is this translate/scale NaN?
+    /// Is this translate/scale [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.translation.is_nan() || self.scale.is_nan()
