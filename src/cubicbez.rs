@@ -12,7 +12,7 @@ use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
 use crate::common::{
-    solve_quadratic, GAUSS_LEGENDRE_COEFFS_16_HALF, GAUSS_LEGENDRE_COEFFS_24_HALF,
+    solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16_HALF, GAUSS_LEGENDRE_COEFFS_24_HALF,
     GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF,
 };
 use crate::{
@@ -352,6 +352,27 @@ impl CubicBez {
         let b = (self.p2 - self.p1) - a;
         let c = (self.p3 - self.p0) - 3. * (self.p2 - self.p1);
         solve_quadratic(a.cross(b), a.cross(c), b.cross(c))
+            .iter()
+            .copied()
+            .filter(|t| *t >= 0.0 && *t <= 1.0)
+            .collect()
+    }
+
+    /// Find points on the curve where the tangent line passes through the
+    /// given point.
+    ///
+    /// Result is array of t values such that the tangent line from the curve
+    /// evaluated at that point goes through the argument point.
+    pub fn tangents_to_point(&self, p: Point) -> ArrayVec<f64, 4> {
+        let (a, b, c, d_orig) = self.parameters();
+        let d = d_orig - p.to_vec2();
+        // coefficients of x(t) \cross x'(t)
+        let c4 = b.cross(a);
+        let c3 = 2.0 * c.cross(a);
+        let c2 = c.cross(b) + 3.0 * d.cross(a);
+        let c1 = 2.0 * d.cross(b);
+        let c0 = d.cross(c);
+        solve_quartic(c0, c1, c2, c3, c4)
             .iter()
             .copied()
             .filter(|t| *t >= 0.0 && *t <= 1.0)

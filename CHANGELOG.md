@@ -19,6 +19,7 @@ This release has an [MSRV][] of 1.65.
 
 - Add `From (f32, f32)` for `Point`. ([#339] by [@rsheeter])
 - Add `Rect::overlaps` and `Rect::contains_rect`. ([#347] by [@nils-mathieu])
+- Add `CubicBez::tangents` ([#288] by [@raphlinus])
 
 ### Changed
 
@@ -45,6 +46,7 @@ Note: A changelog was not kept for or before this release
 [@simoncozens]: https://github.com/simoncozens
 [@waywardmonkeys]: https://github.com/waywardmonkeys
 
+[#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
 [#339]: https://github.com/linebender/kurbo/pull/339
 [#340]: https://github.com/linebender/kurbo/pull/340
