@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Triangle shape
-use crate::{PathEl, Point, Rect, Shape, Vec2};
+use crate::{Line, PathEl, Point, Rect, Shape, Vec2};
 
 use core::cmp::*;
 use core::f64::consts::FRAC_PI_4;
@@ -67,19 +67,6 @@ impl Triangle {
         }
     }
 
-    /// A new [`Triangle`] from centroid and offsets ([`Vec2`]) - offset of each vertex from the centroid
-    #[inline]
-    fn from_centroid_offsets(centroid: impl Into<Point>, offsets: [impl Into<Vec2>; 3]) -> Self {
-        let centroid = centroid.into();
-
-        let mut points: [Point; 3] = Default::default();
-        for (i, offset) in offsets.into_iter().enumerate() {
-            points[i] = centroid + offset.into();
-        }
-
-        Self::new(points[0], points[1], points[2])
-    }
-
     /// The centroid of the [`Triangle`]
     #[inline]
     pub fn centroid(&self) -> Point {
@@ -122,7 +109,7 @@ impl Triangle {
     /// The area of the [`Triangle`]
     #[inline]
     pub fn area(&self) -> f64 {
-        0.5 * (self.b - self.a).cross(self.c - self.a).abs()
+        0.5 * (self.b - self.a).cross(self.c - self.a)
     }
 
     /// Whether this [`Triangle`] has no (zero) area
@@ -131,10 +118,10 @@ impl Triangle {
         self.area() == 0.0
     }
 
-    /// The greatest radius of a circle that is within the [`Triangle`]
+    /// Inradius of [`Triangle`] (the greatest radius of a circle that is within the [`Triangle`])
     /// with center [`Triangle::circumcenter`]
     #[inline]
-    pub fn incircle(&self) -> f64 {
+    pub fn inradius(&self) -> f64 {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
@@ -142,16 +129,15 @@ impl Triangle {
         2.0 * self.area() / (ab + bc + ac)
     }
 
-    /// Circumcircle of the [`Triangle`]
+    /// Circumradius of [`Triangle`] (the smallest radius of a circle such that it intercepts each vertex)
     /// with center [`Triangle::circumcenter`]
     #[inline]
-    pub fn circumcircle(&self) -> f64 {
+    pub fn circumradius(&self) -> f64 {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
         (ab * bc * ac) / (4.0 * self.area())
-        // ab * bc * ac / (((ab + bc + ac) * (bc + ac - ab) * (ab + ac - bc) * (ab + bc - ac)).sqrt())
     }
 
     /// Expand the triangle by a constant amount (`scalar`) in all directions
@@ -190,16 +176,18 @@ impl From<(Point, Point, Point)> for Triangle {
     }
 }
 
+impl From<(Line, Line)> for Triangle {
+    fn from(lines: (Line, Line)) -> Triangle {
+        Triangle::new(lines.0.p0, lines.0.p1, lines.1.p0)
+    }
+}
+
 impl Add<Vec2> for Triangle {
     type Output = Triangle;
 
     #[inline]
     fn add(self, v: Vec2) -> Triangle {
-        Triangle::new(
-            (self.a.to_vec2() + v).to_point(),
-            (self.b.to_vec2() + v).to_point(),
-            (self.c.to_vec2() + v).to_point(),
-        )
+        Triangle::new(self.a + v, self.b + v, self.c + v)
     }
 }
 
@@ -208,11 +196,7 @@ impl Sub<Vec2> for Triangle {
 
     #[inline]
     fn sub(self, v: Vec2) -> Triangle {
-        Triangle::new(
-            (self.a.to_vec2() - v).to_point(),
-            (self.b.to_vec2() - v).to_point(),
-            (self.c.to_vec2() - v).to_point(),
-        )
+        Triangle::new(self.a - v, self.b - v, self.c - v)
     }
 }
 
@@ -335,20 +319,21 @@ mod tests {
         let test = Triangle::EQUILATERAL.circumcenter();
         let expected = Point::new(0.5, 0.2886751345948128);
 
-        assert_eq!(test, expected);
+        assert_eq!(test.x, expected.x);
+        assert_approx_eq(test.y, expected.y);
     }
 
     #[test]
-    fn incircle() {
-        let test = Triangle::EQUILATERAL.incircle();
+    fn inradius() {
+        let test = Triangle::EQUILATERAL.inradius();
         let expected = 0.28867513459481287;
 
         assert_approx_eq(test, expected);
     }
 
     #[test]
-    fn circumcircle() {
-        let test = Triangle::EQUILATERAL.circumcircle();
+    fn circumradius() {
+        let test = Triangle::EQUILATERAL.circumradius();
         let expected = 0.5773502691896258;
 
         assert_approx_eq(test, expected);
