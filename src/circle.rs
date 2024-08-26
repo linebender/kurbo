@@ -228,6 +228,38 @@ impl CircleSegment {
         }
     }
 
+    /// Return an arc representing the outer radius.
+    #[must_use]
+    #[inline]
+    pub fn outer_arc(&self) -> Arc {
+        Arc {
+            center: self.center,
+            radii: Vec2::new(self.outer_radius, self.outer_radius),
+            start_angle: self.start_angle,
+            sweep_angle: self.sweep_angle,
+            x_rotation: 0.0,
+        }
+    }
+
+    /// Return an arc representing the inner radius.
+    ///
+    /// This is [flipped] from the outer arc, so that it is in the
+    /// same direction as the arc that would be drawn (as the path
+    /// elements for this circle segment produce a closed path).
+    ///
+    /// [flipped]: Arc::flipped
+    #[must_use]
+    #[inline]
+    pub fn inner_arc(&self) -> Arc {
+        Arc {
+            center: self.center,
+            radii: Vec2::new(self.inner_radius, self.inner_radius),
+            start_angle: self.start_angle + self.sweep_angle,
+            sweep_angle: -self.sweep_angle,
+            x_rotation: 0.0,
+        }
+    }
+
     /// Is this circle segment [finite]?
     ///
     /// [finite]: f64::is_finite
@@ -301,16 +333,7 @@ impl Shape for CircleSegment {
             self.start_angle,
         ))))
         // outer arc
-        .chain(
-            Arc {
-                center: self.center,
-                radii: Vec2::new(self.outer_radius, self.outer_radius),
-                start_angle: self.start_angle,
-                sweep_angle: self.sweep_angle,
-                x_rotation: 0.0,
-            }
-            .append_iter(tolerance),
-        )
+        .chain(self.outer_arc().append_iter(tolerance))
         // second radius
         .chain(iter::once(PathEl::LineTo(point_on_circle(
             self.center,
@@ -318,16 +341,7 @@ impl Shape for CircleSegment {
             self.start_angle + self.sweep_angle,
         ))))
         // inner arc
-        .chain(
-            Arc {
-                center: self.center,
-                radii: Vec2::new(self.inner_radius, self.inner_radius),
-                start_angle: self.start_angle + self.sweep_angle,
-                sweep_angle: -self.sweep_angle,
-                x_rotation: 0.0,
-            }
-            .append_iter(tolerance),
-        )
+        .chain(self.inner_arc().append_iter(tolerance))
     }
 
     #[inline]
