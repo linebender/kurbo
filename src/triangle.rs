@@ -307,11 +307,14 @@ mod tests {
             (12123.423, 2382.7834),
             (7892.729, 238.459),
             (7820.2, 712.23),
-        )
-        .area();
+        );
         let expected = 1079952.91574081;
 
-        assert_approx_eq(test, expected);
+        // initial
+        assert_approx_eq(test.area(), -expected);
+        // permutate vertex
+        let test = Triangle::new(test.b, test.a, test.c);
+        assert_approx_eq(test.area(), expected);
     }
 
     #[test]
