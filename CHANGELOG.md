@@ -22,6 +22,7 @@ This release has an [MSRV][] of 1.65.
 - Add `CubicBez::tangents` ([#288] by [@raphlinus])
 - Add `Arc::flipped`. ([#367] by [@waywardmonkeys])
 - Add `CircleSegment::inner_arc` and `CircleSegment::outer_arc` ([#368] by [@waywardmonkeys])
+- Add `Rect::is_zero_area` and `Size::is_zero_area` and deprecate their `is_empty` methods. ([#370] by [@waywardmonkeys])
 
 ### Changed
 
@@ -59,6 +60,7 @@ Note: A changelog was not kept for or before this release
 [#361]: https://github.com/linebender/kurbo/pull/361
 [#367]: https://github.com/linebender/kurbo/pull/367
 [#368]: https://github.com/linebender/kurbo/pull/368
+[#370]: https://github.com/linebender/kurbo/pull/370
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0

@@ -66,11 +66,18 @@ impl Size {
     }
 
     /// Whether this size has zero area.
+    #[inline]
+    pub fn is_zero_area(self) -> bool {
+        self.area() == 0.0
+    }
+
+    /// Whether this size has zero area.
     ///
     /// Note: a size with negative area is not considered empty.
     #[inline]
+    #[deprecated(since = "0.11.1", note = "use is_zero_area instead")]
     pub fn is_empty(self) -> bool {
-        self.area() == 0.0
+        self.is_zero_area()
     }
 
     /// Returns a new size bounded by `min` and `max.`
