@@ -160,11 +160,18 @@ impl Rect {
     }
 
     /// Whether this rectangle has zero area.
+    #[inline]
+    pub fn is_zero_area(&self) -> bool {
+        self.area() == 0.0
+    }
+
+    /// Whether this rectangle has zero area.
     ///
     /// Note: a rectangle with negative area is not considered empty.
     #[inline]
+    #[deprecated(since = "0.11.1", note = "use is_zero_area instead")]
     pub fn is_empty(&self) -> bool {
-        self.area() == 0.0
+        self.is_zero_area()
     }
 
     /// The center point of the rectangle.
