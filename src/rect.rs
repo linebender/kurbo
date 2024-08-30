@@ -160,6 +160,7 @@ impl Rect {
     }
 
     /// Whether this rectangle has zero area.
+    #[doc(alias = "is_empty")]
     #[inline]
     pub fn is_zero_area(&self) -> bool {
         self.area() == 0.0
