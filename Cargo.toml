@@ -29,7 +29,7 @@ schemars=["schemars/smallvec", "dep:schemars"]
 smallvec = "1.13.2"
 
 [dependencies.arrayvec]
-version = "0.7.4"
+version = "0.7.6"
 default-features = false
 
 [dependencies.libm]
@@ -45,7 +45,7 @@ version = "0.8.21"
 optional = true
 
 [dependencies.serde]
-version = "1.0.204"
+version = "1.0.209"
 optional = true
 default-features = false
 features = ["alloc", "derive"]
