@@ -112,9 +112,9 @@ impl Triangle {
         0.5 * (self.b - self.a).cross(self.c - self.a)
     }
 
-    /// Whether this [`Triangle`] has no (zero) area
+    /// Whether this [`Triangle`] has zero area
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub fn is_zero_area(&self) -> bool {
         self.area() == 0.0
     }
 
@@ -151,13 +151,17 @@ impl Triangle {
         )
     }
 
-    /// Is this [`Triangle`] finite?
+    /// Is this [`Triangle`] [finite]?
+    ///
+    /// [finite]: f64::is_finite
     #[inline]
     pub fn is_finite(&self) -> bool {
         self.a.is_finite() && self.b.is_finite() && self.c.is_finite()
     }
 
-    /// Is this [`Triangle`] NaN?
+    /// Is this [`Triangle`] [NaN]?
+    ///
+    /// [NaN]: f64::is_nan
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.a.is_nan() || self.b.is_nan() || self.c.is_nan()
@@ -255,7 +259,7 @@ impl Shape for Triangle {
     }
 }
 
-// NOTE: vertices a, b and c are not garunteed to be in order as described in the struct comments
+// NOTE: vertices a, b and c are not guaranteed to be in order as described in the struct comments
 //       (i.e. as "vertex a is topmost, vertex b is leftmost, and vertex c is rightmost")
 impl Iterator for TrianglePathIter {
     type Item = PathEl;
