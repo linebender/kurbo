@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Triangle shape
-use crate::{Line, PathEl, Point, Rect, Shape, Vec2};
+use crate::{PathEl, Point, Rect, Shape, Vec2};
 
 use core::cmp::*;
 use core::f64::consts::FRAC_PI_4;
@@ -178,12 +178,6 @@ impl Triangle {
 impl From<(Point, Point, Point)> for Triangle {
     fn from(points: (Point, Point, Point)) -> Triangle {
         Triangle::new(points.0, points.1, points.2)
-    }
-}
-
-impl From<(Line, Line)> for Triangle {
-    fn from(lines: (Line, Line)) -> Triangle {
-        Triangle::new(lines.0.p0, lines.0.p1, lines.1.p0)
     }
 }
 
