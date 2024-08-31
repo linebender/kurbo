@@ -113,6 +113,7 @@ impl Triangle {
     }
 
     /// Whether this [`Triangle`] has zero area
+    #[doc(alias = "is_empty")]
     #[inline]
     pub fn is_zero_area(&self) -> bool {
         self.area() == 0.0
