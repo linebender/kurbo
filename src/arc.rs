@@ -49,13 +49,13 @@ impl Arc {
         }
     }
 
-    /// Return a copy of this `Arc` in the opposite direction.
+    /// Returns a copy of this `Arc` in the opposite direction.
     ///
     /// The new `Arc` will sweep towards the original `Arc`s
     /// start angle.
     #[must_use]
     #[inline]
-    pub fn flipped(&self) -> Arc {
+    pub fn reversed(&self) -> Arc {
         Self {
             center: self.center,
             radii: self.radii,
@@ -227,9 +227,9 @@ impl Mul<Arc> for Affine {
 mod tests {
     use super::*;
     #[test]
-    fn flipped_arc() {
+    fn reversed_arc() {
         let a = Arc::new((0., 0.), (1., 0.), 0., PI, 0.);
-        let f = a.flipped();
+        let f = a.reversed();
 
         // Most fields should be unchanged:
         assert_eq!(a.center, f.center);
@@ -239,7 +239,7 @@ mod tests {
         // Sweep angle should be in reverse
         assert_eq!(a.sweep_angle, -f.sweep_angle);
 
-        // Flipping it again should result in the original arc
-        assert_eq!(a, f.flipped());
+        // Reversing it again should result in the original arc
+        assert_eq!(a, f.reversed());
     }
 }

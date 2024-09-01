@@ -243,11 +243,11 @@ impl CircleSegment {
 
     /// Return an arc representing the inner radius.
     ///
-    /// This is [flipped] from the outer arc, so that it is in the
+    /// This is [reversed] from the outer arc, so that it is in the
     /// same direction as the arc that would be drawn (as the path
     /// elements for this circle segment produce a closed path).
     ///
-    /// [flipped]: Arc::flipped
+    /// [reversed]: Arc::reversed
     #[must_use]
     #[inline]
     pub fn inner_arc(&self) -> Arc {

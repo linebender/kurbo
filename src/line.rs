@@ -34,10 +34,31 @@ impl Line {
         }
     }
 
+    /// Returns a copy of this `Line` with the end points swapped so that it
+    /// points in the opposite direction.
+    #[must_use]
+    #[inline]
+    pub fn reversed(&self) -> Line {
+        Self {
+            p0: self.p1,
+            p1: self.p0,
+        }
+    }
+
     /// The length of the line.
     #[inline]
     pub fn length(self) -> f64 {
         self.arclen(DEFAULT_ACCURACY)
+    }
+
+    /// The midpoint of the line.
+    ///
+    /// This is the same as calling [`Point::midpoint`] with
+    /// the endpoints of this line.
+    #[must_use]
+    #[inline]
+    pub fn midpoint(&self) -> Point {
+        self.p0.midpoint(self.p1)
     }
 
     /// Computes the point where two lines, if extended to infinity, would cross.
@@ -303,6 +324,18 @@ mod tests {
     use crate::{Line, ParamCurveArclen, Point};
 
     #[test]
+    fn line_reversed() {
+        let l = Line::new((0.0, 0.0), (1.0, 1.0));
+        let f = l.reversed();
+
+        assert_eq!(l.p0, f.p1);
+        assert_eq!(l.p1, f.p0);
+
+        // Reversing it again should result in the original line
+        assert_eq!(l, f.reversed());
+    }
+
+    #[test]
     fn line_arclen() {
         let l = Line::new((0.0, 0.0), (1.0, 1.0));
         let true_len = 2.0f64.sqrt();
@@ -311,6 +344,12 @@ mod tests {
 
         let t = l.inv_arclen(true_len / 3.0, epsilon);
         assert!((t - 1.0 / 3.0).abs() < epsilon);
+    }
+
+    #[test]
+    fn line_midpoint() {
+        let l = Line::new((0.0, 0.0), (2.0, 4.0));
+        assert_eq!(l.midpoint(), Point::new(1.0, 2.0));
     }
 
     #[test]
