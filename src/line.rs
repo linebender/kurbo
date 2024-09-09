@@ -90,6 +90,18 @@ impl Line {
     }
 }
 
+impl From<(Point, Point)> for Line {
+    fn from((from, to): (Point, Point)) -> Self {
+        Line::new(from, to)
+    }
+}
+
+impl From<(Point, Vec2)> for Line {
+    fn from((origin, displacement): (Point, Vec2)) -> Self {
+        Line::new(origin, origin + displacement)
+    }
+}
+
 impl ParamCurve for Line {
     #[inline]
     fn eval(&self, t: f64) -> Point {
