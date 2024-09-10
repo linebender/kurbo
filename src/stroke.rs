@@ -106,11 +106,13 @@ pub enum StrokeStyle {
 }
 
 impl StrokeStyle {
+    #[allow(dead_code)]
     fn inner(self) -> StrokeEdgeExpansion {
         // We know the error is impossible as the byte values above are
         // only combinations of the StrokeEdgeExpansion variants
         ((self as u8) & 0x0F).try_into().unwrap()
     }
+    #[allow(dead_code)]
     fn outer(self) -> StrokeEdgeExpansion {
         (self as u8 >> 4).try_into().unwrap()
     }
