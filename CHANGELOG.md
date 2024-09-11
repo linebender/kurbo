@@ -24,6 +24,7 @@ This release has an [MSRV][] of 1.65.
 - Add `CircleSegment::inner_arc` and `CircleSegment::outer_arc` ([#368] by [@waywardmonkeys])
 - Add `Rect::is_zero_area` and `Size::is_zero_area` and deprecate their `is_empty` methods. ([#370] by [@waywardmonkeys])
 - Add `Line::reversed` and `Line::midpoint`. ([#375] by [@waywardmonkeys])
+- Allow construction of `Line` from `(Point, Point)` and `(Point, Vec2)`. ([#376] by [@waywardmonkeys])
 
 ### Changed
 
@@ -69,6 +70,7 @@ Note: A changelog was not kept for or before this release
 [#368]: https://github.com/linebender/kurbo/pull/368
 [#370]: https://github.com/linebender/kurbo/pull/370
 [#375]: https://github.com/linebender/kurbo/pull/375
+[#376]: https://github.com/linebender/kurbo/pull/376
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
