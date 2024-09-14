@@ -3,11 +3,11 @@
 
 //! An ellipse arc.
 
-use crate::{Affine, Ellipse, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Ellipse, ParamCurve, PathEl, Point, Rect, Shape, Vec2};
 use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
-    ops::Mul,
+    ops::{Mul, Range},
 };
 
 #[cfg(not(feature = "std"))]
@@ -64,6 +64,11 @@ impl Arc {
             sweep_angle: -self.sweep_angle,
             x_rotation: self.x_rotation,
         }
+    }
+
+    #[inline]
+    fn angle_at(&self, t: f64) -> f64 {
+        self.start_angle + self.sweep_angle * t
     }
 
     /// Create an iterator generating Bezier path elements.
@@ -172,12 +177,27 @@ fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
     )
 }
 
+impl ParamCurve for Arc {
+    fn eval(&self, t: f64) -> Point {
+        self.center + sample_ellipse(self.radii, self.x_rotation, self.angle_at(t))
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> Self {
+        Self {
+            center: self.center,
+            radii: self.radii,
+            start_angle: self.angle_at(range.start),
+            sweep_angle: self.sweep_angle * (range.end - range.start),
+            x_rotation: self.x_rotation,
+        }
+    }
+}
+
 impl Shape for Arc {
     type PathElementsIter<'iter> = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
     fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
-        let p0 = sample_ellipse(self.radii, self.x_rotation, self.start_angle);
-        iter::once(PathEl::MoveTo(self.center + p0)).chain(self.append_iter(tolerance))
+        iter::once(PathEl::MoveTo(self.start())).chain(self.append_iter(tolerance))
     }
 
     /// Note: shape isn't closed so area is not well defined.
@@ -226,7 +246,30 @@ impl Mul<Arc> for Affine {
 
 #[cfg(test)]
 mod tests {
+    use core::f64::consts::{FRAC_PI_4, FRAC_PI_6};
+
+    use crate::ParamCurve;
+
     use super::*;
+
+    fn assert_point_near(actual: Point, expected: Point) {
+        let epsilon = 1e-12;
+        assert!(
+            actual.distance(expected) <= epsilon,
+            "expected {expected:?}, got {actual:?}"
+        );
+    }
+
+    fn assert_subsegment_matches(arc: Arc, range: Range<f64>) {
+        let subsegment = arc.subsegment(range.clone());
+        for t in [0.0, 0.25, 0.5, 1.0] {
+            let expected_t = range.start + (range.end - range.start) * t;
+            assert_point_near(subsegment.eval(t), arc.eval(expected_t));
+        }
+        assert_point_near(subsegment.start(), arc.eval(range.start));
+        assert_point_near(subsegment.end(), arc.eval(range.end));
+    }
+
     #[test]
     fn reversed_arc() {
         let a = Arc::new((0., 0.), (1., 0.), 0., PI, 0.);
@@ -242,5 +285,57 @@ mod tests {
 
         // Reversing it again should result in the original arc
         assert_eq!(a, f.reversed());
+    }
+
+    #[test]
+    fn eval_endpoints_and_midpoint() {
+        let arc = Arc::new((3.0, -2.0), (4.0, 1.5), FRAC_PI_6, PI, 0.0);
+        assert_point_near(arc.eval(0.0), arc.start());
+        assert_point_near(arc.eval(1.0), arc.end());
+        assert_point_near(
+            arc.eval(0.5),
+            arc.center + sample_ellipse(arc.radii, arc.x_rotation, arc.angle_at(0.5)),
+        );
+    }
+
+    #[test]
+    fn eval_rotated_ellipse() {
+        let arc = Arc::new((5.0, 7.0), (3.0, 2.0), FRAC_PI_6, PI / 3.0, FRAC_PI_4);
+        assert_point_near(
+            arc.start(),
+            arc.center + sample_ellipse(arc.radii, arc.x_rotation, arc.start_angle),
+        );
+        assert_point_near(
+            arc.end(),
+            arc.center
+                + sample_ellipse(arc.radii, arc.x_rotation, arc.start_angle + arc.sweep_angle),
+        );
+    }
+
+    #[test]
+    fn eval_reversed_arc() {
+        let arc = Arc::new((2.0, 3.0), (4.0, 1.0), FRAC_PI_6, PI / 2.0, FRAC_PI_4);
+        let reversed = arc.reversed();
+        assert_point_near(reversed.start(), arc.end());
+        assert_point_near(reversed.end(), arc.start());
+        assert_point_near(reversed.eval(0.5), arc.eval(0.5));
+    }
+
+    #[test]
+    fn subsegment_matches_original() {
+        let arc = Arc::new((1.0, -4.0), (3.0, 2.0), -FRAC_PI_4, PI, FRAC_PI_6);
+        assert_subsegment_matches(arc, 0.2..0.7);
+    }
+
+    #[test]
+    fn subsegment_negative_sweep_matches_original() {
+        let arc = Arc::new((1.0, 2.0), (5.0, 3.0), PI, -0.75 * PI, FRAC_PI_6);
+        assert_subsegment_matches(arc, 0.1..0.8);
+    }
+
+    #[test]
+    fn subsegment_tiny_sweep_matches_original() {
+        let arc = Arc::new((0.0, 0.0), (2.0, 1.0), 1.0, 1e-9, FRAC_PI_4);
+        assert_subsegment_matches(arc, 0.25..0.75);
     }
 }
