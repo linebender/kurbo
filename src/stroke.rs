@@ -42,7 +42,7 @@ pub enum Cap {
 }
 
 /// Describes the visual style of a stroke.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Stroke {
@@ -63,11 +63,13 @@ pub struct Stroke {
 }
 
 /// Options for path stroking.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
 }
 
 /// Optimization level for computing
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StrokeOptLevel {
     /// Adaptively subdivide segments in half.
     Subdivide,
@@ -201,10 +203,10 @@ pub fn stroke(
     tolerance: f64,
 ) -> BezPath {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance, opts)
+        stroke_undashed(path, style, tolerance, *opts)
     } else {
         let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
-        stroke_undashed(dashed, style, tolerance, opts)
+        stroke_undashed(dashed, style, tolerance, *opts)
     }
 }
 
@@ -213,7 +215,7 @@ fn stroke_undashed(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
     tolerance: f64,
-    opts: &StrokeOpts,
+    opts: StrokeOpts,
 ) -> BezPath {
     let mut ctx = StrokeCtx {
         join_thresh: 2.0 * tolerance / style.width,
@@ -307,7 +309,7 @@ fn extend_reversed(out: &mut BezPath, elements: &[PathEl]) {
     }
 }
 
-fn fit_with_opts(co: &CubicOffset, tolerance: f64, opts: &StrokeOpts) -> BezPath {
+fn fit_with_opts(co: &CubicOffset, tolerance: f64, opts: StrokeOpts) -> BezPath {
     match opts.opt_level {
         StrokeOptLevel::Subdivide => fit_to_bezpath(co, tolerance),
         StrokeOptLevel::Optimized => fit_to_bezpath_opt(co, tolerance),
@@ -428,7 +430,7 @@ impl StrokeCtx {
         self.last_pt = p1;
     }
 
-    fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: &StrokeOpts) {
+    fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: StrokeOpts) {
         // First, detect degenerate linear case
 
         // Ordinarily, this is the direction of the chord, but if the chord is very
