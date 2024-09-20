@@ -15,10 +15,11 @@ You can find its changes [documented below](#0111-2024-09-12).
 
 This release has an [MSRV][] of 1.65.
 
+<<<<<<< HEAD
 ### Changed
 
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379] by [@waywardmonkeys])
-### `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
+- `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
 
 ## [0.11.1][] (2024-09-12)
 
