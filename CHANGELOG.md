@@ -15,7 +15,9 @@ You can find its changes [documented below](#0111-2024-09-12).
 
 This release has an [MSRV][] of 1.65.
 
-### `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
+### Changes
+
+- `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
 
 ## [0.11.1][] (2024-09-12)
 
