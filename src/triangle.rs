@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Triangle shape
-use crate::{PathEl, Point, Rect, Shape, Vec2};
+use crate::{Circle, PathEl, Point, Rect, Shape, Vec2};
 
 use core::cmp::*;
 use core::f64::consts::FRAC_PI_4;
@@ -34,9 +34,6 @@ impl Triangle {
     /// The empty [`Triangle`] at the origin
     pub const ZERO: Self = Self::from_coords((0., 0.), (0., 0.), (0., 0.));
 
-    /// empty [`Triangle`] at (1.0, 1.0)
-    pub const ONE: Self = Self::from_coords((1.0, 1.0), (1.0, 1.0), (1.0, 1.0));
-
     /// equilateral [`Triangle`]
     pub const EQUILATERAL: Self = Self::from_coords(
         (
@@ -59,7 +56,7 @@ impl Triangle {
 
     /// A new [`Triangle`] from three float vertex coordinates
     #[inline]
-    pub const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
+    const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
         Self {
             a: Point::new(a.0, a.1),
             b: Point::new(b.0, b.1),
@@ -75,7 +72,7 @@ impl Triangle {
 
     /// The circumcenter of the [`Triangle`]
     #[inline]
-    pub fn circumcenter(&self) -> Point {
+    fn circumcenter(&self) -> Point {
         let d = 2.0
             * (self.a.x * (self.b.y - self.c.y)
                 + self.b.x * (self.c.y - self.a.y)
@@ -119,28 +116,24 @@ impl Triangle {
         self.area() == 0.0
     }
 
-    /// Inradius of [`Triangle`] 
-    /// 
-    /// This is defined as the greatest radius of a circle that is within the [`Triangle`] 
-    /// with center [`Triangle::circumcenter`]
+    /// Incircle of [`Triangle`] (the greatest [`Circle`] that lies within the [`Triangle`])
     #[inline]
-    pub fn inradius(&self) -> f64 {
+    pub fn incircle(&self) -> Circle {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
-        2.0 * self.area() / (ab + bc + ac)
+        Circle::new(self.circumcenter(), 2.0 * self.area() / (ab + bc + ac))
     }
 
-    /// Circumradius of [`Triangle`] (the smallest radius of a circle such that it intercepts each vertex)
-    /// with center [`Triangle::circumcenter`]
+    /// Circumcircle of [`Triangle`] (the smallest [`Circle`] such that it intercepts each vertex)
     #[inline]
-    pub fn circumradius(&self) -> f64 {
+    pub fn circumcircle(&self) -> Circle {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
-        (ab * bc * ac) / (4.0 * self.area())
+        Circle::new(self.circumcenter(), (ab * bc * ac) / (4.0 * self.area()))
     }
 
     /// Expand the triangle by a constant amount (`scalar`) in all directions
@@ -249,14 +242,9 @@ impl Shape for Triangle {
             self.a.y.max(self.b.y.max(self.c.y)),
         )
     }
-
-    #[inline]
-    fn as_rect(&self) -> Option<Rect> {
-        Some(self.bounding_box())
-    }
 }
 
-// NOTE: vertices a, b and c are not guaranteed to be in order as described in the struct comments
+// Note: vertices a, b and c are not guaranteed to be in order as described in the struct comments
 //       (i.e. as "vertex a is topmost, vertex b is leftmost, and vertex c is rightmost")
 impl Iterator for TrianglePathIter {
     type Item = PathEl;
@@ -329,17 +317,17 @@ mod tests {
 
     #[test]
     fn inradius() {
-        let test = Triangle::EQUILATERAL.inradius();
+        let test = Triangle::EQUILATERAL.incircle();
         let expected = 0.28867513459481287;
 
-        assert_approx_eq(test, expected);
+        assert_approx_eq(test.radius, expected);
     }
 
     #[test]
     fn circumradius() {
-        let test = Triangle::EQUILATERAL.circumradius();
+        let test = Triangle::EQUILATERAL.circumcircle();
         let expected = 0.5773502691896258;
 
-        assert_approx_eq(test, expected);
+        assert_approx_eq(test.radius, expected);
     }
 }
