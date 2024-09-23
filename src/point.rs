@@ -204,29 +204,6 @@ impl Point {
         self.x.is_nan() || self.y.is_nan()
     }
 
-    /// The topmost [`Point`]
-    #[inline]
-    pub fn topmost(&self, other: &Self) -> Ordering {
-        self.y.total_cmp(&other.y)
-    }
-
-    /// The bottommost [`Point`]
-    #[inline]
-    pub fn bottommost(&self, other: &Self) -> Ordering {
-        other.y.total_cmp(&self.y)
-    }
-
-    /// The rightmost [`Point`]
-    #[inline]
-    pub fn rightmost(&self, other: &Self) -> Ordering {
-        self.x.total_cmp(&other.x)
-    }
-
-    /// The leftmost [`Point`]
-    #[inline]
-    pub fn leftmost(&self, other: &Self) -> Ordering {
-        other.x.total_cmp(&self.x)
-    }
 }
 
 impl From<(f32, f32)> for Point {
