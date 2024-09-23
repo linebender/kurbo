@@ -119,7 +119,9 @@ impl Triangle {
         self.area() == 0.0
     }
 
-    /// Inradius of [`Triangle`] (the greatest radius of a circle that is within the [`Triangle`])
+    /// Inradius of [`Triangle`] 
+    /// 
+    /// This is defined as the greatest radius of a circle that is within the [`Triangle`] 
     /// with center [`Triangle::circumcenter`]
     #[inline]
     pub fn inradius(&self) -> f64 {
@@ -283,7 +285,7 @@ mod tests {
     #[test]
     fn centroid() {
         let test = Triangle::from_coords((-90.02, 3.5), (7.2, -9.3), (8.0, 9.1)).centroid();
-        let expected = Point::new(-24.939999999999998, 1.0999999999999996);
+        let expected = Point::new(-24.94, 1.1);
 
         assert_eq!(test, expected);
     }
@@ -292,9 +294,9 @@ mod tests {
     fn offsets() {
         let test = Triangle::from_coords((-20.0, 180.2), (1.2, 0.0), (290.0, 100.0)).offsets();
         let expected = [
-            Vec2::new(-110.39999999999999, 86.8),
-            Vec2::new(-89.19999999999999, -93.39999999999999),
-            Vec2::new(199.60000000000002, 6.6000000000000085),
+            Vec2::new(-110.4, 86.8),
+            Vec2::new(-89.2, -93.4),
+            Vec2::new(199.6, 6.6),
         ];
 
         assert_eq!(test, expected);
