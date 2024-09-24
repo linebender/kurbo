@@ -44,7 +44,7 @@ impl Triangle {
         (1.0, 0.0),
     );
 
-    /// A new [`Triangle`] from three vertices ([`Points`])
+    /// A new [`Triangle`] from three vertices ([`Point`]s)
     #[inline]
     pub fn new(a: impl Into<Point>, b: impl Into<Point>, c: impl Into<Point>) -> Self {
         Self {
@@ -55,8 +55,10 @@ impl Triangle {
     }
 
     /// A new [`Triangle`] from three float vertex coordinates
+    ///
+    /// Works as a constant [`Triangle::new`]
     #[inline]
-    const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
+    pub const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
         Self {
             a: Point::new(a.0, a.1),
             b: Point::new(b.0, b.1),
@@ -116,9 +118,10 @@ impl Triangle {
         self.area() == 0.0
     }
 
-    /// Incircle of [`Triangle`] (the greatest [`Circle`] that lies within the [`Triangle`])
+    /// The inscribed circle of [`Triangle`] (the greatest [`Circle`] that lies within the [`Triangle`])
+    #[doc(alias = "incircle")]
     #[inline]
-    pub fn incircle(&self) -> Circle {
+    pub fn inscribed_circle(&self) -> Circle {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
@@ -126,9 +129,10 @@ impl Triangle {
         Circle::new(self.circumcenter(), 2.0 * self.area() / (ab + bc + ac))
     }
 
-    /// Circumcircle of [`Triangle`] (the smallest [`Circle`] such that it intercepts each vertex)
+    /// The circumscribed circle of [`Triangle`] (the smallest [`Circle`] which intercepts each vertex of the [`Triangle`])
+    #[doc(alias = "circumcircle")]
     #[inline]
-    pub fn circumcircle(&self) -> Circle {
+    pub fn circumscribed_circle(&self) -> Circle {
         let ab = self.a.distance(self.b);
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
@@ -317,7 +321,7 @@ mod tests {
 
     #[test]
     fn inradius() {
-        let test = Triangle::EQUILATERAL.incircle();
+        let test = Triangle::EQUILATERAL.inscribed_circle();
         let expected = 0.28867513459481287;
 
         assert_approx_eq(test.radius, expected);
@@ -325,7 +329,7 @@ mod tests {
 
     #[test]
     fn circumradius() {
-        let test = Triangle::EQUILATERAL.circumcircle();
+        let test = Triangle::EQUILATERAL.circumscribed_circle();
         let expected = 0.5773502691896258;
 
         assert_approx_eq(test.radius, expected);
