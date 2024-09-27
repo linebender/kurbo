@@ -3,7 +3,6 @@
 
 //! A 2D point.
 
-use core::cmp::Ordering;
 use core::fmt;
 use core::ops::{Add, AddAssign, Sub, SubAssign};
 

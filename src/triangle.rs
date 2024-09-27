@@ -141,6 +141,7 @@ impl Triangle {
     }
 
     /// Expand the triangle by a constant amount (`scalar`) in all directions
+    #[doc(alias = "offset")]
     pub fn inflate(&self, scalar: f64) -> Self {
         let centroid = self.centroid();
 
@@ -165,12 +166,6 @@ impl Triangle {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.a.is_nan() || self.b.is_nan() || self.c.is_nan()
-    }
-
-    /// [`Triangle`]'s vertices as an array of Points
-    #[inline]
-    pub fn as_array(&self) -> [Point; 3] {
-        [self.a, self.b, self.c]
     }
 }
 
