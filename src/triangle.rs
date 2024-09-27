@@ -34,7 +34,7 @@ impl Triangle {
     /// The empty [`Triangle`] at the origin
     pub const ZERO: Self = Self::from_coords((0., 0.), (0., 0.), (0., 0.));
 
-    /// equilateral [`Triangle`]
+    /// Equilateral [`Triangle`] with the x-axis unit vector as its base.
     pub const EQUILATERAL: Self = Self::from_coords(
         (
             1.0 / 2.0,
@@ -118,7 +118,9 @@ impl Triangle {
         self.area() == 0.0
     }
 
-    /// The inscribed circle of [`Triangle`] (the greatest [`Circle`] that lies within the [`Triangle`])
+    /// The inscribed circle of [`Triangle`]
+    ///
+    /// This is defined as the greatest [`Circle`] that lies within the [`Triangle`]
     #[doc(alias = "incircle")]
     #[inline]
     pub fn inscribed_circle(&self) -> Circle {
@@ -129,7 +131,9 @@ impl Triangle {
         Circle::new(self.circumcenter(), 2.0 * self.area() / (ab + bc + ac))
     }
 
-    /// The circumscribed circle of [`Triangle`] (the smallest [`Circle`] which intercepts each vertex of the [`Triangle`])
+    /// The circumscribed circle of [`Triangle`]
+    ///
+    /// This is defined as the smallest [`Circle`] which intercepts each vertex of the [`Triangle`]
     #[doc(alias = "circumcircle")]
     #[inline]
     pub fn circumscribed_circle(&self) -> Circle {
@@ -316,17 +320,17 @@ mod tests {
 
     #[test]
     fn inradius() {
-        let test = Triangle::EQUILATERAL.inscribed_circle();
+        let test = Triangle::EQUILATERAL.inscribed_circle().radius;
         let expected = 0.28867513459481287;
 
-        assert_approx_eq(test.radius, expected);
+        assert_approx_eq(test, expected);
     }
 
     #[test]
     fn circumradius() {
-        let test = Triangle::EQUILATERAL.circumscribed_circle();
+        let test = Triangle::EQUILATERAL.circumscribed_circle().radius;
         let expected = 0.5773502691896258;
 
-        assert_approx_eq(test.radius, expected);
+        assert_approx_eq(test, expected);
     }
 }

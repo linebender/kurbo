@@ -202,7 +202,6 @@ impl Point {
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
-
 }
 
 impl From<(f32, f32)> for Point {
