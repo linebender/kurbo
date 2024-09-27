@@ -202,8 +202,111 @@ impl ParamCurve for Arc {
 }
 
 impl ParamCurveArclen for Arc {
-    fn arclen(&self, accuracy: f64) -> f64 {
-        self.path_segments(0.1).perimeter(accuracy)
+    fn arclen(&self, _accuracy: f64) -> f64 {
+        // TODO: wire up accuracy. The Carlson numerical approximation provides a bound on the relative
+        // error
+        let relative_error = 1e-20;
+
+        /// Numerically approximate the incomplete elliptic integral of the second kind
+        /// parameterized by `phi` and `m = k^2` in Legendre's trigonometric form.
+        fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f64) -> f64 {
+            // Approximate the incomplete elliptic integral through Carlson symmetric forms:
+            // https://en.wikipedia.org/w/index.php?title=Carlson_symmetric_form&oldid=1223277638#Incomplete_elliptic_integrals
+            phi.sin()
+                * carlson_rf(
+                    relative_error,
+                    phi.cos().powi(2),
+                    1. - m * phi.sin().powi(2),
+                    1.,
+                )
+                - 1. / 3.
+                    * m
+                    * phi.sin().powi(3)
+                    * carlson_rd(
+                        relative_error,
+                        phi.cos().powi(2),
+                        1. - m * phi.sin().powi(2),
+                        1.,
+                    )
+        }
+
+        /// Calculate the length of an arc along an ellipse defined by `radii`, from `start_angle`
+        /// to `end_angle`, with the angles being inside the first quadrant, i.e.,
+        /// 0 <= start_angle <= end_angle <= PI / 2
+        fn quadrant_ellipse_arc_length(
+            relative_error: f64,
+            radii: Vec2,
+            start_angle: f64,
+            end_angle: f64,
+        ) -> f64 {
+            debug_assert!(radii.y >= radii.x);
+            debug_assert!(start_angle >= 0.);
+            debug_assert!(end_angle >= start_angle);
+            debug_assert!(end_angle <= PI / 2.);
+
+            // Ellipse arc length calculated through the incomplete elliptic integral of the second
+            // kind:
+            // https://en.wikipedia.org/w/index.php?title=Ellipse&oldid=1248023575#Arc_length
+            let x0 = sample_ellipse(radii, 0., start_angle).x;
+            let x1 = sample_ellipse(radii, 0., end_angle).x;
+
+            let z0 = (x0 / radii.x).acos();
+            let z1 = (x1 / radii.x).acos();
+
+            let m = 1. - radii.x.powi(2) / radii.y.powi(2);
+
+            radii.y
+                * (incomplete_elliptic_integral_second_kind(relative_error, z1, m)
+                    - incomplete_elliptic_integral_second_kind(relative_error, z0, m))
+        }
+
+        // Normalize ellipse to have radius y >= radius x
+        let (radii, mut start_angle) = if self.radii.y > self.radii.x {
+            (self.radii, self.start_angle)
+        } else {
+            (
+                Vec2::new(self.radii.y, self.radii.x),
+                self.start_angle + PI / 2.,
+            )
+        };
+
+        let mut sweep_angle = self.sweep_angle;
+        // Normalize sweep angle to be non-negative
+        if sweep_angle < 0. {
+            start_angle -= sweep_angle;
+            sweep_angle = -sweep_angle;
+        }
+
+        // Normalize start_angle to be non-negative and to be on the first quadrant of the ellipse
+        start_angle = start_angle.rem_euclid(PI / 2.);
+
+        if start_angle + sweep_angle > PI / 2. {
+            // The arc crosses from the first into the second quadrant, first calculate from start
+            // to end of first quadrant
+            let mut arclen = 0.;
+            arclen += quadrant_ellipse_arc_length(relative_error, radii, start_angle, PI / 2.);
+
+            sweep_angle -= PI / 2. - start_angle;
+            if sweep_angle >= PI / 2. {
+                // The sweep angle may twist around ellipse quadrants multiple times
+                let quarter_turns = (sweep_angle / (PI / 2.)).floor();
+                // Calculating quarter of a complete ellipse arc length, this could be
+                // special-cased as it's a complete elliptic integral
+                arclen +=
+                    quarter_turns * quadrant_ellipse_arc_length(relative_error, radii, 0., PI / 2.)
+            }
+
+            sweep_angle = sweep_angle.rem_euclid(PI / 2.);
+            arclen += quadrant_ellipse_arc_length(relative_error, radii, 0., sweep_angle);
+            arclen
+        } else {
+            quadrant_ellipse_arc_length(
+                relative_error,
+                radii,
+                start_angle,
+                start_angle + sweep_angle,
+            )
+        }
     }
 }
 
@@ -259,6 +362,92 @@ impl Mul<Arc> for Affine {
     }
 }
 
+/// Approximation of Carlson RF function as defined in "Numerical computation of real or complex
+/// elliptic integrals" (Carlson, Bille C.): https://arxiv.org/abs/math/9409227v1
+fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
+    let mut x = x;
+    let mut y = y;
+    let mut z = z;
+
+    let a0 = (x + y + z) / 3.;
+    let q = (3. * relative_error).powf(-1. / 6.)
+        * (a0 - x).abs().max((a0 - y).abs()).max((a0 - z).abs());
+
+    let mut a = a0;
+    let mut m = 0;
+    loop {
+        if 4f64.powi(-m) * q <= a.abs() {
+            break;
+        }
+
+        let lambda = x.sqrt() * y.sqrt() + x.sqrt() * z.sqrt() + y.sqrt() * z.sqrt();
+
+        a = (a + lambda) / 4.;
+        x = (x + lambda) / 4.;
+        y = (y + lambda) / 4.;
+        z = (z + lambda) / 4.;
+
+        m += 1;
+    }
+
+    let x = (a0 - x) / 4f64.powi(m) * a;
+    let y = (a0 - y) / 4f64.powi(m) * a;
+    let z = -x - y;
+
+    let e2 = x * y - z.powi(2);
+    let e3 = x * y * z;
+
+    a.powf(-1. / 2.)
+        * (1. - 1. / 10. * e2 + 1. / 14. * e3 + 1. / 24. * e2.powi(2) - 3. / 44. * e2 * e3)
+}
+
+/// Approximation of Carlson RD function as defined in "Numerical computation of real or complex
+/// elliptic integrals" (Carlson, Bille C.): https://arxiv.org/abs/math/9409227v1
+fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
+    let mut x = x;
+    let mut y = y;
+    let mut z = z;
+
+    let a0 = (x + y + 3. * z) / 5.;
+    let q = (relative_error / 4.).powf(-1. / 6.)
+        * (a0 - x).abs().max((a0 - y).abs()).max((a0 - z).abs());
+
+    let mut sum = 0.;
+    let mut a = a0;
+    let mut m = 0;
+    loop {
+        if 4f64.powi(-m) * q <= a.abs() {
+            break;
+        }
+
+        let lambda = x.sqrt() * y.sqrt() + x.sqrt() * z.sqrt() + y.sqrt() * z.sqrt();
+        sum += 4f64.powi(-m) / (z.sqrt() * (z + lambda));
+        a = (a + lambda) / 4.;
+        x = (x + lambda) / 4.;
+        y = (y + lambda) / 4.;
+        z = (z + lambda) / 4.;
+
+        m += 1;
+    }
+
+    let x = (a0 - x) / (4f64.powi(4) * a);
+    let y = (a0 - y) / (4f64.powi(4) * a);
+    let z = -(x + y) / 3.;
+
+    let e2 = x * y - 6. * z.powi(2);
+    let e3 = (3. * x * y - 8. * z.powi(2)) * z;
+    let e4 = 3. * x * y - z.powi(2) * z.powi(2);
+    let e5 = x * y * z.powi(3);
+
+    4f64.powi(-m)
+        * a.powf(-3. / 2.)
+        * (1. - 3. / 14. * e2 + 1. / 6. * e3 + 9. / 88. * e2.powi(2)
+            - 3. / 22. * e4
+            - 9. / 52. * e2 * e3
+            + 3. / 26. * e5)
+        + 3. * sum
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,5 +466,32 @@ mod tests {
 
         // Reversing it again should result in the original arc
         assert_eq!(a, f.reversed());
+    }
+
+    #[test]
+    fn length() {
+        // TODO: when arclen actually uses specified accuracy, update EPSILON and the accuracy
+        // params
+        const EPSILON: f64 = 1e-6;
+
+        let a = Arc::new((0., 0.), (1., 1.), 0., PI * 4., 0.);
+        assert!((dbg!(a.arclen(0.1)) - PI * 4.).abs() <= EPSILON);
+
+        // TODO: add some more known cases (perhaps calculated by other implementations)
+    }
+
+    #[test]
+    fn carlson_numerical_checks() {
+        // TODO: relative bound on error doesn't seem to be quite correct yet, use a large epsilon
+        // for now
+        const EPSILON: f64 = 1e-6;
+
+        // Numerical checks from section 3 of "Numerical computation of real or complex elliptic
+        // integrals" (Carlson, Bille C.): https://arxiv.org/abs/math/9409227v1 (real-valued calls)
+        assert!((carlson_rf(1e-20, 1., 2., 0.) - 1.3110_28777_1461).abs() <= EPSILON);
+        assert!((carlson_rf(1e-20, 2., 3., 4.) - 0.58408_28416_7715).abs() <= EPSILON);
+
+        assert!((carlson_rd(1e-20, 0., 2., 1.) - 1.7972_10352_1034).abs() <= EPSILON);
+        assert!((carlson_rd(1e-20, 2., 3., 4.) - 0.16510_52729_4261).abs() <= EPSILON);
     }
 }
