@@ -340,7 +340,7 @@ fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let e2 = x * y - z.powi(2);
     let e3 = x * y * z;
 
-    a.powf(-1. / 2.)
+    1. / a.sqrt()
         * (1. - 1. / 10. * e2 + 1. / 14. * e3 + 1. / 24. * e2.powi(2) - 3. / 44. * e2 * e3)
 }
 
@@ -384,8 +384,7 @@ fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let e4 = 3. * x * y - z.powi(2) * z.powi(2);
     let e5 = x * y * z.powi(3);
 
-    4f64.powi(-m)
-        * a.powf(-3. / 2.)
+    4f64.powi(-m) * 1. / (a * a.sqrt())
         * (1. - 3. / 14. * e2 + 1. / 6. * e3 + 9. / 88. * e2.powi(2)
             - 3. / 22. * e4
             - 9. / 52. * e2 * e3
