@@ -400,22 +400,13 @@ fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f6
     debug_assert!(m * phi.sin().powi(2) >= 0.);
     debug_assert!(m * phi.sin().powi(2) <= 1.);
 
-    phi.sin()
-        * carlson_rf(
-            relative_error,
-            phi.cos().powi(2),
-            1. - m * phi.sin().powi(2),
-            1.,
-        )
-        - 1. / 3.
-            * m
-            * phi.sin().powi(3)
-            * carlson_rd(
-                relative_error,
-                phi.cos().powi(2),
-                1. - m * phi.sin().powi(2),
-                1.,
-            )
+    let (sin, cos) = phi.sin_cos();
+    let sin2 = sin.powi(2);
+    let sin3 = sin.powi(3);
+    let cos2 = cos.powi(2);
+
+    sin * carlson_rf(relative_error, cos2, 1. - m * sin2, 1.)
+        - 1. / 3. * m * sin3 * carlson_rd(relative_error, cos2, 1. - m * sin2, 1.)
 }
 
 /// Calculate the length of an arc along an ellipse defined by `radii`, from `start_angle` to
