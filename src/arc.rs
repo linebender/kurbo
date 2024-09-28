@@ -502,6 +502,27 @@ mod tests {
     }
 
     #[test]
+    fn length_compare_with_bez_length() {
+        const EPSILON: f64 = 1e-3;
+
+        for radii in [(1., 1.), (0.5, 1.), (2., 1.)] {
+            for start_angle in [0., 0.5, 1., 2., PI, -1.] {
+                for sweep_angle in [0., 0.5, 1., 2., PI, -1.] {
+                    let a = Arc::new((0., 0.), radii, start_angle, sweep_angle, 0.);
+
+                    let arc_length = a.arclen(0.000_1);
+                    let bez_length = a.path_segments(0.000_1).perimeter(0.000_1);
+
+                    assert!(
+                         (arc_length - bez_length).abs() < EPSILON,
+                         "Numerically approximated arc length ({arc_length}) does not match bezier segment perimeter length ({bez_length}) for arc {a:?}"
+                     );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn carlson_numerical_checks() {
         // TODO: relative bound on error doesn't seem to be quite correct yet, use a large epsilon
         // for now
