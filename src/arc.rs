@@ -418,8 +418,8 @@ fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f6
             )
 }
 
-/// Calculate the length of an arc along an ellipse defined by `radii`, from `start_angle`
-/// to `end_angle`, with the angles being inside the first two quadrants, i.e.,
+/// Calculate the length of an arc along an ellipse defined by `radii`, from `start_angle` to
+/// `end_angle`, with the angles being inside the upper half of the ellipse, i.e.,
 /// 0 <= start_angle <= end_angle <= PI.
 ///
 /// This assumes radii.x >= radii.y
@@ -434,12 +434,16 @@ fn half_ellipse_arc_length(
     debug_assert!(end_angle >= start_angle);
     debug_assert!(end_angle <= PI);
 
+    // This function takes angles from 0 to pi for convenience of the caller, but the numerical
+    // methods used here operate from -1/2 pi to 1/2 pi. Rotate the ellipse by 1/2 pi radians (a
+    // quarter turn):
     let radii = Vec2::new(radii.y, radii.x);
     let start_angle = start_angle - PI / 2.;
     let end_angle = end_angle - PI / 2.;
 
-    // Ellipse arc length calculated through the incomplete elliptic integral of the second
-    // kind:
+    // The arc length is equal to radii.y * (E(end_angle | m) - E(start_angle | m)) with E the
+    // incomplete elliptic integral of the second kind and parameter
+    // m = 1 - (radii.x / radii.y)^2 = k^2. See also:
     // https://en.wikipedia.org/w/index.php?title=Ellipse&oldid=1248023575#Arc_length
 
     let m = 1. - (radii.x / radii.y).powi(2);
