@@ -236,7 +236,8 @@ impl ParamCurveArclen for Arc {
 
         if start_angle + sweep_angle > PI {
             arclen += half_ellipse_arc_length(relative_error, radii, start_angle, PI);
-            arclen += half_ellipse_arc_length(relative_error, radii, 0., PI - sweep_angle);
+            arclen +=
+                half_ellipse_arc_length(relative_error, radii, 0., start_angle + sweep_angle - PI);
         } else {
             arclen += half_ellipse_arc_length(
                 relative_error,
@@ -473,6 +474,22 @@ mod tests {
         // TODO: when arclen actually uses specified accuracy, update EPSILON and the accuracy
         // params
         const EPSILON: f64 = 1e-6;
+
+        // Circular checks:
+        for (start_angle, sweep_angle, length) in [
+            (0., 1., 1.),
+            (0., 2., 2.),
+            (0., 5., 5.),
+            (1.0, 3., 3.),
+            (1.5, 10., 10.),
+        ] {
+            let a = Arc::new((0., 0.), (1., 1.), start_angle, sweep_angle, 0.);
+            let arc_length = a.arclen(0.000_1);
+            assert!(
+                (arc_length - length).abs() <= EPSILON,
+                "Got arc length {arc_length}, expected {length} for circular arc {a:?}"
+            );
+        }
 
         let a = Arc::new((0., 0.), (1., 1.), 0., PI * 4., 0.);
         assert!((a.arclen(0.000_1) - PI * 4.).abs() <= EPSILON);
