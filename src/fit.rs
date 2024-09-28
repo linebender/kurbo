@@ -70,7 +70,7 @@ pub trait ParamCurveFit {
     /// length of this curve. From these integrals it is fairly straightforward
     /// to derive the moments needed for curve fitting.
     ///
-    /// A default implementation is proved which does quadrature integration
+    /// A default implementation is provided which does quadrature integration
     /// with Green's theorem, in terms of samples evaluated with
     /// [`sample_pt_deriv`].
     ///
