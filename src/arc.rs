@@ -304,7 +304,7 @@ impl Mul<Arc> for Affine {
 }
 
 /// Approximation of Carlson RF function as defined in "Numerical computation of real or complex
-/// elliptic integrals" (Carlson, Bille C.): https://arxiv.org/abs/math/9409227v1
+/// elliptic integrals" (Carlson, Bille C.): <https://arxiv.org/abs/math/9409227v1>
 fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut x = x;
     let mut y = y;
@@ -343,7 +343,7 @@ fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
 }
 
 /// Approximation of Carlson RD function as defined in "Numerical computation of real or complex
-/// elliptic integrals" (Carlson, Bille C.): https://arxiv.org/abs/math/9409227v1
+/// elliptic integrals" (Carlson, Bille C.): <https://arxiv.org/abs/math/9409227v1>
 fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut x = x;
     let mut y = y;
@@ -411,9 +411,9 @@ fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f6
 
 /// Calculate the length of an arc along an ellipse defined by `radii`, from `start_angle` to
 /// `end_angle`, with the angles being inside the upper half of the ellipse, i.e.,
-/// 0 <= start_angle <= end_angle <= PI.
+/// 0 <= `start_angle` <= `end_angle` <= PI.
 ///
-/// This assumes radii.x >= radii.y
+/// This assumes `radii.x` >= `radii.y`
 fn half_ellipse_arc_length(
     relative_error: f64,
     radii: Vec2,
