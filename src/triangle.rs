@@ -22,16 +22,16 @@ use crate::common::FloatFuncs;
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Triangle {
-    /// vertex a
+    /// vertex a.
     pub a: Point,
-    /// vertex b
+    /// vertex b.
     pub b: Point,
-    /// vertex c
+    /// vertex c.
     pub c: Point,
 }
 
 impl Triangle {
-    /// The empty [`Triangle`] at the origin
+    /// The empty [`Triangle`] at the origin.
     pub const ZERO: Self = Self::from_coords((0., 0.), (0., 0.), (0., 0.));
 
     /// Equilateral [`Triangle`] with the x-axis unit vector as its base.
@@ -44,7 +44,7 @@ impl Triangle {
         (1.0, 0.0),
     );
 
-    /// A new [`Triangle`] from three vertices ([`Point`]s)
+    /// A new [`Triangle`] from three vertices ([`Point`]s).
     #[inline]
     pub fn new(a: impl Into<Point>, b: impl Into<Point>, c: impl Into<Point>) -> Self {
         Self {
@@ -54,9 +54,9 @@ impl Triangle {
         }
     }
 
-    /// A new [`Triangle`] from three float vertex coordinates
+    /// A new [`Triangle`] from three float vertex coordinates.
     ///
-    /// Works as a constant [`Triangle::new`]
+    /// Works as a constant [`Triangle::new`].
     #[inline]
     pub const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
         Self {
@@ -66,13 +66,13 @@ impl Triangle {
         }
     }
 
-    /// The centroid of the [`Triangle`]
+    /// The centroid of the [`Triangle`].
     #[inline]
     pub fn centroid(&self) -> Point {
         (1.0 / 3.0 * (self.a.to_vec2() + self.b.to_vec2() + self.c.to_vec2())).to_point()
     }
 
-    /// The circumcenter of the [`Triangle`]
+    /// The circumcenter of the [`Triangle`].
     #[inline]
     fn circumcenter(&self) -> Point {
         let d = 2.0
@@ -93,7 +93,7 @@ impl Triangle {
         Point::new(ux, uy)
     }
 
-    /// The offset of each vertex from the centroid
+    /// The offset of each vertex from the centroid.
     #[inline]
     pub fn offsets(&self) -> [Vec2; 3] {
         let centroid = self.centroid().to_vec2();
@@ -105,22 +105,22 @@ impl Triangle {
         ]
     }
 
-    /// The area of the [`Triangle`]
+    /// The area of the [`Triangle`].
     #[inline]
     pub fn area(&self) -> f64 {
         0.5 * (self.b - self.a).cross(self.c - self.a)
     }
 
-    /// Whether this [`Triangle`] has zero area
+    /// Whether this [`Triangle`] has zero area.
     #[doc(alias = "is_empty")]
     #[inline]
     pub fn is_zero_area(&self) -> bool {
         self.area() == 0.0
     }
 
-    /// The inscribed circle of [`Triangle`]
+    /// The inscribed circle of [`Triangle`].
     ///
-    /// This is defined as the greatest [`Circle`] that lies within the [`Triangle`]
+    /// This is defined as the greatest [`Circle`] that lies within the [`Triangle`].
     #[doc(alias = "incircle")]
     #[inline]
     pub fn inscribed_circle(&self) -> Circle {
@@ -131,9 +131,9 @@ impl Triangle {
         Circle::new(self.circumcenter(), 2.0 * self.area() / (ab + bc + ac))
     }
 
-    /// The circumscribed circle of [`Triangle`]
+    /// The circumscribed circle of [`Triangle`].
     ///
-    /// This is defined as the smallest [`Circle`] which intercepts each vertex of the [`Triangle`]
+    /// This is defined as the smallest [`Circle`] which intercepts each vertex of the [`Triangle`].
     #[doc(alias = "circumcircle")]
     #[inline]
     pub fn circumscribed_circle(&self) -> Circle {
@@ -144,7 +144,7 @@ impl Triangle {
         Circle::new(self.circumcenter(), (ab * bc * ac) / (4.0 * self.area()))
     }
 
-    /// Expand the triangle by a constant amount (`scalar`) in all directions
+    /// Expand the triangle by a constant amount (`scalar`) in all directions.
     #[doc(alias = "offset")]
     pub fn inflate(&self, scalar: f64) -> Self {
         let centroid = self.centroid();
