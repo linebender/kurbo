@@ -392,8 +392,8 @@ fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
         + 3. * sum
 }
 
-/// Numerically approximate the incomplete elliptic integral of the second kind
-/// parameterized by `phi` and `m = k^2` in Legendre's trigonometric form.
+/// Numerically approximate the incomplete elliptic integral of the second kind to `phi`
+/// parameterized by `m = k^2` in Legendre's trigonometric form.
 fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f64) -> f64 {
     // Approximate the incomplete elliptic integral through Carlson symmetric forms:
     // https://en.wikipedia.org/w/index.php?title=Carlson_symmetric_form&oldid=1223277638#Incomplete_elliptic_integrals
