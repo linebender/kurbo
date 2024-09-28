@@ -303,8 +303,10 @@ impl Mul<Arc> for Affine {
     }
 }
 
-/// Approximation of Carlson RF function as defined in "Numerical computation of real or complex
+/// Approximation of the Carlson RF function as defined in "Numerical computation of real or complex
 /// elliptic integrals" (Carlson, Bille C.): <https://arxiv.org/abs/math/9409227v1>
+///
+/// RF = 1/2 ∫ 1 / ( sqrt(t+x) sqrt(t+y) sqrt(t+z) ) dt from 0 to inf
 fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut x = x;
     let mut y = y;
@@ -342,8 +344,10 @@ fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
         * (1. - 1. / 10. * e2 + 1. / 14. * e3 + 1. / 24. * e2.powi(2) - 3. / 44. * e2 * e3)
 }
 
-/// Approximation of Carlson RD function as defined in "Numerical computation of real or complex
-/// elliptic integrals" (Carlson, Bille C.): <https://arxiv.org/abs/math/9409227v1>
+/// Approximation of the Carlson RD function as defined in "Numerical computation of real or
+/// complex elliptic integrals" (Carlson, Bille C.): <https://arxiv.org/abs/math/9409227v1>
+///
+/// RD = 3/2 ∫ 1 / ( sqrt(t+x) sqrt(t+y) (t+z)^(3/2) ) dt from 0 to inf
 fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut x = x;
     let mut y = y;
