@@ -671,12 +671,12 @@ impl Shape for Rect {
     // It's a bit of duplication having both this and the impl method, but
     // removing that would require using the trait. We'll leave it for now.
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         Rect::area(self)
     }
 
     #[inline]
-    fn perimeter(&self, _accuracy: f64) -> f64 {
+    fn perimeter(&self, _tolerance: f64) -> f64 {
         2.0 * (self.width().abs() + self.height().abs())
     }
 
@@ -684,7 +684,7 @@ impl Shape for Rect {
     /// tiled with rectangles, the winding number will be nonzero for exactly
     /// one of them.
     #[inline]
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         let xmin = self.x0.min(self.x1);
         let xmax = self.x0.max(self.x1);
         let ymin = self.y0.min(self.y1);
@@ -701,7 +701,7 @@ impl Shape for Rect {
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         self.abs()
     }
 
@@ -711,7 +711,7 @@ impl Shape for Rect {
     }
 
     #[inline]
-    fn contains(&self, pt: Point) -> bool {
+    fn contains(&self, pt: Point, _tolerance: f64) -> bool {
         self.contains(pt)
     }
 }
@@ -776,19 +776,19 @@ mod tests {
         let center = r.center();
         assert_approx_eq(r.area(), 100.0);
 
-        assert_eq!(r.winding(center), 1);
+        assert_eq!(r.winding(center, 1.0), 1);
 
         let p = r.to_path(1e-9);
-        assert_approx_eq(r.area(), p.area());
-        assert_eq!(r.winding(center), p.winding(center));
+        assert_approx_eq(r.area(), p.area(1.0));
+        assert_eq!(r.winding(center, 1.0), p.winding(center, 1.0));
 
         let r_flip = Rect::new(0.0, 10.0, 10.0, 0.0);
         assert_approx_eq(r_flip.area(), -100.0);
 
-        assert_eq!(r_flip.winding(Point::new(5.0, 5.0)), -1);
+        assert_eq!(r_flip.winding(Point::new(5.0, 5.0), 1.0), -1);
         let p_flip = r_flip.to_path(1e-9);
-        assert_approx_eq(r_flip.area(), p_flip.area());
-        assert_eq!(r_flip.winding(center), p_flip.winding(center));
+        assert_approx_eq(r_flip.area(), p_flip.area(1.0));
+        assert_eq!(r_flip.winding(center, 1.0), p_flip.winding(center, 1.0));
     }
 
     #[test]

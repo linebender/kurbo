@@ -129,7 +129,7 @@ impl Shape for Circle {
     }
 
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         PI * self.radius.powi(2)
     }
 
@@ -138,7 +138,7 @@ impl Shape for Circle {
         (2.0 * PI * self.radius).abs()
     }
 
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         if (pt - self.center).hypot2() < self.radius.powi(2) {
             1
         } else {
@@ -147,7 +147,7 @@ impl Shape for Circle {
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         let r = self.radius.abs();
         let (x, y) = self.center.into();
         Rect::new(x - r, y - r, x + r, y + r)
@@ -345,7 +345,7 @@ impl Shape for CircleSegment {
     }
 
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         0.5 * (self.outer_radius.powi(2) - self.inner_radius.powi(2)).abs() * self.sweep_angle
     }
 
@@ -355,7 +355,7 @@ impl Shape for CircleSegment {
             + self.sweep_angle * (self.inner_radius + self.outer_radius)
     }
 
-    fn winding(&self, pt: Point) -> i32 {
+    fn winding(&self, pt: Point, _tolerance: f64) -> i32 {
         let angle = (pt - self.center).atan2();
         if angle < self.start_angle || angle > self.start_angle + self.sweep_angle {
             return 0;
@@ -372,7 +372,7 @@ impl Shape for CircleSegment {
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         // todo this is currently not tight
         let r = self.inner_radius.max(self.outer_radius);
         let (x, y) = self.center.into();
@@ -405,21 +405,24 @@ mod tests {
     fn area_sign() {
         let center = Point::new(5.0, 5.0);
         let c = Circle::new(center, 5.0);
-        assert_approx_eq(c.area(), 25.0 * PI);
+        assert_approx_eq(c.area(1e-9), 25.0 * PI);
 
-        assert_eq!(c.winding(center), 1);
+        assert_eq!(c.winding(center, 1e-9), 1);
 
         let p = c.to_path(1e-9);
-        assert_approx_eq(c.area(), p.area());
-        assert_eq!(c.winding(center), p.winding(center));
+        assert_approx_eq(c.area(1e-9), p.area(1e-9));
+        assert_eq!(c.winding(center, 1e-9), p.winding(center, 1e-9));
 
         let c_neg_radius = Circle::new(center, -5.0);
-        assert_approx_eq(c_neg_radius.area(), 25.0 * PI);
+        assert_approx_eq(c_neg_radius.area(1e-9), 25.0 * PI);
 
-        assert_eq!(c_neg_radius.winding(center), 1);
+        assert_eq!(c_neg_radius.winding(center, 1e-9), 1);
 
         let p_neg_radius = c_neg_radius.to_path(1e-9);
-        assert_approx_eq(c_neg_radius.area(), p_neg_radius.area());
-        assert_eq!(c_neg_radius.winding(center), p_neg_radius.winding(center));
+        assert_approx_eq(c_neg_radius.area(1e-9), p_neg_radius.area(1e-9));
+        assert_eq!(
+            c_neg_radius.winding(center, 1e-9),
+            p_neg_radius.winding(center, 1e-9)
+        );
     }
 }

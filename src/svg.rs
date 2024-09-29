@@ -533,7 +533,7 @@ mod tests {
     fn test_parse_svg_arc_pie() {
         let path = BezPath::from_svg("M 100 100 h 25 a 25 25 0 1 0 -25 25 z").unwrap();
         // Approximate figures, but useful for regression testing
-        assert_eq!(path.area().round(), -1473.0);
+        assert_eq!(path.area(1.0).round(), -1473.0);
         assert_eq!(path.perimeter(1e-6).round(), 168.0);
     }
 

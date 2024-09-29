@@ -181,7 +181,7 @@ impl Shape for Arc {
 
     /// Note: shape isn't closed so area is not well defined.
     #[inline]
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         let Vec2 { x, y } = self.radii;
         PI * x * y
     }
@@ -190,19 +190,19 @@ impl Shape for Arc {
     ///
     /// For now we just approximate by using the bezier curve representation.
     #[inline]
-    fn perimeter(&self, accuracy: f64) -> f64 {
-        self.path_segments(0.1).perimeter(accuracy)
+    fn perimeter(&self, tolerance: f64) -> f64 {
+        self.path_segments(tolerance).perimeter(tolerance)
     }
 
     /// Note: shape isn't closed, so a point's winding number is not well defined.
     #[inline]
-    fn winding(&self, pt: Point) -> i32 {
-        self.path_segments(0.1).winding(pt)
+    fn winding(&self, pt: Point, tolerance: f64) -> i32 {
+        self.path_segments(tolerance).winding(pt)
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
-        self.path_segments(0.1).bounding_box()
+    fn bounding_box(&self, tolerance: f64) -> Rect {
+        self.path_segments(tolerance).bounding_box()
     }
 }
 

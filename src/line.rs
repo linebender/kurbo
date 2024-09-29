@@ -293,7 +293,7 @@ impl Shape for Line {
     /// only meaningful for closed shapes), but an argument can be made
     /// that the contract should be tightened to include the Green's
     /// theorem contribution.
-    fn area(&self) -> f64 {
+    fn area(&self, _tolerance: f64) -> f64 {
         0.0
     }
 
@@ -303,12 +303,12 @@ impl Shape for Line {
     }
 
     /// Same consideration as `area`.
-    fn winding(&self, _pt: Point) -> i32 {
+    fn winding(&self, _pt: Point, _tolerance: f64) -> i32 {
         0
     }
 
     #[inline]
-    fn bounding_box(&self) -> Rect {
+    fn bounding_box(&self, _tolerance: f64) -> Rect {
         Rect::from_points(self.p0, self.p1)
     }
 
