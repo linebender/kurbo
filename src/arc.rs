@@ -313,23 +313,23 @@ fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut z = z;
 
     let a0 = (x + y + z) / 3.;
-    let q = (3. * relative_error).powf(-1. / 6.)
+    let mut q = (3. * relative_error).powf(-1. / 6.)
         * (a0 - x).abs().max((a0 - y).abs()).max((a0 - z).abs());
 
     let mut a = a0;
     let mut m = 0;
     loop {
-        if 4f64.powi(-m) * q <= a.abs() {
+        if q <= a.abs() {
             break;
         }
 
         let lambda = x.sqrt() * y.sqrt() + x.sqrt() * z.sqrt() + y.sqrt() * z.sqrt();
-
         a = (a + lambda) / 4.;
         x = (x + lambda) / 4.;
         y = (y + lambda) / 4.;
         z = (z + lambda) / 4.;
 
+        q /= 4.;
         m += 1;
     }
 
@@ -354,14 +354,14 @@ fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut z = z;
 
     let a0 = (x + y + 3. * z) / 5.;
-    let q = (relative_error / 4.).powf(-1. / 6.)
+    let mut q = (relative_error / 4.).powf(-1. / 6.)
         * (a0 - x).abs().max((a0 - y).abs()).max((a0 - z).abs());
 
     let mut sum = 0.;
     let mut a = a0;
     let mut m = 0;
     loop {
-        if 4f64.powi(-m) * q <= a.abs() {
+        if q <= a.abs() {
             break;
         }
 
@@ -372,6 +372,7 @@ fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
         y = (y + lambda) / 4.;
         z = (z + lambda) / 4.;
 
+        q /= 4.;
         m += 1;
     }
 
