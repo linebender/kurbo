@@ -220,10 +220,11 @@ impl ParamCurveArclen for Arc {
         // Normalize sweep angle to be non-negative
         let mut sweep_angle = self.sweep_angle;
         if sweep_angle < 0. {
-            start_angle = PI - start_angle;
+            start_angle = -start_angle;
             sweep_angle = -sweep_angle;
         }
 
+        // Normalize start angle to be on the upper half of the ellipse
         start_angle = start_angle.rem_euclid(PI);
 
         let mut arclen = 0.;
