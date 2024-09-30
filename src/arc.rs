@@ -207,8 +207,9 @@ impl ParamCurveArclen for Arc {
         // error
         let relative_error = 1e-20;
 
-        // Normalize ellipse to have radius x >= radius y
-        let (radii, mut start_angle) = if self.radii.x >= self.radii.y {
+        // Normalize ellipse to have radius y >= radius x, required for the parameter assumptions
+        // of `incomplete_elliptic_integral_second_kind`.
+        let (radii, mut start_angle) = if self.radii.y >= self.radii.x {
             (self.radii, self.start_angle)
         } else {
             (
@@ -216,6 +217,7 @@ impl ParamCurveArclen for Arc {
                 self.start_angle + PI / 2.,
             )
         };
+        let m = 1. - (radii.x / radii.y).powi(2);
 
         // Normalize sweep angle to be non-negative
         let mut sweep_angle = self.sweep_angle;
@@ -225,30 +227,44 @@ impl ParamCurveArclen for Arc {
         }
 
         // Normalize start angle to be on the upper half of the ellipse
-        start_angle = start_angle.rem_euclid(PI);
+        let start_angle = start_angle.rem_euclid(PI);
 
+        let end_angle = start_angle + sweep_angle;
+
+        let mut quarter_turns = (end_angle / PI * 2.).trunc() - (start_angle / PI * 2.).trunc();
+        let end_angle = end_angle % PI;
+
+        // The elliptic arc length is equal to radii.y * (E(end_angle | m) - E(start_angle | m))
+        // with E the incomplete elliptic integral of the second kind and parameter
+        // m = 1 - (radii.x / radii.y)^2 = k^2.
+        //
+        // See also:
+        // https://en.wikipedia.org/w/index.php?title=Ellipse&oldid=1248023575#Arc_length
+        //
+        // The implementation here allows calculating the incomplete elliptic integral in the range
+        // 0 <= phi <= 1/2 pi (the first elliptic quadrant), so split the arc into segments in
+        // that range.
         let mut arclen = 0.;
-        let half_turns = (sweep_angle / PI).trunc();
-        if half_turns > 0. {
-            // Half of the ellipse circumference is a complete elliptic integral and could be special-cased
-            arclen += half_turns * half_ellipse_arc_length(relative_error, radii, 0., PI);
-            sweep_angle = sweep_angle.rem_euclid(PI);
-        }
 
-        if start_angle + sweep_angle > PI {
-            arclen += half_ellipse_arc_length(relative_error, radii, start_angle, PI);
-            arclen +=
-                half_ellipse_arc_length(relative_error, radii, 0., start_angle + sweep_angle - PI);
+        if start_angle >= PI / 2. {
+            arclen += incomplete_elliptic_integral_second_kind(relative_error, PI - start_angle, m);
+            quarter_turns -= 1.;
         } else {
-            arclen += half_ellipse_arc_length(
-                relative_error,
-                radii,
-                start_angle,
-                start_angle + sweep_angle,
-            );
+            arclen -= incomplete_elliptic_integral_second_kind(relative_error, start_angle, m);
         }
 
-        arclen
+        if end_angle >= PI / 2. {
+            arclen -= incomplete_elliptic_integral_second_kind(relative_error, PI - end_angle, m);
+            quarter_turns += 1.;
+        } else {
+            arclen += incomplete_elliptic_integral_second_kind(relative_error, end_angle, m);
+        }
+
+        // Note: this uses the complete elliptic integral, which can be special-cased.
+        arclen +=
+            quarter_turns * incomplete_elliptic_integral_second_kind(relative_error, PI / 2., m);
+
+        radii.y * arclen
     }
 }
 
@@ -396,6 +412,10 @@ fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
 
 /// Numerically approximate the incomplete elliptic integral of the second kind to `phi`
 /// parameterized by `m = k^2` in Legendre's trigonometric form.
+///
+/// Assumes:
+/// 0 <= phi <= pi / 2
+/// and 0 <= m sin^2(phi) <= 1
 fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f64) -> f64 {
     // Approximate the incomplete elliptic integral through Carlson symmetric forms:
     // https://en.wikipedia.org/w/index.php?title=Carlson_symmetric_form&oldid=1223277638#Incomplete_elliptic_integrals
@@ -410,43 +430,11 @@ fn incomplete_elliptic_integral_second_kind(relative_error: f64, phi: f64, m: f6
     let sin3 = sin.powi(3);
     let cos2 = cos.powi(2);
 
+    // note: this actually allows calculating from -1/2 pi <= phi <= 1/2 pi, but there are some
+    // alternative translations from the Legendre form that are potentially better, that do
+    // restrict the domain to 0 <= phi <= 1/2 pi.
     sin * carlson_rf(relative_error, cos2, 1. - m * sin2, 1.)
         - 1. / 3. * m * sin3 * carlson_rd(relative_error, cos2, 1. - m * sin2, 1.)
-}
-
-/// Calculate the length of an arc along an ellipse defined by `radii`, from `start_angle` to
-/// `end_angle`, with the angles being inside the upper half of the ellipse, i.e.,
-/// 0 <= `start_angle` <= `end_angle` <= PI.
-///
-/// This assumes `radii.x` >= `radii.y`
-fn half_ellipse_arc_length(
-    relative_error: f64,
-    radii: Vec2,
-    start_angle: f64,
-    end_angle: f64,
-) -> f64 {
-    debug_assert!(radii.x >= radii.y);
-    debug_assert!(start_angle >= 0.);
-    debug_assert!(end_angle >= start_angle);
-    debug_assert!(end_angle <= PI);
-
-    // This function takes angles from 0 to pi for convenience of the caller, but the numerical
-    // methods used here operate from -1/2 pi to 1/2 pi. Rotate the ellipse by 1/2 pi radians (a
-    // quarter turn):
-    let radii = Vec2::new(radii.y, radii.x);
-    let start_angle = start_angle - PI / 2.;
-    let end_angle = end_angle - PI / 2.;
-
-    // The arc length is equal to radii.y * (E(end_angle | m) - E(start_angle | m)) with E the
-    // incomplete elliptic integral of the second kind and parameter
-    // m = 1 - (radii.x / radii.y)^2 = k^2. See also:
-    // https://en.wikipedia.org/w/index.php?title=Ellipse&oldid=1248023575#Arc_length
-
-    let m = 1. - (radii.x / radii.y).powi(2);
-
-    radii.y
-        * (incomplete_elliptic_integral_second_kind(relative_error, end_angle, m)
-            - incomplete_elliptic_integral_second_kind(relative_error, start_angle, m))
 }
 
 #[cfg(test)]
@@ -482,6 +470,7 @@ mod tests {
             (0., 5., 5.),
             (1.0, 3., 3.),
             (1.5, 10., 10.),
+            (2.5, 10., 10.),
         ] {
             let a = Arc::new((0., 0.), (1., 1.), start_angle, sweep_angle, 0.);
             let arc_length = a.arclen(0.000_1);
@@ -514,9 +503,9 @@ mod tests {
                     let bez_length = a.path_segments(0.000_1).perimeter(0.000_1);
 
                     assert!(
-                         (arc_length - bez_length).abs() < EPSILON,
-                         "Numerically approximated arc length ({arc_length}) does not match bezier segment perimeter length ({bez_length}) for arc {a:?}"
-                     );
+                        (arc_length - bez_length).abs() < EPSILON,
+                        "Numerically approximated arc length ({arc_length}) does not match bezier segment perimeter length ({bez_length}) for arc {a:?}"
+                        );
                 }
             }
         }
