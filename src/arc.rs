@@ -228,7 +228,7 @@ impl ParamCurveArclen for Arc {
         start_angle = start_angle.rem_euclid(PI);
 
         let mut arclen = 0.;
-        let half_turns = (sweep_angle / PI).floor();
+        let half_turns = (sweep_angle / PI).trunc();
         if half_turns > 0. {
             // Half of the ellipse circumference is a complete elliptic integral and could be special-cased
             arclen += half_turns * half_ellipse_arc_length(relative_error, radii, 0., PI);
