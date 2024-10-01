@@ -231,13 +231,19 @@ impl Shape for Ellipse {
 
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
-        // TODO rather than delegate to the bezier path, it is possible to use various series
-        // expansions to compute the perimeter to any accuracy. I believe Ramanujan authored the
-        // quickest to converge. See
-        // https://www.mathematica-journal.com/2009/11/23/on-the-perimeter-of-an-ellipse/
-        // and https://en.wikipedia.org/wiki/Ellipse#Circumference
-        //
-        self.path_segments(0.1).perimeter(accuracy)
+        let radii = self.radii();
+
+        if radii.is_nan() {
+            return f64::NAN;
+        }
+
+        // Check for the trivial case where the ellipse has radii (0,0), as the numerical method
+        // used breaks down with this extreme.
+        if radii == Vec2::ZERO {
+            return 0.;
+        }
+
+        kummer_elliptic_perimeter(accuracy, radii)
     }
 
     fn winding(&self, pt: Point) -> i32 {
@@ -282,15 +288,94 @@ impl Shape for Ellipse {
     }
 }
 
+/// Calculates circumference C of an ellipse with radii (x, y) as the infinite series
+///
+/// C = pi (x+y) * ∑ binom(1/2, n)^2 * h^n from n = 0 to inf
+/// with h = (x - y)^2 / (x + y)^2
+/// and binom(.,.) the binomial coefficient
+///
+/// as described by Kummer ("Über die Hypergeometrische Reihe", 1837) and rediscovered by
+/// Linderholm and Segal ("An Overlooked Series for the Elliptic Perimeter", 1995).
+///
+/// This converges quadratically in the worst case, and converges very quickly for ellipses with
+/// only moderate eccentricity (`h` not close to 1).
+fn kummer_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
+    let Vec2 { x, y } = radii;
+
+    let accuracy = accuracy / (PI * (x + y));
+
+    let mut h = (x - y).powi(2) / (x + y).powi(2);
+    let mut sum = 1.;
+    let mut m = 1;
+
+    // The binomial coefficient binom(1/2, n), calculated as
+    // ∏ (1.5 - i) / i for i = 1 to n
+    let mut binom = 1.;
+
+    loop {
+        binom *= (1.5 - m as f64) / m as f64;
+        let binom2 = binom.powi(2);
+        let term = binom2 * h;
+        sum += term;
+
+        m += 1;
+        h *= h;
+
+        // Stop iterating when the terms become small enough.
+        //
+        // Perhaps there's a somewhat stricter bound we could use, but I believe
+        // binom(1/2, x)^2 ≥ ∑ binom(1/2, n)^2 for n = x+1 to inf,
+        // and the following terms are multiplied by `h` or less.
+        if binom2 * h <= accuracy {
+            break;
+        }
+    }
+
+    PI * (x + y) * sum
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Ellipse, Point, Shape};
+    use crate::{Circle, Ellipse, Point, Shape};
     use std::f64::consts::PI;
 
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy
         // of the conversion into Béziers. But this seems good enough.
         assert!((x - y).abs() < 1e-7, "{x} != {y}");
+    }
+
+    #[test]
+    fn circular_perimeter() {
+        for radius in [1.0, 0., 1.5, PI, 10.0, -1.0, 1_234_567_890.1] {
+            let circle = Circle::new((0., 0.), radius);
+            let ellipse = Ellipse::new((0., 0.), (radius, radius), 0.);
+
+            let circle_p = circle.perimeter(0.);
+            let ellipse_p = ellipse.perimeter(0.000_000_000_000_1);
+
+            assert!(
+                 (circle_p - ellipse_p).abs() <= 0.000_000_000_000_1,
+                 "Expected circular ellipse radius {ellipse_p} to be equal to circle radius {circle_p} for radius {radius}"
+             )
+        }
+    }
+
+    #[test]
+    fn bez_perimeter() {
+        const EPSILON: f64 = 1e-3;
+
+        for radii in [(0.5, 1.), (2., 1.), (0.000_000_1, 1.), (0., 1.), (1., 0.)] {
+            let ellipse = Ellipse::new((0., 0.), radii, 0.);
+
+            let ellipse_p = ellipse.perimeter(0.000_1);
+            let bez_p = ellipse.path_segments(0.000_05).perimeter(0.000_05);
+
+            assert!(
+                 (ellipse_p - bez_p).abs() < EPSILON,
+                 "Numerically approximated ellipse perimeter ({ellipse_p}) does not match bezier segment perimeter length ({bez_p}) for radii {radii:?}"
+             );
+        }
     }
 
     #[test]
