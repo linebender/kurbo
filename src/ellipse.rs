@@ -357,7 +357,7 @@ mod tests {
             assert!(
                  (circle_p - ellipse_p).abs() <= 0.000_000_000_000_1,
                  "Expected circular ellipse radius {ellipse_p} to be equal to circle radius {circle_p} for radius {radius}"
-             )
+             );
         }
     }
 
