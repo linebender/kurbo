@@ -250,7 +250,18 @@ impl Shape for Ellipse {
             return 0.;
         }
 
-        kummer_elliptic_perimeter(accuracy, radii)
+        let radii_ratio = f64::max(radii.x, radii.y) / f64::min(radii.x, radii.y);
+        // Check for the trivial case where the ellipse has one of its radii equal to 0, i.e.,
+        // where it describes a line, as the numerical method used breaks down with this extreme.
+        if radii_ratio.is_infinite() {
+            return 4. * f64::max(radii.x, radii.y);
+        }
+
+        if radii_ratio < 6. {
+            kummer_elliptic_perimeter(accuracy, radii)
+        } else {
+            agm_elliptic_perimeter(accuracy, radii)
+        }
     }
 
     fn winding(&self, pt: Point) -> i32 {
@@ -356,6 +367,63 @@ fn kummer_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
     }
 
     PI * (x + y) * sum
+}
+
+/// Calculates circumference C of an ellipse with radii (x, y) using the arithmetic-geometric mean.
+fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
+    let Vec2 { x, y } = if radii.x >= radii.y {
+        radii
+    } else {
+        Vec2::new(radii.y, radii.x)
+    };
+
+    let accuracy = accuracy / (2. * PI * radii.x);
+
+    let mut sum = 1.;
+    let mut a = 1.;
+    let mut g = y / x;
+    let mut c = (1. - g.powi(2)).sqrt();
+    let mut mul = 0.5;
+
+    loop {
+        let c2 = c.powi(2);
+        let term = mul * c2;
+        sum -= term;
+
+        // We have c_(n+1) < 1/2 c_n
+        // (for a derivation, see e.g. section 2.1 of  "Elliptic integrals, the
+        // arithmetic-geometric mean and the Brent-Salamin algorithm for π" by G.J.O. Jameson:
+        // <https://web.archive.org/web/20241002140956/https://www.maths.lancs.ac.uk/jameson/ellagm.pdf>)
+        //
+        // Therefore
+        // ∑ 2^(i-1) c_i^2 from i = 0 ≤ ∑ 2^(i-1) * ((1/2)^i c_0)^2
+        //                 = ∑ 2^-(i+1) * c_0^2
+        //
+        // or, for arbitrary starting point n:
+        // ∑ 2^(i-1) c_i^2 from i = n ≤ ∑ 2^(i-1) ((1/2)^(i-n) c_i)^2 from i = n
+        //                            = ∑ 2^(2n - i - 1) c_n^2        from i = n
+        //                            = 2^n ∑ 2^(-(i+1)) c_n^2        from i = n
+        //                            = 2^n 2^(2-n) c_n^2
+        //                            = 4 c_n^2
+        //
+        // Therefore, the remainder of the series sums to less than 4 c_n^2.
+        if 4. * c2 <= accuracy {
+            // `sum` currently overestimates the true value - subtract the upper bound of the
+            // remaining series. We will then underestimate the true value, but by no more than
+            // `accuracy`.
+            sum -= 4. * c2;
+            break;
+        }
+
+        mul *= 2.;
+        // This is equal to c_next = c^2 / (4 * a_next)
+        c = (a - g) / 2.;
+        let a_next = (a + g) / 2.;
+        g = (a * g).sqrt();
+        a = a_next;
+    }
+
+    2. * PI * radii.x / a * sum
 }
 
 #[cfg(test)]
