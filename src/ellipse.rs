@@ -307,7 +307,7 @@ impl Shape for Ellipse {
     }
 }
 
-/// Calculates circumference C of an ellipse with radii (x, y) as the truncated infinite series
+/// Calculates circumference C of an ellipse with radii (x, y) as the infinite series
 ///
 /// C = pi (x+y) * ∑ binom(1/2, n)^2 * h^n from n = 0 to inf
 /// with h = (x - y)^2 / (x + y)^2
@@ -319,9 +319,9 @@ impl Shape for Ellipse {
 /// The series converges very quickly for ellipses with only moderate eccentricity (`h` not close
 /// to 1).
 ///
-/// The series is truncated to the sixth power. A lower bound of the value is returned. Adding the
-/// value of [`kummer_elliptic_perimeter_range`] to the value returned by this function calculates
-/// an upper bound on the value.
+/// The series is truncated to the sixth power, meaning a lower bound on the true value is
+/// returned. Adding the value of [`kummer_elliptic_perimeter_range`] to the value returned by this
+/// function calculates an upper bound on the true value.
 //
 // Note: Kurbo's minimum supported Rust version doesn't support const floating point arithmetic
 // yet, but this function can be made const on stable Rust.
@@ -383,7 +383,9 @@ fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
     PI * (x + y) * remainder
 }
 
-/// Calculates circumference C of an ellipse with radii (x, y) using the arithmetic-geometric mean.
+/// Calculates circumference C of an ellipse with radii (x, y) using the arithmetic-geometric mean,
+/// as described in equation 19.8.6 of
+/// <https://web.archive.org/web/20240926233336/https://dlmf.nist.gov/19.8#i>.
 fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
     let Vec2 { x, y } = if radii.x >= radii.y {
         radii
