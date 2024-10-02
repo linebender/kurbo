@@ -323,8 +323,8 @@ impl Shape for Ellipse {
 /// value of [`kummer_elliptic_perimeter_range`] to the value returned by this function calculates
 /// an upper bound on the value.
 //
-// Note: Kurbo's minimum supported Rust version support const floating point arithmetic yet, but
-// this function can be made const on stable Rust.
+// Note: Kurbo's minimum supported Rust version doesn't support const floating point arithmetic
+// yet, but this function can be made const on stable Rust.
 #[inline]
 fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
@@ -362,8 +362,8 @@ fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
 ///
 /// As 0 ≤ h ≤ 1, this is an upper bound.
 //
-// Note: Kurbo's minimum supported Rust version support const floating point arithmetic yet, but
-// this function can be made const on stable Rust.
+// Note: Kurbo's minimum supported Rust version doesn't support const floating point arithmetic
+// yet, but this function can be made const on stable Rust.
 #[inline]
 fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
