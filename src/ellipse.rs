@@ -341,6 +341,9 @@ fn kummer_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
         //
         // As 0 ≤ h ≤ 1, this is an upper bound.
         if binom_sq_sum_remainder * h_m <= accuracy {
+            // `sum` currently underestimates the true value - by adding the upper bound just
+            // calculated the result will overestimate the true value, but not by more than
+            // the desired accuracy.
             sum += binom_sq_sum_remainder * h_m;
             break;
         }
