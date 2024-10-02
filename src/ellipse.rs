@@ -229,6 +229,13 @@ impl Shape for Ellipse {
         PI * x * y
     }
 
+    /// Approximate the ellipse perimeter.
+    ///
+    /// This uses a numerical approximation. The absolute error between the calculated perimeter
+    /// and the true perimeter is bounded by `accuracy`.
+    ///
+    /// For circular ellipses (equal horizontal and vertical radii), the calculated perimeter is
+    /// exact.
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
         let radii = self.radii();
@@ -370,12 +377,13 @@ mod tests {
             let ellipse = Ellipse::new((0., 0.), (radius, radius), 0.);
 
             let circle_p = circle.perimeter(0.);
-            let ellipse_p = ellipse.perimeter(0.000_000_000_000_1);
+            let ellipse_p = ellipse.perimeter(0.1);
 
-            assert!(
-                 (circle_p - ellipse_p).abs() <= 0.000_000_000_000_1,
-                 "Expected circular ellipse radius {ellipse_p} to be equal to circle radius {circle_p} for radius {radius}"
-             );
+            assert_eq!(
+                circle_p,
+                ellipse_p,
+                "Expected circular ellipse radius {ellipse_p} to be equal to circle radius {circle_p} for radius {radius}"
+            );
         }
     }
 
