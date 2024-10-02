@@ -412,11 +412,12 @@ fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
         // <https://web.archive.org/web/20241002140956/https://www.maths.lancs.ac.uk/jameson/ellagm.pdf>)
         //
         // Therefore
-        // ∑ 2^(i-1) c_i^2 from i = 0 ≤ ∑ 2^(i-1) * ((1/2)^i c_0)^2
-        //                 = ∑ 2^-(i+1) * c_0^2
+        // ∑ 2^(i-1) c_i^2 from i = 0 ≤ ∑ 2^(i-1) ((1/2)^i c_0)^2 from i = 0
+        //                            = ∑ 2^-(i+1) c_0^2          from i = 0
+        //                            = c_0^2
         //
-        // or, for arbitrary starting point n:
-        // ∑ 2^(i-1) c_i^2 from i = n ≤ ∑ 2^(i-1) ((1/2)^(i-n) c_i)^2 from i = n
+        // or, for arbitrary starting point n > 0:
+        // ∑ 2^(i-1) c_i^2 from i = n ≤ ∑ 2^(i-1) ((1/2)^(i-n) c_n)^2 from i = n
         //                            = ∑ 2^(2n - i - 1) c_n^2        from i = n
         //                            = 2^n ∑ 2^(-(i+1)) c_n^2        from i = n
         //                            = 2^n 2^(2-n) c_n^2
