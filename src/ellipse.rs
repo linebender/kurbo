@@ -304,29 +304,44 @@ fn kummer_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
 
     let accuracy = accuracy / (PI * (x + y));
 
-    let mut h = (x - y).powi(2) / (x + y).powi(2);
-    let mut sum = 1.;
-    let mut m = 1;
+    let h = ((x - y) / (x + y)).powi(2);
+    let mut h_m = 1.;
+
+    let mut sum = 0.;
 
     // The binomial coefficient binom(1/2, n), calculated as
     // ∏ (1.5 - i) / i for i = 1 to n
-    let mut binom = 1.;
+    let mut binom = 1f64;
 
-    loop {
+    // An upper bound on the sum of the series remainder (see the note below)
+    let mut binom_sq_sum_remainder = 4. / PI;
+
+    for m in 1.. {
+        // Calculate the `m-1`th term
+        let binom_sq = binom.powi(2);
+        binom_sq_sum_remainder -= binom_sq;
+        sum += binom_sq * h_m;
+
+        h_m *= h;
         binom *= (1.5 - m as f64) / m as f64;
-        let binom2 = binom.powi(2);
-        let term = binom2 * h;
-        sum += term;
 
-        m += 1;
-        h *= h;
-
-        // Stop iterating when the terms become small enough.
+        // Stop iterating when the error becomes small enough.
         //
-        // Perhaps there's a somewhat stricter bound we could use, but I believe
-        // binom(1/2, x)^2 ≥ ∑ binom(1/2, n)^2 for n = x+1 to inf,
-        // and the following terms are multiplied by `h` or less.
-        if binom2 * h <= accuracy {
+        // We do not know what the remainder of the infinite series sums to, but we can calculate
+        // an upper bound:
+        //
+        // ∑ binom(1/2, n)^2 for n = 0 to inf
+        //   = 1 + (1 / 2!!)^2 + (1!! / 4!!)^2 + (3!! / 6!!)^2 + (5!! / 8!!)^2 + ..
+        //   = 4 / pi
+        //   with !! the double factorial
+        // (equation 274 in "Summation of Series", L. B. W. Jolley, 1961).
+        //
+        // This means the remainder of the infinite series for C, assuming h = 1, sums to
+        // 4 / pi - ∑ binom(1/2, n)^2 for n = 0 to m-1
+        //
+        // As 0 ≤ h ≤ 1, this is an upper bound.
+        if binom_sq_sum_remainder * h_m <= accuracy {
+            sum += binom_sq_sum_remainder * h_m;
             break;
         }
     }
@@ -362,19 +377,37 @@ mod tests {
     }
 
     #[test]
-    fn bez_perimeter() {
-        const EPSILON: f64 = 1e-3;
+    fn compare_perimeter_with_bez() {
+        const EPSILON: f64 = 0.000_002;
 
         for radii in [(0.5, 1.), (2., 1.), (0.000_000_1, 1.), (0., 1.), (1., 0.)] {
             let ellipse = Ellipse::new((0., 0.), radii, 0.);
 
-            let ellipse_p = ellipse.perimeter(0.000_1);
-            let bez_p = ellipse.path_segments(0.000_05).perimeter(0.000_05);
+            let ellipse_p = ellipse.perimeter(0.000_001);
+            let bez_p = ellipse.path_segments(0.000_000_25).perimeter(0.000_000_25);
 
             assert!(
-                 (ellipse_p - bez_p).abs() < EPSILON,
-                 "Numerically approximated ellipse perimeter ({ellipse_p}) does not match bezier segment perimeter length ({bez_p}) for radii {radii:?}"
-             );
+                (ellipse_p - bez_p).abs() < EPSILON,
+                "Numerically approximated ellipse perimeter ({ellipse_p}) does not match bezier segment perimeter length ({bez_p}) for radii {radii:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn known_perimeter() {
+        const ACCURACY: f64 = 0.000_000_000_001;
+
+        for (radii, perimeter) in [
+            ((0.5, 1.), 4.844_224_110_273_838),
+            ((0.001, 1.), 4.000_015_588_104_688),
+        ] {
+            let ellipse = Ellipse::new((0., 0.), radii, 0.);
+
+            let ellipse_p = ellipse.perimeter(ACCURACY);
+            assert!(
+                (ellipse_p - perimeter).abs() <= ACCURACY,
+                "Numerically approximated ellipse perimeter ({ellipse_p}) does not match known perimeter ({perimeter}) radii {radii:?}"
+            );
         }
     }
 
