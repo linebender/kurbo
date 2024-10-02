@@ -250,18 +250,19 @@ impl Shape for Ellipse {
             return 0.;
         }
 
-        let radii_ratio = f64::max(radii.x, radii.y) / f64::min(radii.x, radii.y);
         // Check for the trivial case where the ellipse has one of its radii equal to 0, i.e.,
         // where it describes a line, as the numerical method used breaks down with this extreme.
-        if radii_ratio.is_infinite() {
+        if radii.x == 0. || radii.y == 0. {
             return 4. * f64::max(radii.x, radii.y);
         }
 
-        if radii_ratio < 6. {
-            kummer_elliptic_perimeter(accuracy, radii)
-        } else {
-            agm_elliptic_perimeter(accuracy, radii)
+        // Evaluate an approximation based on a truncated infinite series. If it returns a good
+        // enough value, we do not need to iterate.
+        if kummer_elliptic_perimeter_range(radii) <= accuracy {
+            return kummer_elliptic_perimeter(radii);
         }
+
+        agm_elliptic_perimeter(accuracy, radii)
     }
 
     fn winding(&self, pt: Point) -> i32 {
@@ -306,7 +307,7 @@ impl Shape for Ellipse {
     }
 }
 
-/// Calculates circumference C of an ellipse with radii (x, y) as the infinite series
+/// Calculates circumference C of an ellipse with radii (x, y) as the truncated infinite series
 ///
 /// C = pi (x+y) * ∑ binom(1/2, n)^2 * h^n from n = 0 to inf
 /// with h = (x - y)^2 / (x + y)^2
@@ -315,58 +316,64 @@ impl Shape for Ellipse {
 /// as described by Kummer ("Über die Hypergeometrische Reihe", 1837) and rediscovered by
 /// Linderholm and Segal ("An Overlooked Series for the Elliptic Perimeter", 1995).
 ///
-/// This converges very quickly for ellipses with only moderate eccentricity (`h` not close to 1).
-fn kummer_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
+/// The series converges very quickly for ellipses with only moderate eccentricity (`h` not close
+/// to 1).
+///
+/// The series is truncated to the sixth power. A lower bound of the value is returned. Adding the
+/// value of [`kummer_elliptic_perimeter_range`] to the value returned by this function calculates
+/// an upper bound on the value.
+#[inline]
+const fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
+    let h = ((x - y) / (x + y)) * ((x - y) / (x + y));
+    let h2 = h * h;
+    let h3 = h2 * h;
+    let h4 = h3 * h;
+    let h5 = h4 * h;
+    let h6 = h5 * h;
 
-    let accuracy = accuracy / (PI * (x + y));
+    let lower = 1.
+        + h / 4.
+        + h2 / 64.
+        + h3 / 256.
+        + 25. * h4 / 16384.
+        + 49. * h5 / 65536.
+        + 441. * h6 / 1048576.;
 
-    let h = ((x - y) / (x + y)).powi(2);
-    let mut h_m = 1.;
+    PI * (x + y) * lower
+}
 
-    let mut sum = 0.;
+/// This calculates the error range of [`kummer_elliptic_perimeter`]. That function returns a lower
+/// bound on the true value, and though we do not know what the remainder of the infinite series
+/// sums to, we can calculate an upper bound:
+///
+/// ∑ binom(1/2, n)^2 for n = 0 to inf
+///   = 1 + (1 / 2!!)^2 + (1!! / 4!!)^2 + (3!! / 6!!)^2 + (5!! / 8!!)^2 + ..
+///   = 4 / pi
+///   with !! the double factorial
+/// (equation 274 in "Summation of Series", L. B. W. Jolley, 1961).
+///
+/// This means the remainder of the infinite series for C, assuming the series was truncated to the
+/// mth term and h = 1, sums to
+/// 4 / pi - ∑ binom(1/2, n)^2 for n = 0 to m-1
+///
+/// As 0 ≤ h ≤ 1, this is an upper bound.
+#[inline]
+const fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
+    let Vec2 { x, y } = radii;
+    let h = ((x - y) / (x + y)) * ((x - y) / (x + y));
+    let h2 = h * h;
+    let h3 = h2 * h;
+    let h4 = h3 * h;
+    let h5 = h4 * h;
+    let h6 = h5 * h;
+    let h7 = h6 * h;
 
-    // The binomial coefficient binom(1/2, n), calculated as
-    // ∏ (1.5 - i) / i for i = 1 to n
-    let mut binom = 1f64;
+    const BINOM_SQUARED_REMAINDER: f64 = 4. / PI
+        - (1. + 1. / 4. + 1. / 64. + 1. / 256. + 25. / 16384. + 49. / 65536. + 441. / 1048576.);
+    let remainder = BINOM_SQUARED_REMAINDER * h7;
 
-    // An upper bound on the sum of the series remainder (see the note below)
-    let mut binom_sq_sum_remainder = 4. / PI;
-
-    for m in 1.. {
-        // Calculate the `m-1`th term
-        let binom_sq = binom.powi(2);
-        binom_sq_sum_remainder -= binom_sq;
-        sum += binom_sq * h_m;
-
-        h_m *= h;
-        binom *= (1.5 - m as f64) / m as f64;
-
-        // Stop iterating when the error becomes small enough.
-        //
-        // We do not know what the remainder of the infinite series sums to, but we can calculate
-        // an upper bound:
-        //
-        // ∑ binom(1/2, n)^2 for n = 0 to inf
-        //   = 1 + (1 / 2!!)^2 + (1!! / 4!!)^2 + (3!! / 6!!)^2 + (5!! / 8!!)^2 + ..
-        //   = 4 / pi
-        //   with !! the double factorial
-        // (equation 274 in "Summation of Series", L. B. W. Jolley, 1961).
-        //
-        // This means the remainder of the infinite series for C, assuming h = 1, sums to
-        // 4 / pi - ∑ binom(1/2, n)^2 for n = 0 to m-1
-        //
-        // As 0 ≤ h ≤ 1, this is an upper bound.
-        if binom_sq_sum_remainder * h_m <= accuracy {
-            // `sum` currently underestimates the true value - by adding the upper bound just
-            // calculated the result will overestimate the true value, but not by more than
-            // the desired accuracy.
-            sum += binom_sq_sum_remainder * h_m;
-            break;
-        }
-    }
-
-    PI * (x + y) * sum
+    PI * (x + y) * remainder
 }
 
 /// Calculates circumference C of an ellipse with radii (x, y) using the arithmetic-geometric mean.
