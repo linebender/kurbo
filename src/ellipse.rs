@@ -304,8 +304,7 @@ impl Shape for Ellipse {
 /// as described by Kummer ("Über die Hypergeometrische Reihe", 1837) and rediscovered by
 /// Linderholm and Segal ("An Overlooked Series for the Elliptic Perimeter", 1995).
 ///
-/// This converges quadratically in the worst case, and converges very quickly for ellipses with
-/// only moderate eccentricity (`h` not close to 1).
+/// This converges very quickly for ellipses with only moderate eccentricity (`h` not close to 1).
 fn kummer_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
 
