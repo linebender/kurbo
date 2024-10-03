@@ -422,7 +422,7 @@ fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
         // which is exactly the value of the nth term.
         //
         // Furthermore, a_m ≥ g_n, and g_n ≤ 1, for all m, n.
-        if term / g <= accuracy {
+        if term <= accuracy * g {
             // `sum` currently overestimates the true value - subtract the upper bound of the
             // remaining series. We will then underestimate the true value, but by no more than
             // `accuracy`.
