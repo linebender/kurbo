@@ -232,7 +232,7 @@ impl Shape for Ellipse {
     /// Approximate the ellipse perimeter.
     ///
     /// This uses a numerical approximation. The absolute error between the calculated perimeter
-    /// and the true perimeter is bounded by `accuracy`.
+    /// and the true perimeter is bounded by `accuracy` (modulo floating point rounding errors).
     ///
     /// For circular ellipses (equal horizontal and vertical radii), the calculated perimeter is
     /// exact.
