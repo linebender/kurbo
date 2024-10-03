@@ -244,12 +244,6 @@ impl Shape for Ellipse {
             return f64::NAN;
         }
 
-        // Check for the trivial case where the ellipse has radii (0,0), as the numerical method
-        // used breaks down with this extreme.
-        if radii == Vec2::ZERO {
-            return 0.;
-        }
-
         // Check for the trivial case where the ellipse has one of its radii equal to 0, i.e.,
         // where it describes a line, as the numerical method used breaks down with this extreme.
         if radii.x == 0. || radii.y == 0. {
