@@ -395,8 +395,9 @@ fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
     let mut c = (1. - g.powi(2)).sqrt();
     let mut mul = 0.5;
 
-    for m in 0.. {
+    loop {
         let c2 = c.powi(2);
+        // term = 2^(n-1) c_n^2
         let term = mul * c2;
         sum -= term;
 
@@ -417,17 +418,15 @@ fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
         //                              = 2^(2n) 2^(-(n+1)) c_n^2
         //                              = 2^(n-1) c_n^2
         //
-        // Therefore, the remainder of the series sums to less than or equal to 2^(n-1) c_n^2.
+        // Therefore, the remainder of the series sums to less than or equal to 2^(n-1) c_n^2,
+        // which is exactly the value of the nth term.
         //
-        // Furthermore, a_inf ≥ g_n.
-        //
-        // TODO: is there a way to directly specify a power-of-two float, i.e., directly setting
-        // the exponent part?
-        if 2f64.powi(m - 1) / g * c2 <= accuracy {
+        // Furthermore, a_m ≥ g_n, and g_n ≤ 1, for all m, n.
+        if term / g <= accuracy {
             // `sum` currently overestimates the true value - subtract the upper bound of the
             // remaining series. We will then underestimate the true value, but by no more than
             // `accuracy`.
-            sum -= 2f64.powi(m - 1) * c2;
+            sum -= term;
             break;
         }
 
