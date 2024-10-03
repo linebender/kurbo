@@ -794,7 +794,6 @@ impl<I: Iterator<Item = PathEl>> Iterator for Segments<I> {
 impl<I: Iterator<Item = PathEl>> Segments<I> {
     /// Here, `accuracy` specifies the accuracy for each Bézier segment. At worst,
     /// the total error is `accuracy` times the number of Bézier segments.
-
     // TODO: pub? Or is this subsumed by method of &[PathEl]?
     pub(crate) fn perimeter(self, accuracy: f64) -> f64 {
         self.map(|seg| seg.arclen(accuracy)).sum()
