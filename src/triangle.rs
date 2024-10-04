@@ -273,12 +273,17 @@ mod tests {
         assert!((x - y).abs() < 1e-7);
     }
 
+    fn assert_approx_eq_point(x: Point, y: Point) {
+        assert!((x.x - y.x).abs() < 1e-7);
+        assert!((x.y - y.y).abs() < 1e-7);
+    }
+
     #[test]
     fn centroid() {
         let test = Triangle::from_coords((-90.02, 3.5), (7.2, -9.3), (8.0, 9.1)).centroid();
         let expected = Point::new(-24.94, 1.1);
 
-        assert_eq!(test, expected);
+        assert_approx_eq_point(test, expected);
     }
 
     #[test]
@@ -290,7 +295,9 @@ mod tests {
             Vec2::new(199.6, 6.6),
         ];
 
-        assert_eq!(test, expected);
+        test.iter()
+            .zip(expected.iter())
+            .for_each(|(t, e)| assert_approx_eq_point(t.to_point(), e.to_point()));
     }
 
     #[test]
@@ -314,8 +321,7 @@ mod tests {
         let test = Triangle::EQUILATERAL.circumcenter();
         let expected = Point::new(0.5, 0.2886751345948128);
 
-        assert_eq!(test.x, expected.x);
-        assert_approx_eq(test.y, expected.y);
+        assert_approx_eq_point(test, expected);
     }
 
     #[test]
