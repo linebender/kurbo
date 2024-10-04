@@ -326,15 +326,15 @@ fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
     let h5 = h4 * h;
     let h6 = h5 * h;
 
-    let lower = 1.
-        + h / 4.
-        + h2 / 64.
-        + h3 / 256.
-        + 25. * h4 / 16384.
-        + 49. * h5 / 65536.
-        + 441. * h6 / 1048576.;
+    let lower = PI
+        + h * (PI / 4.)
+        + h2 * (PI / 64.)
+        + h3 * (PI / 256.)
+        + h4 * (PI * 25. / 16384.)
+        + h5 * (PI * 49. / 65536.)
+        + h6 * (PI * 441. / 1048576.);
 
-    PI * (x + y) * lower
+    (x + y) * lower
 }
 
 /// This calculates the error range of [`kummer_elliptic_perimeter`]. That function returns a lower
@@ -360,9 +360,7 @@ fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
     const BINOM_SQUARED_REMAINDER: f64 = 0.00101416479131503;
     // = 4. / PI - (1. + 1. / 4. + 1. / 64. + 1. / 256. + 25. / 16384. + 49. / 65536. + 441. / 1048576.)
 
-    let remainder = BINOM_SQUARED_REMAINDER * h.powi(7);
-
-    PI * (x + y) * remainder
+    PI * BINOM_SQUARED_REMAINDER * h.powi(7) * (x + y)
 }
 
 /// Calculates circumference C of an ellipse with radii (x, y) using the arithmetic-geometric mean,
