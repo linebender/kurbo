@@ -316,9 +316,6 @@ impl Shape for Ellipse {
 /// The series is truncated to the sixth power, meaning a lower bound on the true value is
 /// returned. Adding the value of [`kummer_elliptic_perimeter_range`] to the value returned by this
 /// function calculates an upper bound on the true value.
-//
-// Note: Kurbo's minimum supported Rust version doesn't support const floating point arithmetic
-// yet, but this function can be made const on stable Rust.
 #[inline]
 fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
@@ -355,24 +352,15 @@ fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
 /// 4 / pi - ∑ binom(1/2, n)^2 for n = 0 to m-1
 ///
 /// As 0 ≤ h ≤ 1, this is an upper bound.
-//
-// Note: Kurbo's minimum supported Rust version doesn't support const floating point arithmetic
-// yet, but this function can be made const on stable Rust.
 #[inline]
 fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
     let h = ((x - y) / (x + y)) * ((x - y) / (x + y));
-    let h2 = h * h;
-    let h3 = h2 * h;
-    let h4 = h3 * h;
-    let h5 = h4 * h;
-    let h6 = h5 * h;
-    let h7 = h6 * h;
 
     const BINOM_SQUARED_REMAINDER: f64 = 0.00101416479131503;
     // = 4. / PI - (1. + 1. / 4. + 1. / 64. + 1. / 256. + 25. / 16384. + 49. / 65536. + 441. / 1048576.)
 
-    let remainder = BINOM_SQUARED_REMAINDER * h7;
+    let remainder = BINOM_SQUARED_REMAINDER * h.powi(7);
 
     PI * (x + y) * remainder
 }
