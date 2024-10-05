@@ -193,7 +193,7 @@ impl BezPath {
     /// ```
     pub fn from_vec(v: Vec<PathEl>) -> BezPath {
         debug_assert!(
-            v.first().is_none() || matches!(v.first(), Some(PathEl::MoveTo(_))),
+            v.is_empty() || matches!(v.first(), Some(PathEl::MoveTo(_))),
             "BezPath must begin with MoveTo"
         );
         BezPath(v)
