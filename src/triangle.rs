@@ -274,8 +274,8 @@ mod tests {
     }
 
     fn assert_approx_eq_point(x: Point, y: Point) {
-        assert!((x.x - y.x).abs() < 1e-7);
-        assert!((x.y - y.y).abs() < 1e-7);
+        assert_approx_eq(x.x, y.x);
+        assert_approx_eq(x.y, x.y);
     }
 
     #[test]
