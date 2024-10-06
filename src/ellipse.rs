@@ -240,7 +240,10 @@ impl Shape for Ellipse {
     fn perimeter(&self, accuracy: f64) -> f64 {
         let radii = self.radii();
 
-        if radii.is_nan() {
+        // Note: the radii are calculated from an inner affine map (`self.inner`), and may be NaN.
+        // Currently, constructing an ellipse with infinite radii will produce an ellipse whose
+        // calculated radii are NaN.
+        if !self.radii().is_finite() {
             return f64::NAN;
         }
 
