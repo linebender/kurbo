@@ -450,9 +450,11 @@ mod tests {
             let circle_p = circle.perimeter(0.);
             let ellipse_p = ellipse.perimeter(0.1);
 
-            assert_eq!(
-                circle_p,
-                ellipse_p,
+            // We expect the results to be identical, modulo potential roundoff errors. Compare
+            // with a very small relative epsilon.
+            let epsilon = f64::EPSILON * 8. * circle_p.max(ellipse_p);
+            assert!(
+                (circle_p - ellipse_p).abs() <= epsilon,
                 "Expected circular ellipse radius {ellipse_p} to be equal to circle radius {circle_p} for radius {radius}"
             );
         }
