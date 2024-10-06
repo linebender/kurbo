@@ -459,7 +459,15 @@ mod tests {
     fn compare_perimeter_with_bez() {
         const EPSILON: f64 = 0.000_002;
 
-        for radii in [(0.5, 1.), (2., 1.), (0.000_000_1, 1.), (0., 1.), (1., 0.)] {
+        for radii in [
+            (0.5, 1.),
+            (2., 1.),
+            (0.000_000_1, 1.),
+            (0., 1.),
+            (1., 0.),
+            (-0.5, 1.),
+            (-0.000_000_1, -1.),
+        ] {
             let ellipse = Ellipse::new((0., 0.), radii, 0.);
 
             let ellipse_p = ellipse.perimeter(0.000_001);
