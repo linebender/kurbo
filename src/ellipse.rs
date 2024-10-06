@@ -229,15 +229,37 @@ impl Shape for Ellipse {
         PI * x * y
     }
 
+    /// Approximate the ellipse perimeter.
+    ///
+    /// This uses a numerical approximation. The absolute error between the calculated perimeter
+    /// and the true perimeter is bounded by `accuracy` (modulo floating point rounding errors).
+    ///
+    /// For circular ellipses (equal horizontal and vertical radii), the calculated perimeter is
+    /// exact.
     #[inline]
     fn perimeter(&self, accuracy: f64) -> f64 {
-        // TODO rather than delegate to the bezier path, it is possible to use various series
-        // expansions to compute the perimeter to any accuracy. I believe Ramanujan authored the
-        // quickest to converge. See
-        // https://www.mathematica-journal.com/2009/11/23/on-the-perimeter-of-an-ellipse/
-        // and https://en.wikipedia.org/wiki/Ellipse#Circumference
-        //
-        self.path_segments(0.1).perimeter(accuracy)
+        let radii = self.radii();
+
+        // Note: the radii are calculated from an inner affine map (`self.inner`), and may be NaN.
+        // Currently, constructing an ellipse with infinite radii will produce an ellipse whose
+        // calculated radii are NaN.
+        if !self.radii().is_finite() {
+            return f64::NAN;
+        }
+
+        // Check for the trivial case where the ellipse has one of its radii equal to 0, i.e.,
+        // where it describes a line, as the numerical method used breaks down with this extreme.
+        if radii.x == 0. || radii.y == 0. {
+            return 4. * f64::max(radii.x, radii.y);
+        }
+
+        // Evaluate an approximation based on a truncated infinite series. If it returns a good
+        // enough value, we do not need to iterate.
+        if kummer_elliptic_perimeter_range(radii) <= accuracy {
+            return kummer_elliptic_perimeter(radii);
+        }
+
+        agm_elliptic_perimeter(accuracy, radii)
     }
 
     fn winding(&self, pt: Point) -> i32 {
@@ -282,15 +304,203 @@ impl Shape for Ellipse {
     }
 }
 
+/// Calculates circumference C of an ellipse with radii (x, y) as the infinite series
+///
+/// C = pi (x+y) * ∑ binom(1/2, n)^2 * h^n from n = 0 to inf
+/// with h = (x - y)^2 / (x + y)^2
+/// and binom(.,.) the binomial coefficient
+///
+/// as described by Kummer ("Über die Hypergeometrische Reihe", 1837) and rediscovered by
+/// Linderholm and Segal ("An Overlooked Series for the Elliptic Perimeter", 1995).
+///
+/// The series converges very quickly for ellipses with only moderate eccentricity (`h` not close
+/// to 1).
+///
+/// The series is truncated to the sixth power, meaning a lower bound on the true value is
+/// returned. Adding the value of [`kummer_elliptic_perimeter_range`] to the value returned by this
+/// function calculates an upper bound on the true value.
+#[inline]
+fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
+    let Vec2 { x, y } = radii;
+    let h = ((x - y) / (x + y)).powi(2);
+    let h2 = h * h;
+    let h3 = h2 * h;
+    let h4 = h3 * h;
+    let h5 = h4 * h;
+    let h6 = h5 * h;
+
+    let lower = PI
+        + h * (PI / 4.)
+        + h2 * (PI / 64.)
+        + h3 * (PI / 256.)
+        + h4 * (PI * 25. / 16384.)
+        + h5 * (PI * 49. / 65536.)
+        + h6 * (PI * 441. / 1048576.);
+
+    (x + y) * lower
+}
+
+/// This calculates the error range of [`kummer_elliptic_perimeter`]. That function returns a lower
+/// bound on the true value, and though we do not know what the remainder of the infinite series
+/// sums to, we can calculate an upper bound:
+///
+/// ∑ binom(1/2, n)^2 for n = 0 to inf
+///   = 1 + (1 / 2!!)^2 + (1!! / 4!!)^2 + (3!! / 6!!)^2 + (5!! / 8!!)^2 + ..
+///   = 4 / pi
+///   with !! the double factorial
+/// (equation 274 in "Summation of Series", L. B. W. Jolley, 1961).
+///
+/// This means the remainder of the infinite series for C, assuming the series was truncated to the
+/// mth term and h = 1, sums to
+/// 4 / pi - ∑ binom(1/2, n)^2 for n = 0 to m-1
+///
+/// As 0 ≤ h ≤ 1, this is an upper bound.
+#[inline]
+fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
+    let Vec2 { x, y } = radii;
+    let h = ((x - y) / (x + y)).powi(2);
+
+    const BINOM_SQUARED_REMAINDER: f64 = 0.00101416479131503;
+    // = 4. / PI - (1. + 1. / 4. + 1. / 64. + 1. / 256. + 25. / 16384. + 49. / 65536. + 441. / 1048576.)
+
+    PI * BINOM_SQUARED_REMAINDER * h.powi(7) * (x + y)
+}
+
+/// Calculates circumference C of an ellipse with radii (x, y) using the arithmetic-geometric mean,
+/// as described in equation 19.8.6 of
+/// <https://web.archive.org/web/20240926233336/https://dlmf.nist.gov/19.8#i>.
+fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
+    let Vec2 { x, y } = if radii.x >= radii.y {
+        radii
+    } else {
+        Vec2::new(radii.y, radii.x)
+    };
+
+    let accuracy = accuracy / (2. * PI * radii.x);
+
+    let mut sum = 1.;
+    let mut a = 1.;
+    let mut g = y / x;
+    let mut c = (1. - g.powi(2)).sqrt();
+    let mut mul = 0.5;
+
+    loop {
+        let c2 = c.powi(2);
+        // term = 2^(n-1) c_n^2
+        let term = mul * c2;
+        sum -= term;
+
+        // We have c_(n+1) ≤ 1/2 c_n
+        // (for a derivation, see e.g. section 2.1 of  "Elliptic integrals, the
+        // arithmetic-geometric mean and the Brent-Salamin algorithm for π" by G.J.O. Jameson:
+        // <https://web.archive.org/web/20241002140956/https://www.maths.lancs.ac.uk/jameson/ellagm.pdf>)
+        //
+        // Therefore
+        // ∑ 2^(i-1) c_i^2 from i = 1 ≤ ∑ 2^(i-1) ((1/2)^i c_0)^2 from i = 1
+        //                            = ∑ 2^-(i+1) c_0^2          from i = 1
+        //                            = 1/2 c_0^2
+        //
+        // or, for arbitrary starting point i = n+1:
+        // ∑ 2^(i-1) c_i^2 from i = n+1 ≤ ∑ 2^(i-1) ((1/2)^(i-n) c_n)^2 from i = n+1
+        //                              = ∑ 2^(2n - i - 1) c_n^2        from i = n+1
+        //                              = 2^(2n) ∑ 2^(-(i+1)) c_n^2     from i = n+1
+        //                              = 2^(2n) 2^(-(n+1)) c_n^2
+        //                              = 2^(n-1) c_n^2
+        //
+        // Therefore, the remainder of the series sums to less than or equal to 2^(n-1) c_n^2,
+        // which is exactly the value of the nth term.
+        //
+        // Furthermore, a_m ≥ g_n, and g_n ≤ 1, for all m, n.
+        if term <= accuracy * g {
+            // `sum` currently overestimates the true value - subtract the upper bound of the
+            // remaining series. We will then underestimate the true value, but by no more than
+            // `accuracy`.
+            sum -= term;
+            break;
+        }
+
+        mul *= 2.;
+        // This is equal to c_next = c^2 / (4 * a_next)
+        c = (a - g) / 2.;
+        let a_next = (a + g) / 2.;
+        g = (a * g).sqrt();
+        a = a_next;
+    }
+
+    2. * PI * radii.x / a * sum
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Ellipse, Point, Shape};
+    use crate::{Circle, Ellipse, Point, Shape};
     use std::f64::consts::PI;
 
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy
         // of the conversion into Béziers. But this seems good enough.
         assert!((x - y).abs() < 1e-7, "{x} != {y}");
+    }
+
+    #[test]
+    fn circular_perimeter() {
+        for radius in [1.0, 0., 1.5, PI, 10.0, -1.0, 1_234_567_890.1] {
+            let circle = Circle::new((0., 0.), radius);
+            let ellipse = Ellipse::new((0., 0.), (radius, radius), 0.);
+
+            let circle_p = circle.perimeter(0.);
+            let ellipse_p = ellipse.perimeter(0.1);
+
+            // We expect the results to be identical, modulo potential roundoff errors. Compare
+            // with a very small relative epsilon.
+            let epsilon = f64::EPSILON * 8. * circle_p.max(ellipse_p);
+            assert!(
+                (circle_p - ellipse_p).abs() <= epsilon,
+                "Expected circular ellipse radius {ellipse_p} to be equal to circle radius {circle_p} for radius {radius}"
+            );
+        }
+    }
+
+    #[test]
+    fn compare_perimeter_with_bez() {
+        const EPSILON: f64 = 0.000_002;
+
+        for radii in [
+            (0.5, 1.),
+            (2., 1.),
+            (0.000_000_1, 1.),
+            (0., 1.),
+            (1., 0.),
+            (-0.5, 1.),
+            (-0.000_000_1, -1.),
+        ] {
+            let ellipse = Ellipse::new((0., 0.), radii, 0.);
+
+            let ellipse_p = ellipse.perimeter(0.000_001);
+            let bez_p = ellipse.path_segments(0.000_000_25).perimeter(0.000_000_25);
+
+            assert!(
+                (ellipse_p - bez_p).abs() < EPSILON,
+                "Numerically approximated ellipse perimeter ({ellipse_p}) does not match bezier segment perimeter length ({bez_p}) for radii {radii:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn known_perimeter() {
+        const ACCURACY: f64 = 0.000_000_000_001;
+
+        for (radii, perimeter) in [
+            ((0.5, 1.), 4.844_224_110_273_838),
+            ((0.001, 1.), 4.000_015_588_104_688),
+        ] {
+            let ellipse = Ellipse::new((0., 0.), radii, 0.);
+
+            let ellipse_p = ellipse.perimeter(ACCURACY);
+            assert!(
+                (ellipse_p - perimeter).abs() <= ACCURACY,
+                "Numerically approximated ellipse perimeter ({ellipse_p}) does not match known perimeter ({perimeter}) radii {radii:?}"
+            );
+        }
     }
 
     #[test]
