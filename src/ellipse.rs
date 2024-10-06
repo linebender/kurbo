@@ -322,7 +322,7 @@ impl Shape for Ellipse {
 #[inline]
 fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
-    let h = ((x - y) / (x + y)) * ((x - y) / (x + y));
+    let h = ((x - y) / (x + y)).powi(2);
     let h2 = h * h;
     let h3 = h2 * h;
     let h4 = h3 * h;
@@ -358,7 +358,7 @@ fn kummer_elliptic_perimeter(radii: Vec2) -> f64 {
 #[inline]
 fn kummer_elliptic_perimeter_range(radii: Vec2) -> f64 {
     let Vec2 { x, y } = radii;
-    let h = ((x - y) / (x + y)) * ((x - y) / (x + y));
+    let h = ((x - y) / (x + y)).powi(2);
 
     const BINOM_SQUARED_REMAINDER: f64 = 0.00101416479131503;
     // = 4. / PI - (1. + 1. / 4. + 1. / 64. + 1. / 256. + 25. / 16384. + 49. / 65536. + 441. / 1048576.)
