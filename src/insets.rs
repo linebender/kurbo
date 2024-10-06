@@ -3,7 +3,7 @@
 
 //! A description of the distances between the edges of two rectangles.
 
-use core::ops::{Add, Neg, Sub};
+use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::{Rect, Size};
 
@@ -276,6 +276,32 @@ impl Sub<Rect> for Insets {
     #[inline]
     fn sub(self, other: Rect) -> Rect {
         other + -self
+    }
+}
+
+impl Mul<f64> for Insets {
+    type Output = Insets;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self {
+            x0: self.x0 * rhs,
+            y0: self.y0 * rhs,
+            x1: self.x1 * rhs,
+            y1: self.y1 * rhs,
+        }
+    }
+}
+
+impl Div<f64> for Insets {
+    type Output = Insets;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        Self {
+            x0: self.x0 / rhs,
+            y0: self.y0 / rhs,
+            x1: self.x1 / rhs,
+            y1: self.y1 / rhs,
+        }
     }
 }
 
