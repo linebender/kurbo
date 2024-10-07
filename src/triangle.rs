@@ -128,7 +128,11 @@ impl Triangle {
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
-        Circle::new(self.circumcenter(), 2.0 * self.area() / (ab + bc + ac))
+        let perimeter_recip = 1. / (ab + bc + ac);
+        let incenter = (self.a.to_vec2() * bc + self.b.to_vec2() * ac + self.c.to_vec2() * ab)
+            * perimeter_recip;
+
+        Circle::new(incenter.to_point(), 2.0 * self.area() * perimeter_recip)
     }
 
     /// The circumscribed circle of [`Triangle`].
@@ -269,13 +273,16 @@ impl Iterator for TrianglePathIter {
 mod tests {
     use crate::{Point, Triangle, Vec2};
 
-    fn assert_approx_eq(x: f64, y: f64) {
-        assert!((x - y).abs() < 1e-7);
+    fn assert_approx_eq(x: f64, y: f64, max_relative_error: f64) {
+        assert!(
+            (x - y).abs() <= f64::max(x.abs(), y.abs()) * max_relative_error,
+            "{x} != {y}"
+        );
     }
 
-    fn assert_approx_eq_point(x: Point, y: Point) {
-        assert_approx_eq(x.x, y.x);
-        assert_approx_eq(x.y, x.y);
+    fn assert_approx_eq_point(x: Point, y: Point, max_relative_error: f64) {
+        assert_approx_eq(x.x, y.x, max_relative_error);
+        assert_approx_eq(x.y, y.y, max_relative_error);
     }
 
     #[test]
@@ -283,7 +290,7 @@ mod tests {
         let test = Triangle::from_coords((-90.02, 3.5), (7.2, -9.3), (8.0, 9.1)).centroid();
         let expected = Point::new(-24.94, 1.1);
 
-        assert_approx_eq_point(test, expected);
+        assert_approx_eq_point(test, expected, f64::EPSILON * 100.);
     }
 
     #[test]
@@ -295,9 +302,9 @@ mod tests {
             Vec2::new(199.6, 6.6),
         ];
 
-        test.iter()
-            .zip(expected.iter())
-            .for_each(|(t, e)| assert_approx_eq_point(t.to_point(), e.to_point()));
+        test.iter().zip(expected.iter()).for_each(|(t, e)| {
+            assert_approx_eq_point(t.to_point(), e.to_point(), f64::EPSILON * 100.);
+        });
     }
 
     #[test]
@@ -307,21 +314,21 @@ mod tests {
             (7892.729, 238.459),
             (7820.2, 712.23),
         );
-        let expected = 1079952.91574081;
+        let expected = 1079952.9157407999;
 
         // initial
-        assert_approx_eq(test.area(), -expected);
+        assert_approx_eq(test.area(), -expected, f64::EPSILON * 100.);
         // permutate vertex
         let test = Triangle::new(test.b, test.a, test.c);
-        assert_approx_eq(test.area(), expected);
+        assert_approx_eq(test.area(), expected, f64::EPSILON * 100.);
     }
 
     #[test]
     fn circumcenter() {
         let test = Triangle::EQUILATERAL.circumcenter();
-        let expected = Point::new(0.5, 0.2886751345948128);
+        let expected = Point::new(0.5, 0.28867513459481288);
 
-        assert_approx_eq_point(test, expected);
+        assert_approx_eq_point(test, expected, f64::EPSILON * 100.);
     }
 
     #[test]
@@ -329,14 +336,44 @@ mod tests {
         let test = Triangle::EQUILATERAL.inscribed_circle().radius;
         let expected = 0.28867513459481287;
 
-        assert_approx_eq(test, expected);
+        assert_approx_eq(test, expected, f64::EPSILON * 100.);
     }
 
     #[test]
     fn circumradius() {
         let test = Triangle::EQUILATERAL.circumscribed_circle().radius;
-        let expected = 0.5773502691896258;
+        let expected = 0.57735026918962576;
 
-        assert_approx_eq(test, expected);
+        assert_approx_eq(test, expected, f64::EPSILON * 100.);
+    }
+
+    #[test]
+    fn inscribed_circle() {
+        let test = Triangle::new((-4., 1.), (-4., -1.), (10., 3.));
+
+        let inscribed = test.inscribed_circle();
+        assert_approx_eq_point(
+            inscribed.center,
+            (-3.0880178529263671, 0.20904207741504303).into(),
+            f64::EPSILON * 100.,
+        );
+        assert_approx_eq(inscribed.radius, 0.91198214707363295, f64::EPSILON * 100.);
+    }
+
+    #[test]
+    fn circumscribed_circle() {
+        let test = Triangle::new((-4., 1.), (-4., -1.), (10., 3.));
+
+        let circumscribed = test.circumscribed_circle();
+        assert_approx_eq_point(
+            circumscribed.center,
+            (3.2857142857142857, 0.).into(),
+            f64::EPSILON * 100.,
+        );
+        assert_approx_eq(
+            circumscribed.radius,
+            7.3540215292764288,
+            f64::EPSILON * 100.,
+        );
     }
 }
