@@ -72,27 +72,6 @@ impl Triangle {
         (1.0 / 3.0 * (self.a.to_vec2() + self.b.to_vec2() + self.c.to_vec2())).to_point()
     }
 
-    /// The circumcenter of the [`Triangle`].
-    #[inline]
-    fn circumcenter(&self) -> Point {
-        let d = 2.0
-            * (self.a.x * (self.b.y - self.c.y)
-                + self.b.x * (self.c.y - self.a.y)
-                + self.c.x * (self.a.y - self.b.y));
-
-        let ux = ((self.a.x.powi(2) + self.a.y.powi(2)) * (self.b.y - self.c.y)
-            + (self.b.x.powi(2) + self.b.y.powi(2)) * (self.c.y - self.a.y)
-            + (self.c.x.powi(2) + self.c.y.powi(2)) * (self.a.y - self.b.y))
-            / d;
-
-        let uy = ((self.a.x.powi(2) + self.a.y.powi(2)) * (self.c.x - self.b.x)
-            + (self.b.x.powi(2) + self.b.y.powi(2)) * (self.a.x - self.c.x)
-            + (self.c.x.powi(2) + self.c.y.powi(2)) * (self.b.x - self.a.x))
-            / d;
-
-        Point::new(ux, uy)
-    }
-
     /// The offset of each vertex from the centroid.
     #[inline]
     pub fn offsets(&self) -> [Vec2; 3] {
@@ -143,11 +122,17 @@ impl Triangle {
     #[doc(alias = "circumcircle")]
     #[inline]
     pub fn circumscribed_circle(&self) -> Circle {
-        let ab = self.a.distance(self.b);
-        let bc = self.b.distance(self.c);
-        let ac = self.a.distance(self.c);
+        let b = self.b - self.a;
+        let c = self.c - self.a;
+        let b_len2 = b.hypot2();
+        let c_len2 = c.hypot2();
+        let d_recip = 1. / (2. * b.cross(c));
 
-        Circle::new(self.circumcenter(), (ab * bc * ac) / (4.0 * self.area()))
+        let x = (c.y * b_len2 - b.y * c_len2) * d_recip;
+        let y = (b.x * c_len2 - c.x * b_len2) * d_recip;
+        let r = b_len2.sqrt() * c_len2.sqrt() * (c - b).hypot() * d_recip;
+
+        Circle::new(self.a + Vec2::new(x, y), r)
     }
 
     /// Expand the triangle by a constant amount (`scalar`) in all directions.
@@ -327,7 +312,7 @@ mod tests {
 
     #[test]
     fn circumcenter() {
-        let test = Triangle::EQUILATERAL.circumcenter();
+        let test = Triangle::EQUILATERAL.circumscribed_circle().center;
         let expected = Point::new(0.5, 0.28867513459481288);
 
         assert_approx_eq_point(test, expected, f64::EPSILON * 100.);
@@ -343,10 +328,21 @@ mod tests {
 
     #[test]
     fn circumradius() {
-        let test = Triangle::EQUILATERAL.circumscribed_circle().radius;
+        let test = Triangle::EQUILATERAL;
         let expected = 0.57735026918962576;
 
-        assert_approx_eq(test, expected, f64::EPSILON * 100.);
+        assert_approx_eq(
+            test.circumscribed_circle().radius,
+            expected,
+            f64::EPSILON * 100.,
+        );
+        // permute vertex
+        let test = Triangle::new(test.b, test.a, test.c);
+        assert_approx_eq(
+            test.circumscribed_circle().radius,
+            -expected,
+            f64::EPSILON * 100.,
+        );
     }
 
     #[test]
