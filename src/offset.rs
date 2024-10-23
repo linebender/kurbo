@@ -199,6 +199,22 @@ mod tests {
         fit_to_bezpath(&co, TOLERANCE);
     }
 
+    /// Another cubic offset that triggers infinite recursion
+    // TODO make this test pass and then remove the `#[ignore]`
+    #[test]
+    #[ignore]
+    fn infinite_recursion_2() {
+        let from = (170316.27471718643, -39426.698755807460);
+        let ctrl1 = (170319.25792293798, -39424.62015694651);
+        let ctrl2 = (170347.39228816386, -39459.45980864008);
+        let to = (170360.02535541012, -39468.51499820177);
+        let offset = -1.;
+        let accuracy = 2.231417337053948;
+        let c = CubicBez::new(from, ctrl1, ctrl2, to);
+        let co = CubicOffset::new(c, offset);
+        fit_to_bezpath_opt(&co, accuracy);
+    }
+
     #[test]
     fn test_cubic_offset_simple_line() {
         let cubic = CubicBez::new((0., 0.), (10., 0.), (20., 0.), (30., 0.));
