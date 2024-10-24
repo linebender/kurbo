@@ -7,12 +7,37 @@ edition = "2021"
 # TODO: When this hits 1.74, move lint configuration into this file via a lints table.
 # Keep in sync with RUST_MIN_VER in .github/workflows/ci.yml, with the README.md file,
 # and with the MSRV in the `Unreleased` section of CHANGELOG.md.
-rust-version = "1.65"
+rust-version = "1.74"
 keywords = ["graphics", "curve", "curves", "bezier", "geometry"]
 repository = "https://github.com/linebender/kurbo"
 description = "A 2D curves library"
 readme = "README.md"
 categories = ["graphics"]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unused_crate_dependencies = "warn"
+future_incompatible = "warn"
+rust_2018_idioms = "warn"
+rust_2021_compatibility = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+unwrap_in_result = "warn"
+enum_glob_use = "warn"
+use_self = "warn"
+integer_arithmetic = "warn"
+match_on_vec_items = "warn"
+imprecise_flops = "warn"
 
 [package.metadata.docs.rs]
 features = ["mint", "schemars", "serde"]

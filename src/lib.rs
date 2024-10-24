@@ -1,3 +1,4 @@
+#![warn(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Copyright 2018 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
