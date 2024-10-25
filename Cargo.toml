@@ -17,6 +17,10 @@ categories = ["graphics"]
 [package.metadata.docs.rs]
 features = ["mint", "schemars", "serde"]
 
+[lints]
+# This can be removed once we fix the benchmarks.
+rust.unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly)'] }
+
 [features]
 default = ["std"]
 std = []
