@@ -519,11 +519,11 @@ mod tests {
 
         // Numerical checks from section 3 of "Numerical computation of real or complex elliptic
         // integrals" (Carlson, Bille C.): https://arxiv.org/abs/math/9409227v1 (real-valued calls)
-        assert!((carlson_rf(1e-20, 1., 2., 0.) - 1.3110_28777_1461).abs() <= EPSILON);
-        assert!((carlson_rf(1e-20, 2., 3., 4.) - 0.58408_28416_7715).abs() <= EPSILON);
+        assert!((carlson_rf(1e-20, 1., 2., 0.) - 1.311_028_777_146_1).abs() <= EPSILON);
+        assert!((carlson_rf(1e-20, 2., 3., 4.) - 0.584_082_841_677_15).abs() <= EPSILON);
 
-        assert!((carlson_rd(1e-20, 0., 2., 1.) - 1.7972_10352_1034).abs() <= EPSILON);
-        assert!((carlson_rd(1e-20, 2., 3., 4.) - 0.16510_52729_4261).abs() <= EPSILON);
+        assert!((carlson_rd(1e-20, 0., 2., 1.) - 1.797_210_352_103_4).abs() <= EPSILON);
+        assert!((carlson_rd(1e-20, 2., 3., 4.) - 0.165_105_272_942_61).abs() <= EPSILON);
     }
 
     #[test]
