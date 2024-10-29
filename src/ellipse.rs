@@ -243,7 +243,7 @@ impl Shape for Ellipse {
         // Note: the radii are calculated from an inner affine map (`self.inner`), and may be NaN.
         // Currently, constructing an ellipse with infinite radii will produce an ellipse whose
         // calculated radii are NaN.
-        if !self.radii().is_finite() {
+        if !radii.is_finite() {
             return f64::NAN;
         }
 
