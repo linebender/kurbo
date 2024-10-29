@@ -231,10 +231,9 @@ impl ParamCurveArclen for Arc {
 
         // Normalize start angle to be on the upper half of the ellipse
         let start_angle = start_angle.rem_euclid(PI);
-
         let end_angle = start_angle + sweep_angle;
 
-        let mut quarter_turns = (end_angle / PI * 2.).trunc() - (start_angle / PI * 2.).trunc();
+        let mut quarter_turns = (2. / PI * end_angle).trunc() - (2. / PI * start_angle).trunc();
         let end_angle = end_angle % PI;
 
         // The elliptic arc length is equal to radii.y * (E(end_angle | m) - E(start_angle | m))
