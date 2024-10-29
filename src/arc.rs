@@ -3,7 +3,10 @@
 
 //! An ellipse arc.
 
-use crate::{Affine, Ellipse, ParamCurve, ParamCurveArclen, PathEl, Point, Rect, Shape, Vec2};
+use crate::{
+    ellipse::complete_elliptic_perimeter, Affine, Ellipse, ParamCurve, ParamCurveArclen, PathEl,
+    Point, Rect, Shape, Vec2,
+};
 use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
@@ -259,12 +262,12 @@ impl ParamCurveArclen for Arc {
         } else {
             arclen += incomplete_elliptic_integral_second_kind(relative_error, end_angle, m);
         }
+        arclen *= radii.y;
 
         // Note: this uses the complete elliptic integral, which can be special-cased.
-        arclen +=
-            quarter_turns * incomplete_elliptic_integral_second_kind(relative_error, PI / 2., m);
+        arclen += 0.25 * quarter_turns * complete_elliptic_perimeter(self.radii, relative_error);
 
-        radii.y * arclen
+        arclen
     }
 }
 

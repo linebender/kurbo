@@ -247,19 +247,7 @@ impl Shape for Ellipse {
             return f64::NAN;
         }
 
-        // Check for the trivial case where the ellipse has one of its radii equal to 0, i.e.,
-        // where it describes a line, as the numerical method used breaks down with this extreme.
-        if radii.x == 0. || radii.y == 0. {
-            return 4. * f64::max(radii.x, radii.y);
-        }
-
-        // Evaluate an approximation based on a truncated infinite series. If it returns a good
-        // enough value, we do not need to iterate.
-        if kummer_elliptic_perimeter_range(radii) <= accuracy {
-            return kummer_elliptic_perimeter(radii);
-        }
-
-        agm_elliptic_perimeter(accuracy, radii)
+        complete_elliptic_perimeter(radii, accuracy)
     }
 
     fn winding(&self, pt: Point) -> i32 {
@@ -302,6 +290,25 @@ impl Shape for Ellipse {
             y1: cy + range_y,
         }
     }
+}
+
+/// See [`Ellipse::perimeter`]. This is extracted to its own function for use by
+/// [`crate::Arc::perimeter`] without having to construct an [`Ellipse`].
+#[inline]
+pub(crate) fn complete_elliptic_perimeter(radii: Vec2, accuracy: f64) -> f64 {
+    // Check for the trivial case where the ellipse has one of its radii equal to 0, i.e.,
+    // where it describes a line, as the numerical method used breaks down with this extreme.
+    if radii.x == 0. || radii.y == 0. {
+        return 4. * f64::max(radii.x, radii.y);
+    }
+
+    // Evaluate an approximation based on a truncated infinite series. If it returns a good
+    // enough value, we do not need to iterate.
+    if kummer_elliptic_perimeter_range(radii) <= accuracy {
+        return kummer_elliptic_perimeter(radii);
+    }
+
+    agm_elliptic_perimeter(accuracy, radii)
 }
 
 /// Calculates circumference C of an ellipse with radii (x, y) as the infinite series
