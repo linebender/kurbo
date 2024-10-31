@@ -361,10 +361,10 @@ impl Affine {
     /// any) circle about its center always results in the same circle. This is the reason that an
     /// ellipse mapped using an affine map is always an ellipse.
     ///
-    /// Will return NaNs if the matrix (or equivalently the linear map) is singular.
+    /// Will return NaNs if the matrix (or equivalently the linear map) is non-finite.
     ///
-    /// First part of the return tuple is the scaling, second part is the angle of rotation (in
-    /// radians)
+    /// The first part of the returned tuple is the scaling, the second part is the angle of
+    /// rotation (in radians).
     #[inline]
     pub(crate) fn svd(self) -> (Vec2, f64) {
         let a = self.0[0];
@@ -586,5 +586,30 @@ mod tests {
         assert_near(map * Point::new(1., 0.), Point::new(1., 0.));
         assert_near(map * Point::new(2., 1.), Point::new(2., 1.));
         assert_near(map * Point::new(2., 2.), Point::new(3., 1.));
+    }
+
+    #[test]
+    fn svd() {
+        let a = Affine::new([1., 2., 3., 4., 5., 6.]);
+        let a_no_translate = a.with_translation(Vec2::ZERO);
+
+        // translation should have no effect
+        let (scale, rotation) = a.svd();
+        let (scale_no_translate, rotation_no_translate) = a_no_translate.svd();
+        assert_near(scale.to_point(), scale_no_translate.to_point());
+        assert!((rotation - rotation_no_translate).abs() <= 1e-9);
+
+        assert_near(
+            scale.to_point(),
+            Point::new(5.4649857042190427, 0.36596619062625782),
+        );
+        assert!((rotation - 0.95691013360780001).abs() <= 1e-9);
+
+        // singular affine
+        let a = Affine::new([0., 0., 0., 0., 5., 6.]);
+        assert_eq!(a.determinant(), 0.);
+        let (scale, rotation) = a.svd();
+        assert_eq!(scale, Vec2::new(0., 0.));
+        assert_eq!(rotation, 0.);
     }
 }
