@@ -130,7 +130,7 @@ impl Triangle {
 
         let x = (c.y * b_len2 - b.y * c_len2) * d_recip;
         let y = (b.x * c_len2 - c.x * b_len2) * d_recip;
-        let r = b_len2.sqrt() * c_len2.sqrt() * (c - b).hypot() * d_recip;
+        let r = (b_len2 * c_len2).sqrt() * (c - b).hypot() * d_recip;
 
         Circle::new(self.a + Vec2::new(x, y), r)
     }
