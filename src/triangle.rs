@@ -128,6 +128,8 @@ impl Triangle {
         let bc = self.b.distance(self.c);
         let ac = self.a.distance(self.c);
 
+        // [`Vec2::div`] also multiplies by the reciprocal of the argument, but as this reciprocal
+        // is reused below to calculate the radius, there's explicitly only one division needed.
         let perimeter_recip = 1. / (ab + bc + ac);
         let incenter = (self.a.to_vec2() * bc + self.b.to_vec2() * ac + self.c.to_vec2() * ab)
             * perimeter_recip;
