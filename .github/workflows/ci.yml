@@ -43,7 +43,7 @@ env:
 #
 # We don't save caches in the merge-group cases, because those caches will never be re-used (apart
 # from the very rare cases where there are multiple PRs in the merge queue).
-# This is because GitHub doesn't share caches between merge queues and `main`.
+# This is because GitHub doesn't share caches between merge queues and the main branch.
 
 name: CI
 
@@ -108,13 +108,13 @@ jobs:
           tool: cargo-hack
 
       - name: cargo clippy (no_std)
-        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none -- -D warnings
+        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --ignore-unknown-features --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none -- -D warnings
 
       - name: cargo clippy
-        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --features std -- -D warnings
+        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --ignore-unknown-features --features std -- -D warnings
 
       - name: cargo clippy (auxiliary)
-        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --features std --tests --benches --examples -- -D warnings
+        run: cargo hack clippy --workspace --locked --optional-deps --each-feature --ignore-unknown-features --features std --tests --benches --examples -- -D warnings
 
   clippy-stable-wasm:
     name: cargo clippy (wasm32)
@@ -140,10 +140,10 @@ jobs:
           tool: cargo-hack
 
       - name: cargo clippy
-        run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --features std -- -D warnings
+        run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --ignore-unknown-features --features std -- -D warnings
 
       - name: cargo clippy (auxiliary)
-        run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --features std --tests --benches --examples -- -D warnings
+        run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --ignore-unknown-features --features std --tests --benches --examples -- -D warnings
 
   test-stable:
     name: cargo test
@@ -214,10 +214,10 @@ jobs:
           tool: cargo-hack
 
       - name: cargo check (no_std)
-        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none
+        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --ignore-unknown-features --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none
 
       - name: cargo check
-        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --features std
+        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --ignore-unknown-features --features std
 
   check-msrv-wasm:
     name: cargo check (msrv) (wasm32)
@@ -242,7 +242,7 @@ jobs:
           tool: cargo-hack
 
       - name: cargo check
-        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --target wasm32-unknown-unknown --optional-deps --each-feature --features std
+        run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --target wasm32-unknown-unknown --optional-deps --each-feature --ignore-unknown-features --features std
 
   doc:
     name: cargo doc
