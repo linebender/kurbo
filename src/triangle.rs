@@ -126,7 +126,7 @@ impl Triangle {
         let c = self.c - self.a;
         let b_len2 = b.hypot2();
         let c_len2 = c.hypot2();
-        let d_recip = 1. / (2. * b.cross(c));
+        let d_recip = 0.5 / b.cross(c);
 
         let x = (c.y * b_len2 - b.y * c_len2) * d_recip;
         let y = (b.x * c_len2 - c.x * b_len2) * d_recip;
