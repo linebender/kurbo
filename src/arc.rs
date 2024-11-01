@@ -327,6 +327,9 @@ impl Mul<Arc> for Affine {
 ///
 /// RF = 1/2 ∫ 1 / ( sqrt(t+x) sqrt(t+y) sqrt(t+z) ) dt from 0 to inf
 fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
+    // At most one of (x, y, z) may be 0.
+    debug_assert!((x == 0.) as u8 + (y == 0.) as u8 + (z == 0.) as u8 <= 1);
+
     let mut x = x;
     let mut y = y;
     let mut z = z;
@@ -368,6 +371,10 @@ fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
 ///
 /// RD = 3/2 ∫ 1 / ( sqrt(t+x) sqrt(t+y) (t+z)^(3/2) ) dt from 0 to inf
 fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
+    // At most one of (x, y) may be 0, z must be nonzero.
+    debug_assert!(z != 0.);
+    debug_assert!(x != 0. || y != 0.);
+
     let mut x = x;
     let mut y = y;
     let mut z = z;
