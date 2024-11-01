@@ -345,7 +345,7 @@ fn carlson_rf(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
             break;
         }
 
-        let lambda = x.sqrt() * y.sqrt() + x.sqrt() * z.sqrt() + y.sqrt() * z.sqrt();
+        let lambda = (x * y).sqrt() + (x * z).sqrt() + (y * z).sqrt();
         a = (a + lambda) / 4.;
         x = (x + lambda) / 4.;
         y = (y + lambda) / 4.;
@@ -391,7 +391,7 @@ fn carlson_rd(relative_error: f64, x: f64, y: f64, z: f64) -> f64 {
             break;
         }
 
-        let lambda = x.sqrt() * y.sqrt() + x.sqrt() * z.sqrt() + y.sqrt() * z.sqrt();
+        let lambda = (x * y).sqrt() + (x * z).sqrt() + (y * z).sqrt();
         sum += 4f64.powi(-m) / (z.sqrt() * (z + lambda));
         a = (a + lambda) / 4.;
         x = (x + lambda) / 4.;
