@@ -90,11 +90,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: restore cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.event_name != 'merge_group' }}
-
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -106,6 +101,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-hack
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: cargo clippy (no_std)
         run: cargo hack clippy --workspace --locked --optional-deps --each-feature --ignore-unknown-features --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none -- -D warnings
@@ -122,11 +122,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: restore cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.event_name != 'merge_group' }}
-
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -138,6 +133,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-hack
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: cargo clippy
         run: cargo hack clippy --workspace --locked --target wasm32-unknown-unknown --optional-deps --each-feature --ignore-unknown-features --features std -- -D warnings
@@ -154,15 +154,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: restore cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.event_name != 'merge_group' }}
-
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_STABLE_VER }}
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: cargo test
         run: cargo test --workspace --locked --all-features
@@ -173,16 +173,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: restore cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.event_name != 'merge_group' }}
-
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_STABLE_VER }}
           targets: wasm32-unknown-unknown
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       # TODO: Find a way to make tests work. Until then the tests are merely compiled.
       - name: cargo test compile
@@ -197,11 +197,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: restore cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.event_name != 'merge_group' }}
-
       - name: install msrv toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -212,6 +207,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-hack
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: cargo check (no_std)
         run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --optional-deps --each-feature --ignore-unknown-features --features libm --exclude-features ${{ env.FEATURES_DEPENDING_ON_STD }} --target x86_64-unknown-none
@@ -225,11 +225,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: restore cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.event_name != 'merge_group' }}
-
       - name: install msrv toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -240,6 +235,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-hack
+
+      - name: restore cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.event_name != 'merge_group' }}
 
       - name: cargo check
         run: cargo hack check ${{ env.RUST_MIN_VER_PKGS }} --locked --target wasm32-unknown-unknown --optional-deps --each-feature --ignore-unknown-features --features std
@@ -252,13 +252,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
       - name: restore cache
         uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.event_name != 'merge_group' }}
-
-      - name: install nightly toolchain
-        uses: dtolnay/rust-toolchain@nightly
 
       # We test documentation using nightly to match docs.rs. This prevents potential breakages
       - name: cargo doc
