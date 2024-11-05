@@ -61,5 +61,7 @@ features = ["alloc", "derive"]
 [dev-dependencies]
 rand = "0.8.5"
 
-[target.'cfg(target_arch="wasm32")'.dev-dependencies]
+[target.wasm32-unknown-unknown.dev-dependencies]
+# We have a transitive dependency on getrandom and it does not automatically
+# support wasm32-unknown-unknown. We need to enable the js feature.
 getrandom = { version = "0.2.15", features = ["js"] }
