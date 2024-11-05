@@ -15,7 +15,10 @@ readme = "README.md"
 categories = ["graphics"]
 
 [package.metadata.docs.rs]
-features = ["mint", "schemars", "serde"]
+all-features = true
+# There are no platform specific docs.
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
 
 [lints]
 # This can be removed once we fix the benchmarks.

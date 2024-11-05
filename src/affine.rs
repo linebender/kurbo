@@ -43,7 +43,7 @@ impl Affine {
     /// [Wikipedia](https://en.wikipedia.org/wiki/Affine_transformation)
     /// formulation of affine transformation as augmented matrix. The
     /// idea is that `(A * B) * v == A * (B * v)`, where `*` is the
-    /// [`Mul`](std::ops::Mul) trait.
+    /// [`Mul`] trait.
     #[inline]
     pub const fn new(c: [f64; 6]) -> Affine {
         Affine(c)
