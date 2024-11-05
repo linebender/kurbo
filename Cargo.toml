@@ -15,7 +15,7 @@ readme = "README.md"
 categories = ["graphics"]
 
 [package.metadata.docs.rs]
-features = ["mint", "schemars", "serde"]
+all-features = true
 
 [lints]
 # This can be removed once we fix the benchmarks.

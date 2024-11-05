@@ -14,7 +14,7 @@ use crate::common::FloatFuncs;
 
 /// A 2D point.
 ///
-/// This type represents a point in 2D space. It has the same layout as [`Vec2`][crate::Vec2], but
+/// This type represents a point in 2D space. It has the same layout as [`Vec2`], but
 /// its meaning is different: `Vec2` represents a change in location (for example velocity).
 ///
 /// In general, `kurbo` overloads math operators where it makes sense, for example implementing
