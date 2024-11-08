@@ -4,6 +4,7 @@
 //! A simple 2D vector.
 
 use core::fmt;
+use core::iter::Sum;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::common::FloatExt;
@@ -348,6 +349,12 @@ impl AddAssign for Vec2 {
             x: self.x + other.x,
             y: self.y + other.y,
         }
+    }
+}
+
+impl Sum for Vec2 {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Vec2::ZERO, |sum, v| sum + v)
     }
 }
 
