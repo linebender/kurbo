@@ -90,6 +90,7 @@ mod arc;
 mod bezpath;
 mod circle;
 pub mod common;
+mod concrete_shape;
 mod cubicbez;
 mod ellipse;
 mod fit;
