@@ -64,27 +64,40 @@ from_impl!(Triangle);
 macro_rules! match_shape {
     ($x:ident, $i:ident, $e: expr) => {
         match $x {
-            ConcreteShape::PathSeg($i) => $e,
-            ConcreteShape::Arc($i) => $e,
-            ConcreteShape::BezPath($i) => $e,
-            ConcreteShape::Circle($i) => $e,
-            ConcreteShape::CircleSegment($i) => $e,
-            ConcreteShape::CubicBez($i) => $e,
-            ConcreteShape::Ellipse($i) => $e,
-            ConcreteShape::Line($i) => $e,
-            ConcreteShape::QuadBez($i) => $e,
-            ConcreteShape::Rect($i) => $e,
-            ConcreteShape::RoundedRect($i) => $e,
-            ConcreteShape::Triangle($i) => $e,
+            Self::PathSeg($i) => $e,
+            Self::Arc($i) => $e,
+            Self::BezPath($i) => $e,
+            Self::Circle($i) => $e,
+            Self::CircleSegment($i) => $e,
+            Self::CubicBez($i) => $e,
+            Self::Ellipse($i) => $e,
+            Self::Line($i) => $e,
+            Self::QuadBez($i) => $e,
+            Self::Rect($i) => $e,
+            Self::RoundedRect($i) => $e,
+            Self::Triangle($i) => $e,
         }
     };
 }
 
 impl Shape for ConcreteShape {
-    type PathElementsIter<'iter> = Box<dyn Iterator<Item = crate::PathEl> + 'iter>;
+    type PathElementsIter<'iter> = PathElementsIter<'iter>;
 
-    fn path_elements(&self, tol: f64) -> Box<dyn Iterator<Item = crate::PathEl> + '_> {
-        match_shape!(self, it, Box::new(it.path_elements(tol)))
+    fn path_elements(&self, tol: f64) -> PathElementsIter<'_> {
+        match self {
+            Self::PathSeg(it) => PathElementsIter::PathSeg(it.path_elements(tol)),
+            Self::Arc(it) => PathElementsIter::Arc(it.path_elements(tol)),
+            Self::BezPath(it) => PathElementsIter::BezPath(it.path_elements(tol)),
+            Self::Circle(it) => PathElementsIter::Circle(it.path_elements(tol)),
+            Self::CircleSegment(it) => PathElementsIter::CircleSegment(it.path_elements(tol)),
+            Self::CubicBez(it) => PathElementsIter::CubicBez(it.path_elements(tol)),
+            Self::Ellipse(it) => PathElementsIter::Ellipse(it.path_elements(tol)),
+            Self::Line(it) => PathElementsIter::Line(it.path_elements(tol)),
+            Self::QuadBez(it) => PathElementsIter::QuadBez(it.path_elements(tol)),
+            Self::Rect(it) => PathElementsIter::Rect(it.path_elements(tol)),
+            Self::RoundedRect(it) => PathElementsIter::RoundedRect(it.path_elements(tol)),
+            Self::Triangle(it) => PathElementsIter::Triangle(it.path_elements(tol)),
+        }
     }
 
     fn perimeter(&self, acc: f64) -> f64 {
@@ -101,6 +114,29 @@ impl Shape for ConcreteShape {
 
     fn bounding_box(&self) -> Rect {
         match_shape!(self, it, it.bounding_box())
+    }
+}
+
+pub enum PathElementsIter<'i> {
+    PathSeg(<PathSeg as Shape>::PathElementsIter<'i>),
+    Arc(<Arc as Shape>::PathElementsIter<'i>),
+    BezPath(<BezPath as Shape>::PathElementsIter<'i>),
+    Circle(<Circle as Shape>::PathElementsIter<'i>),
+    CircleSegment(<CircleSegment as Shape>::PathElementsIter<'i>),
+    CubicBez(<CubicBez as Shape>::PathElementsIter<'i>),
+    Ellipse(<Ellipse as Shape>::PathElementsIter<'i>),
+    Line(<Line as Shape>::PathElementsIter<'i>),
+    QuadBez(<QuadBez as Shape>::PathElementsIter<'i>),
+    Rect(<Rect as Shape>::PathElementsIter<'i>),
+    RoundedRect(<RoundedRect as Shape>::PathElementsIter<'i>),
+    Triangle(<Triangle as Shape>::PathElementsIter<'i>),
+}
+
+impl<'i> Iterator for PathElementsIter<'i> {
+    type Item = crate::PathEl;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match_shape!(self, i, i.next())
     }
 }
 
