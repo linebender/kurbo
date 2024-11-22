@@ -626,6 +626,13 @@ mod tests {
     }
 
     use rand::prelude::*;
+    // Suppress the unused_crate_dependencies lint for getrandom.
+    #[cfg(all(
+        target_arch = "wasm32",
+        target_vendor = "unknown",
+        target_os = "unknown"
+    ))]
+    use getrandom as _;
 
     fn gen_random_path_sequence(rng: &mut impl Rng) -> Vec<PathSeg> {
         const MAX_LENGTH: u32 = 10;
@@ -640,23 +647,23 @@ mod tests {
 
             let first = position
                 .filter(|_| should_follow)
-                .unwrap_or_else(|| Point::new(rng.gen(), rng.gen()));
+                .unwrap_or_else(|| Point::new(rng.r#gen(), rng.r#gen()));
 
             let element: PathSeg = match kind {
-                0 => Line::new(first, Point::new(rng.gen(), rng.gen())).into(),
+                0 => Line::new(first, Point::new(rng.r#gen(), rng.r#gen())).into(),
 
                 1 => QuadBez::new(
                     first,
-                    Point::new(rng.gen(), rng.gen()),
-                    Point::new(rng.gen(), rng.gen()),
+                    Point::new(rng.r#gen(), rng.r#gen()),
+                    Point::new(rng.r#gen(), rng.r#gen()),
                 )
                 .into(),
 
                 2 => CubicBez::new(
                     first,
-                    Point::new(rng.gen(), rng.gen()),
-                    Point::new(rng.gen(), rng.gen()),
-                    Point::new(rng.gen(), rng.gen()),
+                    Point::new(rng.r#gen(), rng.r#gen()),
+                    Point::new(rng.r#gen(), rng.r#gen()),
+                    Point::new(rng.r#gen(), rng.r#gen()),
                 )
                 .into(),
 

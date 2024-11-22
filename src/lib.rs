@@ -66,22 +66,51 @@
 //!
 //! [`libm`]: https://docs.rs/libm
 
-#![forbid(unsafe_code)]
-#![deny(missing_docs, clippy::trivially_copy_pass_by_ref)]
-#![warn(clippy::doc_markdown, rustdoc::broken_intra_doc_links)]
-#![warn(clippy::semicolon_if_nothing_returned)]
-#![warn(unused_qualifications)]
+// LINEBENDER LINT SET - lib.rs - v1
+// See https://linebender.org/wiki/canonical-lints/
+// These lints aren't included in Cargo.toml because they
+// shouldn't apply to examples and tests
+#![warn(unused_crate_dependencies)]
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+// END LINEBENDER LINT SET
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,
     clippy::excessive_precision,
     clippy::bool_to_int_with_if
 )]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+// The following lints are part of the Linebender standard set,
+// but resolving them has been deferred for now.
+// Feel free to send a PR that solves one or more of these.
+#![allow(
+    missing_debug_implementations,
+    elided_lifetimes_in_paths,
+    single_use_lifetimes,
+    trivial_numeric_casts,
+    unnameable_types,
+    clippy::use_self,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::wildcard_imports,
+    clippy::shadow_unrelated,
+    clippy::missing_assert_message,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::exhaustive_enums,
+    clippy::match_same_arms,
+    clippy::partial_pub_fields,
+    clippy::unseparated_literal_suffix,
+    clippy::duplicated_attributes
+)]
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
 compile_error!("kurbo requires either the `std` or `libm` feature");
+
+// Suppress the unused_crate_dependencies lint when both std and libm are specified.
+#[cfg(all(feature = "std", feature = "libm"))]
+use libm as _;
 
 extern crate alloc;
 
