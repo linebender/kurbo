@@ -66,12 +66,12 @@ mod tests {
     use crate::{Point, QuadBez, QuadSpline};
 
     #[test]
-    pub fn no_points_no_quads() {
+    fn no_points_no_quads() {
         assert!(QuadSpline::new(Vec::new()).to_quads().next().is_none());
     }
 
     #[test]
-    pub fn one_point_no_quads() {
+    fn one_point_no_quads() {
         assert!(QuadSpline::new(vec![Point::new(1.0, 1.0)])
             .to_quads()
             .next()
@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    pub fn two_points_no_quads() {
+    fn two_points_no_quads() {
         assert!(
             QuadSpline::new(vec![Point::new(1.0, 1.0), Point::new(1.0, 1.0)])
                 .to_quads()
@@ -89,7 +89,7 @@ mod tests {
     }
 
     #[test]
-    pub fn three_points_same_quad() {
+    fn three_points_same_quad() {
         let p0 = Point::new(1.0, 1.0);
         let p1 = Point::new(2.0, 2.0);
         let p2 = Point::new(3.0, 3.0);
@@ -102,7 +102,7 @@ mod tests {
     }
 
     #[test]
-    pub fn four_points_implicit_on_curve() {
+    fn four_points_implicit_on_curve() {
         let p0 = Point::new(1.0, 1.0);
         let p1 = Point::new(3.0, 3.0);
         let p2 = Point::new(5.0, 5.0);

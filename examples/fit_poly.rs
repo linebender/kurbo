@@ -41,14 +41,14 @@ impl ParamCurveFit for MyPoly {
     }
 }
 
-pub fn to_svg_economical(path: &BezPath) -> String {
+fn to_svg_economical(path: &BezPath) -> String {
     let mut buffer = Vec::new();
     write_to(path, &mut buffer).unwrap();
     String::from_utf8(buffer).unwrap()
 }
 
 /// Write the SVG representation of this path to the provided buffer.
-pub fn write_to<W: Write>(path: &BezPath, mut writer: W) -> std::io::Result<()> {
+fn write_to<W: Write>(path: &BezPath, mut writer: W) -> std::io::Result<()> {
     for el in path.elements() {
         match *el {
             PathEl::MoveTo(p) => write!(writer, "M{:.2} {:.2}", p.x, p.y)?,
