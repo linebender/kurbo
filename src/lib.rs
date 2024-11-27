@@ -127,6 +127,8 @@ mod line;
 mod mindist;
 pub mod offset;
 mod param_curve;
+pub mod pathops;
+pub mod pathops2;
 mod point;
 mod quadbez;
 mod quadspline;
