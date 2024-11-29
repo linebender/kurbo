@@ -1,7 +1,7 @@
 // Copyright 2018 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! A trait for curves parametrized by a scalar.
+//! A trait for curves parameterized by a scalar.
 
 use core::ops::Range;
 
@@ -18,7 +18,7 @@ use crate::common::FloatFuncs;
 /// 2d graphics.
 pub const DEFAULT_ACCURACY: f64 = 1e-6;
 
-/// A curve parametrized by a scalar.
+/// A curve parameterized by a scalar.
 ///
 /// If the result is interpreted as a point, this represents a curve.
 /// But the result can be interpreted as a vector as well.
@@ -50,7 +50,7 @@ pub trait ParamCurve: Sized {
 
 // TODO: I might not want to have separate traits for all these.
 
-/// A differentiable parametrized curve.
+/// A differentiable parameterized curve.
 pub trait ParamCurveDeriv {
     /// The parametric curve obtained by taking the derivative of this one.
     type DerivResult: ParamCurve;
@@ -78,7 +78,7 @@ pub trait ParamCurveDeriv {
     }
 }
 
-/// A parametrized curve that can have its arc length measured.
+/// A parameterized curve that can have its arc length measured.
 pub trait ParamCurveArclen: ParamCurve {
     /// The arc length of the curve.
     ///
@@ -123,7 +123,7 @@ pub trait ParamCurveArclen: ParamCurve {
     }
 }
 
-/// A parametrized curve that can have its signed area measured.
+/// A parameterized curve that can have its signed area measured.
 pub trait ParamCurveArea {
     /// Compute the signed area under the curve.
     ///
@@ -154,7 +154,7 @@ pub struct Nearest {
     pub t: f64,
 }
 
-/// A parametrized curve that reports the nearest point.
+/// A parameterized curve that reports the nearest point.
 pub trait ParamCurveNearest {
     /// Find the position on the curve that is nearest to the given point.
     ///
@@ -163,7 +163,7 @@ pub trait ParamCurveNearest {
     fn nearest(&self, p: Point, accuracy: f64) -> Nearest;
 }
 
-/// A parametrized curve that reports its curvature.
+/// A parameterized curve that reports its curvature.
 pub trait ParamCurveCurvature: ParamCurveDeriv
 where
     Self::DerivResult: ParamCurveDeriv,
@@ -187,7 +187,7 @@ where
 /// subdivided to limit the number of extrema.
 pub const MAX_EXTREMA: usize = 4;
 
-/// A parametrized curve that reports its extrema.
+/// A parameterized curve that reports its extrema.
 pub trait ParamCurveExtrema: ParamCurve {
     /// Compute the extrema of the curve.
     ///
