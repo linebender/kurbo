@@ -1,6 +1,8 @@
 // Copyright 2020 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+//! Benchmarks of rect expansion.
+
 #![cfg(nightly)]
 #![feature(test)]
 extern crate test;

@@ -671,7 +671,7 @@ impl Mul<BezPath> for Affine {
     }
 }
 
-impl<'a> Mul<&'a BezPath> for Affine {
+impl Mul<&BezPath> for Affine {
     type Output = BezPath;
 
     fn mul(self, other: &BezPath) -> BezPath {
@@ -713,7 +713,7 @@ impl Mul<BezPath> for TranslateScale {
     }
 }
 
-impl<'a> Mul<&'a BezPath> for TranslateScale {
+impl Mul<&BezPath> for TranslateScale {
     type Output = BezPath;
 
     fn mul(self, other: &BezPath) -> BezPath {
@@ -1358,8 +1358,9 @@ impl PathEl {
 /// If the slice starts with `LineTo`, `QuadTo`, or `CurveTo`, it will be treated as a `MoveTo`.
 impl<'a> Shape for &'a [PathEl] {
     type PathElementsIter<'iter>
-
-    = core::iter::Copied<core::slice::Iter<'a, PathEl>> where 'a: 'iter;
+        = core::iter::Copied<core::slice::Iter<'a, PathEl>>
+    where
+        'a: 'iter;
 
     #[inline]
     fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {

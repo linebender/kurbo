@@ -181,8 +181,10 @@ pub trait Shape {
 /// Blanket implementation so `impl Shape` will accept owned or reference.
 impl<'a, T: Shape> Shape for &'a T {
     type PathElementsIter<'iter>
-
-    = T::PathElementsIter<'iter> where T: 'iter, 'a: 'iter;
+        = T::PathElementsIter<'iter>
+    where
+        T: 'iter,
+        'a: 'iter;
 
     fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
         (*self).path_elements(tolerance)

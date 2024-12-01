@@ -41,7 +41,7 @@ struct ToQuadBez<'a> {
     points: &'a Vec<Point>,
 }
 
-impl<'a> Iterator for ToQuadBez<'a> {
+impl Iterator for ToQuadBez<'_> {
     type Item = QuadBez;
 
     fn next(&mut self) -> Option<Self::Item> {
