@@ -564,7 +564,7 @@ enum DashState {
     FromStash,
 }
 
-impl<'a, T: Iterator<Item = PathEl>> Iterator for DashIterator<'a, T> {
+impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
     type Item = PathEl;
 
     fn next(&mut self) -> Option<PathEl> {
