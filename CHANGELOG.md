@@ -15,9 +15,11 @@ You can find its changes [documented below](#0111-2024-09-12).
 
 This release has an [MSRV][] of 1.65.
 
+<<<<<<< HEAD
 ### Changed
 
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379] by [@waywardmonkeys])
+- `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
 
 ## [0.11.1][] (2024-09-12)
 
@@ -79,6 +81,7 @@ Note: A changelog was not kept for or before this release
 [#370]: https://github.com/linebender/kurbo/pull/370
 [#375]: https://github.com/linebender/kurbo/pull/375
 [#376]: https://github.com/linebender/kurbo/pull/376
+[#378]: https://github.com/linebender/kurbo/pull/378
 [#379]: https://github.com/linebender/kurbo/pull/379
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.1...HEAD
