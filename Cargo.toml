@@ -98,7 +98,7 @@ version = "0.7.6"
 default-features = false
 
 [dependencies.libm]
-version = "0.2.8"
+version = "0.2.11"
 optional = true
 
 [dependencies.mint]
@@ -110,7 +110,7 @@ version = "0.8.21"
 optional = true
 
 [dependencies.serde]
-version = "1.0.209"
+version = "1.0.215"
 optional = true
 default-features = false
 features = ["alloc", "derive"]
