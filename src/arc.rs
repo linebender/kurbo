@@ -3,11 +3,11 @@
 
 //! An ellipse arc.
 
-use crate::{Affine, Ellipse, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Ellipse, ParamCurve, ParamCurveArclen, PathEl, Point, Rect, Shape, Vec2};
 use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
-    ops::Mul,
+    ops::{Mul, Range},
 };
 
 #[cfg(not(feature = "std"))]
@@ -169,6 +169,42 @@ fn rotate_pt(pt: Vec2, angle: f64) -> Vec2 {
         pt.x * angle_cos - pt.y * angle_sin,
         pt.x * angle_sin + pt.y * angle_cos,
     )
+}
+
+impl ParamCurve for Arc {
+    fn eval(&self, t: f64) -> Point {
+        let angle = self.start_angle + (self.sweep_angle * t);
+        sample_ellipse(self.radii, self.x_rotation, angle).to_point()
+    }
+
+    fn subsegment(&self, range: Range<f64>) -> Self {
+        Self {
+            center: self.center,
+            radii: self.radii,
+            start_angle: self.start_angle + (self.sweep_angle * range.start),
+            sweep_angle: self.sweep_angle - (self.sweep_angle * (range.end - range.start)),
+            x_rotation: self.x_rotation,
+        }
+    }
+
+    fn start(&self) -> Point {
+        sample_ellipse(self.radii, self.x_rotation, self.start_angle).to_point()
+    }
+
+    fn end(&self) -> Point {
+        sample_ellipse(
+            self.radii,
+            self.x_rotation,
+            self.start_angle + self.sweep_angle,
+        )
+        .to_point()
+    }
+}
+
+impl ParamCurveArclen for Arc {
+    fn arclen(&self, accuracy: f64) -> f64 {
+        self.path_segments(0.1).perimeter(accuracy)
+    }
 }
 
 impl Shape for Arc {
