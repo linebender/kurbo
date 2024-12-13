@@ -535,7 +535,7 @@ fn incomplete_elliptic_integral_second_kind(accuracy: f64, phi: f64, m: f64) -> 
     let term2 = if sin == 0. || m == 0. {
         0.
     } else {
-        1. / 3. * m * sin3 * carlson_rd(accuracy * 3. / 2. / (m * sin3), cos2, 1. - m * sin2, 1.)
+        1. / 3. * m * sin3 * carlson_rd(accuracy * (3. / 2.) / (m * sin3), cos2, 1. - m * sin2, 1.)
     };
 
     term1 - term2
