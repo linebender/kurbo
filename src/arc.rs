@@ -385,7 +385,6 @@ fn carlson_rf(accuracy: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut e = a - x.min(y).min(z);
     let mut r = accuracy * 4. * e.powi(-6);
 
-    // let mut q = 1. / (3. * f64::EPSILON).cbrt().sqrt() * (a - x.min(y).min(z));
     loop {
         if 1. <= r * a.powi(6) * a.sqrt() * (1. - e / a) {
             break;
