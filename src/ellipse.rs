@@ -376,7 +376,7 @@ fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
         Vec2::new(radii.y, radii.x)
     };
 
-    let accuracy = accuracy / (2. * PI * radii.x);
+    let accuracy = accuracy / (2. * PI * x);
 
     let mut sum = 1.;
     let mut a = 1.;
@@ -427,7 +427,7 @@ fn agm_elliptic_perimeter(accuracy: f64, radii: Vec2) -> f64 {
         a = a_next;
     }
 
-    2. * PI * radii.x / a * sum
+    2. * PI * x / a * sum
 }
 
 #[cfg(test)]
