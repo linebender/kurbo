@@ -26,6 +26,7 @@ This release has an [MSRV][] of 1.65.
 
 - Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
 - Numerically approximate ellipse perimeter. ([#383] by [@tomcur][])
+- Numerically approximate elliptic arc perimeter. ([#381] by [@tomcur][])
 
 ## [0.11.1][] (2024-09-12)
 
@@ -93,6 +94,7 @@ Note: A changelog was not kept for or before this release
 [#376]: https://github.com/linebender/kurbo/pull/376
 [#378]: https://github.com/linebender/kurbo/pull/378
 [#379]: https://github.com/linebender/kurbo/pull/379
+[#381]: https://github.com/linebender/kurbo/pull/381
 [#383]: https://github.com/linebender/kurbo/pull/383
 [#388]: https://github.com/linebender/kurbo/pull/388
 [#390]: https://github.com/linebender/kurbo/pull/390
