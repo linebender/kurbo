@@ -378,7 +378,7 @@ fn carlson_rf(accuracy: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut y = y;
     let mut z = z;
 
-    let mut a = (x + y + z) / 3.;
+    let mut a = (x + y + z) * (1. / 3.);
 
     // These are partial terms of the inequality derived above. The multiply by (powers of) 4 are
     // performed per iteration for computational efficiency.
@@ -450,7 +450,7 @@ fn carlson_rd(accuracy: f64, x: f64, y: f64, z: f64) -> f64 {
     let mut y = y;
     let mut z = z;
 
-    let a0 = (x + y + 3. * z) / 5.;
+    let a0 = (x + y + 3. * z) * (1. / 5.);
     let mut a = a0;
 
     let mut sum = 0.;
