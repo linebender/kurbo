@@ -20,11 +20,13 @@ This release has an [MSRV][] of 1.65.
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
 - Add triangle shape. ([#350][] by [@juliapaci][])
+- `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
 
 ### Changed
 
 - Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
 - Numerically approximate ellipse perimeter. ([#383] by [@tomcur][])
+- Numerically approximate elliptic arc perimeter. ([#381] by [@tomcur][])
 
 ## [0.11.1][] (2024-09-12)
 
@@ -90,7 +92,9 @@ Note: A changelog was not kept for or before this release
 [#370]: https://github.com/linebender/kurbo/pull/370
 [#375]: https://github.com/linebender/kurbo/pull/375
 [#376]: https://github.com/linebender/kurbo/pull/376
+[#378]: https://github.com/linebender/kurbo/pull/378
 [#379]: https://github.com/linebender/kurbo/pull/379
+[#381]: https://github.com/linebender/kurbo/pull/381
 [#383]: https://github.com/linebender/kurbo/pull/383
 [#388]: https://github.com/linebender/kurbo/pull/388
 [#390]: https://github.com/linebender/kurbo/pull/390
