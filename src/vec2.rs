@@ -63,7 +63,13 @@ impl Vec2 {
 
     /// Cross product of two vectors.
     ///
-    /// This is signed so that `(0, 1) × (1, 0) = 1`.
+    /// This is signed so that `(1, 0) × (0, 1) = 1`.
+    ///
+    /// The following relations hold:
+    ///
+    /// `u.cross(v) = -v.cross(u)`
+    ///
+    /// `v.cross(v) = 0.0`
     #[inline]
     pub fn cross(self, other: Vec2) -> f64 {
         self.x * other.y - self.y * other.x
@@ -314,6 +320,32 @@ impl Vec2 {
             y: self.y / divisor,
         }
     }
+
+    /// Turn by 90 degrees.
+    ///
+    /// The rotation is clockwise in a Y-down coordinate system. The following relations hold:
+    ///
+    /// `u.dot(v) = u.cross(v.turn_90())`
+    ///
+    /// `u.cross(v) = u.turn_90().dot(v)`
+    #[inline]
+    pub fn turn_90(self) -> Vec2 {
+        Vec2::new(-self.y, self.x)
+    }
+
+    /// Combine two vectors interpreted as rotation and scaling.
+    ///
+    /// Interpret both vectors as a rotation and a scale, and combine
+    /// their effects. This operation is equivalent to multiplication
+    /// when the vectors are interpreted as complex numbers. It is
+    /// commutative.
+    #[inline]
+    pub fn rotate_scale(self, rhs: Vec2) -> Vec2 {
+        Vec2::new(
+            self.x * rhs.x - self.y * rhs.y,
+            self.x * rhs.y + self.y * rhs.x,
+        )
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {
@@ -472,11 +504,40 @@ impl From<mint::Vector2<f64>> for Vec2 {
 
 #[cfg(test)]
 mod tests {
+    use core::f64::consts::FRAC_PI_2;
+
     use super::*;
     #[test]
     fn display() {
         let v = Vec2::new(1.2332421, 532.10721213123);
         let s = format!("{v:.2}");
         assert_eq!(s.as_str(), "𝐯=(1.23, 532.11)");
+    }
+
+    #[test]
+    fn cross_sign() {
+        let v = Vec2::new(1., 0.).cross(Vec2::new(0., 1.));
+        assert_eq!(v, 1.);
+    }
+
+    #[test]
+    fn turn_90() {
+        let u = Vec2::new(0.1, 0.2);
+        let turned = u.turn_90();
+        // This should be exactly equal by IEEE rules, might fail
+        // in fastmath conditions.
+        assert_eq!(u.length(), turned.length());
+        const EPSILON: f64 = 1e-12;
+        assert!((u.angle() + FRAC_PI_2 - turned.angle()).abs() < EPSILON);
+    }
+
+    #[test]
+    fn rotate_scale() {
+        let u = Vec2::new(0.1, 0.2);
+        let v = Vec2::new(0.3, -0.4);
+        let uv = u.rotate_scale(v);
+        const EPSILON: f64 = 1e-12;
+        assert!((u.length() * v.length() - uv.length()).abs() < EPSILON);
+        assert!((u.angle() + v.angle() - uv.angle()).abs() < EPSILON);
     }
 }
