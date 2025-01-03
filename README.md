@@ -1,15 +1,30 @@
-# kurbo, a Rust 2D curves library
-[![Build Status](https://github.com/linebender/kurbo/actions/workflows/ci.yml/badge.svg)](https://github.com/linebender/kurbo/actions/workflows/ci.yml)
-[![Docs](https://docs.rs/kurbo/badge.svg)](https://docs.rs/kurbo)
-[![Crates.io](https://img.shields.io/crates/v/kurbo.svg?maxAge=2592000)](https://crates.io/crates/kurbo)
+<div align="center">
 
-The kurbo library contains data structures and algorithms for curves and vector paths. It is probably most appropriate for creative tools, but is general enough it might be useful for other applications.
+# Kurbo
+
+**A Rust 2D curves library**
+
+[![Linebender Zulip, #kurbo channel](https://img.shields.io/badge/Linebender-%23kurbo-blue?logo=Zulip)](https://xi.zulipchat.com/#narrow/channel/260979-kurbo)
+[![dependency status](https://deps.rs/repo/github/linebender/kurbo/status.svg)](https://deps.rs/repo/github/linebender/kurbo)
+[![Apache 2.0 or MIT license.](https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue.svg)](#license)
+[![Build status](https://github.com/linebender/kurbo/workflows/CI/badge.svg)](https://github.com/linebender/kurbo/actions)
+[![Crates.io](https://img.shields.io/crates/v/kurbo.svg)](https://crates.io/crates/kurbo)
+[![Docs](https://docs.rs/kurbo/badge.svg)](https://docs.rs/kurbo)
+
+</div>
+
+The Kurbo library contains data structures and algorithms for curves and vector paths.
+It is probably most appropriate for creative tools, but is general enough it might be useful for other applications.
 
 The name "kurbo" is Esperanto for "curve".
 
-There is a focus on accuracy and good performance in high-accuracy conditions. Thus, the library might be useful in engineering and science contexts as well, as opposed to visual arts where rough approximations are often sufficient. Many approximate functions come with an accuracy parameter, and analytical solutions are used where they are practical. An example is area calculation, which is done using Green's theorem.
+There is a focus on accuracy and good performance in high-accuracy conditions.
+Thus, the library might be useful in engineering and science contexts as well, as opposed to visual arts where rough approximations are often sufficient.
+Many approximate functions come with an accuracy parameter, and analytical solutions are used where they are practical.
+An example is area calculation, which is done using Green's theorem.
 
-The library is still in fairly early development stages. There are traits intended to be useful for general curves (not just Béziers), but these will probably be reorganized.
+The library is still in fairly early development stages.
+There are traits intended to be useful for general curves (not just Béziers), but these will probably be reorganized.
 
 ## Minimum supported Rust Version (MSRV)
 
@@ -47,9 +62,28 @@ Some code has been copied from lyon_geom with adaptation, thus the author of lyo
 
 To learn more about Bézier curves, [A Primer on Bézier Curves] by Pomax is indispensable.
 
-## Contributing
+## Community
 
-Contributions are welcome. The [Rust Code of Conduct] applies. Please document any changes in [CHANGELOG.md] as part of your PR, and feel free to add your name to the [AUTHORS] file in any substantive pull request.
+[![Linebender Zulip](https://img.shields.io/badge/Linebender-%23kurbo-blue?logo=Zulip)](https://xi.zulipchat.com/#narrow/channel/260979-kurbo)
+
+Discussion of Kurbo development happens in the [Linebender Zulip](https://xi.zulipchat.com/), specifically the [#kurbo channel](https://xi.zulipchat.com/#narrow/channel/260979-kurbo).
+All public content can be read without logging in.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+## Contribution
+
+Contributions are welcome by pull request. The [Rust code of conduct] applies.
+Please feel free to add your name to the [AUTHORS] file in any substantive pull request.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.
 
 [Rust Code of Conduct]: https://www.rust-lang.org/policies/code-of-conduct
 [lyon_geom]: https://crates.io/crates/lyon_geom
