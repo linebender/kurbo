@@ -20,6 +20,7 @@ This release has an [MSRV][] of 1.65.
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
 - Add triangle shape. ([#350][] by [@juliapaci][])
+- `Arc` now implements `ParamCurve` and `ParamCurveArclen`. ([#378] by [@waywardmonkeys])
 
 ### Changed
 
@@ -90,6 +91,7 @@ Note: A changelog was not kept for or before this release
 [#370]: https://github.com/linebender/kurbo/pull/370
 [#375]: https://github.com/linebender/kurbo/pull/375
 [#376]: https://github.com/linebender/kurbo/pull/376
+[#378]: https://github.com/linebender/kurbo/pull/378
 [#379]: https://github.com/linebender/kurbo/pull/379
 [#383]: https://github.com/linebender/kurbo/pull/383
 [#388]: https://github.com/linebender/kurbo/pull/388
