@@ -20,11 +20,16 @@ This release has an [MSRV][] of 1.65.
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
 - Add triangle shape. ([#350][] by [@juliapaci][])
+- Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409] by [@raphlinus][])
 
 ### Changed
 
 - Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
 - Numerically approximate ellipse perimeter. ([#383] by [@tomcur][])
+
+### Fixed
+
+- Fix documentation of cross product. ([#409] by [@raphlinus][])
 
 ## [0.11.1][] (2024-09-12)
 
