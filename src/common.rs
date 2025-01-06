@@ -34,6 +34,9 @@ macro_rules! define_float_funcs {
             /// Special implementation for signum, because libm doesn't have it.
             fn signum(self) -> Self;
 
+            /// Special implementation for `rem_euclid`, because libm doesn't have it.
+            fn rem_euclid(self, rhs: Self) -> Self;
+
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
         }
 
@@ -48,6 +51,16 @@ macro_rules! define_float_funcs {
                     f32::NAN
                 } else {
                     1.0_f32.copysign(self)
+                }
+            }
+
+            #[inline]
+            fn rem_euclid(self, rhs: f32) -> f32 {
+                let r = self % rhs;
+                if r < 0.0 {
+                    r + rhs.abs()
+                } else {
+                    r
                 }
             }
 
@@ -70,6 +83,16 @@ macro_rules! define_float_funcs {
                     f64::NAN
                 } else {
                     1.0_f64.copysign(self)
+                }
+            }
+
+            #[inline]
+            fn rem_euclid(self, rhs: f64) -> f64 {
+                let r = self % rhs;
+                if r < 0.0 {
+                    r + rhs.abs()
+                } else {
+                    r
                 }
             }
 
