@@ -336,9 +336,9 @@ impl Vec2 {
     /// Combine two vectors interpreted as rotation and scaling.
     ///
     /// Interpret both vectors as a rotation and a scale, and combine
-    /// their effects. This operation is equivalent to multiplication
-    /// when the vectors are interpreted as complex numbers. It is
-    /// commutative.
+    /// their effects.  by adding the angles and multiplying the magnitudes.
+    /// This operation is equivalent to multiplication when the vectors
+    /// are interpreted as complex numbers. It is commutative.
     #[inline]
     pub fn rotate_scale(self, rhs: Vec2) -> Vec2 {
         Vec2::new(
