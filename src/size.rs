@@ -81,6 +81,44 @@ impl Size {
         self.is_zero_area()
     }
 
+    /// Returns the component-wise minimum of `self` and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    ///
+    /// let this = Size::new(0., 100.);
+    /// let other = Size::new(10., 10.);
+    ///
+    /// assert_eq!(this.min(other), Size::new(0., 10.));
+    /// ```
+    pub fn min(self, other: Size) -> Self {
+        Size {
+            width: self.width.min(other.width),
+            height: self.height.min(other.height),
+        }
+    }
+
+    /// Returns the component-wise maximum of `self` and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    ///
+    /// let this = Size::new(0., 100.);
+    /// let other = Size::new(10., 10.);
+    ///
+    /// assert_eq!(this.max(other), Size::new(10., 100.));
+    /// ```
+    pub fn max(self, other: Size) -> Self {
+        Size {
+            width: self.width.max(other.width),
+            height: self.height.max(other.height),
+        }
+    }
+
     /// Returns a new size bounded by `min` and `max.`
     ///
     /// # Examples
