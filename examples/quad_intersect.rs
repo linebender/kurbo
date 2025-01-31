@@ -6,11 +6,11 @@
 
 use arrayvec::ArrayVec;
 use kurbo::{common::solve_quartic, ParamCurve, Point, QuadBez, Shape};
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 fn rand_point() -> Point {
-    let mut rng = thread_rng();
-    Point::new(rng.gen_range(0.0..500.0), rng.gen_range(0.0..500.0))
+    let mut rng = rand::rng();
+    Point::new(rng.random_range(0.0..500.0), rng.random_range(0.0..500.0))
 }
 
 fn rand_quad() -> QuadBez {

@@ -640,30 +640,30 @@ mod tests {
         let mut elements = vec![];
         let mut position = None;
 
-        let length = rng.gen_range(0..MAX_LENGTH);
+        let length = rng.random_range(0..MAX_LENGTH);
         for _ in 0..length {
-            let should_follow: bool = random();
-            let kind = rng.gen_range(0..3);
+            let should_follow: bool = rand::random_bool(0.5);
+            let kind = rng.random_range(0..3);
 
             let first = position
                 .filter(|_| should_follow)
-                .unwrap_or_else(|| Point::new(rng.r#gen(), rng.r#gen()));
+                .unwrap_or_else(|| Point::new(rng.random(), rng.random()));
 
             let element: PathSeg = match kind {
-                0 => Line::new(first, Point::new(rng.r#gen(), rng.r#gen())).into(),
+                0 => Line::new(first, Point::new(rng.random(), rng.random())).into(),
 
                 1 => QuadBez::new(
                     first,
-                    Point::new(rng.r#gen(), rng.r#gen()),
-                    Point::new(rng.r#gen(), rng.r#gen()),
+                    Point::new(rng.random(), rng.random()),
+                    Point::new(rng.random(), rng.random()),
                 )
                 .into(),
 
                 2 => CubicBez::new(
                     first,
-                    Point::new(rng.r#gen(), rng.r#gen()),
-                    Point::new(rng.r#gen(), rng.r#gen()),
-                    Point::new(rng.r#gen(), rng.r#gen()),
+                    Point::new(rng.random(), rng.random()),
+                    Point::new(rng.random(), rng.random()),
+                    Point::new(rng.random(), rng.random()),
                 )
                 .into(),
 
@@ -680,7 +680,7 @@ mod tests {
     #[test]
     fn test_serialize_deserialize() {
         const N_TESTS: u32 = 100;
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..N_TESTS {
             let vec = gen_random_path_sequence(&mut rng);
