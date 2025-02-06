@@ -117,9 +117,9 @@ features = ["alloc", "derive"]
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
-rand = "0.8.5"
+rand = "0.9.0"
 
 [target.wasm32-unknown-unknown.dev-dependencies]
 # We have a transitive dependency on getrandom and it does not automatically
-# support wasm32-unknown-unknown. We need to enable the js feature.
-getrandom = { version = "0.2.15", features = ["js"] }
+# support wasm32-unknown-unknown. We need to enable the wasm_js feature.
+getrandom = { version = "0.3.1", features = ["wasm_js"] }
