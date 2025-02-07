@@ -50,7 +50,7 @@ impl BezPath {
             let start = segment.start();
             if Some(start) != current_pos {
                 path_elements.push(PathEl::MoveTo(start));
-            };
+            }
             path_elements.push(match segment {
                 PathSeg::Line(l) => PathEl::LineTo(l.p1),
                 PathSeg::Quad(q) => PathEl::QuadTo(q.p1, q.p2),

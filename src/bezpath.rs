@@ -1153,7 +1153,7 @@ impl PathSeg {
                 a.push(c.p2.to_vec2());
                 a.push(c.p3.to_vec2());
             }
-        };
+        }
         a
     }
 
