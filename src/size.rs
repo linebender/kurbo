@@ -27,6 +27,9 @@ impl Size {
     /// A size with zero width or height.
     pub const ZERO: Size = Size::new(0., 0.);
 
+    /// A size with width and height set to `f64::INFINITY`.
+    pub const INFINITY: Size = Size::new(f64::INFINITY, f64::INFINITY);
+
     /// Create a new `Size` with the provided `width` and `height`.
     #[inline]
     pub const fn new(width: f64, height: f64) -> Self {
