@@ -923,7 +923,7 @@ mod tests {
         verify((a * c).nearest(a * Point::new(0.1, 0.001), 1e-6), 0.1);
     }
 
-    // ensure to_quads returns something given colinear points
+    // ensure to_quads returns something given collinear points
     #[test]
     fn degenerate_to_quads() {
         let c = CubicBez::new((0., 9.), (6., 6.), (12., 3.0), (18., 0.0));
