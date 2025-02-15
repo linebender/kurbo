@@ -21,6 +21,7 @@ This release has an [MSRV][] of 1.65.
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
 - Add triangle shape. ([#350][] by [@juliapaci][])
 - Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409] by [@raphlinus][])
+- Add `BezPath::with_capacity` method ([#418] by [@LaurenzV][])
 
 ### Changed
 
