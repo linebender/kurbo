@@ -70,6 +70,7 @@ Note: A changelog was not kept for or before this release
 [@dominikh]: https://github.com/dominikh
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@juliapaci]: https://github.com/juliapaci
+[@LaurenzV]: https://github.com/LaurenzV
 [@nils-mathieu]: https://github.com/nils-mathieu
 [@Philipp-M]: https://github.com/Philipp-M
 [@platlas]: https://github.com/platlas
@@ -102,6 +103,7 @@ Note: A changelog was not kept for or before this release
 [#390]: https://github.com/linebender/kurbo/pull/390
 [#399]: https://github.com/linebender/kurbo/pull/399
 [#409]: https://github.com/linebender/kurbo/pull/409
+[#418]: https://github.com/linebender/kurbo/pull/418
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.1...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
