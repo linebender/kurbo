@@ -179,6 +179,14 @@ impl BezPath {
         Default::default()
     }
 
+    /// Create a new path with the specified capacity.
+    ///
+    /// This can be useful if you already know how many path elements the path
+    /// will consist of, to prevent reallocations.
+    pub fn with_capacity(capacity: usize) -> BezPath {
+        BezPath(Vec::with_capacity(capacity))
+    }
+
     /// Create a path from a vector of path elements.
     ///
     /// `BezPath` also implements `FromIterator<PathEl>`, so it works with `collect`:
