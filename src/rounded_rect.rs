@@ -4,6 +4,7 @@
 //! A rectangle with rounded corners.
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+use core::fmt;
 use core::ops::{Add, Sub};
 
 use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
@@ -432,6 +433,35 @@ impl Sub<Vec2> for RoundedRect {
     }
 }
 
+impl fmt::Display for RoundedRect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "▢ ")?;
+        write!(
+            f,
+            "{: >2.0}→{: >2.0} {: >2.0}↓{: >2.0}",
+            self.rect.x0, self.rect.x1, self.rect.y0, self.rect.y1
+        )?;
+        write!(f, "  ")?;
+        write!(
+            f,
+            "{: >2.0}⋅{: >2.0}",
+            self.rect.width(),
+            self.rect.height()
+        )?;
+        write!(f, "  ")?;
+        write!(f, "½⌀ ")?;
+        write!(
+            f,
+            "⌜{: >2.0} ⌝{: >2.0} ⌞{: >2.0} ⌟{: >2.0}",
+            self.radii.top_left,
+            self.radii.top_right,
+            self.radii.bottom_left,
+            self.radii.bottom_right
+        )?;
+        write!(f, "")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Circle, Point, Rect, RoundedRect, Shape};
@@ -473,5 +503,15 @@ mod tests {
         let epsilon = 1e-7;
         assert!((rect.area() - p.area()).abs() < epsilon);
         assert_eq!(p.winding(Point::new(0.0, 0.0)), 1);
+    }
+
+    #[test]
+    fn display() {
+        let r = RoundedRect::from_origin_size((1.123, 1.12), (24.12, 16.123456), 4.0);
+        assert_eq!(format!("{r}"), "▢  1→25  1↓17  24⋅16  ½⌀ ⌜ 4 ⌝ 4 ⌞ 4 ⌟ 4");
+        let r = RoundedRect::from_origin_size((16., 11.), (9., 6.), 3.0);
+        assert_eq!(format!("{r}"), "▢ 16→25 11↓17   9⋅ 6  ½⌀ ⌜ 3 ⌝ 3 ⌞ 3 ⌟ 3");
+        let r = RoundedRect::from_origin_size((16., 11.), (99., 66.), 13.0);
+        assert_eq!(format!("{r}"), "▢ 16→115 11↓77  99⋅66  ½⌀ ⌜13 ⌝13 ⌞13 ⌟13");
     }
 }
