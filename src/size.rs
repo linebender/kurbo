@@ -81,6 +81,44 @@ impl Size {
         self.is_zero_area()
     }
 
+    /// Returns the component-wise minimum of `self` and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    ///
+    /// let this = Size::new(0., 100.);
+    /// let other = Size::new(10., 10.);
+    ///
+    /// assert_eq!(this.min(other), Size::new(0., 10.));
+    /// ```
+    pub fn min(self, other: Size) -> Self {
+        Size {
+            width: self.width.min(other.width),
+            height: self.height.min(other.height),
+        }
+    }
+
+    /// Returns the component-wise maximum of `self` and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Size;
+    ///
+    /// let this = Size::new(0., 100.);
+    /// let other = Size::new(10., 10.);
+    ///
+    /// assert_eq!(this.max(other), Size::new(10., 100.));
+    /// ```
+    pub fn max(self, other: Size) -> Self {
+        Size {
+            width: self.width.max(other.width),
+            height: self.height.max(other.height),
+        }
+    }
+
     /// Returns a new size bounded by `min` and `max.`
     ///
     /// # Examples
@@ -94,9 +132,7 @@ impl Size {
     /// assert_eq!(this.clamp(min, max), Size::new(10., 50.))
     /// ```
     pub fn clamp(self, min: Size, max: Size) -> Self {
-        let width = self.width.max(min.width).min(max.width);
-        let height = self.height.max(min.height).min(max.height);
-        Size { width, height }
+        self.max(min).min(max)
     }
 
     /// Convert this size into a [`Vec2`], with `width` mapped to `x` and `height`
