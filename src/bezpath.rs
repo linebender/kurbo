@@ -323,7 +323,7 @@ impl BezPath {
             PathEl::LineTo(p) => p,
             PathEl::QuadTo(_, p2) => p2,
             PathEl::CurveTo(_, _, p3) => p3,
-            _ => return None,
+            PathEl::ClosePath => return None,
         };
         match self.0[ix] {
             PathEl::LineTo(p) => Some(PathSeg::Line(Line::new(last, p))),
@@ -335,7 +335,7 @@ impl BezPath {
                 }
                 _ => None,
             }),
-            _ => None,
+            PathEl::MoveTo(_) => None,
         }
     }
 
@@ -1355,7 +1355,7 @@ impl PathEl {
             PathEl::LineTo(p1) => Some(*p1),
             PathEl::QuadTo(_, p2) => Some(*p2),
             PathEl::CurveTo(_, _, p3) => Some(*p3),
-            _ => None,
+            PathEl::ClosePath => None,
         }
     }
 }
