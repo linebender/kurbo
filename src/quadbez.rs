@@ -7,7 +7,7 @@ use core::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::common::solve_cubic;
+use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
@@ -109,6 +109,27 @@ impl QuadBez {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan()
+    }
+
+    /// Find points on the curve where the tangent line passes through the
+    /// given point.
+    ///
+    /// Result is array of t values such that the tangent line from the curve
+    /// evaluated at that point goes through the argument point.
+    pub fn tangents_to_point(&self, p: Point) -> ArrayVec<f64, 2> {
+        let a = self.p0.to_vec2() - 2.0 * self.p1.to_vec2() + self.p2.to_vec2();
+        let b = 2.0 * (self.p1.to_vec2() - self.p0.to_vec2());
+        let c = self.p0.to_vec2() - p.to_vec2();
+
+        // coefficients of x(t) \cross x'(t)
+        let c2 = a.cross(b);
+        let c1 = -2.0 * c.cross(a);
+        let c0 = b.cross(c);
+        solve_quadratic(c0, c1, c2)
+            .iter()
+            .copied()
+            .filter(|t| *t >= 0.0 && *t <= 1.0)
+            .collect()
     }
 }
 
