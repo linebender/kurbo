@@ -11,8 +11,8 @@ use smallvec::SmallVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    common::solve_quadratic, fit_to_bezpath, fit_to_bezpath_opt, offset::CubicOffset, Affine, Arc,
-    BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
+    common::solve_quadratic, Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen,
+    PathEl, PathSeg, Point, QuadBez, Vec2,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -199,14 +199,14 @@ struct StrokeCtx {
 pub fn stroke(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
-    opts: &StrokeOpts,
+    _opts: &StrokeOpts,
     tolerance: f64,
 ) -> BezPath {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance, *opts)
+        stroke_undashed(path, style, tolerance)
     } else {
         let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
-        stroke_undashed(dashed, style, tolerance, *opts)
+        stroke_undashed(dashed, style, tolerance)
     }
 }
 
@@ -215,7 +215,6 @@ fn stroke_undashed(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
     tolerance: f64,
-    opts: StrokeOpts,
 ) -> BezPath {
     let mut ctx = StrokeCtx {
         join_thresh: 2.0 * tolerance / style.width,
@@ -242,7 +241,7 @@ fn stroke_undashed(
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.do_cubic(style, q.raise(), tolerance, opts);
+                    ctx.do_cubic(style, q.raise(), tolerance);
                     ctx.last_tan = tan1;
                 }
             }
@@ -251,7 +250,7 @@ fn stroke_undashed(
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.do_cubic(style, c, tolerance, opts);
+                    ctx.do_cubic(style, c, tolerance);
                     ctx.last_tan = tan1;
                 }
             }
@@ -306,13 +305,6 @@ fn extend_reversed(out: &mut BezPath, elements: &[PathEl]) {
             PathEl::CurveTo(p1, p2, _) => out.curve_to(p2, p1, end),
             _ => unreachable!(),
         }
-    }
-}
-
-fn fit_with_opts(co: &CubicOffset, tolerance: f64, opts: StrokeOpts) -> BezPath {
-    match opts.opt_level {
-        StrokeOptLevel::Subdivide => fit_to_bezpath(co, tolerance),
-        StrokeOptLevel::Optimized => fit_to_bezpath_opt(co, tolerance),
     }
 }
 
@@ -430,7 +422,7 @@ impl StrokeCtx {
         self.last_pt = p1;
     }
 
-    fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: StrokeOpts) {
+    fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64) {
         // First, detect degenerate linear case
 
         // Ordinarily, this is the direction of the chord, but if the chord is very
@@ -475,16 +467,9 @@ impl StrokeCtx {
             }
         }
 
-        // A tuning parameter for regularization. A value too large may distort the curve,
-        // while a value too small may fail to generate smooth curves. This is a somewhat
-        // arbitrary value, and should be revisited.
-        const DIM_TUNE: f64 = 0.25;
-        let dimension = tolerance * DIM_TUNE;
-        let co = CubicOffset::new_regularized(c, -0.5 * style.width, dimension);
-        let forward = fit_with_opts(&co, tolerance, opts);
+        let forward = crate::offset::offset_cubic(c, -0.5 * style.width, tolerance);
         self.forward_path.extend(forward.into_iter().skip(1));
-        let co = CubicOffset::new_regularized(c, 0.5 * style.width, dimension);
-        let backward = fit_with_opts(&co, tolerance, opts);
+        let backward = crate::offset::offset_cubic(c, 0.5 * style.width, tolerance);
         self.backward_path.extend(backward.into_iter().skip(1));
         self.last_pt = c.p3;
     }
