@@ -62,6 +62,20 @@ impl Affine {
         Affine([s_x, 0.0, 0.0, s_y, 0.0, 0.0])
     }
 
+    /// An affine transform representing a scale of `scale` about `center`.
+    ///
+    /// Useful for a view transform that zooms at a specific point,
+    /// while keeping that point fixed in the result space.
+    ///
+    /// See [`Affine::scale()`] for more info.
+    #[inline]
+    pub fn scale_about(s: f64, center: Point) -> Affine {
+        let center = center.to_vec2();
+        Self::translate(-center)
+            .then_scale(s)
+            .then_translate(center)
+    }
+
     /// An affine transform representing rotation.
     ///
     /// The convention for rotation is that a positive angle rotates a
@@ -253,6 +267,17 @@ impl Affine {
     #[must_use]
     pub fn then_scale_non_uniform(self, scale_x: f64, scale_y: f64) -> Self {
         Affine::scale_non_uniform(scale_x, scale_y) * self
+    }
+
+    /// `self` followed by a [scale] of `scale` about `center`.
+    ///
+    /// Equivalent to `Affine::scale_about(scale) * self`
+    ///
+    /// [scale]: Affine::scale_about
+    #[inline]
+    #[must_use]
+    pub fn then_scale_about(self, scale: f64, center: Point) -> Self {
+        Affine::scale_about(scale, center) * self
     }
 
     /// `self` followed by a translation of `trans`.
