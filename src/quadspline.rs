@@ -13,13 +13,13 @@ pub struct QuadSpline(Vec<Point>);
 
 impl QuadSpline {
     /// Construct a new `QuadSpline` from an array of [`Point`]s.
-    #[inline]
+    #[inline(always)]
     pub fn new(points: Vec<Point>) -> Self {
         Self(points)
     }
 
     /// Return the spline's control [`Point`]s.
-    #[inline]
+    #[inline(always)]
     pub fn points(&self) -> &[Point] {
         &self.0
     }
@@ -27,7 +27,7 @@ impl QuadSpline {
     /// Return an iterator over the implied [`QuadBez`] sequence.
     ///
     /// The returned quads are guaranteed to be G1 continuous.
-    #[inline]
+    #[inline(always)]
     pub fn to_quads(&self) -> impl Iterator<Item = QuadBez> + '_ {
         ToQuadBez {
             idx: 0,

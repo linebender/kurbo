@@ -34,6 +34,7 @@ impl RoundedRectRadii {
     /// Create a new `RoundedRectRadii`. This function takes radius values for
     /// the four corners. The argument order is `top_left`, `top_right`,
     /// `bottom_right`, `bottom_left`, or clockwise starting from `top_left`.
+    #[inline(always)]
     pub const fn new(top_left: f64, top_right: f64, bottom_right: f64, bottom_left: f64) -> Self {
         RoundedRectRadii {
             top_left,
@@ -45,6 +46,7 @@ impl RoundedRectRadii {
 
     /// Create a new `RoundedRectRadii` from a single radius. The `radius`
     /// argument will be set as the radius for all four corners.
+    #[inline(always)]
     pub const fn from_single_radius(radius: f64) -> Self {
         RoundedRectRadii {
             top_left: radius,
@@ -107,12 +109,14 @@ impl RoundedRectRadii {
 }
 
 impl From<f64> for RoundedRectRadii {
+    #[inline(always)]
     fn from(radius: f64) -> Self {
         RoundedRectRadii::from_single_radius(radius)
     }
 }
 
 impl From<(f64, f64, f64, f64)> for RoundedRectRadii {
+    #[inline(always)]
     fn from(radii: (f64, f64, f64, f64)) -> Self {
         RoundedRectRadii::new(radii.0, radii.1, radii.2, radii.3)
     }

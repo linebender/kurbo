@@ -33,6 +33,7 @@ pub struct Arc {
 
 impl Arc {
     /// Create a new `Arc`.
+    #[inline(always)]
     pub fn new(
         center: impl Into<Point>,
         radii: impl Into<Vec2>,

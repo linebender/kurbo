@@ -26,7 +26,7 @@ pub struct Line {
 
 impl Line {
     /// Create a new line.
-    #[inline]
+    #[inline(always)]
     pub fn new(p0: impl Into<Point>, p1: impl Into<Point>) -> Line {
         Line {
             p0: p0.into(),
@@ -37,7 +37,7 @@ impl Line {
     /// Returns a copy of this `Line` with the end points swapped so that it
     /// points in the opposite direction.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn reversed(&self) -> Line {
         Self {
             p0: self.p1,
@@ -91,12 +91,14 @@ impl Line {
 }
 
 impl From<(Point, Point)> for Line {
+    #[inline(always)]
     fn from((from, to): (Point, Point)) -> Self {
         Line::new(from, to)
     }
 }
 
 impl From<(Point, Vec2)> for Line {
+    #[inline(always)]
     fn from((origin, displacement): (Point, Vec2)) -> Self {
         Line::new(origin, origin + displacement)
     }
@@ -116,12 +118,12 @@ impl ParamCurve for Line {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn start(&self) -> Point {
         self.p0
     }
 
-    #[inline]
+    #[inline(always)]
     fn end(&self) -> Point {
         self.p1
     }
@@ -174,7 +176,7 @@ impl ParamCurveNearest for Line {
 }
 
 impl ParamCurveCurvature for Line {
-    #[inline]
+    #[inline(always)]
     fn curvature(&self, _t: f64) -> f64 {
         0.0
     }
@@ -212,12 +214,12 @@ impl ConstPoint {
 }
 
 impl ParamCurve for ConstPoint {
-    #[inline]
+    #[inline(always)]
     fn eval(&self, _t: f64) -> Point {
         self.0
     }
 
-    #[inline]
+    #[inline(always)]
     fn subsegment(&self, _range: Range<f64>) -> ConstPoint {
         *self
     }
@@ -226,19 +228,19 @@ impl ParamCurve for ConstPoint {
 impl ParamCurveDeriv for ConstPoint {
     type DerivResult = ConstPoint;
 
-    #[inline]
+    #[inline(always)]
     fn deriv(&self) -> ConstPoint {
         ConstPoint(Point::new(0.0, 0.0))
     }
 }
 
 impl ParamCurveArclen for ConstPoint {
-    #[inline]
+    #[inline(always)]
     fn arclen(&self, _accuracy: f64) -> f64 {
         0.0
     }
 
-    #[inline]
+    #[inline(always)]
     fn inv_arclen(&self, _arclen: f64, _accuracy: f64) -> f64 {
         0.0
     }
@@ -293,6 +295,7 @@ impl Shape for Line {
     /// only meaningful for closed shapes), but an argument can be made
     /// that the contract should be tightened to include the Green's
     /// theorem contribution.
+    #[inline(always)]
     fn area(&self) -> f64 {
         0.0
     }
@@ -303,16 +306,17 @@ impl Shape for Line {
     }
 
     /// Same consideration as `area`.
+    #[inline(always)]
     fn winding(&self, _pt: Point) -> i32 {
         0
     }
 
-    #[inline]
+    #[inline(always)]
     fn bounding_box(&self) -> Rect {
         Rect::from_points(self.p0, self.p1)
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_line(&self) -> Option<Line> {
         Some(*self)
     }

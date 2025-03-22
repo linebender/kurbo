@@ -106,12 +106,13 @@ impl RoundedRect {
     }
 
     /// Radii of the rounded corners.
-    #[inline]
+    #[inline(always)]
     pub fn radii(&self) -> RoundedRectRadii {
         self.radii
     }
 
     /// The (non-rounded) rectangle.
+    #[inline(always)]
     pub fn rect(&self) -> Rect {
         self.rect
     }
@@ -119,7 +120,7 @@ impl RoundedRect {
     /// The origin of the rectangle.
     ///
     /// This is the top left corner in a y-down space.
-    #[inline]
+    #[inline(always)]
     pub fn origin(&self) -> Point {
         self.rect.origin()
     }
@@ -343,7 +344,7 @@ impl Shape for RoundedRect {
         self.rect.bounding_box()
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_rounded_rect(&self) -> Option<RoundedRect> {
         Some(*self)
     }

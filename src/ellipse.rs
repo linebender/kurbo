@@ -59,7 +59,7 @@ impl Ellipse {
     }
 
     /// Create an ellipse from an affine transformation of the unit circle.
-    #[inline]
+    #[inline(always)]
     pub fn from_affine(affine: Affine) -> Self {
         Ellipse { inner: affine }
     }
@@ -116,10 +116,9 @@ impl Ellipse {
     // Getters and setters.
 
     /// Returns the center of this ellipse.
-    #[inline]
+    #[inline(always)]
     pub fn center(&self) -> Point {
-        let Vec2 { x: cx, y: cy } = self.inner.translation();
-        Point { x: cx, y: cy }
+        self.inner.translation().to_point()
     }
 
     /// Returns the two radii of this ellipse.
