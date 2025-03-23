@@ -106,7 +106,7 @@ impl Insets {
     pub const ZERO: Insets = Insets::uniform(0.);
 
     /// New uniform insets.
-    #[inline]
+    #[inline(always)]
     pub const fn uniform(d: f64) -> Insets {
         Insets {
             x0: d,
@@ -117,7 +117,7 @@ impl Insets {
     }
 
     /// New insets with uniform values along each axis.
-    #[inline]
+    #[inline(always)]
     pub const fn uniform_xy(x: f64, y: f64) -> Insets {
         Insets {
             x0: x,
@@ -129,7 +129,7 @@ impl Insets {
 
     /// New insets. The ordering of the arguments is "left, top, right, bottom",
     /// assuming a y-down coordinate space.
-    #[inline]
+    #[inline(always)]
     pub const fn new(x0: f64, y0: f64, x1: f64, y1: f64) -> Insets {
         Insets { x0, y0, x1, y1 }
     }
@@ -315,18 +315,21 @@ impl Sub<Insets> for Rect {
 }
 
 impl From<f64> for Insets {
+    #[inline(always)]
     fn from(src: f64) -> Insets {
         Insets::uniform(src)
     }
 }
 
 impl From<(f64, f64)> for Insets {
+    #[inline(always)]
     fn from(src: (f64, f64)) -> Insets {
         Insets::uniform_xy(src.0, src.1)
     }
 }
 
 impl From<(f64, f64, f64, f64)> for Insets {
+    #[inline(always)]
     fn from(src: (f64, f64, f64, f64)) -> Insets {
         Insets::new(src.0, src.1, src.2, src.3)
     }

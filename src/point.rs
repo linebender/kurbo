@@ -40,13 +40,13 @@ impl Point {
     pub const ORIGIN: Point = Point::new(0., 0.);
 
     /// Create a new `Point` with the provided `x` and `y` coordinates.
-    #[inline]
+    #[inline(always)]
     pub const fn new(x: f64, y: f64) -> Self {
         Point { x, y }
     }
 
     /// Convert this point into a `Vec2`.
-    #[inline]
+    #[inline(always)]
     pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
@@ -205,7 +205,7 @@ impl Point {
 }
 
 impl From<(f32, f32)> for Point {
-    #[inline]
+    #[inline(always)]
     fn from(v: (f32, f32)) -> Point {
         Point {
             x: v.0 as f64,
@@ -215,14 +215,14 @@ impl From<(f32, f32)> for Point {
 }
 
 impl From<(f64, f64)> for Point {
-    #[inline]
+    #[inline(always)]
     fn from(v: (f64, f64)) -> Point {
         Point { x: v.0, y: v.1 }
     }
 }
 
 impl From<Point> for (f64, f64) {
-    #[inline]
+    #[inline(always)]
     fn from(v: Point) -> (f64, f64) {
         (v.x, v.y)
     }
@@ -319,7 +319,7 @@ impl fmt::Display for Point {
 
 #[cfg(feature = "mint")]
 impl From<Point> for mint::Point2<f64> {
-    #[inline]
+    #[inline(always)]
     fn from(p: Point) -> mint::Point2<f64> {
         mint::Point2 { x: p.x, y: p.y }
     }
@@ -327,7 +327,7 @@ impl From<Point> for mint::Point2<f64> {
 
 #[cfg(feature = "mint")]
 impl From<mint::Point2<f64>> for Point {
-    #[inline]
+    #[inline(always)]
     fn from(p: mint::Point2<f64>) -> Point {
         Point { x: p.x, y: p.y }
     }

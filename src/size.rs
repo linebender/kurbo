@@ -31,7 +31,7 @@ impl Size {
     pub const INFINITY: Size = Size::new(f64::INFINITY, f64::INFINITY);
 
     /// Create a new `Size` with the provided `width` and `height`.
-    #[inline]
+    #[inline(always)]
     pub const fn new(width: f64, height: f64) -> Self {
         Size { width, height }
     }
@@ -140,7 +140,7 @@ impl Size {
 
     /// Convert this size into a [`Vec2`], with `width` mapped to `x` and `height`
     /// mapped to `y`.
-    #[inline]
+    #[inline(always)]
     pub const fn to_vec2(self) -> Vec2 {
         Vec2::new(self.width, self.height)
     }
@@ -263,7 +263,7 @@ impl Size {
     }
 
     /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.
-    #[inline]
+    #[inline(always)]
     pub const fn to_rect(self) -> Rect {
         Rect::new(0., 0., self.width, self.height)
     }
@@ -398,7 +398,7 @@ impl SubAssign<Size> for Size {
 }
 
 impl From<(f64, f64)> for Size {
-    #[inline]
+    #[inline(always)]
     fn from(v: (f64, f64)) -> Size {
         Size {
             width: v.0,
@@ -408,7 +408,7 @@ impl From<(f64, f64)> for Size {
 }
 
 impl From<Size> for (f64, f64) {
-    #[inline]
+    #[inline(always)]
     fn from(v: Size) -> (f64, f64) {
         (v.width, v.height)
     }

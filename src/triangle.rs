@@ -45,7 +45,7 @@ impl Triangle {
     );
 
     /// A new [`Triangle`] from three vertices ([`Point`]s).
-    #[inline]
+    #[inline(always)]
     pub fn new(a: impl Into<Point>, b: impl Into<Point>, c: impl Into<Point>) -> Self {
         Self {
             a: a.into(),
@@ -57,7 +57,7 @@ impl Triangle {
     /// A new [`Triangle`] from three float vertex coordinates.
     ///
     /// Works as a constant [`Triangle::new`].
-    #[inline]
+    #[inline(always)]
     pub const fn from_coords(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> Self {
         Self {
             a: Point::new(a.0, a.1),

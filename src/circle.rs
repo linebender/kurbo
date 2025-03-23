@@ -27,7 +27,7 @@ pub struct Circle {
 
 impl Circle {
     /// A new circle from center and radius.
-    #[inline]
+    #[inline(always)]
     pub fn new(center: impl Into<Point>, radius: f64) -> Circle {
         Circle {
             center: center.into(),
@@ -36,6 +36,7 @@ impl Circle {
     }
 
     /// Create a [`CircleSegment`] by cutting out parts of this circle.
+    #[inline(always)]
     pub fn segment(self, inner_radius: f64, start_angle: f64, sweep_angle: f64) -> CircleSegment {
         CircleSegment {
             center: self.center,
@@ -153,6 +154,7 @@ impl Shape for Circle {
         Rect::new(x - r, y - r, x + r, y + r)
     }
 
+    #[inline(always)]
     fn as_circle(&self) -> Option<Circle> {
         Some(*self)
     }
@@ -212,6 +214,7 @@ pub struct CircleSegment {
 
 impl CircleSegment {
     /// Create a `CircleSegment` out of its constituent parts.
+    #[inline(always)]
     pub fn new(
         center: impl Into<Point>,
         outer_radius: f64,
@@ -230,7 +233,7 @@ impl CircleSegment {
 
     /// Return an arc representing the outer radius.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn outer_arc(&self) -> Arc {
         Arc {
             center: self.center,

@@ -55,7 +55,7 @@ pub enum CuspType {
 
 impl CubicBez {
     /// Create a new cubic Bézier segment.
-    #[inline]
+    #[inline(always)]
     pub fn new<P: Into<Point>>(p0: P, p1: P, p2: P, p3: P) -> CubicBez {
         CubicBez {
             p0: p0.into(),
@@ -491,6 +491,7 @@ impl Shape for CubicBez {
         }
     }
 
+    #[inline(always)]
     fn area(&self) -> f64 {
         0.0
     }
@@ -500,6 +501,7 @@ impl Shape for CubicBez {
         self.arclen(accuracy)
     }
 
+    #[inline(always)]
     fn winding(&self, _pt: Point) -> i32 {
         0
     }
@@ -567,12 +569,12 @@ impl ParamCurve for CubicBez {
         )
     }
 
-    #[inline]
+    #[inline(always)]
     fn start(&self) -> Point {
         self.p0
     }
 
-    #[inline]
+    #[inline(always)]
     fn end(&self) -> Point {
         self.p3
     }
