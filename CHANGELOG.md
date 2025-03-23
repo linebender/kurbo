@@ -22,6 +22,7 @@ This release has an [MSRV][] of 1.65.
 - Add triangle shape. ([#350][] by [@juliapaci][])
 - Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409] by [@raphlinus][])
 - Add `BezPath::with_capacity` method ([#418] by [@LaurenzV][])
+- Add  `Affine::scale_about` and `Affine::then_scale_about`. ([#429] by [@xorgy][])
 
 ### Changed
 
@@ -79,6 +80,7 @@ Note: A changelog was not kept for or before this release
 [@simoncozens]: https://github.com/simoncozens
 [@tomcur]: https://github.com/tomcur
 [@waywardmonkeys]: https://github.com/waywardmonkeys
+[@xorgy]: https://github.com/xorgy
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
@@ -104,6 +106,7 @@ Note: A changelog was not kept for or before this release
 [#399]: https://github.com/linebender/kurbo/pull/399
 [#409]: https://github.com/linebender/kurbo/pull/409
 [#418]: https://github.com/linebender/kurbo/pull/418
+[#429]: https://github.com/linebender/kurbo/pull/429
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.1...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
