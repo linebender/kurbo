@@ -20,18 +20,22 @@ This release has an [MSRV][] of 1.65.
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
 - Add triangle shape. ([#350][] by [@juliapaci][])
-- Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409] by [@raphlinus][])
-- Add `BezPath::with_capacity` method ([#418] by [@LaurenzV][])
-- Add  `Affine::scale_about` and `Affine::then_scale_about`. ([#429] by [@xorgy][])
+- Implement `Div<f64>` and `Mul<f64>` for `Insets`. ([#384][] by [@liferooter][])
+- Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409][] by [@raphlinus][])
+- Add `min` and `max` methods to `Size`. ([#412][] by [@nils-mathieu][])
+- Add an `INFNITY` constant to `Size`. ([#413][] by [@nils-mathieu][])
+- Add `BezPath::with_capacity` method ([#418][] by [@LaurenzV][])
+- Add  `Affine::scale_about` and `Affine::then_scale_about`. ([#429][] by [@xorgy][])
 
 ### Changed
 
 - Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
-- Numerically approximate ellipse perimeter. ([#383] by [@tomcur][])
+- Numerically approximate ellipse perimeter. ([#383][] by [@tomcur][])
+- Always inline trivial casts, splats, and swizzles. ([#428][] by [@xorgy][])
 
 ### Fixed
 
-- Fix documentation of cross product. ([#409] by [@raphlinus][])
+- Fix documentation of cross product. ([#409][] by [@raphlinus][])
 
 ## [0.11.1][] (2024-09-12)
 
@@ -72,6 +76,7 @@ Note: A changelog was not kept for or before this release
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@juliapaci]: https://github.com/juliapaci
 [@LaurenzV]: https://github.com/LaurenzV
+[@liferooter]: https://github.com/liferooter
 [@nils-mathieu]: https://github.com/nils-mathieu
 [@Philipp-M]: https://github.com/Philipp-M
 [@platlas]: https://github.com/platlas
@@ -101,11 +106,15 @@ Note: A changelog was not kept for or before this release
 [#376]: https://github.com/linebender/kurbo/pull/376
 [#379]: https://github.com/linebender/kurbo/pull/379
 [#383]: https://github.com/linebender/kurbo/pull/383
+[#384]: https://github.com/linebender/kurbo/pull/384
 [#388]: https://github.com/linebender/kurbo/pull/388
 [#390]: https://github.com/linebender/kurbo/pull/390
 [#399]: https://github.com/linebender/kurbo/pull/399
 [#409]: https://github.com/linebender/kurbo/pull/409
+[#412]: https://github.com/linebender/kurbo/pull/412
+[#413]: https://github.com/linebender/kurbo/pull/413
 [#418]: https://github.com/linebender/kurbo/pull/418
+[#428]: https://github.com/linebender/kurbo/pull/428
 [#429]: https://github.com/linebender/kurbo/pull/429
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.1...HEAD
