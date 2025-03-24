@@ -41,6 +41,83 @@ pub enum Cap {
     Round,
 }
 
+/// The kind of expansion a specific edge can have.
+///
+/// This is `pub(crate)` as its primary use is as a utility in .
+#[repr(u8)]
+pub(crate) enum StrokeEdgeExpansion {
+    NotExpanded = 0x00,
+    Expanded = 0x01,
+    DoubledExpanded = 0x02,
+    Missing = 0x03,
+    // If adding a new variant, also add to TryFrom below.
+}
+
+impl TryFrom<u8> for StrokeEdgeExpansion {
+    type Error = UnknownEdgeValue;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            it if it == (Self::NotExpanded as u8) => Ok(Self::NotExpanded),
+            it if it == (Self::Expanded as u8) => Ok(Self::Expanded),
+            it if it == (Self::DoubledExpanded as u8) => Ok(Self::DoubledExpanded),
+            it if it == (Self::Missing as u8) => Ok(Self::Missing),
+            inner => Err(UnknownEdgeValue(inner)),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct UnknownEdgeValue(
+    #[allow(dead_code)] // Used in debug print
+    u8,
+);
+
+#[repr(u8)]
+#[derive(Default, Copy, Clone, Debug)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+/// The possible ways a strokes edges can be usefully defined.
+pub enum StrokeStyle {
+    /// A stroke with `center` [`stroke-alignment`](https://svgwg.org/specs/strokes/#SpecifyingStrokeAlignment).
+    /// That is, the center of the stroke is the stroke path.
+    ///
+    /// This is the default stroke style in most systems.
+    #[default]
+    CenterAligned = 0x11,
+    /// A stroke with `inner` [`stroke-alignment`](https://svgwg.org/specs/strokes/#SpecifyingStrokeAlignment).
+    /// That is, the outside edge of the stroke is the stroke path, i.e. the expanded stroke is inside the path.
+    ///
+    /// Strokes with this style will be [`width`](Stroke::width) wide.
+    // TODO: Document the behaviour if the stroke "overfills" the shape.
+    InnerAligned = 0x02,
+    /// A stroke with `outer` [`stroke-alignment`](https://svgwg.org/specs/strokes/#SpecifyingStrokeAlignment).
+    /// That is, the inside edge of the stroke is the stroke path, i.e. the expanded stroke is "outside" the path.
+    ///
+    /// Strokes with this style will be [`width`](Stroke::width) wide.
+    // TODO: What do we mean by outside? Is this left/right, i.e. are winding
+    OuterAligned = 0x20,
+    /// A stroke which is equivalent to a fill.
+    Fill = 0x03,
+    /// A fill which is expanded by [`width`](Stroke::width).
+    ///
+    /// Useful for stem darkening in fonts.
+    ExpandedFill = 0x23,
+}
+
+impl StrokeStyle {
+    #[allow(dead_code)]
+    fn inner(self) -> StrokeEdgeExpansion {
+        // We know the error is impossible as the byte values above are
+        // only combinations of the StrokeEdgeExpansion variants
+        ((self as u8) & 0x0F).try_into().unwrap()
+    }
+    #[allow(dead_code)]
+    fn outer(self) -> StrokeEdgeExpansion {
+        (self as u8 >> 4).try_into().unwrap()
+    }
+}
+
 /// Describes the visual style of a stroke.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -60,6 +137,8 @@ pub struct Stroke {
     pub dash_pattern: Dashes,
     /// Offset of the first dash.
     pub dash_offset: f64,
+    /// How this stroke's edges are handled.
+    pub edges: StrokeStyle,
 }
 
 /// Options for path stroking.
@@ -94,6 +173,7 @@ impl Default for Stroke {
             end_cap: Cap::Round,
             dash_pattern: Default::default(),
             dash_offset: 0.0,
+            edges: Default::default(),
         }
     }
 }
