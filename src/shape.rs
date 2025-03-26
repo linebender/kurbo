@@ -137,9 +137,16 @@ pub trait Shape {
     /// [winding number]: https://mathworld.wolfram.com/ContourWindingNumber.html
     fn winding(&self, pt: Point) -> i32;
 
-    /// Returns `true` if the [`Point`] is inside this shape.
+    /// Returns `true` if the [`Point`] is inside this shape using the non-zero
+    /// winding rule.
     ///
-    /// This is only meaningful for closed shapes.
+    /// This is only meaningful for closed shapes. Some shapes may have specialized
+    /// implementations of this function or of [`winding`] determination.
+    ///
+    /// To determine containment using the even-odd winding rule, check the
+    /// [`winding`] directly.
+    ///
+    /// [`winding`]: Self::winding
     fn contains(&self, pt: Point) -> bool {
         self.winding(pt) != 0
     }
