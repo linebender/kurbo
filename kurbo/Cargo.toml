@@ -1,0 +1,62 @@
+[package]
+name = "kurbo"
+authors = ["Raph Levien <raph.levien@gmail.com>"]
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+description = "A 2D curves library"
+keywords = ["graphics", "curve", "curves", "bezier", "geometry"]
+categories = ["graphics"]
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+# There are no platform specific docs.
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = []
+libm = ["dep:libm"]
+mint = ["dep:mint"]
+serde = ["smallvec/serde", "dep:serde"]
+schemars = ["schemars/smallvec", "dep:schemars"]
+
+[dependencies]
+smallvec = "1.13.2"
+
+[dependencies.arrayvec]
+version = "0.7.6"
+default-features = false
+
+[dependencies.libm]
+version = "0.2.11"
+optional = true
+
+[dependencies.mint]
+version = "0.5.9"
+optional = true
+
+[dependencies.schemars]
+version = "0.8.21"
+optional = true
+
+[dependencies.serde]
+version = "1.0.215"
+optional = true
+default-features = false
+features = ["alloc", "derive"]
+
+# This is used for research but not really needed; maybe refactor.
+[dev-dependencies]
+rand = "0.9.0"
+
+[target.wasm32-unknown-unknown.dev-dependencies]
+# We have a transitive dependency on getrandom and it does not automatically
+# support wasm32-unknown-unknown. We need to enable the wasm_js feature.
+getrandom = { version = "0.3.1", features = ["wasm_js"] }
