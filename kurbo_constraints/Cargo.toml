@@ -1,0 +1,28 @@
+[package]
+name = "kurbo_constraints"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+description = "A constraint solver using Kurbo."
+keywords = ["constraints", "graphics", "cad"]
+categories = ["algorithms", "graphics"]
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+# There are no platform specific docs.
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = ["kurbo/std"]
+libm = ["kurbo/libm"]
+
+[dependencies]
+hashbrown = { version = "0.15.2", default-features = false, features = ["default-hasher"] }
+kurbo.workspace = true
