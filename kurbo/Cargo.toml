@@ -28,7 +28,7 @@ serde = ["smallvec/serde", "dep:serde"]
 schemars = ["schemars/smallvec", "dep:schemars"]
 
 [dependencies]
-smallvec = "1.13.2"
+smallvec = "1.15.0"
 
 [dependencies.arrayvec]
 version = "0.7.6"
@@ -43,11 +43,11 @@ version = "0.5.9"
 optional = true
 
 [dependencies.schemars]
-version = "0.8.21"
+version = "0.8.22"
 optional = true
 
 [dependencies.serde]
-version = "1.0.215"
+version = "1.0.219"
 optional = true
 default-features = false
 features = ["alloc", "derive"]
@@ -59,4 +59,4 @@ rand = "0.9.0"
 [target.wasm32-unknown-unknown.dev-dependencies]
 # We have a transitive dependency on getrandom and it does not automatically
 # support wasm32-unknown-unknown. We need to enable the wasm_js feature.
-getrandom = { version = "0.3.1", features = ["wasm_js"] }
+getrandom = { version = "0.3.2", features = ["wasm_js"] }
