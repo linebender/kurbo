@@ -177,7 +177,7 @@ impl BezPath {
     /// Create a new path.
     #[inline(always)]
     pub fn new() -> BezPath {
-        Default::default()
+        BezPath::default()
     }
 
     /// Create a new path with the specified capacity.

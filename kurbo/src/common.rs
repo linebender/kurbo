@@ -310,7 +310,7 @@ pub fn solve_quartic(c0: f64, c1: f64, c2: f64, c3: f64, c4: f64) -> ArrayVec<f6
     }
     // Overflow happened, just return no roots.
     //println!("overflow, no roots returned");
-    Default::default()
+    ArrayVec::default()
 }
 
 fn solve_quartic_inner(a: f64, b: f64, c: f64, d: f64, rescale: bool) -> Option<ArrayVec<f64, 4>> {
