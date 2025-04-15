@@ -5,6 +5,7 @@
 
 use core::convert::From;
 
+#[allow(unused_imports)] // This is unused in later versions of Rust because of additions to core::f32
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
