@@ -251,7 +251,7 @@ impl CurveDist {
         }
         CurveDist {
             samples,
-            arcparams: Default::default(),
+            arcparams: ArrayVec::default(),
             range,
             spicy,
         }
