@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["kurbo"]
+members = ["kurbo", "kurbo_constraints"]
 
 [workspace.package]
 # Kurbo version, also used by other packages which want to mimic Kurbo's version.
