@@ -19,7 +19,7 @@ This release has an [MSRV][] of 1.65.
 
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
-- Add triangle shape. ([#350][] by [@juliapaci][])
+- Add triangle shape. ([#350][] by [@juliapaci][], [#387][] by [@tomcur][])
 - Implement `Div<f64>` and `Mul<f64>` for `Insets`. ([#384][] by [@liferooter][])
 - Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409][] by [@raphlinus][])
 - Add `min` and `max` methods to `Size`. ([#412][] by [@nils-mathieu][])
@@ -30,11 +30,12 @@ This release has an [MSRV][] of 1.65.
 ### Changed
 
 - Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
-- Numerically approximate ellipse perimeter. ([#383][] by [@tomcur][])
+- Numerically approximate ellipse perimeter. ([#383][], [#407][] by [@tomcur][])
 - Always inline trivial casts, splats, and swizzles. ([#428][] by [@xorgy][])
 
 ### Fixed
 
+- Fix documentation of `Affine::svd`. ([#388][] by [@tomcur][])
 - Fix documentation of cross product. ([#409][] by [@raphlinus][])
 
 ## [0.11.1][] (2024-09-12)
@@ -107,9 +108,11 @@ Note: A changelog was not kept for or before this release
 [#379]: https://github.com/linebender/kurbo/pull/379
 [#383]: https://github.com/linebender/kurbo/pull/383
 [#384]: https://github.com/linebender/kurbo/pull/384
+[#387]: https://github.com/linebender/kurbo/pull/387
 [#388]: https://github.com/linebender/kurbo/pull/388
 [#390]: https://github.com/linebender/kurbo/pull/390
 [#399]: https://github.com/linebender/kurbo/pull/399
+[#407]: https://github.com/linebender/kurbo/pull/407
 [#409]: https://github.com/linebender/kurbo/pull/409
 [#412]: https://github.com/linebender/kurbo/pull/412
 [#413]: https://github.com/linebender/kurbo/pull/413
