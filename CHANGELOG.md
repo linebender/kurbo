@@ -15,6 +15,10 @@ You can find its changes [documented below](#0112-2025-04-28).
 
 This release has an [MSRV][] of 1.65.
 
+### Fixed
+
+- Documentation of `RoundedRect` no longer incorrectly specifies the corner radii are equal. ([#447][] by [@tomcur][])
+
 ## [0.11.2][] (2025-04-28)
 
 This release has an [MSRV][] of 1.65.
@@ -123,6 +127,7 @@ Note: A changelog was not kept for or before this release
 [#418]: https://github.com/linebender/kurbo/pull/418
 [#428]: https://github.com/linebender/kurbo/pull/428
 [#429]: https://github.com/linebender/kurbo/pull/429
+[#447]: https://github.com/linebender/kurbo/pull/447
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.2...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
