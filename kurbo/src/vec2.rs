@@ -93,7 +93,8 @@ impl Vec2 {
     /// ```
     #[inline]
     pub fn hypot(self) -> f64 {
-        self.x.hypot(self.y)
+        // Avoid f64::hypot as it calls a slow library function.
+        self.hypot2().sqrt()
     }
 
     /// Magnitude of vector.
