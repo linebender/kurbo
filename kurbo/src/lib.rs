@@ -142,6 +142,9 @@ mod translate_scale;
 mod triangle;
 mod vec2;
 
+#[cfg(feature = "objc2-core-graphics")]
+mod interop_objc2_core_graphics;
+
 pub use crate::affine::Affine;
 pub use crate::arc::{Arc, ArcAppendIter};
 pub use crate::bezpath::{
