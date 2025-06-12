@@ -13,6 +13,10 @@ You can find its changes [documented below](#0131-2026-05-13).
 
 ## [Unreleased][]
 
+## Added
+
+- Interop with the Apple platform types via the `objc2` feature. ([#450][] by [@waywardmonkeys][])
+
 This release has an [MSRV][] of 1.85.
 
 ## [0.13.1][] (2026-05-13)
@@ -258,6 +262,7 @@ Note: A changelog was not kept for or before this release
 [#429]: https://github.com/linebender/kurbo/pull/429
 [#447]: https://github.com/linebender/kurbo/pull/447
 [#448]: https://github.com/linebender/kurbo/pull/448
+[#450]: https://github.com/linebender/kurbo/pull/450
 [#451]: https://github.com/linebender/kurbo/pull/451
 [#452]: https://github.com/linebender/kurbo/pull/452
 [#454]: https://github.com/linebender/kurbo/pull/454
