@@ -283,7 +283,7 @@ struct SvgLexer<'a> {
 }
 
 impl SvgLexer<'_> {
-    fn new(data: &str) -> SvgLexer {
+    fn new(data: &str) -> SvgLexer<'_> {
         SvgLexer {
             data,
             ix: 0,
