@@ -78,10 +78,6 @@ impl Vec2 {
 
     /// Magnitude of vector.
     ///
-    /// This is similar to `self.hypot2().sqrt()` but defers to the platform
-    /// [`f64::hypot`] method, which in general will handle the case where
-    /// `self.hypot2() > f64::MAX`.
-    ///
     /// See [`Point::distance`] for the same operation on [`Point`].
     ///
     /// # Examples
