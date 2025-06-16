@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use crate::{PathEl, Point};
 
 /// A collect of moment integrals for a path, used for computing
@@ -25,7 +23,8 @@ pub struct GreenMomentIntegrals {
     pub moment_yy: f64,
 }
 
-impl Add<Self> for GreenMomentIntegrals {
+#[cfg(feature = "std")]
+impl std::ops::Add<Self> for GreenMomentIntegrals {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
