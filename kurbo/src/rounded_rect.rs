@@ -12,10 +12,11 @@ use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shap
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
-/// A rectangle with equally rounded corners.
+/// A rectangle with rounded corners.
 ///
 /// By construction the rounded rectangle will have
 /// non-negative dimensions and radii clamped to half size of the rect.
+/// The rounded rectangle can have different radii for each corner.
 ///
 /// The easiest way to create a `RoundedRect` is often to create a [`Rect`],
 /// and then call [`to_rounded_rect`].
