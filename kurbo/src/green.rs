@@ -1,3 +1,5 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 use crate::{PathEl, Point};
 
 /// A collect of moment integrals for a path, used for computing
