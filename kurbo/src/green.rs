@@ -1,6 +1,10 @@
 // Copyright 2025 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use crate::{PathEl, Point};
+
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
 
 /// A collect of moment integrals for a path, used for computing
 /// shape properties like area, centroid, and inertia.
