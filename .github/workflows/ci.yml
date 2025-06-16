@@ -13,7 +13,7 @@ env:
   # This should be limited to packages that are intended for publishing.
   RUST_MIN_VER_PKGS: "-p kurbo"
   # List of features that depend on the standard library and will be excluded from no_std checks.
-  FEATURES_DEPENDING_ON_STD: "std,default,schemars"
+  FEATURES_DEPENDING_ON_STD: "std,default,schemars,objc2-core-graphics"
 
 
 # Rationale
