@@ -92,7 +92,7 @@ impl Default for Stroke {
             miter_limit: 4.0,
             start_cap: Cap::Round,
             end_cap: Cap::Round,
-            dash_pattern: Default::default(),
+            dash_pattern: SmallVec::default(),
             dash_offset: 0.0,
         }
     }
@@ -103,7 +103,7 @@ impl Stroke {
     pub fn new(width: f64) -> Self {
         Self {
             width,
-            ..Default::default()
+            ..Stroke::default()
         }
     }
 
@@ -218,7 +218,7 @@ fn stroke_undashed(
 ) -> BezPath {
     let mut ctx = StrokeCtx {
         join_thresh: 2.0 * tolerance / style.width,
-        ..Default::default()
+        ..StrokeCtx::default()
     };
     for el in path {
         let p0 = ctx.last_pt;
@@ -634,7 +634,7 @@ fn dash_impl<T: Iterator<Item = PathEl>>(
     inner: T,
     dash_offset: f64,
     dashes: &[f64],
-) -> DashIterator<T> {
+) -> DashIterator<'_, T> {
     let mut dash_ix = 0;
     let mut dash_remaining = dashes[dash_ix] - dash_offset;
     let mut is_active = true;
@@ -793,6 +793,7 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 mod tests {
     use crate::{
         dash, segments, stroke, Cap::Butt, CubicBez, Join::Miter, Line, PathSeg, Shape, Stroke,
+        StrokeOpts,
     };
 
     // A degenerate stroke with a cusp at the endpoint.
@@ -806,7 +807,7 @@ mod tests {
         );
         let path = curve.into_path(0.1);
         let stroke_style = Stroke::new(1.);
-        let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
         assert!(stroked.is_finite());
     }
 
@@ -839,7 +840,7 @@ mod tests {
         let stroke_style = Stroke::new(30.).with_caps(Butt).with_join(Miter);
         for cubic in &broken_cubics {
             let path = CubicBez::new(cubic[0], cubic[1], cubic[2], cubic[3]).into_path(0.1);
-            let stroked = stroke(path, &stroke_style, &Default::default(), 0.001);
+            let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
             assert!(stroked.is_finite());
         }
     }

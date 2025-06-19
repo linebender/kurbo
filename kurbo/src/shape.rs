@@ -139,7 +139,15 @@ pub trait Shape {
 
     /// Returns `true` if the [`Point`] is inside this shape.
     ///
-    /// This is only meaningful for closed shapes.
+    /// This is only meaningful for closed shapes. Some shapes may have specialized
+    /// implementations of this function or of [`winding`] determination.
+    ///
+    /// The default implementation uses the non-zero winding rule.
+    ///
+    /// To determine containment using the even-odd winding rule, check the
+    /// [`winding`] directly.
+    ///
+    /// [`winding`]: Self::winding
     fn contains(&self, pt: Point) -> bool {
         self.winding(pt) != 0
     }

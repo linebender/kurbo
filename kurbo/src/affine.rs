@@ -44,22 +44,36 @@ impl Affine {
     /// formulation of affine transformation as augmented matrix. The
     /// idea is that `(A * B) * v == A * (B * v)`, where `*` is the
     /// [`Mul`] trait.
-    #[inline]
+    #[inline(always)]
     pub const fn new(c: [f64; 6]) -> Affine {
         Affine(c)
     }
 
     /// An affine transform representing uniform scaling.
-    #[inline]
+    #[inline(always)]
     pub const fn scale(s: f64) -> Affine {
         Affine([s, 0.0, 0.0, s, 0.0, 0.0])
     }
 
     /// An affine transform representing non-uniform scaling
     /// with different scale values for x and y
-    #[inline]
+    #[inline(always)]
     pub const fn scale_non_uniform(s_x: f64, s_y: f64) -> Affine {
         Affine([s_x, 0.0, 0.0, s_y, 0.0, 0.0])
+    }
+
+    /// An affine transform representing a scale of `scale` about `center`.
+    ///
+    /// Useful for a view transform that zooms at a specific point,
+    /// while keeping that point fixed in the result space.
+    ///
+    /// See [`Affine::scale()`] for more info.
+    #[inline]
+    pub fn scale_about(s: f64, center: Point) -> Affine {
+        let center = center.to_vec2();
+        Self::translate(-center)
+            .then_scale(s)
+            .then_translate(center)
     }
 
     /// An affine transform representing rotation.
@@ -88,7 +102,7 @@ impl Affine {
     }
 
     /// An affine transform representing translation.
-    #[inline]
+    #[inline(always)]
     pub fn translate<V: Into<Vec2>>(p: V) -> Affine {
         let p = p.into();
         Affine([1.0, 0.0, 0.0, 1.0, p.x, p.y])
@@ -107,7 +121,7 @@ impl Affine {
     /// ```
     /// let oblique_transform = kurbo::Affine::skew(20f64.to_radians().tan(), 0.0);
     /// ```
-    #[inline]
+    #[inline(always)]
     pub fn skew(skew_x: f64, skew_y: f64) -> Affine {
         Affine([1.0, skew_y, skew_x, 1.0, 0.0, 0.0])
     }
@@ -255,6 +269,17 @@ impl Affine {
         Affine::scale_non_uniform(scale_x, scale_y) * self
     }
 
+    /// `self` followed by a [scale] of `scale` about `center`.
+    ///
+    /// Equivalent to `Affine::scale_about(scale) * self`
+    ///
+    /// [scale]: Affine::scale_about
+    #[inline]
+    #[must_use]
+    pub fn then_scale_about(self, scale: f64, center: Point) -> Self {
+        Affine::scale_about(scale, center) * self
+    }
+
     /// `self` followed by a translation of `trans`.
     ///
     /// Equivalent to `Affine::translate(trans) * self`
@@ -277,7 +302,7 @@ impl Affine {
     }
 
     /// Get the coefficients of the transform.
-    #[inline]
+    #[inline(always)]
     pub fn as_coeffs(self) -> [f64; 6] {
         self.0
     }
@@ -390,7 +415,7 @@ impl Affine {
     }
 
     /// Returns the translation part of this affine map (`(self.0[4], self.0[5])`).
-    #[inline]
+    #[inline(always)]
     pub fn translation(self) -> Vec2 {
         Vec2 {
             x: self.0[4],
@@ -402,7 +427,7 @@ impl Affine {
     ///
     /// The translation can be seen as being applied after the linear part of the map.
     #[must_use]
-    #[inline]
+    #[inline(always)]
     pub fn with_translation(mut self, trans: Vec2) -> Affine {
         self.0[4] = trans.x;
         self.0[5] = trans.y;
@@ -411,7 +436,7 @@ impl Affine {
 }
 
 impl Default for Affine {
-    #[inline]
+    #[inline(always)]
     fn default() -> Affine {
         Affine::IDENTITY
     }
@@ -471,7 +496,7 @@ impl Mul<Affine> for f64 {
 // Conversions to and from mint
 #[cfg(feature = "mint")]
 impl From<Affine> for mint::ColumnMatrix2x3<f64> {
-    #[inline]
+    #[inline(always)]
     fn from(a: Affine) -> mint::ColumnMatrix2x3<f64> {
         mint::ColumnMatrix2x3 {
             x: mint::Vector2 {
@@ -492,7 +517,7 @@ impl From<Affine> for mint::ColumnMatrix2x3<f64> {
 
 #[cfg(feature = "mint")]
 impl From<mint::ColumnMatrix2x3<f64>> for Affine {
-    #[inline]
+    #[inline(always)]
     fn from(m: mint::ColumnMatrix2x3<f64>) -> Affine {
         Affine([m.x.x, m.x.y, m.y.x, m.y.y, m.z.x, m.z.y])
     }

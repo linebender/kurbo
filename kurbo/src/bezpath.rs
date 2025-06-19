@@ -175,8 +175,9 @@ pub struct MinDistance {
 
 impl BezPath {
     /// Create a new path.
+    #[inline(always)]
     pub fn new() -> BezPath {
-        Default::default()
+        BezPath::default()
     }
 
     /// Create a new path with the specified capacity.
@@ -272,11 +273,13 @@ impl BezPath {
     }
 
     /// Get the path elements.
+    #[inline(always)]
     pub fn elements(&self) -> &[PathEl] {
         &self.0
     }
 
     /// Get the path elements (mut version).
+    #[inline(always)]
     pub fn elements_mut(&mut self) -> &mut [PathEl] {
         &mut self.0
     }
@@ -1233,6 +1236,7 @@ impl PathSeg {
 }
 
 impl LineIntersection {
+    #[inline(always)]
     fn new(line_t: f64, segment_t: f64) -> Self {
         LineIntersection { line_t, segment_t }
     }
@@ -1268,18 +1272,21 @@ fn cubic_bez_coefs(x0: f64, x1: f64, x2: f64, x3: f64) -> (f64, f64, f64, f64) {
 }
 
 impl From<CubicBez> for PathSeg {
+    #[inline(always)]
     fn from(cubic_bez: CubicBez) -> PathSeg {
         PathSeg::Cubic(cubic_bez)
     }
 }
 
 impl From<Line> for PathSeg {
+    #[inline(always)]
     fn from(line: Line) -> PathSeg {
         PathSeg::Line(line)
     }
 }
 
 impl From<QuadBez> for PathSeg {
+    #[inline(always)]
     fn from(quad_bez: QuadBez) -> PathSeg {
         PathSeg::Quad(quad_bez)
     }
@@ -1296,6 +1303,7 @@ impl Shape for BezPath {
         self.clone()
     }
 
+    #[inline(always)]
     fn into_path(self, _tolerance: f64) -> BezPath {
         self
     }
@@ -1318,6 +1326,7 @@ impl Shape for BezPath {
         self.elements().bounding_box()
     }
 
+    #[inline(always)]
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(&self.0)
     }
@@ -1397,7 +1406,7 @@ impl<'a> Shape for &'a [PathEl] {
         segments(self.iter().copied()).bounding_box()
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(self)
     }
@@ -1437,7 +1446,7 @@ impl<const N: usize> Shape for [PathEl; N] {
         segments(self.iter().copied()).bounding_box()
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         Some(self)
     }
@@ -1452,7 +1461,7 @@ pub struct PathSegIter {
 impl Shape for PathSeg {
     type PathElementsIter<'iter> = PathSegIter;
 
-    #[inline]
+    #[inline(always)]
     fn path_elements(&self, _tolerance: f64) -> PathSegIter {
         PathSegIter { seg: *self, ix: 0 }
     }
@@ -1469,6 +1478,7 @@ impl Shape for PathSeg {
         self.arclen(accuracy)
     }
 
+    #[inline(always)]
     fn winding(&self, _pt: Point) -> i32 {
         0
     }

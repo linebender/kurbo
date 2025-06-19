@@ -8,10 +8,18 @@ Subheadings to categorize changes are `added, changed, deprecated, removed, fixe
 
 # Changelog
 
-The latest published Kurbo release is [0.11.1](#0110-2024-09-12) which was released on 2024-09-12.
-You can find its changes [documented below](#0111-2024-09-12).
+The latest published Kurbo release is [0.11.2](#0112-2025-04-28) which was released on 2025-04-28.
+You can find its changes [documented below](#0112-2025-04-28).
 
 ## [Unreleased]
+
+This release has an [MSRV][] of 1.65.
+
+### Fixed
+
+- Documentation of `RoundedRect` no longer incorrectly specifies the corner radii are equal. ([#447][] by [@tomcur][])
+
+## [0.11.2][] (2025-04-28)
 
 This release has an [MSRV][] of 1.65.
 
@@ -19,18 +27,24 @@ This release has an [MSRV][] of 1.65.
 
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
 - Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
-- Add triangle shape. ([#350][] by [@juliapaci][])
-- Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409] by [@raphlinus][])
-- Add `BezPath::with_capacity` method ([#418] by [@LaurenzV][])
+- Add triangle shape. ([#350][] by [@juliapaci][], [#387][] by [@tomcur][])
+- Implement `Div<f64>` and `Mul<f64>` for `Insets`. ([#384][] by [@liferooter][])
+- Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409][] by [@raphlinus][])
+- Add `min` and `max` methods to `Size`. ([#412][] by [@nils-mathieu][])
+- Add an `INFNITY` constant to `Size`. ([#413][] by [@nils-mathieu][])
+- Add `BezPath::with_capacity` method ([#418][] by [@LaurenzV][])
+- Add  `Affine::scale_about` and `Affine::then_scale_about`. ([#429][] by [@xorgy][])
 
 ### Changed
 
 - Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
-- Numerically approximate ellipse perimeter. ([#383] by [@tomcur][])
+- Numerically approximate ellipse perimeter. ([#383][], [#407][] by [@tomcur][])
+- Always inline trivial casts, splats, and swizzles. ([#428][] by [@xorgy][])
 
 ### Fixed
 
-- Fix documentation of cross product. ([#409] by [@raphlinus][])
+- Fix documentation of `Affine::svd`. ([#388][] by [@tomcur][])
+- Fix documentation of cross product. ([#409][] by [@raphlinus][])
 
 ## [0.11.1][] (2024-09-12)
 
@@ -71,6 +85,7 @@ Note: A changelog was not kept for or before this release
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@juliapaci]: https://github.com/juliapaci
 [@LaurenzV]: https://github.com/LaurenzV
+[@liferooter]: https://github.com/liferooter
 [@nils-mathieu]: https://github.com/nils-mathieu
 [@Philipp-M]: https://github.com/Philipp-M
 [@platlas]: https://github.com/platlas
@@ -79,6 +94,7 @@ Note: A changelog was not kept for or before this release
 [@simoncozens]: https://github.com/simoncozens
 [@tomcur]: https://github.com/tomcur
 [@waywardmonkeys]: https://github.com/waywardmonkeys
+[@xorgy]: https://github.com/xorgy
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
@@ -99,14 +115,23 @@ Note: A changelog was not kept for or before this release
 [#376]: https://github.com/linebender/kurbo/pull/376
 [#379]: https://github.com/linebender/kurbo/pull/379
 [#383]: https://github.com/linebender/kurbo/pull/383
+[#384]: https://github.com/linebender/kurbo/pull/384
+[#387]: https://github.com/linebender/kurbo/pull/387
 [#388]: https://github.com/linebender/kurbo/pull/388
 [#390]: https://github.com/linebender/kurbo/pull/390
 [#399]: https://github.com/linebender/kurbo/pull/399
+[#407]: https://github.com/linebender/kurbo/pull/407
 [#409]: https://github.com/linebender/kurbo/pull/409
+[#412]: https://github.com/linebender/kurbo/pull/412
+[#413]: https://github.com/linebender/kurbo/pull/413
 [#418]: https://github.com/linebender/kurbo/pull/418
+[#428]: https://github.com/linebender/kurbo/pull/428
+[#429]: https://github.com/linebender/kurbo/pull/429
+[#447]: https://github.com/linebender/kurbo/pull/447
 
-[Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.2...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
 [0.11.1]: https://github.com/linebender/kurbo/releases/tag/v0.11.1
+[0.11.2]: https://github.com/linebender/kurbo/releases/tag/v0.11.2
 
 [MSRV]: README.md#minimum-supported-rust-version-msrv

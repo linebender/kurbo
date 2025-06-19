@@ -33,24 +33,25 @@ impl Vec2 {
     pub const ZERO: Vec2 = Vec2::new(0., 0.);
 
     /// Create a new vector.
-    #[inline]
+    #[inline(always)]
     pub const fn new(x: f64, y: f64) -> Vec2 {
         Vec2 { x, y }
     }
 
     /// Convert this vector into a [`Point`].
-    #[inline]
+    #[inline(always)]
     pub const fn to_point(self) -> Point {
         Point::new(self.x, self.y)
     }
 
     /// Convert this vector into a [`Size`].
-    #[inline]
+    #[inline(always)]
     pub const fn to_size(self) -> Size {
         Size::new(self.x, self.y)
     }
 
     /// Create a `Vec2` with the same value for x and y
+    #[inline(always)]
     pub(crate) const fn splat(v: f64) -> Self {
         Vec2 { x: v, y: v }
     }
@@ -77,10 +78,6 @@ impl Vec2 {
 
     /// Magnitude of vector.
     ///
-    /// This is similar to `self.hypot2().sqrt()` but defers to the platform
-    /// [`f64::hypot`] method, which in general will handle the case where
-    /// `self.hypot2() > f64::MAX`.
-    ///
     /// See [`Point::distance`] for the same operation on [`Point`].
     ///
     /// # Examples
@@ -92,7 +89,8 @@ impl Vec2 {
     /// ```
     #[inline]
     pub fn hypot(self) -> f64 {
-        self.x.hypot(self.y)
+        // Avoid f64::hypot as it calls a slow library function.
+        self.hypot2().sqrt()
     }
 
     /// Magnitude of vector.
@@ -349,14 +347,14 @@ impl Vec2 {
 }
 
 impl From<(f64, f64)> for Vec2 {
-    #[inline]
+    #[inline(always)]
     fn from(v: (f64, f64)) -> Vec2 {
         Vec2 { x: v.0, y: v.1 }
     }
 }
 
 impl From<Vec2> for (f64, f64) {
-    #[inline]
+    #[inline(always)]
     fn from(v: Vec2) -> (f64, f64) {
         (v.x, v.y)
     }
@@ -488,7 +486,7 @@ impl fmt::Display for Vec2 {
 // Conversions to and from mint
 #[cfg(feature = "mint")]
 impl From<Vec2> for mint::Vector2<f64> {
-    #[inline]
+    #[inline(always)]
     fn from(p: Vec2) -> mint::Vector2<f64> {
         mint::Vector2 { x: p.x, y: p.y }
     }
@@ -496,7 +494,7 @@ impl From<Vec2> for mint::Vector2<f64> {
 
 #[cfg(feature = "mint")]
 impl From<mint::Vector2<f64>> for Vec2 {
-    #[inline]
+    #[inline(always)]
     fn from(p: mint::Vector2<f64>) -> Vec2 {
         Vec2 { x: p.x, y: p.y }
     }

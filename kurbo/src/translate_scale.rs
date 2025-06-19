@@ -50,26 +50,26 @@ pub struct TranslateScale {
 
 impl TranslateScale {
     /// Create a new transformation from translation and scale.
-    #[inline]
+    #[inline(always)]
     pub const fn new(translation: Vec2, scale: f64) -> TranslateScale {
         TranslateScale { translation, scale }
     }
 
     /// Create a new transformation with scale only.
-    #[inline]
+    #[inline(always)]
     pub const fn scale(s: f64) -> TranslateScale {
         TranslateScale::new(Vec2::ZERO, s)
     }
 
     /// Create a new transformation with translation only.
-    #[inline]
+    #[inline(always)]
     pub fn translate(translation: impl Into<Vec2>) -> TranslateScale {
         TranslateScale::new(translation.into(), 1.0)
     }
 
     /// Decompose transformation into translation and scale.
     #[deprecated(note = "use the struct fields directly")]
-    #[inline]
+    #[inline(always)]
     pub const fn as_tuple(self) -> (Vec2, f64) {
         (self.translation, self.scale)
     }
@@ -134,13 +134,14 @@ impl TranslateScale {
 }
 
 impl Default for TranslateScale {
-    #[inline]
+    #[inline(always)]
     fn default() -> TranslateScale {
         TranslateScale::new(Vec2::ZERO, 1.0)
     }
 }
 
 impl From<TranslateScale> for Affine {
+    #[inline(always)]
     fn from(ts: TranslateScale) -> Affine {
         let TranslateScale { translation, scale } = ts;
         Affine::new([scale, 0.0, 0.0, scale, translation.x, translation.y])
