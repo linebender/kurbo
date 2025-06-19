@@ -201,8 +201,16 @@ struct OffsetRec {
     cusp0: f64,
     cusp1: f64,
     depth: usize,
-    utans: [Vec2; N_LSE],
-    p_offset: [Point; N_LSE],
+}
+
+/// Result of error evalution
+struct ErrEval {
+    /// Maximum detected error
+    err_squared: f64,
+    /// Unit normals sampled uniformly across approximation
+    unorms: [Vec2; N_LSE],
+    /// Difference between point on source curve and normal from approximation.
+    err_vecs: [Vec2; N_LSE],
 }
 
 /// Compute an approximate offset curve.
@@ -220,7 +228,7 @@ pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
     let (cusp0, utan0) = co.cusp_and_utan(co.q.p0, co.c0);
     let (cusp1, utan1) = co.cusp_and_utan(co.q.p2, co.c0 + co.c1 + co.c2);
     result.move_to(c.p0 + d * utan0.turn_90());
-    let rec = OffsetRec::new(&co, 0., 1., utan0, utan1, cusp0, cusp1, 0);
+    let rec = OffsetRec::new(0., 1., utan0, utan1, cusp0, cusp1, 0);
     co.offset_rec(&rec, &mut result);
     result
 }
@@ -286,24 +294,30 @@ impl CubicOffset2 {
             self.subdivide(rec, result, t, utan_t, cusp_t_minus, cusp_t_plus);
             return;
         }
-        let (a, b) = self.least_squares(rec);
-        let mut ts = [0.0; N_LSE];
-        for (i, t) in ts.iter_mut().enumerate() {
-            *t = (i + 1) as f64 * (1.0 / (N_LSE + 1) as f64);
-        }
+        let (mut a, mut b) = self.draw_arc(rec);
+        let dt = (rec.t1 - rec.t0) * (1.0 / (N_LSE + 1) as f64);
+        // These represent t values on the source curve.
+        let mut ts = core::array::from_fn(|i| rec.t0 + (i + 1) as f64 * dt);
         let mut c_approx = self.apply(rec, a, b);
         let err_init = self.eval_err(rec, c_approx, &mut ts);
         let mut err = err_init;
-        // speed/quality tradeoff: skip refinement if in tolerance
-        let (a2, b2) = self.refine_least_squares(rec, c_approx, ts, a, b);
-        let c_approx2 = self.apply(rec, a2, b2);
-        let err2 = self.eval_err(rec, c_approx2, &mut ts);
-        if err2 < err {
-            c_approx = c_approx2;
+        const N_REFINE: usize = 3;
+        for _ in 0..N_REFINE {
+            if err.err_squared <= self.tolerance * self.tolerance {
+                break;
+            }
+            let (a2, b2) = self.refine_least_squares(rec, a, b, &err);
+            let c_approx2 = self.apply(rec, a2, b2);
+            let err2 = self.eval_err(rec, c_approx2, &mut ts);
+            if err2.err_squared >= err.err_squared {
+                break;
+            }
             err = err2;
+            (a, b) = (a2, b2);
+            c_approx = c_approx2;
         }
 
-        if rec.depth < MAX_DEPTH && err > self.tolerance.powi(2) {
+        if rec.depth < MAX_DEPTH && err.err_squared > self.tolerance * self.tolerance {
             let t = self.find_subdivision_point(rec);
             let utan_t = self.q.eval(t).to_vec2().normalize();
             // TODO(robustness): deal with derivative near-zero
@@ -324,7 +338,6 @@ impl CubicOffset2 {
         cusp_t_plus: f64,
     ) {
         let rec0 = OffsetRec::new(
-            self,
             rec.t0,
             t,
             rec.utan0,
@@ -335,7 +348,6 @@ impl CubicOffset2 {
         );
         self.offset_rec(&rec0, result);
         let rec1 = OffsetRec::new(
-            self,
             t,
             rec.t1,
             utan_t,
@@ -366,105 +378,70 @@ impl CubicOffset2 {
         CubicBez::new(p0, p1, p2, p3)
     }
 
-    // Compute least squares error approximation, returning (a, b)
-    fn least_squares(&self, rec: &OffsetRec) -> (f64, f64) {
-        let c = CubicBez::new(
-            rec.utan0.turn_90().to_point(),
-            rec.utan0.turn_90().to_point(),
-            rec.utan1.turn_90().to_point(),
-            rec.utan1.turn_90().to_point(),
-        );
+    // Compute arc approximation
+    fn draw_arc(&self, rec: &OffsetRec) -> (f64, f64) {
+        // possible optimization: this can probably be done with vectors
+        // rather than arctangent
+        let th = rec.utan1.cross(rec.utan0).atan2(rec.utan1.dot(rec.utan0));
+        let a = (2. / 3.) / (1.0 + (0.5 * th).cos()) * 2.0 * (0.5 * th).sin();
+        let b = -a;
+        (a, b)
+    }
+
+    /// Evaluate error and also refine t values
+    ///
+    /// Returns evaluation of error including error vectors and (squared)
+    /// maximum error.
+    fn eval_err(&self, rec: &OffsetRec, c_approx: CubicBez, ts: &mut [f64; N_LSE]) -> ErrEval {
+        let qa = c_approx.deriv();
+        let mut err_squared = 0.0;
+        let mut unorms = [Vec2::ZERO; N_LSE];
+        let mut err_vecs = [Vec2::ZERO; N_LSE];
+        for i in 0..N_LSE {
+            let ta = (i + 1) as f64 * (1.0 / (N_LSE + 1) as f64);
+            let mut t = ts[i];
+            let p = self.c.eval(t);
+            // Newton step to refine t value
+            let pa = c_approx.eval(ta);
+            let tana = qa.eval(ta).to_vec2();
+            t += tana.dot(pa - p) / tana.dot(self.q.eval(t).to_vec2());
+            ts[i] = t;
+            let cusp = rec.cusp0.signum();
+            let unorm = cusp * tana.normalize().turn_90();
+            unorms[i] = unorm;
+            let p_new = self.c.eval(t) + self.d * unorm;
+            let err_vec = pa - p_new;
+            err_vecs[i] = err_vec;
+            let mut dist_err_squared = err_vec.length_squared();
+            if !dist_err_squared.is_finite() {
+                // A hack to make sure we reject bad refinements
+                dist_err_squared = 1e12;
+            }
+            // Note: consider also incorporating angle error
+            err_squared = dist_err_squared.max(err_squared);
+        }
+        ErrEval {
+            err_squared,
+            unorms,
+            err_vecs,
+        }
+    }
+
+    fn refine_least_squares(&self, rec: &OffsetRec, a: f64, b: f64, err: &ErrEval) -> (f64, f64) {
         let mut aa = 0.0;
         let mut ab = 0.0;
         let mut ac = 0.0;
         let mut bb = 0.0;
         let mut bc = 0.0;
         for i in 0..N_LSE {
-            let t = (i + 1) as f64 * (1.0 / (N_LSE + 1) as f64);
-            let n = rec.utans[i].turn_90();
-            // TODO: can replace with cheaper evaluation here
-            let p = c.eval(t).to_vec2();
-            let c_n = p.dot(n) - 1.0;
-            let c_t = p.cross(n);
-            let mt = 1.0 - t;
-            let a_n = 3.0 * mt * t * mt * rec.utan0.dot(n);
-            let a_t = 3.0 * mt * t * mt * rec.utan0.cross(n);
-            let b_n = 3.0 * mt * t * t * rec.utan1.dot(n);
-            let b_t = 3.0 * mt * t * t * rec.utan1.cross(n);
-            aa += a_n * a_n + BLEND * a_t * a_t;
-            ab += a_n * b_n + BLEND * a_t * b_t;
-            ac += a_n * c_n + BLEND * a_t * c_t;
-            bb += b_n * b_n + BLEND * b_t * b_t;
-            bc += b_n * c_n + BLEND * b_t * c_t;
-        }
-        let idet = 1.0 / (aa * bb - ab * ab);
-        let a_lse = -idet * (ac * bb - ab * bc);
-        let b_lse = -idet * (aa * bc - ac * ab);
-
-        // Cusp / very thick case
-        let th = rec.utan1.cross(rec.utan0).atan2(rec.utan1.dot(rec.utan0));
-        let arc_weight = self.d * th.abs();
-        let lse_weight = self.c.eval(rec.t0).distance(self.c.eval(rec.t1));
-        let blend = arc_weight / (arc_weight + lse_weight);
-        let a_arc = (1. / 3.) / (0.25 * th).cos() * th;
-        let b_arc = -a_arc;
-        let a = a_arc * blend + a_lse * (1.0 - blend);
-        let b = b_arc * blend + b_lse * (1.0 - blend);
-
-        //let a = a_lse;
-        //let b = b_lse;
-        (a, b)
-    }
-
-    /// Evaluate error and also refine t values
-    ///
-    /// Returns squared absolute distance error.
-    fn eval_err(&self, rec: &OffsetRec, c_approx: CubicBez, ts: &mut [f64; N_LSE]) -> f64 {
-        let qa = c_approx.deriv();
-        let mut max_err = 0.0;
-        for (i, t) in ts.iter_mut().enumerate() {
-            let mut ta = *t;
-            // TODO: probably should also store in rec, we always need this
-            let utan = rec.utans[i];
-            let p = rec.p_offset[i];
-            // Newton step to refine ta value
-            let pa = c_approx.eval(ta);
-            let tana = qa.eval(ta).to_vec2();
-            ta -= utan.dot(pa - p) / utan.dot(tana);
-            *t = ta;
-            let dist_err_squared = p.distance_squared(c_approx.eval(ta));
-            // Note: would be very cheap to also include angle error
-            // let angle_err = qa.eval(ta).to_vec2().cross(utan);
-            // 0.15 is based off n=3, should decrease
-            // let err = dist_err + 0.15 * angle_err.abs();
-            max_err = dist_err_squared.max(max_err);
-        }
-        max_err
-    }
-
-    fn refine_least_squares(
-        &self,
-        rec: &OffsetRec,
-        c_approx: CubicBez,
-        ts: [f64; N_LSE],
-        a: f64,
-        b: f64,
-    ) -> (f64, f64) {
-        let mut aa = 0.0;
-        let mut ab = 0.0;
-        let mut ac = 0.0;
-        let mut bb = 0.0;
-        let mut bc = 0.0;
-        for (i, t) in ts.iter().enumerate() {
-            let n = rec.utans[i].turn_90();
-            let err_vec = c_approx.eval(*t) - rec.p_offset[i];
+            let n = err.unorms[i];
+            let err_vec = err.err_vecs[i];
             let c_n = err_vec.dot(n);
             let c_t = err_vec.cross(n);
-            let mt = 1.0 - t;
-            let a_n = 3.0 * mt * t * mt * rec.utan0.dot(n);
-            let a_t = 3.0 * mt * t * mt * rec.utan0.cross(n);
-            let b_n = 3.0 * mt * t * t * rec.utan1.dot(n);
-            let b_t = 3.0 * mt * t * t * rec.utan1.cross(n);
+            let a_n = A_WEIGHTS[i] * rec.utan0.dot(n);
+            let a_t = A_WEIGHTS[i] * rec.utan0.cross(n);
+            let b_n = B_WEIGHTS[i] * rec.utan1.dot(n);
+            let b_t = B_WEIGHTS[i] * rec.utan1.cross(n);
             aa += a_n * a_n + BLEND * a_t * a_t;
             ab += a_n * b_n + BLEND * a_t * b_t;
             ac += a_n * c_n + BLEND * a_t * c_t;
@@ -518,7 +495,6 @@ impl CubicOffset2 {
 impl OffsetRec {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        co: &CubicOffset2,
         t0: f64,
         t1: f64,
         utan0: Vec2,
@@ -527,16 +503,6 @@ impl OffsetRec {
         cusp1: f64,
         depth: usize,
     ) -> Self {
-        let mut utans = [Vec2::ZERO; N_LSE];
-        let mut p_offset = [Point::ZERO; N_LSE];
-        let dt = (t1 - t0) * (1.0 / (N_LSE + 1) as f64);
-        for i in 0..N_LSE {
-            let t = t0 + (i + 1) as f64 * dt;
-            // TODO: deal with zero derivative
-            let utan = co.q.eval(t).to_vec2().normalize();
-            utans[i] = utan;
-            p_offset[i] = co.c.eval(t) + co.d * utan.turn_90();
-        }
         OffsetRec {
             t0,
             t1,
@@ -545,11 +511,25 @@ impl OffsetRec {
             cusp0,
             cusp1,
             depth,
-            utans,
-            p_offset,
         }
     }
 }
+
+const fn mk_a_weights(rev: bool) -> [f64; N_LSE] {
+    let mut result = [0.0; N_LSE];
+    let mut i = 0;
+    while i < N_LSE {
+        let t = (i + 1) as f64 / (N_LSE + 1) as f64;
+        let mt = 1. - t;
+        let ix = if rev { N_LSE - 1 - i } else { i };
+        result[ix] = 3.0 * mt * t * mt;
+        i += 1;
+    }
+    result
+}
+
+const A_WEIGHTS: [f64; N_LSE] = mk_a_weights(false);
+const B_WEIGHTS: [f64; N_LSE] = mk_a_weights(true);
 
 #[cfg(test)]
 mod tests {
