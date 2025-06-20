@@ -20,13 +20,15 @@
 //! [Parallel curves of cubic Béziers]: https://raphlinus.github.io/curves/2022/09/09/parallel-beziers.html
 use core::ops::Range;
 
+use arrayvec::ArrayVec;
+
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
 use crate::{
     common::{solve_itp, solve_quadratic},
-    BezPath, CubicBez, CurveFitSample, ParamCurve, ParamCurveDeriv, ParamCurveFit, Point, QuadBez,
-    Vec2,
+    BezPath, CubicBez, CurveFitSample, ParamCurve, ParamCurveDeriv, ParamCurveFit, PathSeg, Point,
+    QuadBez, Vec2,
 };
 
 /// The offset curve of a cubic Bézier.
@@ -213,6 +215,14 @@ struct ErrEval {
     err_vecs: [Vec2; N_LSE],
 }
 
+/// Result of subdivision
+struct SubdivisionPoint {
+    /// Source curve t value at subdivision point
+    t: f64,
+    /// Unit tangent at subdivision point
+    utan: Vec2,
+}
+
 /// Compute an approximate offset curve.
 // TODO: make an interface that produces two curves (for performance and robustness).
 pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
@@ -224,9 +234,11 @@ pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
     // TODO: improve robustness of core algorithm so we don't need regularization hack.
     let c_regularized = c.regularize(tolerance * DIM_TUNE);
     let co = CubicOffset2::new(c_regularized, d, tolerance);
-    // TODO: cusp analysis to avoid divide by 0 in following math.
-    let (cusp0, utan0) = co.cusp_and_utan(co.q.p0, co.c0);
-    let (cusp1, utan1) = co.cusp_and_utan(co.q.p2, co.c0 + co.c1 + co.c2);
+    let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+    let utan0 = tan0.normalize();
+    let utan1 = tan1.normalize();
+    let cusp0 = co.endpoint_cusp(co.q.p0, co.c0);
+    let cusp1 = co.endpoint_cusp(co.q.p2, co.c0 + co.c1 + co.c2);
     result.move_to(c.p0 + d * utan0.turn_90());
     let rec = OffsetRec::new(0., 1., utan0, utan1, cusp0, cusp1, 0);
     co.offset_rec(&rec, &mut result);
@@ -259,18 +271,14 @@ impl CubicOffset2 {
         ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt()) + 1.0
     }
 
-    /// Compute cusp and unit tangent of endpoint.
-    ///
-    /// Equivalent to computing both separately, but more optimized.
+    /// Compute cusp value of endpoint.
     ///
     /// The y parameter should be c0 for the start point, and c0 + c1 + c2
     /// for the end point; it's just evaluating the polynomial at t=0 and
     /// t=1.
-    fn cusp_and_utan(&self, tan: Point, y: f64) -> (f64, Vec2) {
+    fn endpoint_cusp(&self, tan: Point, y: f64) -> f64 {
         let rsqrt = 1.0 / tan.to_vec2().hypot();
-        let cusp = y * (rsqrt * rsqrt * rsqrt) + 1.0;
-        let utan = rsqrt * tan.to_vec2();
-        (cusp, utan)
+        y * (rsqrt * rsqrt * rsqrt) + 1.0
     }
 
     fn offset_rec(&self, rec: &OffsetRec, result: &mut BezPath) {
@@ -301,7 +309,9 @@ impl CubicOffset2 {
         let mut c_approx = self.apply(rec, a, b);
         let err_init = self.eval_err(rec, c_approx, &mut ts);
         let mut err = err_init;
-        const N_REFINE: usize = 3;
+        // Number of least-squares refinement steps. More gives a smaller
+        // error, but takes more time.
+        const N_REFINE: usize = 2;
         for _ in 0..N_REFINE {
             if err.err_squared <= self.tolerance * self.tolerance {
                 break;
@@ -316,13 +326,12 @@ impl CubicOffset2 {
             (a, b) = (a2, b2);
             c_approx = c_approx2;
         }
-
         if rec.depth < MAX_DEPTH && err.err_squared > self.tolerance * self.tolerance {
-            let t = self.find_subdivision_point(rec);
-            let utan_t = self.q.eval(t).to_vec2().normalize();
-            // TODO(robustness): deal with derivative near-zero
+            let SubdivisionPoint { t, utan } = self.find_subdivision_point(rec);
+            // TODO(robustness): if cusp is extremely near zero, then assign epsilon
+            // with alternate signs based on derivative of cusp.
             let cusp = self.cusp_sign(t);
-            self.subdivide(rec, result, t, utan_t, cusp, cusp);
+            self.subdivide(rec, result, t, utan, cusp, cusp);
         } else {
             result.curve_to(c_approx.p1, c_approx.p2, c_approx.p3);
         }
@@ -405,6 +414,7 @@ impl CubicOffset2 {
             let pa = c_approx.eval(ta);
             let tana = qa.eval(ta).to_vec2();
             t += tana.dot(pa - p) / tana.dot(self.q.eval(t).to_vec2());
+            t = t.max(rec.t0).min(rec.t1);
             ts[i] = t;
             let cusp = rec.cusp0.signum();
             let unorm = cusp * tana.normalize().turn_90();
@@ -454,41 +464,117 @@ impl CubicOffset2 {
         (a - delta_a, b - delta_b)
     }
 
-    // Note: probably want to return unit tangent for robustness, rather
-    // than re-computing it from the cubic.
-    fn find_subdivision_point(&self, rec: &OffsetRec) -> f64 {
-        // outline of work:
-        // if segment contains inflection point, then t = 0.5 (can defer this, and might not be ideal)
-        // else, average
-        // alternative idea wrt inflection point: if solution count in t range is not 1, then
-        // fall back to t = 0.5
-        let mut t = 0.0;
-        let mut n_soln = 0;
+    /// Decide where to subdivide when error is exceeded.
+    ///
+    /// For curves not containing an inflection point, subdivide at the tangent
+    /// bisecting the endpoint tangents. The logic is that for a near cusp in the
+    /// source curve, you want the subdivided sections to be approximately
+    /// circular arcs with progressively smaller angles.
+    ///
+    /// When there is an inflection point (or, more specifically, when the curve
+    /// crosses it chord), bisecting the angle can lead to very lopsided arc
+    /// lengths, so just subdivide by t in that case.
+    fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
         // Note: do we want to track p0 & p3 in rec, to avoid repeated eval?
         let chord = self.c.eval(rec.t1) - self.c.eval(rec.t0);
-        if chord.cross(rec.utan0) * chord.cross(rec.utan1) < 0.0 {
+        if chord.cross(rec.utan0) * chord.cross(rec.utan1) <= 0.0 {
             let tan = rec.utan0 + rec.utan1;
-            // set up quadratic equation for matching tangents
-            let z0 = tan.cross(self.q.p0.to_vec2());
-            let z1 = tan.cross(self.q.p1.to_vec2());
-            let z2 = tan.cross(self.q.p2.to_vec2());
-            let c0 = z0;
-            let c1 = 2.0 * (z1 - z0);
-            let c2 = (z2 - z1) - (z1 - z0);
-            for root in solve_quadratic(c0, c1, c2) {
-                if root > rec.t0 && root < rec.t1 {
-                    t = root;
-                    n_soln += 1;
-                }
+            if let Some(subdivision) =
+                self.subdivide_for_tangent(rec.utan0, rec.t0, rec.t1, tan, false)
+            {
+                return subdivision;
             }
         }
-        if n_soln == 1 {
-            //web_sys::console::log_1(&format!("{}..{} -> {t}", rec.t0, rec.t1).into());
-            t
-        } else {
-            //web_sys::console::log_1(&format!("{}..{} -> midpoint", rec.t0, rec.t1).into());
-            0.5 * (rec.t0 + rec.t1)
+        // Curve definitely has an inflection point
+        // Try to subdivide based on integral of absolute curvature.
+
+        // Tangents at recursion endpoints and inflection points.
+        let mut tangents: ArrayVec<Vec2, 4> = ArrayVec::new();
+        let mut ts: ArrayVec<f64, 4> = ArrayVec::new();
+        tangents.push(rec.utan0);
+        ts.push(rec.t0);
+        for t in self.c.inflections() {
+            if t > rec.t0 && t < rec.t1 {
+                tangents.push(self.q.eval(t).to_vec2());
+                ts.push(t);
+            }
         }
+        tangents.push(rec.utan1);
+        ts.push(rec.t1);
+        let mut arc_angles: ArrayVec<f64, 3> = ArrayVec::new();
+        let mut sum = 0.0;
+        for i in 0..tangents.len() - 1 {
+            let tan0 = tangents[i];
+            let tan1 = tangents[i + 1];
+            let th = tan0.cross(tan1).atan2(tan0.dot(tan1));
+            sum += th.abs();
+            arc_angles.push(th);
+        }
+        let mut target = sum * 0.5;
+        let mut i = 0;
+        while arc_angles[i].abs() < target {
+            target -= arc_angles[i].abs();
+            i += 1;
+        }
+        let (sin, cos) = target.copysign(arc_angles[i]).sin_cos();
+        let base = tangents[i];
+        let tan = Vec2::new(base.x * cos - base.y * sin, base.y * cos + base.x * sin);
+        let t0 = ts[i];
+        let t1 = ts[i + 1];
+        let utan0 = if i == 0 { rec.utan0 } else { base.normalize() };
+        self.subdivide_for_tangent(utan0, t0, t1, tan, true)
+            .unwrap()
+    }
+
+    fn subdivide_for_tangent(
+        &self,
+        utan0: Vec2,
+        t0: f64,
+        t1: f64,
+        tan: Vec2,
+        force: bool,
+    ) -> Option<SubdivisionPoint> {
+        let mut t = 0.0;
+        let mut n_soln = 0;
+        // set up quadratic equation for matching tangents
+        let z0 = tan.cross(self.q.p0.to_vec2());
+        let z1 = tan.cross(self.q.p1.to_vec2());
+        let z2 = tan.cross(self.q.p2.to_vec2());
+        let c0 = z0;
+        let c1 = 2.0 * (z1 - z0);
+        let c2 = (z2 - z1) - (z1 - z0);
+        for root in solve_quadratic(c0, c1, c2) {
+            if root >= t0 && root <= t1 {
+                t = root;
+                n_soln += 1;
+            }
+        }
+        if n_soln != 1 {
+            if !force {
+                return None;
+            }
+            // Numerical failure, try to subdivide at cusp; we pick the
+            // smaller derivative.
+            if self.q.eval(t0).to_vec2().length_squared()
+                > self.q.eval(t1).to_vec2().length_squared()
+            {
+                t = t1;
+            } else {
+                t = t0;
+            }
+        }
+        let q = self.q.eval(t).to_vec2();
+        const UTAN_EPSILON: f64 = 1e-12;
+        let utan = if n_soln == 1 && q.length_squared() >= UTAN_EPSILON {
+            q.normalize()
+        } else if tan.length_squared() >= UTAN_EPSILON {
+            // Curve has a zero-derivative cusp but angles well defined
+            tan.normalize()
+        } else {
+            // 180 degree U-turn, arbitrarily pick a direction
+            utan0.turn_90()
+        };
+        Some(SubdivisionPoint { t, utan })
     }
 }
 
