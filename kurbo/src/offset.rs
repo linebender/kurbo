@@ -205,7 +205,7 @@ struct OffsetRec {
     depth: usize,
 }
 
-/// Result of error evalution
+/// Result of error evaluation
 struct ErrEval {
     /// Maximum detected error
     err_squared: f64,
@@ -516,13 +516,11 @@ impl CubicOffset2 {
             target -= arc_angles[i].abs();
             i += 1;
         }
-        let (sin, cos) = target.copysign(arc_angles[i]).sin_cos();
+        let rotation = Vec2::from_angle(target.copysign(arc_angles[i]));
         let base = tangents[i];
-        let tan = Vec2::new(base.x * cos - base.y * sin, base.y * cos + base.x * sin);
-        let t0 = ts[i];
-        let t1 = ts[i + 1];
+        let tan = base.rotate_scale(rotation);
         let utan0 = if i == 0 { rec.utan0 } else { base.normalize() };
-        self.subdivide_for_tangent(utan0, t0, t1, tan, true)
+        self.subdivide_for_tangent(utan0, ts[i], ts[i + 1], tan, true)
             .unwrap()
     }
 
