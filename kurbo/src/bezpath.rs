@@ -1608,6 +1608,29 @@ mod tests {
         assert!(path.contains(Point::new(1.0, 0.5)));
     }
 
+    #[test]
+    fn test_contains_in_rect() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((20.0, 0.0));
+        path.line_to((20.0, 20.0));
+        path.line_to((0.0, 20.0));
+        path.close_path();
+        assert!(path.contains(Point::new(0.0, 0.0)));
+        assert!(path.contains(Point::new(10.0, 0.0)));
+        assert!(path.contains(Point::new(20.0, 0.0)));
+        assert!(path.contains(Point::new(20.0, 10.0)));
+        assert!(path.contains(Point::new(20.0, 20.0)));
+        assert!(path.contains(Point::new(10.0, 20.0)));
+        assert!(path.contains(Point::new(0.0, 20.0)));
+        assert!(path.contains(Point::new(0.0, 10.0)));
+
+        assert!(!path.contains(Point::new(10.0, -0.01)));
+        assert!(!path.contains(Point::new(10.0, 20.01)));
+        assert!(!path.contains(Point::new(-0.01, 10.0)));
+        assert!(!path.contains(Point::new(20.01, 10.0)));
+    }
+
     // get_seg(i) should produce the same results as path_segments().nth(i - 1).
     #[test]
     fn test_get_seg() {
