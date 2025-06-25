@@ -158,6 +158,10 @@ impl Shape for Circle {
     fn as_circle(&self) -> Option<Circle> {
         Some(*self)
     }
+
+    fn point_on_shape(&self, pt: Point, tolerance: f64) -> bool {
+        (Point::distance(self.center, pt) - self.radius).abs() <= tolerance
+    }
 }
 
 impl Iterator for CirclePathIter {

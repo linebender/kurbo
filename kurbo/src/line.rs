@@ -13,6 +13,9 @@ use crate::{
     DEFAULT_ACCURACY, MAX_EXTREMA,
 };
 
+#[cfg(not(feature = "std"))]
+use crate::common::FloatFuncs;
+
 /// A single line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -319,6 +322,10 @@ impl Shape for Line {
     #[inline(always)]
     fn as_line(&self) -> Option<Line> {
         Some(*self)
+    }
+
+    fn point_on_shape(&self, pt: Point, tolerance: f64) -> bool {
+        self.nearest(pt, tolerance).distance_sq.sqrt() <= tolerance
     }
 }
 

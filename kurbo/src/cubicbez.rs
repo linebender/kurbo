@@ -506,6 +506,10 @@ impl Shape for CubicBez {
         0
     }
 
+    fn point_on_shape(&self, pt: Point, tolerance: f64) -> bool {
+        self.nearest(pt, tolerance).distance_sq.sqrt() <= tolerance
+    }
+
     #[inline]
     fn bounding_box(&self) -> Rect {
         ParamCurveExtrema::bounding_box(self)

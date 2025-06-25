@@ -907,4 +907,25 @@ mod tests {
         let inner = Rect::new(11.0, 11.0, 15.0, 15.0);
         assert!(!outer.contains_rect(inner));
     }
+
+    #[test]
+    fn test_point_on_shape() {
+        let rect = Rect::from_origin_size((0., 0.), (20., 20.));
+        let tol = 1e-5;
+        assert!(rect.point_on_shape(Point::new(0.0, 0.0), tol));
+        assert!(rect.point_on_shape(Point::new(10.0, 0.0), tol));
+        assert!(rect.point_on_shape(Point::new(20.0, 0.0), tol));
+        assert!(rect.point_on_shape(Point::new(20.0, 10.0), tol));
+        assert!(rect.point_on_shape(Point::new(20.0, 20.0), tol));
+        assert!(rect.point_on_shape(Point::new(10.0, 20.0), tol));
+        assert!(rect.point_on_shape(Point::new(0.0, 20.0), tol));
+        assert!(rect.point_on_shape(Point::new(0.0, 10.0), tol));
+
+        assert!(!rect.point_on_shape(Point::new(10.0, 10.0), tol));
+        assert!(rect.point_on_shape(Point::new(10.0, 10.0), 10.));
+        assert!(!rect.point_on_shape(Point::new(10.0, -0.01), tol));
+        assert!(!rect.point_on_shape(Point::new(10.0, 20.01), tol));
+        assert!(!rect.point_on_shape(Point::new(-0.01, 10.0), tol));
+        assert!(!rect.point_on_shape(Point::new(20.01, 10.0), tol));
+    }
 }
