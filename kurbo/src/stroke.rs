@@ -650,6 +650,18 @@ fn dash_impl<T: Iterator<Item = PathEl>>(
     dash_offset: f64,
     dashes: &[f64],
 ) -> DashIterator<'_, T> {
+    fn rem_euclid(lhs: f64, rhs: f64) -> f64 {
+        let r = lhs % rhs;
+        if r < 0.0 {
+            r + rhs.abs()
+        } else {
+            r
+        }
+    }
+    // ensure that offset is positive and minimal by normalization using period
+    let period = dashes.iter().sum();
+    let dash_offset = rem_euclid(dash_offset, period);
+
     let mut dash_ix = 0;
     let mut dash_remaining = dashes[dash_ix] - dash_offset;
     let mut is_active = true;
@@ -888,5 +900,14 @@ mod tests {
         ];
         let iter = segments(dash(shape.path_elements(0.), 3., &dashes));
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    #[test]
+    fn dash_negative_offset() {
+        let shape = Line::new((0.0, 0.0), (28.0, 0.0));
+        let dashes = [4., 2.];
+        let pos = segments(dash(shape.path_elements(0.), 60., &dashes)).collect::<Vec<PathSeg>>();
+        let neg = segments(dash(shape.path_elements(0.), -60., &dashes)).collect::<Vec<PathSeg>>();
+        assert_eq!(neg, pos);
     }
 }
