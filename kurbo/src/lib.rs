@@ -169,7 +169,7 @@ pub use crate::rounded_rect_radii::RoundedRectRadii;
 pub use crate::shape::Shape;
 pub use crate::size::Size;
 pub use crate::stroke::{
-    dash, stroke, Cap, DashIterator, Dashes, Join, Stroke, StrokeOptLevel, StrokeOpts,
+    dash, stroke, Cap, DashIterator, Dashes, Join, Stroke, StrokeOptLevel, StrokeOpts, StrokeCtx
 };
 pub use crate::svg::{SvgArc, SvgParseError};
 pub use crate::translate_scale::TranslateScale;

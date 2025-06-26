@@ -140,11 +140,11 @@ fn tricky_strokes() {
         let mut path = BezPath::new();
         path.move_to(cubic[0]);
         path.curve_to(cubic[1], cubic[2], cubic[3]);
-        let stroked = stroke(path, &style, &Default::default(), tolerance);
-        println!(
-            "  <path d='{}' stroke='#000' fill='#aec' stroke-width='1'/>",
-            (t * stroked).to_svg()
-        );
+        // let stroked = stroke(path, &style, &Default::default(), tolerance);
+        // println!(
+        //     "  <path d='{}' stroke='#000' fill='#aec' stroke-width='1'/>",
+        //     (t * stroked).to_svg()
+        // );
         idx += 1;
     }
 
@@ -167,11 +167,11 @@ fn tricky_strokes() {
         let style = Stroke::new(STROKE_WIDTH / s)
             .with_caps(Cap::Butt)
             .with_join(Join::Miter);
-        let stroked = stroke(path, &style, &Default::default(), tolerance);
-        println!(
-            "  <path d='{}' stroke='#000' fill='#aec' stroke-width='1'/>",
-            (t * stroked).to_svg()
-        );
+        // let stroked = stroke(path, &style, &Default::default(), tolerance);
+        // println!(
+        //     "  <path d='{}' stroke='#000' fill='#aec' stroke-width='1'/>",
+        //     (t * stroked).to_svg()
+        // );
         idx += 1;
     }
 }
