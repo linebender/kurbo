@@ -225,8 +225,8 @@ struct SubdivisionPoint {
 
 /// Compute an approximate offset curve.
 // TODO: make an interface that produces two curves (for performance and robustness).
-pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
-    let mut result = BezPath::new();
+pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
+    result.truncate(0);
     // A tuning parameter for regularization. A value too large may distort the curve,
     // while a value too small may fail to generate smooth curves. This is a somewhat
     // arbitrary value, and should be revisited.
@@ -241,8 +241,7 @@ pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
     let cusp1 = co.endpoint_cusp(co.q.p2, co.c0 + co.c1 + co.c2);
     result.move_to(c.p0 + d * utan0.turn_90());
     let rec = OffsetRec::new(0., 1., utan0, utan1, cusp0, cusp1, 0);
-    co.offset_rec(&rec, &mut result);
-    result
+    co.offset_rec(&rec, result);
 }
 
 impl CubicOffset2 {
@@ -401,6 +400,7 @@ impl CubicOffset2 {
     ///
     /// Returns evaluation of error including error vectors and (squared)
     /// maximum error.
+    #[inline(never)]
     fn eval_err(&self, rec: &OffsetRec, c_approx: CubicBez, ts: &mut [f64; N_LSE]) -> ErrEval {
         let qa = c_approx.deriv();
         let mut err_squared = 0.0;
@@ -437,6 +437,7 @@ impl CubicOffset2 {
         }
     }
 
+    #[inline(never)]
     fn refine_least_squares(&self, rec: &OffsetRec, a: f64, b: f64, err: &ErrEval) -> (f64, f64) {
         let mut aa = 0.0;
         let mut ab = 0.0;

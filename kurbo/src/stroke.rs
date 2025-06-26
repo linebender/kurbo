@@ -172,6 +172,7 @@ struct StrokeCtx {
     output: BezPath,
     forward_path: BezPath,
     backward_path: BezPath,
+    result_path: BezPath,
     start_pt: Point,
     start_norm: Vec2,
     start_tan: Vec2,
@@ -467,10 +468,10 @@ impl StrokeCtx {
             }
         }
 
-        let forward = crate::offset::offset_cubic(c, -0.5 * style.width, tolerance);
-        self.forward_path.extend(forward.into_iter().skip(1));
-        let backward = crate::offset::offset_cubic(c, 0.5 * style.width, tolerance);
-        self.backward_path.extend(backward.into_iter().skip(1));
+        crate::offset::offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
+        self.forward_path.extend(self.result_path.iter().skip(1));
+        crate::offset::offset_cubic(c, 0.5 * style.width, tolerance, &mut self.result_path);
+        self.backward_path.extend(self.result_path.iter().skip(1));
         self.last_pt = c.p3;
     }
 
