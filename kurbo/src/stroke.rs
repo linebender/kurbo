@@ -650,6 +650,8 @@ fn dash_impl<T: Iterator<Item = PathEl>>(
     dash_offset: f64,
     dashes: &[f64],
 ) -> DashIterator<'_, T> {
+    // This is needed because f64::rem_euclid is not yet available in core
+    // https://github.com/rust-lang/rust/issues/137578
     fn rem_euclid(lhs: f64, rhs: f64) -> f64 {
         let r = lhs % rhs;
         if r < 0.0 {
