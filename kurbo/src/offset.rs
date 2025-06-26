@@ -225,8 +225,8 @@ struct SubdivisionPoint {
 
 /// Compute an approximate offset curve.
 // TODO: make an interface that produces two curves (for performance and robustness).
-pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
-    let mut result = BezPath::new();
+pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
+    result.truncate(0);
     // A tuning parameter for regularization. A value too large may distort the curve,
     // while a value too small may fail to generate smooth curves. This is a somewhat
     // arbitrary value, and should be revisited.
@@ -241,8 +241,7 @@ pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64) -> BezPath {
     let cusp1 = co.endpoint_cusp(co.q.p2, co.c0 + co.c1 + co.c2);
     result.move_to(c.p0 + d * utan0.turn_90());
     let rec = OffsetRec::new(0., 1., utan0, utan1, cusp0, cusp1, 0);
-    co.offset_rec(&rec, &mut result);
-    result
+    co.offset_rec(&rec, result);
 }
 
 impl CubicOffset2 {
