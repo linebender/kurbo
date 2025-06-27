@@ -18,6 +18,9 @@ mod sealed {
 use arrayvec::ArrayVec;
 
 /// Defines a trait that chooses between libstd or libm implementations of float methods.
+///
+/// Some methods will eventually became available in core by
+/// [`core_float_math`](https://github.com/rust-lang/rust/issues/137578)
 macro_rules! define_float_funcs {
     ($(
         fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty
