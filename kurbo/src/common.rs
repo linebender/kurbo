@@ -31,8 +31,9 @@ macro_rules! define_float_funcs {
         /// For documentation see the respective functions in the std library.
         #[cfg(not(feature = "std"))]
         pub trait FloatFuncs : Sized + sealed::FloatFuncsSealed {
-            /// Special implementation for signum, because libm doesn't have it.
+            /// Special implementations, because libm doesn't have them.
             fn signum(self) -> Self;
+            fn rem_euclid(self, rhs: Self) -> Self;
 
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
         }
@@ -48,6 +49,16 @@ macro_rules! define_float_funcs {
                     f32::NAN
                 } else {
                     1.0_f32.copysign(self)
+                }
+            }
+
+            #[inline]
+            fn rem_euclid(self, rhs: Self) -> Self {
+                let r = self % rhs;
+                if r < 0.0 {
+                    r + rhs.abs()
+                } else {
+                    r
                 }
             }
 
@@ -70,6 +81,16 @@ macro_rules! define_float_funcs {
                     f64::NAN
                 } else {
                     1.0_f64.copysign(self)
+                }
+            }
+
+            #[inline]
+            fn rem_euclid(self, rhs: Self) -> Self {
+                let r = self % rhs;
+                if r < 0.0 {
+                    r + rhs.abs()
+                } else {
+                    r
                 }
             }
 
