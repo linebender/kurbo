@@ -31,8 +31,14 @@ macro_rules! define_float_funcs {
         /// For documentation see the respective functions in the std library.
         #[cfg(not(feature = "std"))]
         pub trait FloatFuncs : Sized + sealed::FloatFuncsSealed {
-            /// Special implementations, because libm doesn't have them.
+            /// For documentation see <https://doc.rust-lang.org/std/primitive.f64.html#method.signum>
+            ///
+            /// Special implementation, because libm doesn't have it.
             fn signum(self) -> Self;
+
+            /// For documentation see <https://doc.rust-lang.org/std/primitive.f64.html#method.rem_euclid>
+            ///
+            /// Special implementation, because libm doesn't have it.
             fn rem_euclid(self, rhs: Self) -> Self;
 
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
