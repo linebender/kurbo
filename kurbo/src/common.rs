@@ -18,6 +18,9 @@ mod sealed {
 use arrayvec::ArrayVec;
 
 /// Defines a trait that chooses between libstd or libm implementations of float methods.
+///
+/// Some methods will eventually became available in core by
+/// [`core_float_math`](https://github.com/rust-lang/rust/issues/137578)
 macro_rules! define_float_funcs {
     ($(
         fn $name:ident(self $(,$arg:ident: $arg_ty:ty)*) -> $ret:ty
@@ -31,8 +34,15 @@ macro_rules! define_float_funcs {
         /// For documentation see the respective functions in the std library.
         #[cfg(not(feature = "std"))]
         pub trait FloatFuncs : Sized + sealed::FloatFuncsSealed {
-            /// Special implementation for signum, because libm doesn't have it.
+            /// For documentation see <https://doc.rust-lang.org/std/primitive.f64.html#method.signum>
+            ///
+            /// Special implementation, because libm doesn't have it.
             fn signum(self) -> Self;
+
+            /// For documentation see <https://doc.rust-lang.org/std/primitive.f64.html#method.rem_euclid>
+            ///
+            /// Special implementation, because libm doesn't have it.
+            fn rem_euclid(self, rhs: Self) -> Self;
 
             $(fn $name(self $(,$arg: $arg_ty)*) -> $ret;)+
         }
@@ -48,6 +58,16 @@ macro_rules! define_float_funcs {
                     f32::NAN
                 } else {
                     1.0_f32.copysign(self)
+                }
+            }
+
+            #[inline]
+            fn rem_euclid(self, rhs: Self) -> Self {
+                let r = self % rhs;
+                if r < 0.0 {
+                    r + rhs.abs()
+                } else {
+                    r
                 }
             }
 
@@ -70,6 +90,16 @@ macro_rules! define_float_funcs {
                     f64::NAN
                 } else {
                     1.0_f64.copysign(self)
+                }
+            }
+
+            #[inline]
+            fn rem_euclid(self, rhs: Self) -> Self {
+                let r = self % rhs;
+                if r < 0.0 {
+                    r + rhs.abs()
+                } else {
+                    r
                 }
             }
 
