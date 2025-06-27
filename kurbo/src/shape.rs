@@ -152,6 +152,15 @@ pub trait Shape {
         self.winding(pt) != 0
     }
 
+    /// Returns `true` if the [`Point`] is on the edge/bound of the shape
+    /// within provided tolerance.
+    ///
+    /// In worst case we create path segments with provided tolerance
+    /// and check if point lies on any of the segments (within the same tolerance).
+    fn point_on_shape(&self, pt: Point, tolerance: f64) -> bool {
+        self.path_segments(tolerance).point_on_shape(pt, tolerance)
+    }
+
     /// The smallest rectangle that encloses the shape.
     fn bounding_box(&self) -> Rect;
 
@@ -240,5 +249,9 @@ impl<'a, T: Shape> Shape for &'a T {
 
     fn as_path_slice(&self) -> Option<&[PathEl]> {
         (*self).as_path_slice()
+    }
+
+    fn point_on_shape(&self, pt: Point, tolerance: f64) -> bool {
+        (*self).point_on_shape(pt, tolerance)
     }
 }

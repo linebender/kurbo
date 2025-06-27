@@ -820,6 +820,10 @@ impl<I: Iterator<Item = PathEl>> Segments<I> {
         self.map(|seg| seg.winding(p)).sum()
     }
 
+    pub(crate) fn point_on_shape(mut self, p: Point, tolerance: f64) -> bool {
+        self.any(|seg| seg.point_on_shape(p, tolerance))
+    }
+
     // Same
     pub(crate) fn bounding_box(self) -> Rect {
         let mut bbox: Option<Rect> = None;
@@ -1486,6 +1490,14 @@ impl Shape for PathSeg {
     #[inline]
     fn bounding_box(&self) -> Rect {
         ParamCurveExtrema::bounding_box(self)
+    }
+
+    fn point_on_shape(&self, pt: Point, tolerance: f64) -> bool {
+        match self {
+            PathSeg::Line(line) => line.point_on_shape(pt, tolerance),
+            PathSeg::Quad(quad_bez) => quad_bez.point_on_shape(pt, tolerance),
+            PathSeg::Cubic(cubic_bez) => cubic_bez.point_on_shape(pt, tolerance),
+        }
     }
 
     fn as_line(&self) -> Option<Line> {
