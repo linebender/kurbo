@@ -11,7 +11,7 @@ env:
   RUST_MIN_VER: "1.65"
   # List of packages that will be checked with the minimum supported Rust version.
   # This should be limited to packages that are intended for publishing.
-  RUST_MIN_VER_PKGS: "-p kurbo"
+  RUST_MIN_VER_PKGS: "-p kurbo -p kurbo_constraints"
   # List of features that depend on the standard library and will be excluded from no_std checks.
   FEATURES_DEPENDING_ON_STD: "std,default,schemars"
 
