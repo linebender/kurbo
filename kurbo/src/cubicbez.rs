@@ -384,12 +384,18 @@ impl CubicBez {
     /// If the cubic Bézier segment has zero or near-zero derivatives, perturb
     /// the control points to make it easier to process (especially offset and
     /// stroke), avoiding numerical robustness problems.
-    pub(crate) fn regularize(&self, dimension: f64) -> CubicBez {
+    ///
+    /// The `do_endpoints` parameter controls whether regularization applies to
+    /// endpoints or only internal cusps. The newer stroke logic should be able
+    /// to handle zero derivatives at endpoints. In fact, it is more robust when
+    /// the curve is not perturbed, as the curve matches the robustly computed
+    /// unit tangents.
+    pub(crate) fn regularize(&self, dimension: f64, do_endpoints: bool) -> CubicBez {
         let mut c = *self;
         // First step: if control point is too near the endpoint, nudge it away
         // along the tangent.
         let dim2 = dimension * dimension;
-        if c.p0.distance_squared(c.p1) < dim2 {
+        if do_endpoints && c.p0.distance_squared(c.p1) < dim2 {
             let d02 = c.p0.distance_squared(c.p2);
             if d02 >= dim2 {
                 // TODO: moderate if this would move closer to p3
@@ -400,7 +406,7 @@ impl CubicBez {
                 return c;
             }
         }
-        if c.p3.distance_squared(c.p2) < dim2 {
+        if do_endpoints && c.p3.distance_squared(c.p2) < dim2 {
             let d13 = c.p1.distance_squared(c.p2);
             if d13 >= dim2 {
                 // TODO: moderate if this would move closer to p0

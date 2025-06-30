@@ -82,7 +82,7 @@ impl CubicOffset {
     /// The dimension represents a minimum feature size; the regularization is allowed to
     /// perturb the curve by this amount in order to improve the robustness.
     pub fn new_regularized(c: CubicBez, d: f64, dimension: f64) -> Self {
-        Self::new(c.regularize(dimension), d)
+        Self::new(c.regularize(dimension, true), d)
     }
 
     fn eval_offset(&self, t: f64) -> Vec2 {
@@ -232,7 +232,7 @@ pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut Bez
     // arbitrary value, and should be revisited.
     const DIM_TUNE: f64 = 0.25;
     // TODO: improve robustness of core algorithm so we don't need regularization hack.
-    let c_regularized = c.regularize(tolerance * DIM_TUNE);
+    let c_regularized = c.regularize(tolerance * DIM_TUNE, false);
     let co = CubicOffset2::new(c_regularized, d, tolerance);
     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
     let utan0 = tan0.normalize();
