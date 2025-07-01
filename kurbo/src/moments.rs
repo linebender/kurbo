@@ -13,7 +13,7 @@ use crate::common::FloatFuncs;
 /// integrals of a function over a closed curve to the integrals of its
 /// partial derivatives over the region enclosed by the curve.
 #[derive(Debug, Default, Copy, Clone)]
-pub struct GreenMomentIntegrals {
+pub struct Moments {
     /// The first moment of area about the x-axis.
     pub moment_x: f64,
     /// The first moment of area about the y-axis.
@@ -30,7 +30,7 @@ pub struct GreenMomentIntegrals {
 }
 
 #[cfg(feature = "std")]
-impl std::ops::Add<Self> for GreenMomentIntegrals {
+impl std::ops::Add<Self> for Moments {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -44,9 +44,9 @@ impl std::ops::Add<Self> for GreenMomentIntegrals {
     }
 }
 
-impl GreenMomentIntegrals {
+impl Moments {
     // The code below is derived from fontTools's fontTools.pens.momentsPen, which is in turn generated
-    // by running sympy on the Green's theorem integral expressions.
+    // by running sympy on the 's theorem integral expressions.
     fn handle_line(&mut self, p0: Point, p1: Point) {
         let (x0, y0) = (p0.x, p0.y);
         let (x1, y1) = (p1.x, p1.y);
@@ -520,18 +520,18 @@ impl GreenMomentIntegrals {
     }
 }
 
-/// A trait for types that can provide moment integrals for a path using Green's theorem.
+/// A trait for types that can provide moment integrals for a path using 's theorem.
 pub trait ParamCurveMoments<'a> {
-    /// Returns the moment integrals for the path using Green's theorem.
-    fn moments(&'a self) -> GreenMomentIntegrals;
+    /// Returns the moment integrals for the path using 's theorem.
+    fn moments(&'a self) -> Moments;
 }
 
 impl<'a, T: 'a> ParamCurveMoments<'a> for T
 where
     &'a T: IntoIterator<Item = PathEl>,
 {
-    fn moments(&'a self) -> GreenMomentIntegrals {
-        let mut moments = GreenMomentIntegrals::default();
+    fn moments(&'a self) -> Moments {
+        let mut moments = Moments::default();
         let mut start_pt: Point = Point::ZERO;
         let mut cur: Point = Point::ZERO;
         for el in self {

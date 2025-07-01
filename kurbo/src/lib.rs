@@ -122,10 +122,10 @@ pub mod common;
 mod cubicbez;
 mod ellipse;
 mod fit;
-mod green;
 mod insets;
 mod line;
 mod mindist;
+mod moments;
 pub mod offset;
 mod param_curve;
 mod point;
@@ -155,9 +155,9 @@ pub use crate::ellipse::Ellipse;
 pub use crate::fit::{
     fit_to_bezpath, fit_to_bezpath_opt, fit_to_cubic, CurveFitSample, ParamCurveFit,
 };
-pub use crate::green::{GreenMomentIntegrals, ParamCurveMoments};
 pub use crate::insets::Insets;
 pub use crate::line::{ConstPoint, Line, LinePathIter};
+pub use crate::moments::{Moments, ParamCurveMoments};
 pub use crate::param_curve::{
     Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
     ParamCurveExtrema, ParamCurveNearest, DEFAULT_ACCURACY, MAX_EXTREMA,
