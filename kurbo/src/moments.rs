@@ -29,8 +29,7 @@ pub struct Moments {
     pub moment_yy: f64,
 }
 
-#[cfg(feature = "std")]
-impl std::ops::Add<Self> for Moments {
+impl core::ops::Add<Self> for Moments {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
