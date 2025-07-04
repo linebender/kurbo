@@ -732,6 +732,7 @@ impl Mul<CubicBez> for Affine {
 impl Iterator for ToQuads {
     type Item = (f64, f64, QuadBez);
 
+    #[inline]
     fn next(&mut self) -> Option<(f64, f64, QuadBez)> {
         if self.i == self.n {
             return None;
