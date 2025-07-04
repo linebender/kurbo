@@ -667,7 +667,7 @@ impl Mul<PathEl> for Affine {
 
 impl Mul<PathSeg> for Affine {
     type Output = PathSeg;
-    
+
     fn mul(self, other: PathSeg) -> PathSeg {
         match other {
             PathSeg::Line(line) => PathSeg::Line(self * line),
