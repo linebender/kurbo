@@ -651,6 +651,9 @@ pub fn flatten(
 impl Mul<PathEl> for Affine {
     type Output = PathEl;
 
+    // TODO: Inlining this leads to a huge performance benefit, perhaps the same should be done for
+    // other methods.
+    #[inline(always)]
     fn mul(self, other: PathEl) -> PathEl {
         match other {
             PathEl::MoveTo(p) => PathEl::MoveTo(self * p),
@@ -664,7 +667,7 @@ impl Mul<PathEl> for Affine {
 
 impl Mul<PathSeg> for Affine {
     type Output = PathSeg;
-
+    
     fn mul(self, other: PathSeg) -> PathSeg {
         match other {
             PathSeg::Line(line) => PathSeg::Line(self * line),
