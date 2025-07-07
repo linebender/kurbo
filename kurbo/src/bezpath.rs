@@ -395,8 +395,9 @@ impl BezPath {
 
     /// Returns current position in the path, if path is not empty.
     ///
-    /// Unlike the `end_point` method, this also handles [`PathEl::ClosePath`],
-    /// by finding the first point of subpath, hence the time complexity is O(n).
+    /// This is different from calling [`PathEl::end_point`] on the last entry of [`BezPath::elements`]:
+    /// this method handles [`PathEl::ClosePath`],
+    /// by finding the first point of our last subpath, hence the time complexity is O(n).
     pub fn current_position(&self) -> Option<Point> {
         match self.0.last()? {
             PathEl::MoveTo(p) => Some(*p),
