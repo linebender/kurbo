@@ -393,6 +393,27 @@ impl BezPath {
         cbox.unwrap_or_default()
     }
 
+    /// Returns current position in the path, if path is not empty.
+    ///
+    /// Unlike the `end_point` method, this also handles [`PathEl::ClosePath`],
+    /// by finding the first point of subpath, hence the time complexity is O(n).
+    pub fn current_position(&self) -> Option<Point> {
+        match self.0.last()? {
+            PathEl::MoveTo(p) => Some(*p),
+            PathEl::LineTo(p1) => Some(*p1),
+            PathEl::QuadTo(_, p2) => Some(*p2),
+            PathEl::CurveTo(_, _, p3) => Some(*p3),
+            PathEl::ClosePath => self
+                .elements()
+                .iter()
+                .rev()
+                .skip(1)
+                .take_while(|el| !matches!(el, PathEl::ClosePath))
+                .last()
+                .and_then(|el| el.end_point()),
+        }
+    }
+
     /// Returns a new path with the winding direction of all subpaths reversed.
     pub fn reverse_subpaths(&self) -> BezPath {
         let elements = self.elements();
@@ -2062,5 +2083,28 @@ mod tests {
             .iter()
             .skip(1)
             .all(|el| !matches!(el, PathEl::MoveTo(_))));
+    }
+
+    fn test_current_position() {
+        let mut path = BezPath::new();
+        assert_eq!(path.current_position(), None);
+        path.move_to((0., 0.));
+        assert_eq!(path.current_position(), Some(Point::new(0., 0.)));
+        path.line_to((10., 10.));
+        assert_eq!(path.current_position(), Some(Point::new(10., 10.)));
+        path.line_to((10., 0.));
+        assert_eq!(path.current_position(), Some(Point::new(10., 0.)));
+        path.close_path();
+        assert_eq!(path.current_position(), Some(Point::new(0., 0.)));
+
+        path.close_path();
+        assert_eq!(path.current_position(), None);
+
+        path.move_to((0., 10.));
+        assert_eq!(path.current_position(), Some(Point::new(0., 10.)));
+        path.close_path();
+        assert_eq!(path.current_position(), Some(Point::new(0., 10.)));
+        path.close_path();
+        assert_eq!(path.current_position(), None);
     }
 }
