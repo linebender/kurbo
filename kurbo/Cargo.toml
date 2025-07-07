@@ -24,6 +24,7 @@ default = ["std"]
 std = []
 libm = ["dep:libm"]
 mint = ["dep:mint"]
+objc2-core-graphics = ["dep:objc2-core-foundation", "dep:objc2-core-graphics"]
 serde = ["smallvec/serde", "dep:serde"]
 schemars = ["schemars/smallvec", "dep:schemars"]
 
@@ -41,6 +42,18 @@ optional = true
 [dependencies.mint]
 version = "0.5.9"
 optional = true
+
+[dependencies.objc2-core-foundation]
+version = "0.3.1"
+optional = true
+default-features = false
+features = ["CFCGTypes"]
+
+[dependencies.objc2-core-graphics]
+version = "0.3.1"
+optional = true
+default-features = false
+features = ["CGPath"]
 
 [dependencies.schemars]
 version = "0.8.22"
