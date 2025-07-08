@@ -102,7 +102,9 @@
     clippy::match_same_arms,
     clippy::partial_pub_fields,
     clippy::unseparated_literal_suffix,
-    clippy::duplicated_attributes
+    clippy::duplicated_attributes,
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason
 )]
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
