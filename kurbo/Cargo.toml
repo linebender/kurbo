@@ -21,14 +21,16 @@ workspace = true
 
 [features]
 default = ["std"]
-std = []
-libm = ["dep:libm"]
+std = ["euclid?/std"]
+libm = ["dep:libm", "euclid?/libm"]
 mint = ["dep:mint"]
 serde = ["smallvec/serde", "dep:serde"]
 schemars = ["schemars/smallvec", "dep:schemars"]
+euclid = ["dep:euclid"]
 
 [dependencies]
 smallvec = "1.15.0"
+euclid = { version = "0.22", optional = true, default-features = false }
 
 [dependencies.arrayvec]
 version = "0.7.6"
