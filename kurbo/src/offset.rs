@@ -276,7 +276,10 @@ impl CubicOffset2 {
     /// for the end point; it's just evaluating the polynomial at t=0 and
     /// t=1.
     fn endpoint_cusp(&self, tan: Point, y: f64) -> f64 {
-        let rsqrt = 1.0 / tan.to_vec2().hypot();
+        // Robustness to avoid divide-by-zero when derivatives vanish
+        const TAN_DIST_EPSILON: f64 = 1e-12;
+        let tan_dist = tan.to_vec2().hypot().max(TAN_DIST_EPSILON);
+        let rsqrt = 1.0 / tan_dist;
         y * (rsqrt * rsqrt * rsqrt) + 1.0
     }
 
@@ -474,9 +477,19 @@ impl CubicOffset2 {
     /// crosses it chord), bisecting the angle can lead to very lopsided arc
     /// lengths, so just subdivide by t in that case.
     fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
+        let t = 0.5 * (rec.t0 + rec.t1);
+        let q_t = self.q.eval(t).to_vec2();
+        let x0 = rec.utan0.cross(q_t).abs();
+        let x1 = rec.utan1.cross(q_t).abs();
+        const SUBDIVIDE_THRESH: f64 = 0.1;
+        if x0 > SUBDIVIDE_THRESH * x1 && x1 > SUBDIVIDE_THRESH * x0 {
+            let utan = q_t.normalize();
+            return SubdivisionPoint { t, utan };
+        }
+
         // Note: do we want to track p0 & p3 in rec, to avoid repeated eval?
         let chord = self.c.eval(rec.t1) - self.c.eval(rec.t0);
-        if chord.cross(rec.utan0) * chord.cross(rec.utan1) <= 0.0 {
+        if chord.cross(rec.utan0) * chord.cross(rec.utan1) < 0.0 {
             let tan = rec.utan0 + rec.utan1;
             if let Some(subdivision) =
                 self.subdivide_for_tangent(rec.utan0, rec.t0, rec.t1, tan, false)

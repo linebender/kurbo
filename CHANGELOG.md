@@ -13,7 +13,8 @@ You can find its changes [documented below](#0112-2025-04-28).
 
 ## [Unreleased]
 
-This release has an [MSRV][] of 1.65.
+This release has an [MSRV][] of 1.82.
+It was increased to support floating point math in const functions.
 
 ### Fixed
 

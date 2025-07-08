@@ -68,7 +68,7 @@ fn intersect_quads(q0: QuadBez, q1: QuadBez) -> ArrayVec<f64, 4> {
     let c3 = iq.x2 * 2. * a.x * b.x + iq.xy * (a.x * b.y + b.x * a.y) + iq.y2 * 2. * a.y * b.y;
     let c4 = iq.x2 * a.x * a.x + iq.xy * a.x * a.y + iq.y2 * a.y * a.y;
     let ts = solve_quartic(c0, c1, c2, c3, c4);
-    println!("ts: {:?}", ts);
+    println!("ts: {ts:?}");
     ts
 }
 
