@@ -39,6 +39,11 @@ use crate::{
 /// See the [module-level documentation] for a bit more discussion of the approach,
 /// and how this struct is to be used.
 ///
+/// This struct was formerly used by the stroke expansion logic, but has since been
+/// replaced with a higher performance implementation not based on generic curve
+/// fitting. It should probably be considered deprecated, and may be removed in a
+/// future version.
+///
 /// [module-level documentation]: crate::offset
 pub struct CubicOffset {
     /// Source curve.
@@ -164,17 +169,21 @@ impl ParamCurveFit for CubicOffset {
     }
 }
 
-// TODO: probably rename this to CubicOffset, as the old one is deprecated
+/// State used for computing an offset curve of a single cubic.
 struct CubicOffset2 {
+    /// The cubic being offset. This has been regularized.
     c: CubicBez,
+    /// The derivative of `c`.
     q: QuadBez,
+    /// The offset distance (same as the argument).
     d: f64,
-    // c0 + c1 t + c2 t^2 is the cross product of second and first
-    // derivatives of the underlying cubic, multiplied by offset (for
-    // computing cusp).
+    /// c0 + c1 t + c2 t^2 is the cross product of second and first
+    /// derivatives of the underlying cubic, multiplied by offset (for
+    /// computing cusp).
     c0: f64,
     c1: f64,
     c2: f64,
+    /// The tolerance (same as the argument).
     tolerance: f64,
 }
 
@@ -182,7 +191,13 @@ struct CubicOffset2 {
 // this. When a cusp is found, determine its sign and use this value.
 const CUSP_EPSILON: f64 = 1e-12;
 
-/// Number of points for least-squares fit.
+/// Number of points for least-squares fit and error evaluation.
+///
+/// This value is a tradeoff between accuracy and performance. The main risk in it
+/// being to small is under-sampling the error and thus letting excessive error
+/// slip through. That said, the "arc drawing" approach is designed to be robust
+/// and not generate approximate results with narrow error peaks, even in near-cusp
+/// "J" shape curves.
 const N_LSE: usize = 8;
 
 /// The proportion of transverse error that is blended in the least-squares logic.
@@ -190,9 +205,18 @@ const BLEND: f64 = 1e-3;
 
 /// Maximum recursion depth.
 ///
+/// Recursion is bounded to this depth, so the total number of subdivisions will
+/// not exceed two to this power.
+///
+/// This is primarily a "belt and suspenders" robustness guard. In normal operation,
+/// the recursion bound should never be reached, as accuracy improves very quickly
+/// on subdivision. For unreasonably large coordinate values or small tolerances, it
+/// is possible, and in those cases the result will be out of tolerance.
+///
 /// Perhaps should be configurable.
 const MAX_DEPTH: usize = 8;
 
+/// State local to a subdivision
 struct OffsetRec {
     t0: f64,
     t1: f64,
@@ -202,6 +226,7 @@ struct OffsetRec {
     utan1: Vec2,
     cusp0: f64,
     cusp1: f64,
+    /// Recursion depth
     depth: usize,
 }
 
@@ -224,14 +249,26 @@ struct SubdivisionPoint {
 }
 
 /// Compute an approximate offset curve.
-// TODO: make an interface that produces two curves (for performance and robustness).
+///
+/// The parallel curve of `c` offset by `d` is written to the `result` path.
+///
+/// There is a fair amount of attention to robustness, but this method is not suitable
+/// for degenerate cubics with entirely co-linear control points. Rather, those cases
+/// are handled in the stroking logic, replacing them with linear segments and round
+/// joins as needed.
 pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     result.truncate(0);
     // A tuning parameter for regularization. A value too large may distort the curve,
     // while a value too small may fail to generate smooth curves. This is a somewhat
     // arbitrary value, and should be revisited.
     const DIM_TUNE: f64 = 0.25;
-    // TODO: improve robustness of core algorithm so we don't need regularization hack.
+    // We use regularization to perturb the curve to avoid *interior* zero-derivative
+    // cusps. There is robustness logic in place to handle zero derivatives at the
+    // endpoints.
+    //
+    // As a performance note, it might be a good idea to move regularization and
+    // tangent determination to the caller, as those computations are the same for both
+    // signs of `d`.
     let c_regularized = c.regularize(tolerance * DIM_TUNE, false);
     let co = CubicOffset2::new(c_regularized, d, tolerance);
     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
@@ -263,8 +300,14 @@ impl CubicOffset2 {
         }
     }
 
-    // Compute a function which has a zero-crossing at cusps, and is
-    // positive at low curvatures on the source curve.
+    /// Compute curvature times offset plus 1.
+    ///
+    /// This quantity is called "cusp" because cusps appear in the offset curve
+    /// where this value crosses zero.
+    ///
+    /// Note: there is a potential division by zero when the derivative vanishes.
+    /// We avoid doing so for interior points by regularizing the cubic beforehand.
+    /// We avoid doing so for endpoints by calling `endpoint_cusp` instead.
     fn cusp_sign(&self, t: f64) -> f64 {
         let ds2 = self.q.eval(t).to_vec2().hypot2();
         ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt()) + 1.0
@@ -283,7 +326,23 @@ impl CubicOffset2 {
         y * (rsqrt * rsqrt * rsqrt) + 1.0
     }
 
+    /// Primary entry point for recursive subdivision.
+    ///
+    /// At a high level, this method determines whether subdivision is necessary. If
+    /// so, it determines a subdivision point and then recursively calls itself on
+    /// both subdivisions. If not, it computes a single cubic Bézier to approximate
+    /// the offset curve, and appends it to `result`.
     fn offset_rec(&self, rec: &OffsetRec, result: &mut BezPath) {
+        // First, determine whether the offset curve contains a cusp. If the sign
+        // of the cusp value (curvature times offset plus 1) is different at the
+        // subdivision endpoints, then there is definitely a cusp inside. Find it and
+        // subdivide there.
+        //
+        // Note that there's a possibility the curve has two (or, potentially, any
+        // even number). We don't rigorously check for this case; if the measured
+        // error comes in under the tolerance, we simply accept it. Otherwise, in
+        // the common case we expect to detect a sign crossing from the new
+        // subdivision point.
         if rec.cusp0 * rec.cusp1 < 0.0 {
             let a = rec.t0;
             let b = rec.t1;
@@ -304,6 +363,7 @@ impl CubicOffset2 {
             self.subdivide(rec, result, t, utan_t, cusp_t_minus, cusp_t_plus);
             return;
         }
+        // We determine the first approximation to the offset curve.
         let (mut a, mut b) = self.draw_arc(rec);
         let dt = (rec.t1 - rec.t0) * (1.0 / (N_LSE + 1) as f64);
         // These represent t values on the source curve.
@@ -339,6 +399,16 @@ impl CubicOffset2 {
         }
     }
 
+    /// Recursively subdivide.
+    ///
+    /// In the case of subdividing at a cusp, the cusp value at the subdivision point
+    /// is mathematically zero, but in those cases we treat it as a signed infinitesimal
+    /// value representing the values at t minus epsilon and t plus epsilon.
+    ///
+    /// Note that unit tangents are passed down explicitly. In the general case, they
+    /// are equal to the derivative (evaluated at that t value) normalized to unit
+    /// length, but in cases where the derivative is near-zero, they are computed more
+    /// robustly.
     fn subdivide(
         &self,
         rec: &OffsetRec,
@@ -370,6 +440,12 @@ impl CubicOffset2 {
         self.offset_rec(&rec1, result);
     }
 
+    /// Convert from (a, b) parameter space to the approximate cubic Bézier.
+    ///
+    /// When the candidate solution would lead to negative distance from the
+    /// endpoint to the control point, that distance is clamped to zero. Otherwise
+    /// such solutions should be considered invalid, and have the unpleasant
+    /// property of sometimes passing error tolerance checks.
     fn apply(&self, rec: &OffsetRec, a: f64, b: f64) -> CubicBez {
         // wondering if p0 and p3 should be in rec
         // Scale factor from derivatives to displacements
@@ -389,7 +465,19 @@ impl CubicOffset2 {
         CubicBez::new(p0, p1, p2, p3)
     }
 
-    // Compute arc approximation
+    /// Compute arc approximation.
+    ///
+    /// This is called "arc drawing" because if we just look at the delta
+    /// vector, it describes an arc from the initial unit normal to the final unit
+    /// normal, with "as smooth as possible" parametrization. This approximation
+    /// is not necessarily great, but is very robust, and in particular, accuracy
+    /// does not degrade for J shaped near-cusp source curves or when the offset
+    /// distance is large (with respect to the source curve arc length).
+    ///
+    /// It is a pretty good approximation overall and has very clean O(n^4) scaling.
+    /// Its worst performance is on curves with a large cubic component, where it
+    /// undershoots. The theory is that the least squares refinement improves those
+    /// cases.
     fn draw_arc(&self, rec: &OffsetRec) -> (f64, f64) {
         // possible optimization: this can probably be done with vectors
         // rather than arctangent
@@ -399,10 +487,14 @@ impl CubicOffset2 {
         (a, b)
     }
 
-    /// Evaluate error and also refine t values
+    /// Evaluate error and also refine t values.
     ///
     /// Returns evaluation of error including error vectors and (squared)
     /// maximum error.
+    ///
+    /// The vector of t values represents points on the source curve; the logic
+    /// here is a Newton step to bring those points closer to the normal ray of
+    /// the approximation.
     fn eval_err(&self, rec: &OffsetRec, c_approx: CubicBez, ts: &mut [f64; N_LSE]) -> ErrEval {
         let qa = c_approx.deriv();
         let mut err_squared = 0.0;
@@ -439,6 +531,27 @@ impl CubicOffset2 {
         }
     }
 
+    /// Refine an approximation, minimizing least squares error.
+    ///
+    /// Compute the approximation that minimizes least squares error, based on the given error
+    /// evaluation.
+    ///
+    /// The effectiveness of this refinement varies. Basically, if the curve has a large cubic
+    /// component, then the arc drawing will undershoot systematically and this refinement will
+    /// reduce error considerably. In other cases, it will eventually converge to a local
+    /// minimum, but convergence is slow.
+    ///
+    /// The `BLEND` parameter controls a tradeoff between robustness and speed of convergence.
+    /// In the happy case, convergence is fast and not very sensitive to this parameter. If the
+    /// parameter is too small, then in near-parabola cases the determinant will be small and
+    /// the result not numerically stable.
+    ///
+    /// A value of 1.0 for `BLEND` corresponds to essentially the Hoschek method, minimizing
+    /// Euclidean distance (which tends to over-anchor on the given t values). A value of 0 would
+    /// minimize the dot product of error wrt the normal vector, ignoring the cross product
+    /// component.
+    ///
+    /// A possible future direction would be to tune the parameter adaptively.
     fn refine_least_squares(&self, rec: &OffsetRec, a: f64, b: f64, err: &ErrEval) -> (f64, f64) {
         let mut aa = 0.0;
         let mut ab = 0.0;
@@ -536,6 +649,14 @@ impl CubicOffset2 {
             .unwrap()
     }
 
+    /// Find a subdivision point, given a tangent vector.
+    ///
+    /// When subdividing by bisecting the angle (or, more generally, subdividing by
+    /// the L1 norm of curvature when there are inflection points), we find the
+    /// subdivision point by solving for the tangent matching, specifically the
+    /// cross-product of the tangent and the curve's derivative being zero. For
+    /// internal cusps, subdividing near the cusp is a good thing, but there is
+    /// still a robustness concern for vanishing derivative at the endpoints.
     fn subdivide_for_tangent(
         &self,
         utan0: Vec2,
@@ -581,7 +702,8 @@ impl CubicOffset2 {
             // Curve has a zero-derivative cusp but angles well defined
             tan.normalize()
         } else {
-            // 180 degree U-turn, arbitrarily pick a direction
+            // 180 degree U-turn, arbitrarily pick a direction.
+            // If we get to this point, there will probably be a failure.
             utan0.turn_90()
         };
         Some(SubdivisionPoint { t, utan })
@@ -611,6 +733,7 @@ impl OffsetRec {
     }
 }
 
+/// Compute Bézier weights for evenly subdivided t values.
 const fn mk_a_weights(rev: bool) -> [f64; N_LSE] {
     let mut result = [0.0; N_LSE];
     let mut i = 0;
