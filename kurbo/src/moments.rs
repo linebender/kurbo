@@ -45,7 +45,7 @@ impl core::ops::Add<Self> for Moments {
 
 impl Moments {
     // The code below is derived from fontTools's fontTools.pens.momentsPen, which is in turn generated
-    // by running sympy on the 's theorem integral expressions.
+    // by running sympy on the Green's theorem integral expressions.
     fn handle_line(&mut self, p0: Point, p1: Point) {
         let (x0, y0) = (p0.x, p0.y);
         let (x1, y1) = (p1.x, p1.y);
@@ -519,9 +519,9 @@ impl Moments {
     }
 }
 
-/// A trait for types that can provide moment integrals for a path using 's theorem.
+/// A trait for types that can provide moment integrals for a path using Green's theorem.
 pub trait ParamCurveMoments<'a> {
-    /// Returns the moment integrals for the path using 's theorem.
+    /// Returns the moment integrals for the path using Green's theorem.
     fn moments(&'a self) -> Moments;
 }
 
