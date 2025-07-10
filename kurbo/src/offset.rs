@@ -41,11 +41,14 @@ use crate::{
 ///
 /// This struct was formerly used by the stroke expansion logic, but has since been
 /// replaced with a higher performance implementation not based on generic curve
-/// fitting. It should probably be considered deprecated, and may be removed in a
-/// future version.
+/// fitting. It should be considered deprecated, and may be removed in a future
+/// version.
 ///
 /// [module-level documentation]: crate::offset
-#[deprecated(since = "0.11.2", note = "stroke expansion internals are no longer public")]
+#[deprecated(
+    since = "0.11.2",
+    note = "stroke expansion internals are no longer public"
+)]
 pub struct CubicOffset {
     /// Source curve.
     c: CubicBez,
@@ -61,6 +64,7 @@ pub struct CubicOffset {
     c2: f64,
 }
 
+#[expect(deprecated, reason = "implementation still expected to work")]
 impl CubicOffset {
     /// Create a new curve from Bézier segment and offset.
     ///
@@ -88,7 +92,10 @@ impl CubicOffset {
     /// The dimension represents a minimum feature size; the regularization is allowed to
     /// perturb the curve by this amount in order to improve the robustness.
     pub fn new_regularized(c: CubicBez, d: f64, dimension: f64) -> Self {
-        Self::new(c.regularize(dimension, true), d)
+        Self::new(
+            c.regularize_endpoints(dimension).regularize_cusp(dimension),
+            d,
+        )
     }
 
     fn eval_offset(&self, t: f64) -> Vec2 {
@@ -116,6 +123,7 @@ impl CubicOffset {
     }
 }
 
+#[expect(deprecated, reason = "implementation still expected to work")]
 impl ParamCurveFit for CubicOffset {
     fn sample_pt_tangent(&self, t: f64, sign: f64) -> CurveFitSample {
         let p = self.eval(t);
@@ -273,7 +281,7 @@ pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut Bez
     // As a performance note, it might be a good idea to move regularization and
     // tangent determination to the caller, as those computations are the same for both
     // signs of `d`.
-    let c_regularized = c.regularize(tolerance * DIM_TUNE, false);
+    let c_regularized = c.regularize_cusp(tolerance * DIM_TUNE);
     let co = CubicOffset2::new(c_regularized, d, tolerance);
     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
     let utan0 = tan0.normalize();
@@ -326,6 +334,8 @@ impl CubicOffset2 {
     /// the end point tangent and `y` should be `c0 + c1 + c2`.
     ///
     /// This is just evaluating the polynomial at t=0 and t=1.
+    ///
+    /// See [`Self::cusp_sign`] for a description of what "cusp value" means.
     fn endpoint_cusp(&self, tan: Point, y: f64) -> f64 {
         // Robustness to avoid divide-by-zero when derivatives vanish
         const TAN_DIST_EPSILON: f64 = 1e-12;
@@ -449,6 +459,18 @@ impl CubicOffset2 {
     }
 
     /// Convert from (a, b) parameter space to the approximate cubic Bézier.
+    ///
+    /// The offset approximation can be considered `B(t) + d * D(t)`, where `D(t)`
+    /// is roughly a unit vector in the direction of the unit normal of the source
+    /// curve. (The word "roughly" is appropriate because transverse error may
+    /// cancel out normal error, resulting in a lower error than either alone).
+    /// The endpoints of `D(t)` must be the unit normals of the source curve, and
+    /// the endpoint tangents of `D(t)` must tangent to the endpoint tangents of
+    /// the source curve, to ensure G1 continuity.
+    ///
+    /// The (a, b) parameters refer to the magnitude of the vector from the endpoint
+    /// to the corresponding control point in `D(t)`, the direction being determined
+    /// by the unit tangent.
     ///
     /// When the candidate solution would lead to negative distance from the
     /// endpoint to the control point, that distance is clamped to zero. Otherwise
@@ -758,6 +780,7 @@ const fn mk_a_weights(rev: bool) -> [f64; N_LSE] {
 const A_WEIGHTS: [f64; N_LSE] = mk_a_weights(false);
 const B_WEIGHTS: [f64; N_LSE] = mk_a_weights(true);
 
+#[expect(deprecated, reason = "tests still valid on deprecated code path")]
 #[cfg(test)]
 mod tests {
     use super::CubicOffset;
