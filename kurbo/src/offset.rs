@@ -45,6 +45,7 @@ use crate::{
 /// future version.
 ///
 /// [module-level documentation]: crate::offset
+#[deprecated(since = "0.11.2", note = "stroke expansion internals are no longer public")]
 pub struct CubicOffset {
     /// Source curve.
     c: CubicBez,
@@ -177,9 +178,12 @@ struct CubicOffset2 {
     q: QuadBez,
     /// The offset distance (same as the argument).
     d: f64,
-    /// c0 + c1 t + c2 t^2 is the cross product of second and first
-    /// derivatives of the underlying cubic, multiplied by offset (for
-    /// computing cusp).
+    /// `c0 + c1 t + c2 t^2` is the cross product of second and first
+    /// derivatives of the underlying cubic, multiplied by the offset.
+    /// This is used for computing cusps on the offset curve.
+    ///
+    /// Note that given a curve `c(t)`, its signed curvature is
+    /// `c''(t) x c'(t) / ||c'(t)||^3`. See also [`Self::cusp_sign`].
     c0: f64,
     c1: f64,
     c2: f64,
@@ -187,7 +191,7 @@ struct CubicOffset2 {
     tolerance: f64,
 }
 
-// We never let cusp values haven an absolute value smaller than
+// We never let cusp values have an absolute value smaller than
 // this. When a cusp is found, determine its sign and use this value.
 const CUSP_EPSILON: f64 = 1e-12;
 
@@ -300,10 +304,12 @@ impl CubicOffset2 {
         }
     }
 
-    /// Compute curvature times offset plus 1.
+    /// Compute curvature of the source curve times offset plus 1.
     ///
     /// This quantity is called "cusp" because cusps appear in the offset curve
-    /// where this value crosses zero.
+    /// where this value crosses zero. This is based on the geometric property
+    /// that the offset curve has a cusp when the radius of curvature of the
+    /// source curve is equal to the offset curve's distance.
     ///
     /// Note: there is a potential division by zero when the derivative vanishes.
     /// We avoid doing so for interior points by regularizing the cubic beforehand.
@@ -315,9 +321,11 @@ impl CubicOffset2 {
 
     /// Compute cusp value of endpoint.
     ///
-    /// The y parameter should be c0 for the start point, and c0 + c1 + c2
-    /// for the end point; it's just evaluating the polynomial at t=0 and
-    /// t=1.
+    /// This is a special case of [`Self::cusp_sign`]. For the start point, `tan` should be
+    /// the start point tangent and `y` should be `c0`. For the end point, `tan` should be
+    /// the end point tangent and `y` should be `c0 + c1 + c2`.
+    ///
+    /// This is just evaluating the polynomial at t=0 and t=1.
     fn endpoint_cusp(&self, tan: Point, y: f64) -> f64 {
         // Robustness to avoid divide-by-zero when derivatives vanish
         const TAN_DIST_EPSILON: f64 = 1e-12;
@@ -567,10 +575,10 @@ impl CubicOffset2 {
             let a_t = A_WEIGHTS[i] * rec.utan0.cross(n);
             let b_n = B_WEIGHTS[i] * rec.utan1.dot(n);
             let b_t = B_WEIGHTS[i] * rec.utan1.cross(n);
-            aa += a_n * a_n + BLEND * a_t * a_t;
+            aa += a_n * a_n + BLEND * (a_t * a_t);
             ab += a_n * b_n + BLEND * a_t * b_t;
             ac += a_n * c_n + BLEND * a_t * c_t;
-            bb += b_n * b_n + BLEND * b_t * b_t;
+            bb += b_n * b_n + BLEND * (b_t * b_t);
             bc += b_n * c_n + BLEND * b_t * c_t;
         }
         let idet = 1.0 / (self.d * (aa * bb - ab * ab));
@@ -587,7 +595,7 @@ impl CubicOffset2 {
     /// circular arcs with progressively smaller angles.
     ///
     /// When there is an inflection point (or, more specifically, when the curve
-    /// crosses it chord), bisecting the angle can lead to very lopsided arc
+    /// crosses its chord), bisecting the angle can lead to very lopsided arc
     /// lengths, so just subdivide by t in that case.
     fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
         let t = 0.5 * (rec.t0 + rec.t1);
