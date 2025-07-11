@@ -3,10 +3,7 @@
 
 //! A test program to plot the error of arclength approximation.
 
-// Lots of stuff is commented out or was just something to try.
-#![allow(unused)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::many_single_char_names)]
+#![allow(unused, reason = "a bunch of experiments in the code")]
 
 // TODO: make more functionality accessible from command line rather than uncommenting.
 
