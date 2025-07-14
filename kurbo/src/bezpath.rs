@@ -854,6 +854,22 @@ impl ParamCurve for PathSeg {
             PathSeg::Cubic(cubic) => PathSeg::Cubic(cubic.subsegment(range)),
         }
     }
+
+    fn start(&self) -> Point {
+        match *self {
+            PathSeg::Line(line) => line.start(),
+            PathSeg::Quad(quad) => quad.start(),
+            PathSeg::Cubic(cubic) => cubic.start(),
+        }
+    }
+
+    fn end(&self) -> Point {
+        match *self {
+            PathSeg::Line(line) => line.end(),
+            PathSeg::Quad(quad) => quad.end(),
+            PathSeg::Cubic(cubic) => cubic.end(),
+        }
+    }
 }
 
 impl ParamCurveArclen for PathSeg {
@@ -2021,5 +2037,30 @@ mod tests {
 
     fn reverse_test_helper(contour: Vec<PathEl>, expected: Vec<PathEl>) {
         assert_eq!(BezPath(contour).reverse_subpaths().0, expected);
+    }
+
+    #[test]
+    fn test_rect_segments() {
+        // Ensure that `from_path_segments` does not insert spurious MoveTos in
+        // the middle of a path.
+        let x0 = 25.189500810000002;
+        let x1 = 568.18950081;
+        let y0 = -105.0;
+        let y1 = 176.0;
+        let r = Rect::from_points((x0, y0), (x1, y1));
+
+        let path0 = r.into_path(0.0);
+        assert!(path0
+            .elements()
+            .iter()
+            .skip(1)
+            .all(|el| !matches!(el, PathEl::MoveTo(_))));
+
+        let path1 = BezPath::from_path_segments(path0.segments());
+        assert!(path1
+            .elements()
+            .iter()
+            .skip(1)
+            .all(|el| !matches!(el, PathEl::MoveTo(_))));
     }
 }
