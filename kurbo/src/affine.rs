@@ -69,8 +69,8 @@ impl Affine {
     ///
     /// See [`Affine::scale()`] for more info.
     #[inline]
-    pub fn scale_about(s: f64, center: Point) -> Affine {
-        let center = center.to_vec2();
+    pub fn scale_about(s: f64, center: impl Into<Point>) -> Affine {
+        let center = center.into().to_vec2();
         Self::translate(-center)
             .then_scale(s)
             .then_translate(center)
@@ -94,8 +94,8 @@ impl Affine {
     ///
     /// See [`Affine::rotate()`] for more info.
     #[inline]
-    pub fn rotate_about(th: f64, center: Point) -> Affine {
-        let center = center.to_vec2();
+    pub fn rotate_about(th: f64, center: impl Into<Point>) -> Affine {
+        let center = center.into().to_vec2();
         Self::translate(-center)
             .then_rotate(th)
             .then_translate(center)
@@ -188,7 +188,7 @@ impl Affine {
     /// [rotation]: Affine::rotate_about
     #[inline]
     #[must_use]
-    pub fn pre_rotate_about(self, th: f64, center: Point) -> Self {
+    pub fn pre_rotate_about(self, th: f64, center: impl Into<Point>) -> Self {
         Affine::rotate_about(th, center) * self
     }
 
@@ -243,7 +243,7 @@ impl Affine {
     /// [rotation]: Affine::rotate_about
     #[inline]
     #[must_use]
-    pub fn then_rotate_about(self, th: f64, center: Point) -> Self {
+    pub fn then_rotate_about(self, th: f64, center: impl Into<Point>) -> Self {
         Affine::rotate_about(th, center) * self
     }
 
@@ -276,7 +276,7 @@ impl Affine {
     /// [scale]: Affine::scale_about
     #[inline]
     #[must_use]
-    pub fn then_scale_about(self, scale: f64, center: Point) -> Self {
+    pub fn then_scale_about(self, scale: f64, center: impl Into<Point>) -> Self {
         Affine::scale_about(scale, center) * self
     }
 
