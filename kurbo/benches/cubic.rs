@@ -1,8 +1,9 @@
 // Copyright 2022 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-#![allow(missing_docs)]
 
 //! Benchmarks of the cubic equation solver.
+
+#![allow(missing_docs)]
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
