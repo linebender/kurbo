@@ -61,10 +61,11 @@ optional = true
 default-features = false
 features = ["alloc", "derive"]
 
-# This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
 rand = "0.9.2"
-criterion = "0.5.1"
+# wasm doesn't support rayon, so disable criterion's rayon support. (In
+# principle we could make it target-dependent.)
+criterion = { version = "0.5.1", default-features = false, features = ["plotters", "cargo_bench_support"] }
 
 [target.wasm32-unknown-unknown.dev-dependencies]
 # We have a transitive dependency on getrandom and it does not automatically
