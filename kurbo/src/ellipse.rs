@@ -67,8 +67,8 @@ impl Ellipse {
     /// Create a new `Ellipse` centered on the provided point.
     #[inline]
     #[must_use]
-    pub fn with_center(self, new_center: Point) -> Ellipse {
-        let Point { x: cx, y: cy } = new_center;
+    pub fn with_center(self, new_center: impl Into<Point>) -> Ellipse {
+        let Point { x: cx, y: cy } = new_center.into();
         Ellipse {
             inner: self.inner.with_translation(Vec2 { x: cx, y: cy }),
         }

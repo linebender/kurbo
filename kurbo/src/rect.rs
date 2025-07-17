@@ -183,7 +183,8 @@ impl Rect {
 
     /// Returns `true` if `point` lies within `self`.
     #[inline]
-    pub fn contains(&self, point: Point) -> bool {
+    pub fn contains(&self, point: impl Into<Point>) -> bool {
+        let point = point.into();
         point.x >= self.x0 && point.x < self.x1 && point.y >= self.y0 && point.y < self.y1
     }
 
@@ -217,7 +218,8 @@ impl Rect {
     /// points yields their enclosing rectangle.
     ///
     /// Results are valid only if width and height are non-negative.
-    pub fn union_pt(&self, pt: Point) -> Rect {
+    pub fn union_pt(&self, pt: impl Into<Point>) -> Rect {
+        let pt = pt.into();
         Rect::new(
             self.x0.min(pt.x),
             self.y0.min(pt.y),
