@@ -1,12 +1,11 @@
 // Copyright 2020 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+#![allow(missing_docs)]
 
 //! Benchmarks of rect expansion.
 
-#![cfg(nightly)]
-#![feature(test)]
-extern crate test;
-use test::Bencher;
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 
 use kurbo::Rect;
 
@@ -31,24 +30,26 @@ static RECT_NEM: Rect = Rect::new(-5.6, -3.6, -3.3, -4.1);
 
 #[inline]
 fn expand(rects: &[Rect; 9]) {
-    test::black_box(rects[0].expand());
-    test::black_box(rects[1].expand());
-    test::black_box(rects[2].expand());
+    black_box(rects[0].expand());
+    black_box(rects[1].expand());
+    black_box(rects[2].expand());
 
-    test::black_box(rects[3].expand());
-    test::black_box(rects[4].expand());
-    test::black_box(rects[5].expand());
+    black_box(rects[3].expand());
+    black_box(rects[4].expand());
+    black_box(rects[5].expand());
 
-    test::black_box(rects[6].expand());
-    test::black_box(rects[7].expand());
-    test::black_box(rects[8].expand());
+    black_box(rects[6].expand());
+    black_box(rects[7].expand());
+    black_box(rects[8].expand());
 }
 
-#[bench]
-fn bench_expand(b: &mut Bencher) {
+fn bench_expand(c: &mut Criterion) {
     // Creating the array here to prevent the compiler from optimizing all of it to NOP.
     let rects: [Rect; 9] = [
         RECT_POS, RECT_PAN, RECT_NEG, RECT_POR, RECT_PNR, RECT_NER, RECT_POM, RECT_PNM, RECT_NEM,
     ];
-    b.iter(|| expand(&rects));
+    c.bench_function("expand", |b| b.iter(|| expand(&rects)));
 }
+
+criterion_group!(benches, bench_expand);
+criterion_main!(benches);
