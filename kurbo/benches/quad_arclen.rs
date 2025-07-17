@@ -1,8 +1,9 @@
 // Copyright 2018 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-#![allow(missing_docs)]
 
 //! Benchmarks of quadratic arclength approaches.
+
+#![allow(missing_docs)]
 
 // TODO: organize so there's less cut'n'paste from arclen_accuracy example.
 
