@@ -2086,6 +2086,7 @@ mod tests {
             .all(|el| !matches!(el, PathEl::MoveTo(_))));
     }
 
+    #[test]
     fn test_current_position() {
         let mut path = BezPath::new();
         assert_eq!(path.current_position(), None);
