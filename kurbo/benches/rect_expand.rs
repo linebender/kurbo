@@ -3,7 +3,7 @@
 
 //! Benchmarks of rect expansion.
 
-#![allow(missing_docs)]
+#![allow(missing_docs, reason = "criterion emits undocumented functions")]
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
