@@ -3,7 +3,7 @@
 
 //! Benchmarks of quadratic arclength approaches.
 
-#![allow(missing_docs)]
+#![allow(missing_docs, reason = "criterion emits undocumented functions")]
 
 // TODO: organize so there's less cut'n'paste from arclen_accuracy example.
 

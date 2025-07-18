@@ -4,6 +4,7 @@
 //! A test program to plot the error of arclength approximation.
 
 // Lots of stuff is commented out or was just something to try.
+#![allow(clippy::allow_attributes_without_reason)]
 #![allow(unused)]
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::many_single_char_names)]
