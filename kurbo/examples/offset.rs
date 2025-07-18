@@ -3,6 +3,8 @@
 
 //! A simple example to show an offset curve of a cubic Bézier segment.
 
+#![expect(deprecated, reason = "example still valid even though deprecated")]
+
 use kurbo::{offset::CubicOffset, CubicBez, Shape};
 
 fn main() {
