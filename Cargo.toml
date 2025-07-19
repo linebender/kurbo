@@ -7,7 +7,7 @@ members = ["kurbo"]
 #
 # NOTE: When bumping this, remember to also bump the aforementioned other packages'
 #       version in the `workspace.dependencies` section in this file.
-version = "0.11.2"
+version = "0.11.3"
 
 edition = "2021"
 # Keep in sync with RUST_MIN_VER in .github/workflows/ci.yml, with the relevant README.md files
@@ -17,7 +17,7 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/linebender/kurbo"
 
 [workspace.dependencies]
-kurbo = { version = "0.11.2", path = "kurbo", default-features = false }
+kurbo = { version = "0.11.3", path = "kurbo", default-features = false }
 
 [workspace.lints]
 rust.unsafe_code = "forbid"
