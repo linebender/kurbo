@@ -8,14 +8,14 @@ Subheadings to categorize changes are `added, changed, deprecated, removed, fixe
 
 # Changelog
 
-The latest published Kurbo release is [0.11.3](#0113-2025-07-18) which was released on 2025-07-18.
-You can find its changes [documented below](#0113-2025-07-18).
+The latest published Kurbo release is [0.11.3](#0113-2025-07-21) which was released on 2025-07-21.
+You can find its changes [documented below](#0113-2025-07-21).
 
 ## [Unreleased]
 
 This release has an [MSRV][] of 1.65.
 
-## [0.11.3][] (2025-07-18)
+## [0.11.3][] (2025-07-21)
 
 This release has an [MSRV][] of 1.65.
 
