@@ -30,7 +30,7 @@ This release has an [MSRV][] of 1.65.
 
 - Let more methods take `Into<Point>` instead of `Point`. ([#466][] by [@sagudev][])
 
-    **Note**: this can impact type inference.
+  **Note**: this can impact type inference.
 - Inline the `Mul<PathEl>` implementation for `Affine`. ([#461][] by [@LaurenzV][])
 - Inline the `next` method of the `ToQuads` iterator. ([#460][] by [@LaurenzV][])
 - Avoid calling `f64::hypot`, as it calls a slow library function. ([#448][] by [@beholdnec][], [#451][] by [@raphlinus][])
