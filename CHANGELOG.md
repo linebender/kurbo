@@ -8,16 +8,38 @@ Subheadings to categorize changes are `added, changed, deprecated, removed, fixe
 
 # Changelog
 
-The latest published Kurbo release is [0.11.2](#0112-2025-04-28) which was released on 2025-04-28.
-You can find its changes [documented below](#0112-2025-04-28).
+The latest published Kurbo release is [0.11.3](#0113-2025-07-21) which was released on 2025-07-21.
+You can find its changes [documented below](#0113-2025-07-21).
 
 ## [Unreleased]
 
 This release has an [MSRV][] of 1.65.
 
+## [0.11.3][] (2025-07-21)
+
+This release has an [MSRV][] of 1.65.
+
+### Added
+
+- Add `current_position` method to `BezPath`. ([#462][] by [@sagudev][])
+- Add `From` conversions between `euclid` and `kurbo` types behind the `euclid` feature. ([#463][] by [@sagudev][])
+- Add Green's theorem moments. ([#452][] by [@simoncozens][])
+- Make `Vec2::splat` public. ([#469][] by [@xorgy][])
+
+### Changed
+
+- Let more methods take `Into<Point>` instead of `Point`. ([#466][] by [@sagudev][])
+
+  **Note**: this can impact type inference.
+- Inline the `Mul<PathEl>` implementation for `Affine`. ([#461][] by [@LaurenzV][])
+- Inline the `next` method of the `ToQuads` iterator. ([#460][] by [@LaurenzV][])
+- Avoid calling `f64::hypot`, as it calls a slow library function. ([#448][] by [@beholdnec][], [#451][] by [@raphlinus][])
+
 ### Fixed
 
 - Documentation of `RoundedRect` no longer incorrectly specifies the corner radii are equal. ([#447][] by [@tomcur][])
+- Fixed negative dash offset by normalization. ([#454][] by [@sagudev][])
+- Use exact endpoints for `PathSeg`. ([#465][] by [@jneem])
 
 ## [0.11.2][] (2025-04-28)
 
@@ -81,8 +103,10 @@ This release has an [MSRV][] of 1.65.
 
 Note: A changelog was not kept for or before this release
 
+[@beholdnec]: https://githun.com/beholdnec
 [@dominikh]: https://github.com/dominikh
 [@GabrielDertoni]: https://github.com/GabrielDertoni
+[@jneem]: https://github.com/jneem
 [@juliapaci]: https://github.com/juliapaci
 [@LaurenzV]: https://github.com/LaurenzV
 [@liferooter]: https://github.com/liferooter
@@ -91,6 +115,7 @@ Note: A changelog was not kept for or before this release
 [@platlas]: https://github.com/platlas
 [@raphlinus]: https://github.com/raphlinus
 [@rsheeter]: https://github.com/rsheeter
+[@sagudev]: https://github.com/sagudev
 [@simoncozens]: https://github.com/simoncozens
 [@tomcur]: https://github.com/tomcur
 [@waywardmonkeys]: https://github.com/waywardmonkeys
@@ -127,11 +152,24 @@ Note: A changelog was not kept for or before this release
 [#418]: https://github.com/linebender/kurbo/pull/418
 [#428]: https://github.com/linebender/kurbo/pull/428
 [#429]: https://github.com/linebender/kurbo/pull/429
+[#444]: https://github.com/linebender/kurbo/pull/444
 [#447]: https://github.com/linebender/kurbo/pull/447
+[#448]: https://github.com/linebender/kurbo/pull/448
+[#451]: https://github.com/linebender/kurbo/pull/451
+[#452]: https://github.com/linebender/kurbo/pull/452
+[#454]: https://github.com/linebender/kurbo/pull/454
+[#460]: https://github.com/linebender/kurbo/pull/460
+[#461]: https://github.com/linebender/kurbo/pull/461
+[#462]: https://github.com/linebender/kurbo/pull/462
+[#463]: https://github.com/linebender/kurbo/pull/463
+[#465]: https://github.com/linebender/kurbo/pull/465
+[#466]: https://github.com/linebender/kurbo/pull/466
+[#469]: https://github.com/linebender/kurbo/pull/469
 
-[Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
 [0.11.1]: https://github.com/linebender/kurbo/releases/tag/v0.11.1
 [0.11.2]: https://github.com/linebender/kurbo/releases/tag/v0.11.2
+[0.11.3]: https://github.com/linebender/kurbo/releases/tag/v0.11.3
 
 [MSRV]: README.md#minimum-supported-rust-version-msrv
