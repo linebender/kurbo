@@ -21,24 +21,25 @@ This release has an [MSRV][] of 1.65.
 
 ### Added
 
-- Add `current_position` method to `BezPath` ([#462][] by [@sagudev][])
-- Conversions between Euclid and Kurbo types behind `euclid` feature ([#463][] by [@sagudev][])
-- Add Green’s theorem moments ([#452][] by [@simoncozens][])
+- Add `current_position` method to `BezPath`. ([#462][] by [@sagudev][])
+- Add `From` conversions between `euclid` and `kurbo` types behind the `euclid` feature. ([#463][] by [@sagudev][])
+- Add Green's theorem moments. ([#452][] by [@simoncozens][])
+- Make `Vec2::splat` public. ([#469][] by [@xorgy][])
 
 ### Changed
 
-- Add inline to `Mul<PathEl>` implementation for `Affine` ([#461][] by [@LaurenzV][])
-- Inline `next` of `ToQuads` iterator ([#460][] by [@LaurenzV][])
-- Update `libm` dep ([#444][] by [@tomcur][])
-- Avoid calling f64::hypot, it is slow ([#448][] by [@beholdnec][])
-- More methods to accept `Into<Point>` instead of `Point` ([#466][] by [@sagudev][])
-- Make `Vec2::splat` public. ([#469][] by [@xorgy][])
+- Let more methods take `Into<Point>` instead of `Point`. ([#466][] by [@sagudev][])
+
+  **Note**: this can impact type inference.
+- Inline the `Mul<PathEl>` implementation for `Affine`. ([#461][] by [@LaurenzV][])
+- Inline the `next` method of the `ToQuads` iterator. ([#460][] by [@LaurenzV][])
+- Avoid calling `f64::hypot`, as it calls a slow library function. ([#448][] by [@beholdnec][], [#451][] by [@raphlinus][])
 
 ### Fixed
 
 - Documentation of `RoundedRect` no longer incorrectly specifies the corner radii are equal. ([#447][] by [@tomcur][])
-- Fixed negative dash offset by normalization ([#454][] by [@sagudev][])
-- Use exact endpoints for PathSeg ([#465][] by [@jneem])
+- Fixed negative dash offset by normalization. ([#454][] by [@sagudev][])
+- Use exact endpoints for `PathSeg`. ([#465][] by [@jneem])
 
 ## [0.11.2][] (2025-04-28)
 
@@ -154,6 +155,7 @@ Note: A changelog was not kept for or before this release
 [#444]: https://github.com/linebender/kurbo/pull/444
 [#447]: https://github.com/linebender/kurbo/pull/447
 [#448]: https://github.com/linebender/kurbo/pull/448
+[#451]: https://github.com/linebender/kurbo/pull/451
 [#452]: https://github.com/linebender/kurbo/pull/452
 [#454]: https://github.com/linebender/kurbo/pull/454
 [#460]: https://github.com/linebender/kurbo/pull/460
