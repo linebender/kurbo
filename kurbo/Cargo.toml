@@ -29,7 +29,7 @@ schemars = ["schemars/smallvec", "dep:schemars"]
 euclid = ["dep:euclid"]
 
 [dependencies]
-smallvec = "1.15.0"
+smallvec = "1.15.1"
 euclid = { version = "0.22", optional = true, default-features = false }
 
 [dependencies.arrayvec]
@@ -56,9 +56,9 @@ features = ["alloc", "derive"]
 
 # This is used for research but not really needed; maybe refactor.
 [dev-dependencies]
-rand = "0.9.1"
+rand = "0.9.2"
 
 [target.wasm32-unknown-unknown.dev-dependencies]
 # We have a transitive dependency on getrandom and it does not automatically
 # support wasm32-unknown-unknown. We need to enable the wasm_js feature.
-getrandom = { version = "0.3.2", features = ["wasm_js"] }
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
