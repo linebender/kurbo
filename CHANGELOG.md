@@ -13,7 +13,12 @@ You can find its changes [documented below](#0113-2025-07-21).
 
 ## [Unreleased]
 
-This release has an [MSRV][] of 1.65.
+This release has an [MSRV][] of 1.82.
+It was increased to support floating point math in const functions.
+
+### Changed
+
+- The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
 
 ## [0.11.3][] (2025-07-21)
 
@@ -150,6 +155,7 @@ Note: A changelog was not kept for or before this release
 [#412]: https://github.com/linebender/kurbo/pull/412
 [#413]: https://github.com/linebender/kurbo/pull/413
 [#418]: https://github.com/linebender/kurbo/pull/418
+[#427]: https://github.com/linebender/kurbo/pull/427
 [#428]: https://github.com/linebender/kurbo/pull/428
 [#429]: https://github.com/linebender/kurbo/pull/429
 [#444]: https://github.com/linebender/kurbo/pull/444

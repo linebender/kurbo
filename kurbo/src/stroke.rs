@@ -11,8 +11,8 @@ use smallvec::SmallVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    common::solve_quadratic, fit_to_bezpath, fit_to_bezpath_opt, offset::CubicOffset, Affine, Arc,
-    BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point, QuadBez, Vec2,
+    common::solve_quadratic, Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen,
+    PathEl, PathSeg, Point, QuadBez, Vec2,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -41,7 +41,7 @@ pub enum Cap {
     Round,
 }
 
-/// Describes the visual style of a stroke.
+/// The visual style of a stroke.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -68,7 +68,13 @@ pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
 }
 
-/// Optimization level for computing
+/// Optimization level for computing stroke outlines.
+///
+/// Note that in the current implementation, this setting has no effect.
+/// However, having a tradeoff between optimization of number of segments
+/// and speed makes sense and may be added in the future, so applications
+/// should set it appropriately. For real time rendering, the appropriate
+/// value is `Subdivide`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StrokeOptLevel {
     /// Adaptively subdivide segments in half.
@@ -172,6 +178,7 @@ struct StrokeCtx {
     output: BezPath,
     forward_path: BezPath,
     backward_path: BezPath,
+    result_path: BezPath,
     start_pt: Point,
     start_norm: Vec2,
     start_tan: Vec2,
@@ -185,10 +192,13 @@ struct StrokeCtx {
 /// Expand a stroke into a fill.
 ///
 /// The `tolerance` parameter controls the accuracy of the result. In general,
-/// the number of subdivisions in the output scales to the -1/6 power of the
-/// parameter, for example making it 1/64 as big generates twice as many
-/// segments. The appropriate value depends on the application; if the result
-/// of the stroke will be scaled up, a smaller value is needed.
+/// the number of subdivisions in the output scales at least to the -1/4 power
+/// of the parameter, for example making it 1/16 as big generates twice as many
+/// segments. Currently the algorithm is not tuned for extremely fine tolerances.
+/// The theoretically optimum scaling exponent is -1/6, but achieving this may
+/// require slow numerical techniques (currently a subject of research). The
+/// appropriate value depends on the application; if the result of the stroke
+/// will be scaled up, a smaller value is needed.
 ///
 /// This method attempts a fairly high degree of correctness, but ultimately
 /// is based on computing parallel curves and adding joins and caps, rather than
@@ -199,14 +209,14 @@ struct StrokeCtx {
 pub fn stroke(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
-    opts: &StrokeOpts,
+    _opts: &StrokeOpts,
     tolerance: f64,
 ) -> BezPath {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance, *opts)
+        stroke_undashed(path, style, tolerance)
     } else {
         let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
-        stroke_undashed(dashed, style, tolerance, *opts)
+        stroke_undashed(dashed, style, tolerance)
     }
 }
 
@@ -215,7 +225,6 @@ fn stroke_undashed(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
     tolerance: f64,
-    opts: StrokeOpts,
 ) -> BezPath {
     let mut ctx = StrokeCtx {
         join_thresh: 2.0 * tolerance / style.width,
@@ -242,7 +251,7 @@ fn stroke_undashed(
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.do_cubic(style, q.raise(), tolerance, opts);
+                    ctx.do_cubic(style, q.raise(), tolerance);
                     ctx.last_tan = tan1;
                 }
             }
@@ -251,7 +260,7 @@ fn stroke_undashed(
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
-                    ctx.do_cubic(style, c, tolerance, opts);
+                    ctx.do_cubic(style, c, tolerance);
                     ctx.last_tan = tan1;
                 }
             }
@@ -306,13 +315,6 @@ fn extend_reversed(out: &mut BezPath, elements: &[PathEl]) {
             PathEl::CurveTo(p1, p2, _) => out.curve_to(p2, p1, end),
             _ => unreachable!(),
         }
-    }
-}
-
-fn fit_with_opts(co: &CubicOffset, tolerance: f64, opts: StrokeOpts) -> BezPath {
-    match opts.opt_level {
-        StrokeOptLevel::Subdivide => fit_to_bezpath(co, tolerance),
-        StrokeOptLevel::Optimized => fit_to_bezpath_opt(co, tolerance),
     }
 }
 
@@ -430,7 +432,7 @@ impl StrokeCtx {
         self.last_pt = p1;
     }
 
-    fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64, opts: StrokeOpts) {
+    fn do_cubic(&mut self, style: &Stroke, c: CubicBez, tolerance: f64) {
         // First, detect degenerate linear case
 
         // Ordinarily, this is the direction of the chord, but if the chord is very
@@ -475,17 +477,10 @@ impl StrokeCtx {
             }
         }
 
-        // A tuning parameter for regularization. A value too large may distort the curve,
-        // while a value too small may fail to generate smooth curves. This is a somewhat
-        // arbitrary value, and should be revisited.
-        const DIM_TUNE: f64 = 0.25;
-        let dimension = tolerance * DIM_TUNE;
-        let co = CubicOffset::new_regularized(c, -0.5 * style.width, dimension);
-        let forward = fit_with_opts(&co, tolerance, opts);
-        self.forward_path.extend(forward.into_iter().skip(1));
-        let co = CubicOffset::new_regularized(c, 0.5 * style.width, dimension);
-        let backward = fit_with_opts(&co, tolerance, opts);
-        self.backward_path.extend(backward.into_iter().skip(1));
+        crate::offset::offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
+        self.forward_path.extend(self.result_path.iter().skip(1));
+        crate::offset::offset_cubic(c, 0.5 * style.width, tolerance, &mut self.result_path);
+        self.backward_path.extend(self.result_path.iter().skip(1));
         self.last_pt = c.p3;
     }
 
