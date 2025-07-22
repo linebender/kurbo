@@ -1,19 +1,25 @@
 // Copyright 2022 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! Computation of offset curves of cubic Béziers, based on a curve fitting
-//! approach.
+//! Computation of offset curves of cubic Béziers.
 //!
-//! See the [Parallel curves of cubic Béziers] blog post for a discussion of how
-//! this algorithm works and what kind of results can be expected. In general, it
-//! is expected to perform much better than most published algorithms. The number
-//! of curve segments needed to attain a given accuracy scales as O(n^6) with
-//! accuracy.
+//! The main algorithm in this module is a new technique designed for robustness
+//! and speed. The details are involved; hopefully there will be a paper. The
+//! method is not publicly exported aside from stroke expansion, as we probably
+//! want to iterate on the exact interface.
 //!
-//! In general, to compute the offset curve (also known as parallel curve) of
-//! a cubic Bézier segment, create a [`CubicOffset`] struct with the curve
-//! segment and offset, then use [`fit_to_bezpath`] or [`fit_to_bezpath_opt`]
-//! depending on how much time to spend optimizing the resulting path.
+//! There is also a slower algorithm based on curve fitting, which is deprecated
+//! and not currently used in kurbo's stroke expansion methods. See the [Parallel
+//! curves of cubic Béziers] blog post for a discussion of how this algorithm
+//! works and what kind of results can be expected. In general, it is expected to
+//! perform much better than most published algorithms. The number of curve
+//! segments needed to attain a given accuracy scales as O(n^6) with accuracy.
+//!
+//! In this second algorithm, to compute the offset curve (also known as parallel
+//! curve) of a cubic Bézier segment, create a [`CubicOffset`] struct with the
+//! curve segment and offset, then use [`fit_to_bezpath`] o
+//! [`fit_to_bezpath_opt`] depending on how much time to spend optimizing the
+//! resulting path.
 //!
 //! [`fit_to_bezpath`]: crate::fit_to_bezpath
 //! [`fit_to_bezpath_opt`]: crate::fit_to_bezpath_opt

@@ -41,7 +41,7 @@ pub enum Cap {
     Round,
 }
 
-/// Describes the visual style of a stroke.
+/// The visual style of a stroke.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -68,7 +68,13 @@ pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
 }
 
-/// Optimization level for computing
+/// Optimization level for computing stroke outlines.
+///
+/// Note that in the current implementation, this setting has no effect.
+/// However, having a tradeoff between optimization of number of segments
+/// and speed makes sense and may be added in the future, so applications
+/// should set it appropriately. For real time rendering, the appropriate
+/// value is `Subdivide`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StrokeOptLevel {
     /// Adaptively subdivide segments in half.
@@ -186,10 +192,13 @@ struct StrokeCtx {
 /// Expand a stroke into a fill.
 ///
 /// The `tolerance` parameter controls the accuracy of the result. In general,
-/// the number of subdivisions in the output scales to the -1/6 power of the
-/// parameter, for example making it 1/64 as big generates twice as many
-/// segments. The appropriate value depends on the application; if the result
-/// of the stroke will be scaled up, a smaller value is needed.
+/// the number of subdivisions in the output scales at least to the -1/4 power
+/// of the parameter, for example making it 1/16 as big generates twice as many
+/// segments. Currently the algorithm is not tuned for extremely fine tolerances.
+/// The theoretically optimum scaling exponent is -1/6, but achieving this may
+/// require slow numerical techniques (currently a subject of research). The
+/// appropriate value depends on the application; if the result of the stroke
+/// will be scaled up, a smaller value is needed.
 ///
 /// This method attempts a fairly high degree of correctness, but ultimately
 /// is based on computing parallel curves and adding joins and caps, rather than
