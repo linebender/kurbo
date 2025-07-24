@@ -250,7 +250,10 @@ impl Size {
     /// If the width is `0`, the output will be `sign(self.height) * infinity`. If The width and
     /// height are `0`, then the output will be `NaN`.
     pub fn aspect_ratio(self) -> f64 {
-        self.height / self.width
+        // ratio is determined by width / height
+        // https://en.wikipedia.org/wiki/Aspect_ratio_(image)
+        // https://en.wikipedia.org/wiki/Ratio
+        self.width / self.height
     }
 
     /// Convert this `Size` into a [`Rect`] with origin `(0.0, 0.0)`.
