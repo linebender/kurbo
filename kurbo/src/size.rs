@@ -256,7 +256,7 @@ impl Size {
 
     /// Returns the aspect ratio of a rectangle with the given size.
     ///
-    /// If the width is `0`, the output will be `sign(self.height) * infinity`. If The width and
+    /// If the height is `0`, the output will be `sign(self.width) * infinity`. If The width and
     /// height are `0`, then the output will be `NaN`.
     pub fn aspect_ratio(self) -> f64 {
         // ratio is determined by width / height
