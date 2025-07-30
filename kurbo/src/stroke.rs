@@ -256,10 +256,10 @@ pub fn stroke_with(
     ctx: &mut StrokeCtx,
 ) {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance, ctx)
+        stroke_undashed(path, style, tolerance, ctx);
     } else {
         let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
-        stroke_undashed(dashed, style, tolerance, ctx)
+        stroke_undashed(dashed, style, tolerance, ctx);
     }
 }
 
