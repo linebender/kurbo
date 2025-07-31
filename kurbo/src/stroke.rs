@@ -170,6 +170,8 @@ impl StrokeOpts {
 pub type Dashes = SmallVec<[f64; 4]>;
 
 /// A structure that is used for creating strokes.
+///
+/// See also [`stroke_with`].
 #[derive(Default, Debug)]
 pub struct StrokeCtx {
     // As a possible future optimization, we might not need separate storage
