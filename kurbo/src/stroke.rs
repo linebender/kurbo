@@ -169,9 +169,11 @@ impl StrokeOpts {
 /// Collection of values representing lengths in a dash pattern.
 pub type Dashes = SmallVec<[f64; 4]>;
 
-/// Internal structure used for creating strokes.
-#[derive(Default)]
-struct StrokeCtx {
+/// A structure that is used for creating strokes.
+///
+/// See also [`stroke_with`].
+#[derive(Default, Debug)]
+pub struct StrokeCtx {
     // As a possible future optimization, we might not need separate storage
     // for forward and backward paths, we can add forward to the output in-place.
     // However, this structure is clearer and the cost fairly modest.
@@ -187,6 +189,27 @@ struct StrokeCtx {
     // Precomputation of the join threshold, to optimize per-join logic.
     // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
+}
+
+impl StrokeCtx {
+    /// Return the path that defines the expanded stroke.
+    pub fn output(&self) -> &BezPath {
+        &self.output
+    }
+}
+
+impl StrokeCtx {
+    fn reset(&mut self) {
+        self.output.truncate(0);
+        self.forward_path.truncate(0);
+        self.backward_path.truncate(0);
+        self.start_pt = Point::default();
+        self.start_norm = Vec2::default();
+        self.start_tan = Vec2::default();
+        self.last_pt = Point::default();
+        self.last_tan = Vec2::default();
+        self.join_thresh = 0.0;
+    }
 }
 
 /// Expand a stroke into a fill.
@@ -212,11 +235,33 @@ pub fn stroke(
     _opts: &StrokeOpts,
     tolerance: f64,
 ) -> BezPath {
+    let mut ctx = StrokeCtx::default();
+    stroke_with(path, style, _opts, tolerance, &mut ctx);
+
+    ctx.output
+}
+
+/// Expand a stroke into a fill.
+///
+/// This is the same as [`stroke`], except for the fact that you can explicitly pass a
+/// `StrokeCtx`. By doing so, you can reuse the same context over multiple calls and ensure
+/// that the number of reallocations is minimized.
+///
+/// Unlike [`stroke`], this method doesn't return an owned version of the expanded stroke as a
+/// [`BezPath`]. Instead, you can get a reference to the resulting path by calling
+/// [`StrokeCtx::output`].
+pub fn stroke_with(
+    path: impl IntoIterator<Item = PathEl>,
+    style: &Stroke,
+    _opts: &StrokeOpts,
+    tolerance: f64,
+    ctx: &mut StrokeCtx,
+) {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance)
+        stroke_undashed(path, style, tolerance, ctx);
     } else {
         let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
-        stroke_undashed(dashed, style, tolerance)
+        stroke_undashed(dashed, style, tolerance, ctx);
     }
 }
 
@@ -225,11 +270,11 @@ fn stroke_undashed(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
     tolerance: f64,
-) -> BezPath {
-    let mut ctx = StrokeCtx {
-        join_thresh: 2.0 * tolerance / style.width,
-        ..StrokeCtx::default()
-    };
+    ctx: &mut StrokeCtx,
+) {
+    ctx.reset();
+    ctx.join_thresh = 2.0 * tolerance / style.width;
+
     for el in path {
         let p0 = ctx.last_pt;
         match el {
@@ -276,7 +321,6 @@ fn stroke_undashed(
         }
     }
     ctx.finish(style);
-    ctx.output
 }
 
 fn round_cap(out: &mut BezPath, tolerance: f64, center: Point, norm: Vec2) {
