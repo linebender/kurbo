@@ -7,7 +7,7 @@ use core::fmt;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
-use crate::{Rect, RoundedRect, RoundedRectRadii, Vec2};
+use crate::{Axis, Rect, RoundedRect, RoundedRectRadii, Vec2};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -289,6 +289,30 @@ impl Size {
     #[inline]
     pub fn is_nan(self) -> bool {
         self.width.is_nan() || self.height.is_nan()
+    }
+
+    /// Get the member matching the given axis.
+    pub fn get(self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => self.width,
+            Axis::Vertical => self.height,
+        }
+    }
+
+    /// Get a mutable reference to the member matching the given axis.
+    pub fn get_mut(&mut self, axis: Axis) -> &mut f64 {
+        match axis {
+            Axis::Horizontal => &mut self.width,
+            Axis::Vertical => &mut self.height,
+        }
+    }
+
+    /// Set the member matching the given axis to the given value.
+    pub fn set(&mut self, axis: Axis, value: f64) {
+        match axis {
+            Axis::Horizontal => self.width = value,
+            Axis::Vertical => self.height = value,
+        }
     }
 }
 
