@@ -118,6 +118,7 @@ extern crate alloc;
 
 mod affine;
 mod arc;
+mod axis;
 mod bezpath;
 mod circle;
 pub mod common;
@@ -150,6 +151,7 @@ mod interop_euclid;
 
 pub use crate::affine::Affine;
 pub use crate::arc::{Arc, ArcAppendIter};
+pub use crate::axis::Axis;
 pub use crate::bezpath::{
     flatten, segments, BezPath, LineIntersection, MinDistance, PathEl, PathSeg, PathSegIter,
     Segments,

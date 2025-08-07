@@ -7,7 +7,7 @@ use core::fmt;
 use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use crate::common::FloatExt;
-use crate::Vec2;
+use crate::{Axis, Vec2};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -201,6 +201,30 @@ impl Point {
     #[inline]
     pub fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
+    }
+
+    /// Get the member matching the given axis.
+    pub fn get_coord(self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => self.x,
+            Axis::Vertical => self.y,
+        }
+    }
+
+    /// Get a mutable reference to the member matching the given axis.
+    pub fn get_coord_mut(&mut self, axis: Axis) -> &mut f64 {
+        match axis {
+            Axis::Horizontal => &mut self.x,
+            Axis::Vertical => &mut self.y,
+        }
+    }
+
+    /// Set the member matching the given axis to the given value.
+    pub fn set_coord(&mut self, axis: Axis, value: f64) {
+        match axis {
+            Axis::Horizontal => self.x = value,
+            Axis::Vertical => self.y = value,
+        }
     }
 }
 

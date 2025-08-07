@@ -8,7 +8,7 @@ use core::iter::Sum;
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::common::FloatExt;
-use crate::{Point, Size};
+use crate::{Axis, Point, Size};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -343,6 +343,30 @@ impl Vec2 {
             self.x * rhs.x - self.y * rhs.y,
             self.x * rhs.y + self.y * rhs.x,
         )
+    }
+
+    /// Get the member matching the given axis.
+    pub fn get_coord(self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => self.x,
+            Axis::Vertical => self.y,
+        }
+    }
+
+    /// Get a mutable reference to the member matching the given axis.
+    pub fn get_coord_mut(&mut self, axis: Axis) -> &mut f64 {
+        match axis {
+            Axis::Horizontal => &mut self.x,
+            Axis::Vertical => &mut self.y,
+        }
+    }
+
+    /// Set the member matching the given axis to the given value.
+    pub fn set_coord(&mut self, axis: Axis, value: f64) {
+        match axis {
+            Axis::Horizontal => self.x = value,
+            Axis::Vertical => self.y = value,
+        }
     }
 }
 
