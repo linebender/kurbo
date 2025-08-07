@@ -6,9 +6,9 @@ use crate::{Point, Size, Vec2};
 /// An axis in the plane.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Axis {
-    /// The x axis
+    /// The x axis.
     Horizontal,
-    /// The y axis
+    /// The y axis.
     Vertical,
 }
 
