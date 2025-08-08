@@ -649,7 +649,7 @@ fn dash_impl<T: Iterator<Item = PathEl>>(
     inner: T,
     dash_offset: f64,
     dashes: &[f64],
-) -> DashIterator<T> {
+) -> DashIterator<'_, T> {
     let mut dash_ix = 0;
     let mut dash_remaining = dashes[dash_ix] - dash_offset;
     let mut is_active = true;

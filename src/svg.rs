@@ -282,8 +282,8 @@ struct SvgLexer<'a> {
     pub last_pt: Point,
 }
 
-impl<'a> SvgLexer<'a> {
-    fn new(data: &str) -> SvgLexer {
+impl SvgLexer<'_> {
+    fn new(data: &str) -> SvgLexer<'_> {
         SvgLexer {
             data,
             ix: 0,
