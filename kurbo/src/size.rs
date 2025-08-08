@@ -292,6 +292,7 @@ impl Size {
     }
 
     /// Get the member matching the given axis.
+    #[inline]
     pub fn get_coord(self, axis: Axis) -> f64 {
         match axis {
             Axis::Horizontal => self.width,
@@ -300,6 +301,7 @@ impl Size {
     }
 
     /// Get a mutable reference to the member matching the given axis.
+    #[inline]
     pub fn get_coord_mut(&mut self, axis: Axis) -> &mut f64 {
         match axis {
             Axis::Horizontal => &mut self.width,
@@ -308,6 +310,7 @@ impl Size {
     }
 
     /// Set the member matching the given axis to the given value.
+    #[inline]
     pub fn set_coord(&mut self, axis: Axis, value: f64) {
         match axis {
             Axis::Horizontal => self.width = value,
