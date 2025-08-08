@@ -14,6 +14,7 @@ pub enum Axis {
 
 impl Axis {
     /// Get the axis perpendicular to this one.
+    #[inline]
     pub fn cross(self) -> Self {
         match self {
             Self::Horizontal => Self::Vertical,
@@ -25,6 +26,7 @@ impl Axis {
     ///
     /// The axis value is the one matching the axis (e.g. `y` for [`Self::Vertical`]).
     /// The cross value is the other one.
+    #[inline]
     pub fn pack_point(self, axis_value: f64, cross_value: f64) -> Point {
         self.pack_xy(axis_value, cross_value).into()
     }
@@ -33,6 +35,7 @@ impl Axis {
     ///
     /// The axis value is the one matching the axis (e.g. `height` for [`Self::Vertical`]).
     /// The cross value is the other one.
+    #[inline]
     pub fn pack_size(self, axis_value: f64, cross_value: f64) -> Size {
         self.pack_xy(axis_value, cross_value).into()
     }
@@ -41,6 +44,7 @@ impl Axis {
     ///
     /// The axis value is the one matching the axis (e.g. `y` for [`Self::Vertical`]).
     /// The cross value is the other one.
+    #[inline]
     pub fn pack_vec2(self, axis_value: f64, cross_value: f64) -> Vec2 {
         self.pack_xy(axis_value, cross_value).into()
     }
@@ -49,6 +53,7 @@ impl Axis {
     ///
     /// The axis value is the one matching the axis (e.g. `y` for [`Self::Vertical`]).
     /// The cross value is the other one.
+    #[inline]
     pub fn pack_xy(self, axis_value: f64, cross_value: f64) -> (f64, f64) {
         match self {
             Self::Horizontal => (axis_value, cross_value),
