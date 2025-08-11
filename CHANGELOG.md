@@ -19,6 +19,7 @@ It was increased to support floating point math in const functions.
 ### Changed
 
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
+- Breaking change: Don't enable euclid's `std` or `libm` features when the conversions are enabled. ([#481][] by [@DJMcNab][])
 
 ## [0.11.3][] (2025-07-21)
 
@@ -109,6 +110,7 @@ This release has an [MSRV][] of 1.65.
 Note: A changelog was not kept for or before this release
 
 [@beholdnec]: https://githun.com/beholdnec
+[@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@jneem]: https://github.com/jneem
@@ -158,7 +160,6 @@ Note: A changelog was not kept for or before this release
 [#427]: https://github.com/linebender/kurbo/pull/427
 [#428]: https://github.com/linebender/kurbo/pull/428
 [#429]: https://github.com/linebender/kurbo/pull/429
-[#444]: https://github.com/linebender/kurbo/pull/444
 [#447]: https://github.com/linebender/kurbo/pull/447
 [#448]: https://github.com/linebender/kurbo/pull/448
 [#451]: https://github.com/linebender/kurbo/pull/451
@@ -171,6 +172,7 @@ Note: A changelog was not kept for or before this release
 [#465]: https://github.com/linebender/kurbo/pull/465
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
+[#481]: https://github.com/linebender/kurbo/pull/481
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
