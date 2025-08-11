@@ -21,8 +21,8 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["euclid?/std"]
-libm = ["dep:libm", "euclid?/libm"]
+std = []
+libm = ["dep:libm"]
 mint = ["dep:mint"]
 serde = ["smallvec/serde", "dep:serde"]
 schemars = ["schemars/smallvec", "dep:schemars"]
