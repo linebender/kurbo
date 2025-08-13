@@ -616,6 +616,7 @@ impl Rect {
     }
 
     /// Get the members matching the given axis.
+    #[inline]
     pub fn get_coords(self, axis: Axis) -> (f64, f64) {
         match axis {
             Axis::Horizontal => (self.x0, self.x1),
@@ -624,6 +625,7 @@ impl Rect {
     }
 
     /// Get a mutable reference to the members matching the given axis.
+    #[inline]
     pub fn get_coords_mut(&mut self, axis: Axis) -> (&mut f64, &mut f64) {
         match axis {
             Axis::Horizontal => (&mut self.x0, &mut self.x1),
@@ -632,6 +634,7 @@ impl Rect {
     }
 
     /// Set the members matching the given axis to the given values.
+    #[inline]
     pub fn set_coords(&mut self, axis: Axis, v0: f64, v1: f64) {
         match axis {
             Axis::Horizontal => (self.x0, self.x1) = (v0, v1),
