@@ -55,16 +55,25 @@
 //! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
 //! ```
 //!
-//! # Features
+//! ## Feature Flags
 //!
-//! This crate either uses the standard library or the [`libm`] crate for
-//! math functionality. The `std` feature is enabled by default, but can be
-//! disabled, as long as the `libm` feature is enabled. This is useful for
-//! `no_std` environments. However, note that the `libm` crate is not as
-//! efficient as the standard library, and that this crate still uses the
-//! `alloc` crate regardless.
+//! The following crate [feature flags](https://doc.rust-lang.org/cargo/reference/features.html#dependency-features) are available:
 //!
-//! [`libm`]: https://docs.rs/libm
+//! - `std` (enabled by default): Get floating point functions from the standard library
+//!   (likely using your target's libc).
+//! - `libm`: Use floating point implementations from [libm][].
+//!   This is useful for `no_std` environments.
+//!   However, note that the `libm` crate is not as efficient as the standard library.
+//! - `mint`: Enable `From`/`Into` conversion of Kurbo and [mint][] types, enabling interoperability
+//!   with other graphics libraries.
+//! - `serde`: Implement `serde::Deserialize` and `serde::Serialize` on various types.
+//! - `schemars`: Add best-effort support for using Kurbo types in JSON schemas using [schemars][].
+//! - `euclid`: Enable `From`/`Into` conversion of Kurbo and [euclid][] types.
+//!   Note that if you're using both Kurbo and euclid at the same time, you *must*
+//!   also enable one of euclid's `std` or `libm` features.
+//!
+//! At least one of `std` and `libm` is required; `std` overrides `libm`.
+//! Note that Kurbo does require that an allocator is available (i.e. it uses [alloc]).
 
 // LINEBENDER LINT SET - lib.rs - v1
 // See https://linebender.org/wiki/canonical-lints/
