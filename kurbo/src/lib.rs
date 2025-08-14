@@ -55,7 +55,7 @@
 //! assert!(hit.distance(expectation) <= DESIRED_ACCURACY);
 //! ```
 //!
-//! ## Feature Flags
+//! # Feature Flags
 //!
 //! The following crate [feature flags](https://doc.rust-lang.org/cargo/reference/features.html#dependency-features) are available:
 //!
