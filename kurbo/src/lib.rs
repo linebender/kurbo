@@ -66,11 +66,11 @@
 //!   However, note that the `libm` crate is not as efficient as the standard library.
 //! - `mint`: Enable `From`/`Into` conversion of Kurbo and [mint][] types, enabling interoperability
 //!   with other graphics libraries.
-//! - `serde`: Implement `serde::Deserialize` and `serde::Serialize` on various types.
-//! - `schemars`: Add best-effort support for using Kurbo types in JSON schemas using [schemars][].
 //! - `euclid`: Enable `From`/`Into` conversion of Kurbo and [euclid][] types.
 //!   Note that if you're using both Kurbo and euclid at the same time, you *must*
 //!   also enable one of euclid's `std` or `libm` features.
+//! - `serde`: Implement `serde::Deserialize` and `serde::Serialize` on various types.
+//! - `schemars`: Add best-effort support for using Kurbo types in JSON schemas using [schemars][].
 //!
 //! At least one of `std` and `libm` is required; `std` overrides `libm`.
 //! Note that Kurbo does require that an allocator is available (i.e. it uses [alloc]).

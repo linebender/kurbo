@@ -28,12 +28,12 @@ libm = ["dep:libm", "euclid?/libm"]
 # Enable `From`/`Into` conversion of Kurbo and [mint] types, enabling interoperability
 # with other graphics libraries
 mint = ["dep:mint"]
+# Enable `From`/`Into` conversion of Kurbo and euclid types
+euclid = ["dep:euclid"]
 # Implement `serde::Deserialize` and `serde::Serialize` on various types
 serde = ["smallvec/serde", "dep:serde"]
 # Add best-effort support for using Kurbo types in JSON schemas using schemars
 schemars = ["schemars/smallvec", "dep:schemars"]
-# Enable `From`/`Into` conversion of Kurbo and euclid types
-euclid = ["dep:euclid"]
 
 [dependencies]
 smallvec = "1.15.1"
