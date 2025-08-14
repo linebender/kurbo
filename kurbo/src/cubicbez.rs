@@ -1130,6 +1130,44 @@ mod tests {
     }
 
     #[test]
+    fn cubic_to_quadratic_pathological_front() {
+        let cubic = CubicBez::new(Point::ZERO, Point::ZERO, Point::ZERO, (10., 10.).into());
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        assert_eq!(
+            quads,
+            [QuadSpline::new(vec![
+                Point::ZERO,
+                Point::ZERO,
+                (10., 10.).into()
+            ])]
+        );
+    }
+
+    #[test]
+    fn cubic_to_quadratic_pathological_back() {
+        let cubic = CubicBez::new((10., 10.).into(), Point::ZERO, Point::ZERO, Point::ZERO);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        assert_eq!(
+            quads,
+            [QuadSpline::new(vec![
+                (10., 10.).into(),
+                Point::ZERO,
+                Point::ZERO
+            ])]
+        );
+    }
+
+    #[test]
+    fn cubic_to_quadratic_all_points_equal() {
+        let cubic = CubicBez::new(Point::ZERO, Point::ZERO, Point::ZERO, Point::ZERO);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        assert_eq!(
+            quads,
+            [QuadSpline::new(vec![Point::ZERO, Point::ZERO, Point::ZERO])]
+        );
+    }
+
+    #[test]
     fn cubics_to_quadratic_splines_matches_python() {
         // https://github.com/linebender/kurbo/pull/273
         let light = CubicBez::new((378., 608.), (378., 524.), (355., 455.), (266., 455.));
