@@ -90,14 +90,14 @@ impl Line {
             && other.p0 != other.p1
             && Triangle::new(self.p0, other.p0, other.p1).is_zero_area()
         {
-            // self is a single point lying between the other two
+            // self is a single point collinear with other
             return Some(self.p0);
         }
         if other.p0 == other.p1
             && self.p0 != self.p1
             && Triangle::new(self.p0, self.p1, other.p0).is_zero_area()
         {
-            // other is a single point lying between self.p0 and self.p1
+            // other is a single point collinear with self
             return Some(other.p0);
         }
         self.crossing_point(other)
