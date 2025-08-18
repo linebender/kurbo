@@ -1138,7 +1138,7 @@ mod tests {
     }
 
     #[test]
-    fn cubic_to_quadratic_3_points_equal_single_quand_within_tolerance() {
+    fn cubic_to_quadratic_3_points_equal_single_quad_within_tolerance() {
         let p0 = Point::new(5.0, 5.0);
         let p1 = Point::new(5.0, 5.1);
         let cubic = CubicBez::new(p0, p0, p0, p1);
