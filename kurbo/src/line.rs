@@ -9,8 +9,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Triangle,
-    Vec2, DEFAULT_ACCURACY, MAX_EXTREMA,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2,
+    DEFAULT_ACCURACY, MAX_EXTREMA,
 };
 
 /// A single line.
@@ -71,36 +71,6 @@ impl Line {
         }
         let h = ab.cross(self.p0 - other.p0) / pcd;
         Some(other.p0 + cd * h)
-    }
-
-    /// Computes the point where two lines intersect (have a point in common).
-    ///
-    /// If either line is degenerate (zero length) and corresponds to a single
-    /// point, that point is considered to be the intersection if overlaps or is
-    /// collinear with the other line.
-    ///
-    /// Use ``Line::crossing_point`` if you only care about the unique transverse
-    /// crossing point, which excludes such degenerate cases.
-    pub fn intersect(&self, other: Line) -> Option<Point> {
-        if self.p1 == other.p0 && (self.p0 == self.p1 || other.p0 == other.p1) {
-            // three consecutive collinear points, return the shared point
-            return Some(self.p1);
-        }
-        if self.p0 == self.p1
-            && other.p0 != other.p1
-            && Triangle::new(self.p0, other.p0, other.p1).is_zero_area()
-        {
-            // self is a single point collinear with other
-            return Some(self.p0);
-        }
-        if other.p0 == other.p1
-            && self.p0 != self.p1
-            && Triangle::new(self.p0, self.p1, other.p0).is_zero_area()
-        {
-            // other is a single point collinear with self
-            return Some(other.p0);
-        }
-        self.crossing_point(other)
     }
 
     /// Is this line `finite`?
@@ -423,75 +393,5 @@ mod tests {
             }
         })
         .is_finite());
-    }
-
-    #[test]
-    fn line_line_intersection() {
-        let l1 = Line::new((0.0, 0.0), (1.0, 1.0));
-        let l2 = Line::new((0.0, 1.0), (1.0, 0.0));
-        assert_eq!(l1.intersect(l2), Some(Point::new(0.5, 0.5)));
-    }
-
-    #[test]
-    fn parallel_lines_dont_intersect() {
-        let l1 = Line::new((0.0, 0.0), (1.0, 1.0));
-        let l2 = Line::new((0.0, 2.0), (1.0, 3.0));
-        assert_eq!(l1.intersect(l2), None);
-    }
-
-    #[test]
-    fn line_doesnt_intersect_non_collinear_point() {
-        let l1 = Line::new((0.0, 0.0), (1.0, 1.0));
-        let l2 = Line::new((0.0, 1.0), (0.0, 1.0));
-        assert_eq!(l1.intersect(l2), None);
-    }
-
-    #[test]
-    fn line_intersects_collinear_point_beyond_end() {
-        let l1 = Line::new((0.0, 0.0), (1.0, 1.0));
-        let l2 = Line::new((1.333, 1.333), (1.333, 1.333));
-        assert_eq!(l1.intersect(l2), Some(Point::new(1.333, 1.333)));
-    }
-
-    #[test]
-    fn line_intersects_collinear_point_in_between() {
-        let l1 = Line::new((0.0, 0.0), (1.0, 1.0));
-        let l2 = Line::new((0.5, 0.5), (0.5, 0.5));
-        assert_eq!(l1.intersect(l2), Some(Point::new(0.5, 0.5)));
-    }
-
-    #[test]
-    fn line_intersect_collinear_point_in_between_horizontal() {
-        let l1 = Line::new((0.333, 0.0), (0.333, 0.0));
-        let l2 = Line::new((0.0, 0.0), (1.0, 0.0));
-        assert_eq!(l1.intersect(l2), Some(Point::new(0.333, 0.0)));
-    }
-
-    #[test]
-    fn line_intersect_collinear_point_in_between_vertical() {
-        let l1 = Line::new((0.0, 0.0), (0.0, 1.0));
-        let l2 = Line::new((0.0, 0.333), (0.0, 0.333));
-        assert_eq!(l1.intersect(l2), Some(Point::new(0.0, 0.333)));
-    }
-
-    #[test]
-    fn line_line_intersection_last_3_consecutive_points_equal() {
-        let l1 = Line::new((0.0, 0.0), (1.0, 1.0));
-        let l2 = Line::new((1.0, 1.0), (1.0, 1.0));
-        assert_eq!(l1.intersect(l2), Some(Point::new(1.0, 1.0)));
-    }
-
-    #[test]
-    fn line_line_intersection_first_3_consecutive_points_equal() {
-        let l1 = Line::new((1.0, 1.0), (1.0, 1.0));
-        let l2 = Line::new((1.0, 1.0), (0.0, 0.0));
-        assert_eq!(l1.intersect(l2), Some(Point::new(1.0, 1.0)));
-    }
-
-    #[test]
-    fn line_line_intersection_all_points_equal() {
-        let l1 = Line::new((1.234, 1.234), (1.234, 1.234));
-        let l2 = Line::new((1.234, 1.234), (1.234, 1.234));
-        assert_eq!(l1.intersect(l2), Some(Point::new(1.234, 1.234)));
     }
 }
