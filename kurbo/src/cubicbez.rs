@@ -1130,6 +1130,38 @@ mod tests {
     }
 
     #[test]
+    fn cubic_to_quadratic_all_points_equal() {
+        let pt = Point::new(5.0, 5.0);
+        let cubic = CubicBez::new(pt, pt, pt, pt);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        assert_eq!(quads, [QuadSpline::new(vec![pt, pt, pt])]);
+    }
+
+    #[test]
+    fn cubic_to_quadratic_3_points_equal_single_quand_within_tolerance() {
+        let p0 = Point::new(5.0, 5.0);
+        let p1 = Point::new(5.0, 5.1);
+        let cubic = CubicBez::new(p0, p0, p0, p1);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        // a single quadratic bezier approximates this cubic for the given tolerance
+        assert_eq!(quads, [QuadSpline::new(vec![p0, p0, p1])]);
+    }
+
+    #[test]
+    fn cubic_to_quadratic_3_points_equal_exceeding_tolerance() {
+        let p0 = Point::new(5.0, 5.0);
+        let p1 = Point::new(5.0, 5.1);
+        let cubic = CubicBez::new(p0, p0, p0, p1);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.01).unwrap();
+        // 2 quadratic off-curves are required to approximate the same cubic
+        // given the smaller tolerance
+        assert_eq!(
+            quads,
+            [QuadSpline::new(vec![p0, p0, (5.0, 5.025).into(), p1])]
+        );
+    }
+
+    #[test]
     fn cubics_to_quadratic_splines_matches_python() {
         // https://github.com/linebender/kurbo/pull/273
         let light = CubicBez::new((378., 608.), (378., 524.), (355., 455.), (266., 455.));
