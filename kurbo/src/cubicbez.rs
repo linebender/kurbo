@@ -163,7 +163,16 @@ impl CubicBez {
     /// Returns a quadratic approximating the given cubic that maintains
     /// endpoint tangents if that is within tolerance, or `None` otherwise.
     fn try_approx_quadratic(&self, accuracy: f64) -> Option<QuadBez> {
-        if let Some(q1) = Line::new(self.p0, self.p1).crossing_point(Line::new(self.p2, self.p3)) {
+        if let Some(q1) = Line::new(self.p0, self.p1)
+            .crossing_point(Line::new(self.p2, self.p3))
+            .or_else(|| {
+                // with 3 to 4 consecutive equal points (with no valid crossing_point),
+                // we can try to use the common point as the quadratic control point.
+                // This matches fonttools' cu2qu: https://github.com/fonttools/fonttools/pull/3904
+                (self.p1 == self.p2 && (self.p0 == self.p1 || self.p2 == self.p3))
+                    .then_some(self.p1)
+            })
+        {
             let c1 = self.p0.lerp(q1, 2.0 / 3.0);
             let c2 = self.p3.lerp(q1, 2.0 / 3.0);
             if !CubicBez::new(
@@ -1127,6 +1136,38 @@ mod tests {
 
         // FontTools can solve this with accuracy 0.001, we can too
         assert!(cubics_to_quadratic_splines(&[cubic], 0.001).is_some());
+    }
+
+    #[test]
+    fn cubic_to_quadratic_all_points_equal() {
+        let pt = Point::new(5.0, 5.0);
+        let cubic = CubicBez::new(pt, pt, pt, pt);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        assert_eq!(quads, [QuadSpline::new(vec![pt, pt, pt])]);
+    }
+
+    #[test]
+    fn cubic_to_quadratic_3_points_equal_single_quad_within_tolerance() {
+        let p0 = Point::new(5.0, 5.0);
+        let p1 = Point::new(5.0, 5.1);
+        let cubic = CubicBez::new(p0, p0, p0, p1);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
+        // a single quadratic bezier approximates this cubic for the given tolerance
+        assert_eq!(quads, [QuadSpline::new(vec![p0, p0, p1])]);
+    }
+
+    #[test]
+    fn cubic_to_quadratic_3_points_equal_exceeding_tolerance() {
+        let p0 = Point::new(5.0, 5.0);
+        let p1 = Point::new(5.0, 5.1);
+        let cubic = CubicBez::new(p0, p0, p0, p1);
+        let quads = cubics_to_quadratic_splines(&[cubic], 0.01).unwrap();
+        // 2 quadratic off-curves are required to approximate the same cubic
+        // given the smaller tolerance
+        assert_eq!(
+            quads,
+            [QuadSpline::new(vec![p0, p0, (5.0, 5.025).into(), p1])]
+        );
     }
 
     #[test]
