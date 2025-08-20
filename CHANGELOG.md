@@ -19,6 +19,7 @@ It was increased to support floating point math in const functions.
 ### Changed
 
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
+- More `Vec2` methods can now be called in `const` contexts. ([#479][] by [@tomcur][])
 
 ## [0.11.3][] (2025-07-21)
 
@@ -171,6 +172,7 @@ Note: A changelog was not kept for or before this release
 [#465]: https://github.com/linebender/kurbo/pull/465
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
+[#479]: https://github.com/linebender/kurbo/pull/479
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
