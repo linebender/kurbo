@@ -583,7 +583,9 @@ impl Rect {
         let self_aspect = self_size.aspect_ratio_width();
 
         // TODO the parameter `1e-9` was chosen quickly and may not be optimal.
-        if (self_aspect - aspect_ratio).abs() < 1e-9 {
+        // if self_aspect is `NaN`, that means we're the 0x0 rectangle.
+        // We don't want NaNs in the output
+        if self_aspect.is_nan() || (self_aspect - aspect_ratio).abs() < 1e-9 {
             // short circuit
             *self
         } else if self_aspect.abs() < aspect_ratio.abs() {
@@ -865,6 +867,49 @@ mod tests {
         );
     }
     */
+
+    #[test]
+    #[expect(
+        deprecated,
+        reason = "Testing behaviour of deprecated function is still as expected."
+    )]
+    fn contained_rect_with_aspect_ratio() {
+        #[track_caller]
+        fn case(outer: [f64; 4], aspect_ratio: f64, expected: [f64; 4]) {
+            let outer = Rect::new(outer[0], outer[1], outer[2], outer[3]);
+            let expected = Rect::new(expected[0], expected[1], expected[2], expected[3]);
+            assert_eq!(
+                outer.contained_rect_with_aspect_ratio(aspect_ratio),
+                expected
+            );
+            assert!(
+                expected.size().width.abs() <= outer.size().width.abs()
+                    && expected.size().width.abs() <= outer.size().height.abs(),
+                "Sanity check {expected} should be smaller than {outer}."
+            );
+        }
+        // squares (different point orderings)
+        case([0.0, 0.0, 10.0, 20.0], 1.0, [0.0, 5.0, 10.0, 15.0]);
+        case([0.0, 20.0, 10.0, 0.0], 1.0, [0.0, 5.0, 10.0, 15.0]);
+        case([10.0, 0.0, 0.0, 20.0], 1.0, [10.0, 15.0, 0.0, 5.0]);
+        case([10.0, 20.0, 0.0, 0.0], 1.0, [10.0, 15.0, 0.0, 5.0]);
+        // non-square
+        case([0.0, 0.0, 10.0, 20.0], 0.5, [0.0, 7.5, 10.0, 12.5]);
+        // same aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], 2.0, [0.0, 0.0, 10.0, 20.0]);
+        // negative aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], -1.0, [0.0, 15.0, 10.0, 5.0]);
+        // infinite aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], f64::INFINITY, [5.0, 0.0, 5.0, 20.0]);
+        // zero aspect ratio
+        case([0.0, 0.0, 10.0, 20.0], 0.0, [0.0, 10.0, 10.0, 10.0]);
+        // zero width rect
+        case([0.0, 0.0, 0.0, 20.0], 1.0, [0.0, 10.0, 0.0, 10.0]);
+        // many zeros
+        case([0.0, 0.0, 0.0, 20.0], 0.0, [0.0, 10.0, 0.0, 10.0]);
+        // everything zero
+        case([0.0, 0.0, 0.0, 0.0], 0.0, [0.0, 0.0, 0.0, 0.0]);
+    }
 
     #[test]
     fn contained_rect_with_aspect_ratio_width() {
