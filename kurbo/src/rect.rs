@@ -579,9 +579,8 @@ impl Rect {
     /// assert_eq!(inner, Rect::new(0.0, 5.0, 10.0, 15.0));
     /// ```
     pub fn contained_rect_with_aspect_ratio_width(&self, aspect_ratio: f64) -> Rect {
-        let this_size = self.size();
-        let Size { width, height } = this_size;
-        let self_aspect = this_size.aspect_ratio_width();
+        let self_size @ Size { width, height } = self.size();
+        let self_aspect = self_size.aspect_ratio_width();
 
         // TODO the parameter `1e-9` was chosen quickly and may not be optimal.
         if (self_aspect - aspect_ratio).abs() < 1e-9 {
