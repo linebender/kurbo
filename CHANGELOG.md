@@ -20,10 +20,13 @@ It was increased to support floating point math in const functions.
 
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
 - More `Vec2` methods can now be called in `const` contexts. ([#479][] by [@tomcur][])
+- `aspect_ratio` on `Rect` and `Size` has been deprecated and replaced with `aspect_ratio_width`.
+  This is because the implementation of `aspect_ratio` used the ratio of height to width, whereas
+  aspect rations are otherwise always ratios of width to height. ([#486][] by [@ErisianArchitect][] and [@DJMcNab][])
 
 ### Removed
 
-- Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`, 
+- Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`,
   and `TranslateScale::as_tuple` have been removed.([#487][] by [@DJMcNab][])
 
 ## [0.11.3][] (2025-07-21)
@@ -115,7 +118,9 @@ This release has an [MSRV][] of 1.65.
 Note: A changelog was not kept for or before this release
 
 [@beholdnec]: https://githun.com/beholdnec
+[@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
+[@ErisianArchitect]: https://github.com/ErisianArchitect
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@jneem]: https://github.com/jneem
 [@juliapaci]: https://github.com/juliapaci
@@ -164,7 +169,6 @@ Note: A changelog was not kept for or before this release
 [#427]: https://github.com/linebender/kurbo/pull/427
 [#428]: https://github.com/linebender/kurbo/pull/428
 [#429]: https://github.com/linebender/kurbo/pull/429
-[#444]: https://github.com/linebender/kurbo/pull/444
 [#447]: https://github.com/linebender/kurbo/pull/447
 [#448]: https://github.com/linebender/kurbo/pull/448
 [#451]: https://github.com/linebender/kurbo/pull/451
@@ -178,6 +182,7 @@ Note: A changelog was not kept for or before this release
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
 [#479]: https://github.com/linebender/kurbo/pull/479
+[#486]: https://github.com/linebender/kurbo/pull/486
 [#487]: https://github.com/linebender/kurbo/pull/487
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
