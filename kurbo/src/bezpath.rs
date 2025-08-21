@@ -299,14 +299,6 @@ impl BezPath {
         self.0.truncate(len);
     }
 
-    /// Flatten the path, invoking the callback repeatedly.
-    ///
-    /// See [`flatten`] for more discussion.
-    #[deprecated(since = "0.11.1", note = "use the free function flatten instead")]
-    pub fn flatten(&self, tolerance: f64, callback: impl FnMut(PathEl)) {
-        flatten(self, tolerance, callback);
-    }
-
     /// Get the segment at the given element index.
     ///
     /// If you need to access all segments, [`segments`] provides a better
