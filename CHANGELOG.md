@@ -23,6 +23,8 @@ It was increased to support floating point math in const functions.
 - `aspect_ratio` on `Rect` and `Size` has been deprecated and replaced with `aspect_ratio_width`.
   This is because the implementation of `aspect_ratio` used the ratio of height to width, whereas
   aspect rations are otherwise always ratios of width to height. ([#486][] by [@ErisianArchitect][] and [@DJMcNab][])
+- Deprecated `contained_rect_with_aspect_ratio`, replaced with `inscribed_rect_with_aspect_ratio`, which
+  incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 
 ### Removed
 

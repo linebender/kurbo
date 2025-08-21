@@ -574,17 +574,17 @@ impl Rect {
     /// ```
     /// # use kurbo::Rect;
     /// let outer = Rect::new(0.0, 0.0, 10.0, 20.0);
-    /// let inner = outer.contained_rect_with_aspect_ratio_width(1.0);
+    /// let inner = outer.inscribed_rect_with_aspect_ratio(1.0);
     /// // The new `Rect` is a square centered at the center of `outer`.
     /// assert_eq!(inner, Rect::new(0.0, 5.0, 10.0, 15.0));
     /// ```
-    pub fn contained_rect_with_aspect_ratio_width(&self, aspect_ratio: f64) -> Rect {
+    pub fn inscribed_rect_with_aspect_ratio(&self, aspect_ratio: f64) -> Rect {
         let self_size @ Size { width, height } = self.size();
         let self_aspect = self_size.aspect_ratio_width();
 
         // TODO the parameter `1e-9` was chosen quickly and may not be optimal.
-        // if self_aspect is `NaN`, that means we're the 0x0 rectangle.
-        // We don't want NaNs in the output
+        // if self_aspect is `NaN`, that means we're the 0x0 rectangle (or have a `NaN`).
+        // We don't want NaNs in the output for the 0x0 rectangle
         if self_aspect.is_nan() || (self_aspect - aspect_ratio).abs() < 1e-9 {
             // short circuit
             *self
@@ -613,15 +613,16 @@ impl Rect {
     /// Aspect ratios are usually defined as the ratio of the width to the height, but
     /// this method accepts an aspect ratio specified fractionally as `height / width`.
     /// You should generally prefer
-    /// [`contained_rect_with_aspect_ratio_width`](Self::contained_rect_with_aspect_ratio_width).
+    /// [`inscribed_rect_with_aspect_ratio`](Self::inscribed_rect_with_aspect_ratio), which
+    /// takes a "normal" aspect ratio.
     ///
     /// The resulting rectangle will be centered if it is smaller than this rectangle.
     #[deprecated(
-        note = "You should use `aspect_ratio_width` instead, as this method returns a potentially unexpected value.",
+        note = "You should use `inscribed_rect_with_aspect_ratio` instead, as this method expects an unusually defined parameter.",
         since = "0.12.0"
     )]
     pub fn contained_rect_with_aspect_ratio(&self, inverse_aspect_ratio: f64) -> Rect {
-        self.contained_rect_with_aspect_ratio_width(1. / inverse_aspect_ratio)
+        self.inscribed_rect_with_aspect_ratio(1. / inverse_aspect_ratio)
     }
 
     /// Is this rectangle [finite]?
@@ -912,13 +913,13 @@ mod tests {
     }
 
     #[test]
-    fn contained_rect_with_aspect_ratio_width() {
+    fn inscribed_rect_with_aspect_ratio() {
         #[track_caller]
         fn case(outer: [f64; 4], aspect_ratio: f64, expected: [f64; 4]) {
             let outer = Rect::new(outer[0], outer[1], outer[2], outer[3]);
             let expected = Rect::new(expected[0], expected[1], expected[2], expected[3]);
             assert_eq!(
-                outer.contained_rect_with_aspect_ratio_width(aspect_ratio),
+                outer.inscribed_rect_with_aspect_ratio(aspect_ratio),
                 expected
             );
             assert!(
