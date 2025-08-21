@@ -21,6 +21,10 @@ It was increased to support floating point math in const functions.
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
 - More `Vec2` methods can now be called in `const` contexts. ([#479][] by [@tomcur][])
 
+### Removed
+
+- Breaking change: The `offset` module amd the deprecated `CubicOffset` have been removed. ([#489][] by [@DJMcNab][])
+
 ## [0.11.3][] (2025-07-21)
 
 This release has an [MSRV][] of 1.65.
@@ -173,6 +177,7 @@ Note: A changelog was not kept for or before this release
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
 [#479]: https://github.com/linebender/kurbo/pull/479
+[#489]: https://github.com/linebender/kurbo/pull/489
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
