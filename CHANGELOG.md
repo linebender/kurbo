@@ -28,7 +28,7 @@ It was increased to support floating point math in const functions.
 
 ### Removed
 
-- Breaking change: `DashIterator` is no longer exported publicly. Replace `DashIterator::new` with `dash` ([#488][] by [@DJMcNab][])
+- Breaking change: `DashIterator` has been removed. Replace `DashIterator::new` with `dash`. ([#488][] by [@DJMcNab][])
 - Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`,
   and `TranslateScale::as_tuple` have been removed.([#487][] by [@DJMcNab][])
 
