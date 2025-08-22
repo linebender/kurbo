@@ -245,10 +245,35 @@ impl Size {
         Size::new(self.width.trunc(), self.height.trunc())
     }
 
-    /// Returns the aspect ratio of a rectangle with the given size.
+    /// Returns the aspect ratio of a rectangle with this size.
     ///
-    /// If the width is `0`, the output will be `sign(self.height) * infinity`. If The width and
-    /// height are `0`, then the output will be `NaN`.
+    /// The aspect ratio is the ratio of the width to the height.
+    ///
+    /// If the height is `0`, the output will be `sign(self.width) * infinity`. If the width and
+    /// height are both `0`, then the output will be `NaN`.
+    #[inline]
+    pub fn aspect_ratio_width(self) -> f64 {
+        // ratio is determined by width / height
+        // https://en.wikipedia.org/wiki/Aspect_ratio_(image)
+        // https://en.wikipedia.org/wiki/Ratio
+        self.width / self.height
+    }
+
+    /// Returns **the inverse** of the aspect ratio of a rectangle with this size.
+    ///
+    /// Aspect ratios are usually defined as the ratio of the width to the height, but
+    /// this method incorrectly returns the ratio of height to width.
+    /// You should generally prefer [`aspect_ratio_width`](Self::aspect_ratio_width).
+    ///
+    /// If the width is `0`, the output will be `sign(self.height) * infinity`. If the width and
+    /// height are both `0`, then the output will be `NaN`.
+    #[deprecated(
+        note = "You should use `aspect_ratio_width` instead, as this method returns a potentially unexpected value.",
+        since = "0.12.0"
+    )]
+    #[inline]
+    // TODO: When we remove this, we should also work out what to do with aspect_ratio_width
+    // The tentatitive plan is to rename `aspect_ratio_width` back to this name
     pub fn aspect_ratio(self) -> f64 {
         self.height / self.width
     }
@@ -446,8 +471,22 @@ mod tests {
     }
 
     #[test]
+    #[expect(deprecated, reason = "Testing deprecated function.")]
     fn aspect_ratio() {
         let s = Size::new(1.0, 1.0);
         assert!((s.aspect_ratio() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn aspect_ratio_width() {
+        let s = Size::new(1.0, 1.0);
+        assert!((s.aspect_ratio_width() - 1.0).abs() < 1e-6);
+
+        // 3:2 film (mm)
+        let s = Size::new(36.0, 24.0);
+        assert!((s.aspect_ratio_width() - 1.5).abs() < 1e-6);
+        // 4k screen
+        let s = Size::new(3840.0, 2160.0);
+        assert!((s.aspect_ratio_width() - (16. / 9.)).abs() < 1e-6);
     }
 }
