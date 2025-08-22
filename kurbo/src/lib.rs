@@ -138,7 +138,7 @@ mod insets;
 mod line;
 mod mindist;
 mod moments;
-mod offset;
+pub mod offset;
 mod param_curve;
 mod point;
 mod quadbez;
