@@ -3,12 +3,12 @@
 
 //! Benchmarks of quadratic arclength approaches.
 
+#![allow(missing_docs, reason = "criterion emits undocumented functions")]
+
 // TODO: organize so there's less cut'n'paste from arclen_accuracy example.
 
-#![cfg(nightly)]
-#![feature(test)]
-extern crate test;
-use test::Bencher;
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 
 use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, QuadBez};
 
@@ -32,7 +32,7 @@ fn quad_arclen_analytical(q: QuadBez) -> f64 {
 }
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
-/// in https://github.com/Pomax/BezierInfo-2/issues/77
+/// in <https://github.com/Pomax/BezierInfo-2/issues/77>
 fn gauss_arclen_3(q: QuadBez) -> f64 {
     let v0 = (-0.492943519233745 * q.p0.to_vec2()
         + 0.430331482911935 * q.p1.to_vec2()
@@ -65,7 +65,7 @@ fn awesome_quad_arclen3(q: QuadBez, accuracy: f64, depth: usize) -> f64 {
 }
 
 /// Another implementation, using weights from
-/// https://pomax.github.io/bezierinfo/legendre-gauss.html
+/// <https://pomax.github.io/bezierinfo/legendre-gauss.html>
 fn gauss_arclen_n(q: QuadBez, coeffs: &[(f64, f64)]) -> f64 {
     let d = q.deriv();
     coeffs
@@ -108,8 +108,8 @@ fn gauss_arclen_24(q: QuadBez) -> f64 {
             (0.0976186521041139, 0.6480936519369755),
             (0.0861901615319533, -0.7401241915785544),
             (0.0861901615319533, 0.7401241915785544),
-            (0.0733464814110803, -0.8200019859739029),
-            (0.0733464814110803, 0.8200019859739029),
+            (0.0733464814110803, -0.820001985973903),
+            (0.0733464814110803, 0.820001985973903),
             (0.0592985849154368, -0.8864155270044011),
             (0.0592985849154368, 0.8864155270044011),
             (0.0442774388174198, -0.9382745520027328),
@@ -141,48 +141,30 @@ fn awesome_quad_arclen7(q: QuadBez, accuracy: f64, depth: usize) -> f64 {
     }
 }
 
-#[bench]
-fn bench_quad_arclen_analytical(b: &mut Bencher) {
-    // Analytical solution is not sensitive to exact shape.
-    let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| quad_arclen_analytical(test::black_box(q)))
-}
-
 const ACCURACY: f64 = 1e-6;
-
-#[bench]
-fn bench_quad_arclen(b: &mut Bencher) {
-    // This is a pretty easy case.
+fn bench_quad_arclen(cc: &mut Criterion) {
     let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| (test::black_box(q).arclen(ACCURACY)))
+
+    cc.bench_function("quad_arclen_analytical", |b| {
+        b.iter(|| quad_arclen_analytical(black_box(q)));
+    });
+    cc.bench_function("quad_arclen", |b| b.iter(|| black_box(q).arclen(ACCURACY)));
+    cc.bench_function("quad_arclen_gauss3", |b| {
+        b.iter(|| awesome_quad_arclen3(black_box(q), ACCURACY, 0));
+    });
+    cc.bench_function("quad_arclen_gauss7", |b| {
+        b.iter(|| awesome_quad_arclen7(black_box(q), ACCURACY, 0));
+    });
+    cc.bench_function("quad_arclen_gauss3_one", |b| {
+        b.iter(|| gauss_arclen_3(black_box(q)));
+    });
+    cc.bench_function("quad_arclen_gauss7_one", |b| {
+        b.iter(|| gauss_arclen_7(black_box(q)));
+    });
+    cc.bench_function("quad_arclen_gauss24_one", |b| {
+        b.iter(|| gauss_arclen_24(black_box(q)));
+    });
 }
 
-#[bench]
-fn bench_quad_arclen_gauss3(b: &mut Bencher) {
-    let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| awesome_quad_arclen3(test::black_box(q), ACCURACY, 0))
-}
-
-#[bench]
-fn bench_quad_arclen_gauss7(b: &mut Bencher) {
-    let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| awesome_quad_arclen7(test::black_box(q), ACCURACY, 0))
-}
-
-#[bench]
-fn bench_quad_arclen_gauss3_one(b: &mut Bencher) {
-    let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| gauss_arclen_3(test::black_box(q)))
-}
-
-#[bench]
-fn bench_quad_arclen_gauss7_one(b: &mut Bencher) {
-    let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| gauss_arclen_7(test::black_box(q)))
-}
-
-#[bench]
-fn bench_quad_arclen_gauss24_one(b: &mut Bencher) {
-    let q = QuadBez::new((0.0, 0.0), (1.0, 0.0), (1.0, 1.0));
-    b.iter(|| gauss_arclen_24(test::black_box(q)))
-}
+criterion_group!(benches, bench_quad_arclen);
+criterion_main!(benches);
