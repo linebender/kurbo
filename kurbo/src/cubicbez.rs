@@ -390,41 +390,6 @@ impl CubicBez {
 
     /// Preprocess a cubic Bézier to ease numerical robustness.
     ///
-    /// If the cubic Bézier segment has zero or near-zero derivatives at the
-    /// endpoints, perturb the control points to make it easier to process
-    /// (especially offset and stroke), avoiding numerical robustness problems.
-    pub(crate) fn regularize_endpoints(&self, dimension: f64) -> CubicBez {
-        let mut c = *self;
-        // First step: if control point is too near the endpoint, nudge it away
-        // along the tangent.
-        let dim2 = dimension * dimension;
-        if c.p0.distance_squared(c.p1) < dim2 {
-            let d02 = c.p0.distance_squared(c.p2);
-            if d02 >= dim2 {
-                // TODO: moderate if this would move closer to p3
-                c.p1 = c.p0.lerp(c.p2, (dim2 / d02).sqrt());
-            } else {
-                c.p1 = c.p0.lerp(c.p3, 1.0 / 3.0);
-                c.p2 = c.p3.lerp(c.p0, 1.0 / 3.0);
-                return c;
-            }
-        }
-        if c.p3.distance_squared(c.p2) < dim2 {
-            let d13 = c.p1.distance_squared(c.p2);
-            if d13 >= dim2 {
-                // TODO: moderate if this would move closer to p0
-                c.p2 = c.p3.lerp(c.p1, (dim2 / d13).sqrt());
-            } else {
-                c.p1 = c.p0.lerp(c.p3, 1.0 / 3.0);
-                c.p2 = c.p3.lerp(c.p0, 1.0 / 3.0);
-                return c;
-            }
-        }
-        c
-    }
-
-    /// Preprocess a cubic Bézier to ease numerical robustness.
-    ///
     /// If the cubic Bézier segment has zero or near-zero derivatives as an interior
     /// cusp, perturb the control points to make curvature finite, avoiding
     /// numerical robustness problems in offset and stroke.
