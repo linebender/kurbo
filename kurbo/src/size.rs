@@ -75,15 +75,6 @@ impl Size {
         self.area() == 0.0
     }
 
-    /// Whether this size has zero area.
-    ///
-    /// Note: a size with negative area is not considered empty.
-    #[inline]
-    #[deprecated(since = "0.11.1", note = "use is_zero_area instead")]
-    pub fn is_empty(self) -> bool {
-        self.is_zero_area()
-    }
-
     /// Returns the component-wise minimum of `self` and `other`.
     ///
     /// # Examples

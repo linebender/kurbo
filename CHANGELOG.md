@@ -21,6 +21,11 @@ It was increased to support floating point math in const functions.
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
 - More `Vec2` methods can now be called in `const` contexts. ([#479][] by [@tomcur][])
 
+### Removed
+
+- Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`, 
+  and `TranslateScale::as_tuple` have been removed.([#487][] by [@DJMcNab][])
+
 ## [0.11.3][] (2025-07-21)
 
 This release has an [MSRV][] of 1.65.
@@ -173,6 +178,7 @@ Note: A changelog was not kept for or before this release
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
 [#479]: https://github.com/linebender/kurbo/pull/479
+[#487]: https://github.com/linebender/kurbo/pull/487
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0

@@ -94,13 +94,6 @@ impl Ellipse {
         Ellipse::private_new(translation, scale.x, scale.y, rotation)
     }
 
-    #[deprecated(since = "0.7.0", note = "use with_rotation instead")]
-    #[must_use]
-    #[doc(hidden)]
-    pub fn with_x_rotation(self, rotation_radians: f64) -> Ellipse {
-        self.with_rotation(rotation_radians)
-    }
-
     /// This gives us an internal method without any type conversions.
     #[inline]
     fn private_new(center: Vec2, scale_x: f64, scale_y: f64, x_rotation: f64) -> Ellipse {
@@ -158,12 +151,6 @@ impl Ellipse {
     #[inline]
     pub fn is_nan(&self) -> bool {
         self.inner.is_nan()
-    }
-
-    #[doc(hidden)]
-    #[deprecated(since = "0.7.0", note = "use rotation() instead")]
-    pub fn x_rotation(&self) -> f64 {
-        self.rotation()
     }
 }
 
