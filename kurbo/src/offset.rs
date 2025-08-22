@@ -4,13 +4,7 @@
 //! Computation of offset curves of cubic Béziers.
 //!
 //! The main algorithm in this module is a new technique designed for robustness
-//! and speed. The details are involved; hopefully there will be a paper. The
-//! method is not publicly exported aside from stroke expansion, as we probably
-//! want to iterate on the exact interface.
-//!
-//! [`fit_to_bezpath`]: crate::fit_to_bezpath
-//! [`fit_to_bezpath_opt`]: crate::fit_to_bezpath_opt
-//! [Parallel curves of cubic Béziers]: https://raphlinus.github.io/curves/2022/09/09/parallel-beziers.html
+//! and speed. The details are involved; hopefully there will be a paper.
 
 use arrayvec::ArrayVec;
 
@@ -109,10 +103,9 @@ struct SubdivisionPoint {
 /// The parallel curve of `c` offset by `d` is written to the `result` path.
 ///
 /// There is a fair amount of attention to robustness, but this method is not suitable
-/// for degenerate cubics with entirely co-linear control points. Rather, those cases
-/// are handled in the stroking logic, replacing them with linear segments and round
-/// joins as needed.
-pub(crate) fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
+/// for degenerate cubics with entirely co-linear control points. Those cases should be
+/// handled before calling this function, by replacing them with linear segments.
+pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     result.truncate(0);
     // A tuning parameter for regularization. A value too large may distort the curve,
     // while a value too small may fail to generate smooth curves. This is a somewhat
@@ -626,45 +619,50 @@ const B_WEIGHTS: [f64; N_LSE] = mk_a_weights(true);
 
 #[cfg(test)]
 mod tests {
-    // TODO: What do we want to do with these tests?
+    use super::offset_cubic;
+    use crate::{BezPath, CubicBez, PathEl};
 
-    // // This test tries combinations of parameters that have caused problems in the past.
-    // #[test]
-    // fn pathological_curves() {
-    //     let curve = CubicBez {
-    //         p0: (-1236.3746269978635, 152.17981429574826).into(),
-    //         p1: (-1175.18662093517, 108.04721798590596).into(),
-    //         p2: (-1152.142883879584, 105.76260301083356).into(),
-    //         p3: (-1151.842639804639, 105.73040758939104).into(),
-    //     };
-    //     let offset = 3603.7267536453924;
-    //     let accuracy = 0.1;
-    //     let offset_path = CubicOffset::new(curve, offset);
-    //     let path = fit_to_bezpath_opt(&offset_path, accuracy);
-    //     assert!(matches!(path.iter().next(), Some(PathEl::MoveTo(_))));
-    //     let path_opt = fit_to_bezpath(&offset_path, accuracy);
-    //     assert!(matches!(path_opt.iter().next(), Some(PathEl::MoveTo(_))));
-    // }
+    // This test tries combinations of parameters that have caused problems in the past.
+    #[test]
+    fn pathological_curves() {
+        let curve = CubicBez {
+            p0: (-1236.3746269978635, 152.17981429574826).into(),
+            p1: (-1175.18662093517, 108.04721798590596).into(),
+            p2: (-1152.142883879584, 105.76260301083356).into(),
+            p3: (-1151.842639804639, 105.73040758939104).into(),
+        };
+        let offset = 3603.7267536453924;
+        let accuracy = 0.1;
 
-    // /// Cubic offset that used to trigger infinite recursion.
-    // #[test]
-    // fn infinite_recursion() {
-    //     const DIM_TUNE: f64 = 0.25;
-    //     const TOLERANCE: f64 = 0.1;
-    //     let c = CubicBez::new(
-    //         (1096.2962962962963, 593.90243902439033),
-    //         (1043.6213991769548, 593.90243902439033),
-    //         (1030.4526748971193, 593.90243902439033),
-    //         (1056.7901234567901, 593.90243902439033),
-    //     );
-    //     let co = CubicOffset::new_regularized(c, -0.5, DIM_TUNE * TOLERANCE);
-    //     fit_to_bezpath(&co, TOLERANCE);
-    // }
+        let mut result = BezPath::new();
+        offset_cubic(curve, offset, accuracy, &mut result);
+        assert!(matches!(result.iter().next(), Some(PathEl::MoveTo(_))));
 
-    // #[test]
-    // fn test_cubic_offset_simple_line() {
-    //     let cubic = CubicBez::new((0., 0.), (10., 0.), (20., 0.), (30., 0.));
-    //     let offset = CubicOffset::new(cubic, 5.);
-    //     let _optimized = fit_to_bezpath(&offset, 1e-6);
-    // }
+        let mut result = BezPath::new();
+        offset_cubic(curve, offset, accuracy, &mut result);
+        assert!(matches!(result.iter().next(), Some(PathEl::MoveTo(_))));
+    }
+
+    /// Cubic offset that used to trigger infinite recursion.
+    #[test]
+    fn infinite_recursion() {
+        const TOLERANCE: f64 = 0.1;
+        const OFFSET: f64 = -0.5;
+        let c = CubicBez::new(
+            (1096.2962962962963, 593.90243902439033),
+            (1043.6213991769548, 593.90243902439033),
+            (1030.4526748971193, 593.90243902439033),
+            (1056.7901234567901, 593.90243902439033),
+        );
+
+        let mut result = BezPath::new();
+        offset_cubic(c, OFFSET, TOLERANCE, &mut result);
+    }
+
+    #[test]
+    fn test_cubic_offset_simple_line() {
+        let cubic = CubicBez::new((0., 0.), (10., 0.), (20., 0.), (30., 0.));
+        let mut result = BezPath::new();
+        offset_cubic(cubic, 5., 1e-6, &mut result);
+    }
 }
