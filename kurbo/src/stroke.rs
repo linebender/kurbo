@@ -573,8 +573,7 @@ impl StrokeCtx {
 }
 
 /// An implementation of dashing as an iterator-to-iterator transformation.
-#[doc(hidden)]
-pub struct DashIterator<'a, T> {
+struct DashIterator<'a, T> {
     inner: T,
     input_done: bool,
     closepath_pending: bool,
@@ -680,15 +679,6 @@ pub fn dash<'a>(
     dash_offset: f64,
     dashes: &'a [f64],
 ) -> impl Iterator<Item = PathEl> + 'a {
-    dash_impl(inner, dash_offset, dashes)
-}
-
-// This is only a separate function to make `DashIterator::new()` typecheck.
-fn dash_impl<T: Iterator<Item = PathEl>>(
-    inner: T,
-    dash_offset: f64,
-    dashes: &[f64],
-) -> DashIterator<'_, T> {
     // ensure that offset is positive and minimal by normalization using period
     let period = dashes.iter().sum();
     let dash_offset = dash_offset.rem_euclid(period);
@@ -725,12 +715,6 @@ fn dash_impl<T: Iterator<Item = PathEl>>(
 }
 
 impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
-    #[doc(hidden)]
-    #[deprecated(since = "0.10.4", note = "use dash() instead")]
-    pub fn new(inner: T, dash_offset: f64, dashes: &'a [f64]) -> Self {
-        dash_impl(inner, dash_offset, dashes)
-    }
-
     fn get_input(&mut self) {
         loop {
             if self.closepath_pending {

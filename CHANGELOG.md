@@ -28,6 +28,7 @@ It was increased to support floating point math in const functions.
 
 ### Removed
 
+- Breaking change: `DashIterator` has been removed. Replace `DashIterator::new` with `dash`. ([#488][] by [@DJMcNab][])
 - Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`,
   and `TranslateScale::as_tuple` have been removed.([#487][] by [@DJMcNab][])
 
@@ -186,6 +187,7 @@ Note: A changelog was not kept for or before this release
 [#479]: https://github.com/linebender/kurbo/pull/479
 [#486]: https://github.com/linebender/kurbo/pull/486
 [#487]: https://github.com/linebender/kurbo/pull/487
+[#488]: https://github.com/linebender/kurbo/pull/488
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
