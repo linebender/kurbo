@@ -442,12 +442,14 @@ impl StrokeCtx {
                                 let h = ab.cross(fp_this - fp_last) / cross;
                                 let miter_pt = fp_this - cd * h;
                                 self.forward_path.line_to(miter_pt);
+                                self.backward_path.line_to(p0);
                             } else if cross < 0.0 {
                                 let fp_last = p0 + last_norm;
                                 let fp_this = p0 + norm;
                                 let h = ab.cross(fp_this - fp_last) / cross;
                                 let miter_pt = fp_this - cd * h;
                                 self.backward_path.line_to(miter_pt);
+                                self.forward_path.line_to(p0);
                             }
                         }
                         self.forward_path.line_to(p0 - norm);
@@ -834,8 +836,8 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        dash, segments, stroke, Cap::Butt, CubicBez, Join::Miter, Line, PathSeg, Shape, Stroke,
-        StrokeOpts,
+        dash, segments, stroke, BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg,
+        Shape, Stroke, StrokeOpts,
     };
 
     // A degenerate stroke with a cusp at the endpoint.
@@ -851,6 +853,37 @@ mod tests {
         let stroke_style = Stroke::new(1.);
         let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
         assert!(stroked.is_finite());
+    }
+
+    #[test]
+    /// <https://github.com/linebender/kurbo/issues/482>
+    fn dash_miter_join() {
+        let path = BezPath::from_vec(vec![
+            PathEl::MoveTo((70.0, 80.0).into()),
+            PathEl::LineTo((0.0, 80.0).into()),
+            PathEl::LineTo((0.0, 77.0).into()),
+        ]);
+        let expected_stroke = BezPath::from_vec(vec![
+            PathEl::MoveTo((70.0, 90.0).into()),
+            PathEl::LineTo((0.0, 90.0).into()),
+            // Miter join point on forward path
+            PathEl::LineTo((-10.0, 90.0).into()),
+            PathEl::LineTo((-10.0, 80.0).into()),
+            PathEl::LineTo((-10.0, 77.0).into()),
+            PathEl::LineTo((10.0, 77.0).into()),
+            PathEl::LineTo((10.0, 80.0).into()),
+            // Miter join point on backward path
+            PathEl::LineTo((0.0, 80.0).into()),
+            PathEl::LineTo((0.0, 70.0).into()),
+            PathEl::LineTo((70.0, 70.0).into()),
+            PathEl::ClosePath,
+        ]);
+        let stroke_style = Stroke::new(20.0)
+            .with_join(Miter)
+            .with_caps(Butt)
+            .with_dashes(0.0, [73.0, 12.0]);
+        let stroke = stroke(path, &stroke_style, &StrokeOpts::default(), 0.25);
+        assert_eq!(stroke, expected_stroke);
     }
 
     // Test cases adapted from https://github.com/linebender/vello/pull/388
