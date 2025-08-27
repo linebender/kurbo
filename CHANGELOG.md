@@ -26,6 +26,10 @@ It was increased to support floating point math in const functions.
 - Deprecated `contained_rect_with_aspect_ratio`, replaced with `inscribed_rect_with_aspect_ratio`, which
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 
+### Fixed
+
+- Fix miter join in dashed strokes. ([#490][] by [@gemberg][])
+
 ### Removed
 
 - Breaking change: `DashIterator` has been removed. Replace `DashIterator::new` with `dash`. ([#488][] by [@DJMcNab][])
@@ -125,6 +129,7 @@ Note: A changelog was not kept for or before this release
 [@dominikh]: https://github.com/dominikh
 [@ErisianArchitect]: https://github.com/ErisianArchitect
 [@GabrielDertoni]: https://github.com/GabrielDertoni
+[@gemberg]: https://github.com/gemberg
 [@jneem]: https://github.com/jneem
 [@juliapaci]: https://github.com/juliapaci
 [@LaurenzV]: https://github.com/LaurenzV
@@ -188,6 +193,7 @@ Note: A changelog was not kept for or before this release
 [#486]: https://github.com/linebender/kurbo/pull/486
 [#487]: https://github.com/linebender/kurbo/pull/487
 [#488]: https://github.com/linebender/kurbo/pull/488
+[#490]: https://github.com/linebender/kurbo/pull/490
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
