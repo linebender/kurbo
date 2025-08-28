@@ -25,6 +25,8 @@ It was increased to support floating point math in const functions.
   aspect rations are otherwise always ratios of width to height. ([#486][] by [@ErisianArchitect][] and [@DJMcNab][])
 - Deprecated `contained_rect_with_aspect_ratio`, replaced with `inscribed_rect_with_aspect_ratio`, which
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
+- Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
+  `offset::offset_cubic`. ([#489][] by [@DJMcNab][])
 
 ### Fixed
 
@@ -35,10 +37,6 @@ It was increased to support floating point math in const functions.
 - Breaking change: `DashIterator` has been removed. Replace `DashIterator::new` with `dash`. ([#488][] by [@DJMcNab][])
 - Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`,
   and `TranslateScale::as_tuple` have been removed.([#487][] by [@DJMcNab][])
-
-### Removed
-
-- Breaking change: The `offset` module amd the deprecated `CubicOffset` have been removed. ([#489][] by [@DJMcNab][])
 
 ## [0.11.3][] (2025-07-21)
 
