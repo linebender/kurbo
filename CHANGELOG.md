@@ -36,6 +36,10 @@ It was increased to support floating point math in const functions.
 - Breaking change: The previously deprecated `BezPath::flatten`, `Ellipse::[with_]x_rotation`, `{Rect, Size}::is_empty`, `Shape::[in]to_bez_path`,
   and `TranslateScale::as_tuple` have been removed.([#487][] by [@DJMcNab][])
 
+### Removed
+
+- Breaking change: The `offset` module amd the deprecated `CubicOffset` have been removed. ([#489][] by [@DJMcNab][])
+
 ## [0.11.3][] (2025-07-21)
 
 This release has an [MSRV][] of 1.65.
@@ -193,6 +197,7 @@ Note: A changelog was not kept for or before this release
 [#486]: https://github.com/linebender/kurbo/pull/486
 [#487]: https://github.com/linebender/kurbo/pull/487
 [#488]: https://github.com/linebender/kurbo/pull/488
+[#489]: https://github.com/linebender/kurbo/pull/489
 [#490]: https://github.com/linebender/kurbo/pull/490
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
