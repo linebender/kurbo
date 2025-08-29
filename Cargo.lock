@@ -338,9 +338,9 @@ dependencies = [
 
 [[package]]
 name = "poly-cool"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d94899afd655b6578f143f1c6401eddd46cbcca2d8433fc45a0dd79418b3cc7e"
+checksum = "28831a40dc0d9a6b661f1aa3430b6b85e5498a444c37e2095730a3559d2fec9a"
 dependencies = [
  "arrayvec",
 ]

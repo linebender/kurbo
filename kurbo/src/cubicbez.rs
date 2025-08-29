@@ -670,7 +670,7 @@ impl ParamCurveNearest for CubicBez {
         let mut r_best = None;
         let mut t_best = 0.0;
 
-        // Reparametrize `self - p` as q0 + q1 t + q2 t^2 + q3 t^3.
+        // Reparameterize `self - p` as q0 + q1 t + q2 t^2 + q3 t^3.
         let q0 = self.p0 - p;
         let q1 = 3.0 * (self.p1 - self.p0);
         let q2 = 3.0 * (self.p0.to_vec2() - 2.0 * self.p1.to_vec2() + self.p2.to_vec2());
