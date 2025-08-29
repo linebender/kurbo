@@ -38,7 +38,7 @@ schemars = ["schemars/smallvec", "dep:schemars"]
 [dependencies]
 smallvec = "1.15.1"
 euclid = { version = "0.22", optional = true, default-features = false }
-poly-cool = { version = "0.3.3", default-features = false }
+poly-cool = { version = "0.3.2", default-features = false }
 
 [dependencies.arrayvec]
 version = "0.7.6"
