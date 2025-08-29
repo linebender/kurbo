@@ -93,5 +93,9 @@ name = "quartic"
 harness = false
 
 [[bench]]
+name = "nearest"
+harness = false
+
+[[bench]]
 name = "rect_expand"
 harness = false
