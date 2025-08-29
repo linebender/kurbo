@@ -940,6 +940,22 @@ mod tests {
         verify(c.nearest((-0.1, 0.0).into(), 1e-6), 0.0);
         let a = Affine::rotate(0.5);
         verify((a * c).nearest(a * Point::new(0.1, 0.001), 1e-6), 0.1);
+
+        // Here's a case that tripped up the old solver because the start is close to
+        // degenerate and the end is actually degenerate; see #446.
+        let curve = CubicBez::new(
+            (461.0, 123.0),
+            (460.99999999999994, 123.00000000000004),
+            (111.0, 319.0),
+            (111.0, 319.0),
+        );
+        let p = Point::new(282.0379003395483, 223.21877580985594);
+        let eps = 0.0005;
+        let nearest = curve.nearest(p, eps);
+        let q = curve.eval(nearest.t);
+        let r = curve.eval(0.5075474297354187);
+
+        assert!((q - p).hypot() <= (r - p).hypot() + eps);
     }
 
     // ensure to_quads returns something given collinear points
