@@ -249,6 +249,7 @@ dependencies = [
  "getrandom",
  "libm",
  "mint",
+ "poly-cool",
  "rand",
  "schemars",
  "serde",
@@ -333,6 +334,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51bae2ac328883f7acdfea3d66a7c35751187f870bc81f94563733a154d7a670"
 dependencies = [
  "plotters-backend",
+]
+
+[[package]]
+name = "poly-cool"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d94899afd655b6578f143f1c6401eddd46cbcca2d8433fc45a0dd79418b3cc7e"
+dependencies = [
+ "arrayvec",
 ]
 
 [[package]]

@@ -8,7 +8,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
 
-use kurbo::{common::solve_quartic, CubicBez, ParamCurveNearest as _, Point, QuadBez};
+use kurbo::{CubicBez, ParamCurveNearest as _, Point, QuadBez};
 
 fn bench_nearest_quadratic(cc: &mut Criterion) {
     let q = QuadBez {

@@ -654,23 +654,53 @@ impl ParamCurveArea for CubicBez {
 }
 
 impl ParamCurveNearest for CubicBez {
-    /// Find the nearest point, using subdivision.
+    /// Find the nearest point using a quintic solver.
+    ///
+    /// The polynomial `|self - p|^2` has degree 6, so we find its critical
+    /// points and evaluate them all to find the best one.
     fn nearest(&self, p: Point, accuracy: f64) -> Nearest {
-        let mut best_r = None;
-        let mut best_t = 0.0;
-        for (t0, t1, q) in self.to_quads(accuracy) {
-            let nearest = q.nearest(p, accuracy);
-            if best_r
-                .map(|best_r| nearest.distance_sq < best_r)
-                .unwrap_or(true)
-            {
-                best_t = t0 + nearest.t * (t1 - t0);
-                best_r = Some(nearest.distance_sq);
+        fn eval_t(p: Point, t_best: &mut f64, r_best: &mut Option<f64>, t: f64, p0: Point) {
+            let r = (p0 - p).hypot2();
+            if r_best.map(|r_best| r < r_best).unwrap_or(true) {
+                *r_best = Some(r);
+                *t_best = t;
             }
         }
+
+        let mut r_best = None;
+        let mut t_best = 0.0;
+
+        // Reparametrize `self - p` as q0 + q1 t + q2 t^2 + q3 t^3.
+        let q0 = self.p0 - p;
+        let q1 = 3.0 * (self.p1 - self.p0);
+        let q2 = 3.0 * (self.p0.to_vec2() - 2.0 * self.p1.to_vec2() + self.p2.to_vec2());
+        let q3 = -self.p0.to_vec2() + 3.0 * self.p1.to_vec2() - 3.0 * self.p2.to_vec2()
+            + self.p3.to_vec2();
+
+        // Coefficients of the degree-5 polynomial (self - p) \cdot tangent.
+        let c0 = q0.dot(q1);
+        let c1 = q1.hypot2() + 2.0 * q2.dot(q0);
+        let c2 = 3.0 * (q2.dot(q1) + q3.dot(q0));
+        let c3 = 4.0 * q3.dot(q1) + 2.0 * q2.hypot2();
+        let c4 = 5.0 * q3.dot(q2);
+        let c5 = 3.0 * q3.hypot2();
+
+        let roots =
+            poly_cool::Poly::new([c0, c1, c2, c3, c4, c5]).roots_between(0.0, 1.0, accuracy);
+
+        for &t in &roots {
+            eval_t(p, &mut t_best, &mut r_best, t, self.eval(t));
+        }
+
+        // If we found all 5 critical points, we can skip evaluating the endpoints.
+        if roots.len() != 5 {
+            eval_t(p, &mut t_best, &mut r_best, 0.0, self.p0);
+            eval_t(p, &mut t_best, &mut r_best, 1.0, self.p3);
+        }
+
         Nearest {
-            t: best_t,
-            distance_sq: best_r.unwrap(),
+            t: t_best,
+            distance_sq: r_best.unwrap(),
         }
     }
 }
