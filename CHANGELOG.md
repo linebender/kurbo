@@ -30,6 +30,7 @@ It was increased to support floating point math in const functions.
 
 ### Fixed
 
+- Improved cubic to quadratic conversion handling for degenerate cubic curves with 3-4 consecutive equal control points. The approximation now correctly handles edge cases where cubics degenerate to lines or single points, matching fonttools' cu2qu behavior. ([#485][] by [@anthrotype][])
 - Fix miter join in dashed strokes. ([#490][] by [@gemberg][])
 
 ### Removed
@@ -126,6 +127,7 @@ This release has an [MSRV][] of 1.65.
 
 Note: A changelog was not kept for or before this release
 
+[@anthrotype]: https://github.com/anthrotype
 [@beholdnec]: https://githun.com/beholdnec
 [@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
@@ -192,6 +194,7 @@ Note: A changelog was not kept for or before this release
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
 [#479]: https://github.com/linebender/kurbo/pull/479
+[#485]: https://github.com/linebender/kurbo/pull/485
 [#486]: https://github.com/linebender/kurbo/pull/486
 [#487]: https://github.com/linebender/kurbo/pull/487
 [#488]: https://github.com/linebender/kurbo/pull/488
