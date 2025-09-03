@@ -120,9 +120,28 @@ impl Ellipse {
     ///
     /// The first number is the horizontal radius and the second is the vertical
     /// radius, before rotation.
+    ///
+    /// If you are only interested in the value of the greatest or smallest radius of this ellipse,
+    /// consider using [`Ellipse::major_radius`] or [`Ellipse::minor_radius`] instead.
     #[inline]
     pub fn radii(&self) -> Vec2 {
         self.inner.svd().0
+    }
+
+    /// Returns the major radius of this ellipse.
+    ///
+    /// This metric is also known as the semi-major axis.
+    #[inline]
+    pub fn major_radius(&self) -> f64 {
+        self.inner.svd().0.x
+    }
+
+    /// Returns the minor radius of this ellipse.
+    ///
+    /// This metric is also known as the semi-minor axis.
+    #[inline]
+    pub fn minor_radius(&self) -> f64 {
+        self.inner.svd().0.y
     }
 
     /// The ellipse's rotation, in radians.

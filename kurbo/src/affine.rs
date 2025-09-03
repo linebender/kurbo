@@ -389,16 +389,18 @@ impl Affine {
     /// Will return NaNs if the matrix (or equivalently the linear map) is non-finite.
     ///
     /// The first part of the returned tuple is the scaling, the second part is the angle of
-    /// rotation (in radians).
-    #[inline]
+    /// rotation (in radians). The scaling along the x-axis is guaranteed to be greater than or
+    /// equal to the scaling along the y-axis.
+    //
+    // Note: though this does quite some computation, we are often interested only in specific
+    // components of the result. Hence this is marked `#[inline(always)]`, to give the compiler a
+    // good chance at eliminating dead code.
+    #[inline(always)]
     pub(crate) fn svd(self) -> (Vec2, f64) {
-        let a = self.0[0];
+        let [a, b, c, d, _, _] = self.0;
         let a2 = a * a;
-        let b = self.0[1];
         let b2 = b * b;
-        let c = self.0[2];
         let c2 = c * c;
-        let d = self.0[3];
         let d2 = d * d;
         let ab = a * b;
         let cd = c * d;
