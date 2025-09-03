@@ -16,6 +16,10 @@ You can find its changes [documented below](#0113-2025-07-21).
 This release has an [MSRV][] of 1.82.
 It was increased to support floating point math in const functions.
 
+### Added
+
+- Add `Ellipse::major_radius` and `Ellipse::minor_radius` methods. ([#497][] by [@tomcur][])
+
 ### Changed
 
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
@@ -202,6 +206,7 @@ Note: A changelog was not kept for or before this release
 [#489]: https://github.com/linebender/kurbo/pull/489
 [#490]: https://github.com/linebender/kurbo/pull/490
 [#496]: https://github.com/linebender/kurbo/pull/496
+[#497]: https://github.com/linebender/kurbo/pull/497
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
