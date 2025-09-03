@@ -64,6 +64,7 @@ pub struct SimplifyOptions {
 }
 
 /// Optimization level for simplification.
+#[repr(u8)]
 pub enum SimplifyOptLevel {
     /// Subdivide; faster but not as optimized results.
     Subdivide,
