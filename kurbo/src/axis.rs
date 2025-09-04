@@ -5,6 +5,7 @@ use crate::{Point, Size, Vec2};
 
 /// An axis in the plane.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u8)]
 pub enum Axis {
     /// The x axis.
     Horizontal,
