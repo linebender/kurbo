@@ -14,11 +14,11 @@ You can find its changes [documented below](#0120-2025-09-04).
 ## [Unreleased]
 
 This release has an [MSRV][] of 1.82.
-It was increased to support floating point math in const functions.
 
 ## [0.12.0] (2025-09-04)
 
 This release has an [MSRV][] of 1.82.
+It was increased to support floating point math in const functions.
 
 ### Added
 
@@ -37,7 +37,7 @@ This release has an [MSRV][] of 1.82.
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 - Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
   `offset::offset_cubic`. ([#489][] by [@jneem][])
-- Several methods marked `#[inline]` ([#472][], [#480][], [#496][] by [@tomcur][])
+- Several methods marked `#[inline]`. ([#472][], [#480][], [#496][] by [@tomcur][])
 
 ### Fixed
 
