@@ -16,6 +16,11 @@ You can find its changes [documented below](#0113-2025-07-21).
 This release has an [MSRV][] of 1.82.
 It was increased to support floating point math in const functions.
 
+### Added
+
+- Newly public `StrokeCtx` allows for reusing allocations when stroking multiple paths. ([#475][] by [@LaurenzV][])
+- New `Axis` type. ([#476][] by [@PoignardAzur][])
+
 ### Changed
 
 - The implementation of stroking is much faster. ([#427][] by [@raphlinus][])
@@ -27,6 +32,7 @@ It was increased to support floating point math in const functions.
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 - Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
   `offset::offset_cubic`. ([#489][] by [@jneem][])
+- Several methods marks `#[inline]` ([#472][], [#480][] by [@tomcur][])
 
 ### Fixed
 
@@ -141,6 +147,7 @@ Note: A changelog was not kept for or before this release
 [@nils-mathieu]: https://github.com/nils-mathieu
 [@Philipp-M]: https://github.com/Philipp-M
 [@platlas]: https://github.com/platlas
+[@PoignardAzur]: https://github.com/PoignardAzur
 [@raphlinus]: https://github.com/raphlinus
 [@rsheeter]: https://github.com/rsheeter
 [@sagudev]: https://github.com/sagudev
@@ -193,7 +200,11 @@ Note: A changelog was not kept for or before this release
 [#465]: https://github.com/linebender/kurbo/pull/465
 [#466]: https://github.com/linebender/kurbo/pull/466
 [#469]: https://github.com/linebender/kurbo/pull/469
+[#472]: https://github.com/linebender/kurbo/pull/472
+[#475]: https://github.com/linebender/kurbo/pull/475
+[#476]: https://github.com/linebender/kurbo/pull/476
 [#479]: https://github.com/linebender/kurbo/pull/479
+[#480]: https://github.com/linebender/kurbo/pull/480
 [#485]: https://github.com/linebender/kurbo/pull/485
 [#486]: https://github.com/linebender/kurbo/pull/486
 [#487]: https://github.com/linebender/kurbo/pull/487
