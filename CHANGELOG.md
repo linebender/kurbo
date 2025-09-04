@@ -8,13 +8,17 @@ Subheadings to categorize changes are `added, changed, deprecated, removed, fixe
 
 # Changelog
 
-The latest published Kurbo release is [0.11.3](#0113-2025-07-21) which was released on 2025-07-21.
-You can find its changes [documented below](#0113-2025-07-21).
+The latest published Kurbo release is [0.12.0](#0120-2025-09-04) which was released on 2025-09-04.
+You can find its changes [documented below](#0120-2025-09-04).
 
 ## [Unreleased]
 
 This release has an [MSRV][] of 1.82.
 It was increased to support floating point math in const functions.
+
+## [0.12.0] (2025-09-04)
+
+This release has an [MSRV][] of 1.82.
 
 ### Added
 
@@ -215,10 +219,11 @@ Note: A changelog was not kept for or before this release
 [#496]: https://github.com/linebender/kurbo/pull/496
 [#497]: https://github.com/linebender/kurbo/pull/497
 
-[Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
+[Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
 [0.11.1]: https://github.com/linebender/kurbo/releases/tag/v0.11.1
 [0.11.2]: https://github.com/linebender/kurbo/releases/tag/v0.11.2
 [0.11.3]: https://github.com/linebender/kurbo/releases/tag/v0.11.3
+[0.12.0]: https://github.com/linebender/kurbo/releases/tag/v0.12.0
 
 [MSRV]: README.md#minimum-supported-rust-version-msrv
