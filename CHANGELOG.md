@@ -32,7 +32,7 @@ It was increased to support floating point math in const functions.
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 - Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
   `offset::offset_cubic`. ([#489][] by [@jneem][])
-- Several methods marks `#[inline]` ([#472][], [#480][] by [@tomcur][])
+- Several methods marked `#[inline]` ([#472][], [#480][] by [@tomcur][])
 
 ### Fixed
 
