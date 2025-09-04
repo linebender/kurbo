@@ -431,12 +431,12 @@ impl Affine {
         //
         // => 2λ = tr(M) ± S1 S2
         // => 2λ = 1/2 (S1^2 + S2^2) ± S1 S2
-        // => λ = 1/4 (S1^2 + S2^2) ± 1/2 S1 S2
+        // => λ = 1/4 (S1^2 + S2^2 ± 2 S1 S2)
+        // => λ = 1/4 (S1 ± S2)^2
         //
         // Note we're interested in
         // σ = sqrt(λ).
         //
-        // => σ1 = sqrt(1/4 (S1^2 + S2^2) + 2 S1 S2)
         // => σ1 = 1/2 (S1 + S2)
         // and similarly σ2 = 1/2 |S1 - S2|
         let s1 = ((a + d).powi(2) + (b - c).powi(2)).sqrt();
