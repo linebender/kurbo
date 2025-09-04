@@ -32,6 +32,7 @@ It was increased to support floating point math in const functions.
 - Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
   `offset::offset_cubic`. ([#489][] by [@jneem][])
 - Inline some `Ellipse` methods. ([#496][] by [@tomcur][])
+- Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
 
 ### Fixed
 
@@ -207,6 +208,7 @@ Note: A changelog was not kept for or before this release
 [#490]: https://github.com/linebender/kurbo/pull/490
 [#496]: https://github.com/linebender/kurbo/pull/496
 [#497]: https://github.com/linebender/kurbo/pull/497
+[#499]: https://github.com/linebender/kurbo/pull/499
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
