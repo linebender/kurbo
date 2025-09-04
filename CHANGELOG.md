@@ -15,6 +15,10 @@ You can find its changes [documented below](#0120-2025-09-04).
 
 This release has an [MSRV][] of 1.82.
 
+## Changed
+
+- Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
+
 ## [0.12.0] (2025-09-04)
 
 This release has an [MSRV][] of 1.82.
@@ -218,6 +222,7 @@ Note: A changelog was not kept for or before this release
 [#490]: https://github.com/linebender/kurbo/pull/490
 [#496]: https://github.com/linebender/kurbo/pull/496
 [#497]: https://github.com/linebender/kurbo/pull/497
+[#499]: https://github.com/linebender/kurbo/pull/499
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
