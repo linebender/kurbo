@@ -20,6 +20,7 @@ It was increased to support floating point math in const functions.
 
 - Newly public `StrokeCtx` allows for reusing allocations when stroking multiple paths. ([#475][] by [@LaurenzV][])
 - New `Axis` type. ([#476][] by [@PoignardAzur][])
+- Add `Ellipse::major_radius` and `Ellipse::minor_radius` methods. ([#497][] by [@tomcur][])
 
 ### Changed
 
@@ -32,7 +33,7 @@ It was increased to support floating point math in const functions.
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 - Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
   `offset::offset_cubic`. ([#489][] by [@jneem][])
-- Several methods marked `#[inline]` ([#472][], [#480][] by [@tomcur][])
+- Several methods marked `#[inline]` ([#472][], [#480][], [#496][] by [@tomcur][])
 
 ### Fixed
 
@@ -211,6 +212,8 @@ Note: A changelog was not kept for or before this release
 [#488]: https://github.com/linebender/kurbo/pull/488
 [#489]: https://github.com/linebender/kurbo/pull/489
 [#490]: https://github.com/linebender/kurbo/pull/490
+[#496]: https://github.com/linebender/kurbo/pull/496
+[#497]: https://github.com/linebender/kurbo/pull/497
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
