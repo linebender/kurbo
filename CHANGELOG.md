@@ -27,6 +27,7 @@ It was increased to support floating point math in const functions.
   incidentally also uses the usual definition of aspect ratio (where the old name didn't). ([#486][] by [@DJMcNab][])
 - Breaking change: The deprecated `offset::CubicOffset` has been removed, and replaced by
   `offset::offset_cubic`. ([#489][] by [@jneem][])
+- Inline some `Ellipse` methods. ([#496][] by [@tomcur][])
 
 ### Fixed
 
@@ -200,6 +201,7 @@ Note: A changelog was not kept for or before this release
 [#488]: https://github.com/linebender/kurbo/pull/488
 [#489]: https://github.com/linebender/kurbo/pull/489
 [#490]: https://github.com/linebender/kurbo/pull/490
+[#496]: https://github.com/linebender/kurbo/pull/496
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.11.3...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0

@@ -75,6 +75,7 @@ impl Ellipse {
     }
 
     /// Create a new `Ellipse` with the provided radii.
+    #[inline]
     #[must_use]
     pub fn with_radii(self, new_radii: Vec2) -> Ellipse {
         let rotation = self.inner.svd().1;
@@ -87,6 +88,7 @@ impl Ellipse {
     ///
     /// The rotation is clockwise, for a y-down coordinate system. For more
     /// on rotation, See [`Affine::rotate`].
+    #[inline]
     #[must_use]
     pub fn with_rotation(self, rotation: f64) -> Ellipse {
         let scale = self.inner.svd().0;
@@ -118,6 +120,7 @@ impl Ellipse {
     ///
     /// The first number is the horizontal radius and the second is the vertical
     /// radius, before rotation.
+    #[inline]
     pub fn radii(&self) -> Vec2 {
         self.inner.svd().0
     }
@@ -126,6 +129,7 @@ impl Ellipse {
     ///
     /// This allows all possible ellipses to be drawn by always starting with
     /// an ellipse with the two radii on the x and y axes.
+    #[inline]
     pub fn rotation(&self) -> f64 {
         self.inner.svd().1
     }
@@ -133,6 +137,7 @@ impl Ellipse {
     /// Returns the radii and the rotation of this ellipse.
     ///
     /// Equivalent to `(self.radii(), self.rotation())` but more efficient.
+    #[inline]
     pub fn radii_and_rotation(&self) -> (Vec2, f64) {
         self.inner.svd()
     }
@@ -181,6 +186,7 @@ impl Sub<Vec2> for Ellipse {
 
 impl Mul<Ellipse> for Affine {
     type Output = Ellipse;
+    #[inline]
     fn mul(self, other: Ellipse) -> Self::Output {
         Ellipse {
             inner: self * other.inner,
@@ -189,6 +195,7 @@ impl Mul<Ellipse> for Affine {
 }
 
 impl From<Circle> for Ellipse {
+    #[inline]
     fn from(circle: Circle) -> Self {
         Ellipse::new(circle.center, Vec2::splat(circle.radius), 0.0)
     }
@@ -248,6 +255,7 @@ impl Shape for Ellipse {
         agm_elliptic_perimeter(accuracy, radii)
     }
 
+    #[inline]
     fn winding(&self, pt: Point) -> i32 {
         // Strategy here is to apply the inverse map to the point and see if it is in the unit
         // circle.
