@@ -1,0 +1,36 @@
+[package]
+name = "poly-cool"
+version = "0.3.3"
+edition = "2024"
+description = "Polynomial root-finding"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jneem/poly-cool"
+
+[features]
+default = ["std"]
+std = []
+arbitrary = ["dep:arbitrary"]
+# Use floating point implementations from libm
+libm = ["dep:libm"]
+
+[dependencies]
+arbitrary = { version = "1.4.1", optional = true }
+arrayvec = { version = "0.7.6", default-features = false }
+libm = { version = "0.2.15", optional = true }
+
+[dev-dependencies]
+arbitrary = "1.4.1"
+arbtest = "0.3.2"
+criterion = "0.7.0"
+
+[[bench]]
+name = "cubic_roots"
+harness = false
+
+[[bench]]
+name = "eval"
+harness = false
+
+[[bench]]
+name = "quadratic_roots"
+harness = false
