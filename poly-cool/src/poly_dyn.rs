@@ -1,3 +1,6 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Polynomials of dynamic (run-time) degree.
 
 use crate::{Cubic, different_signs, yuksel};

@@ -1,3 +1,6 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! An implementation of Yuksel's robust version of Newton's algorithm.
 
 fn different_signs(x: f64, y: f64) -> bool {

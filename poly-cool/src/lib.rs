@@ -1,3 +1,6 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! This is a crate for numerical polynomial root-finding.
 //!
 //! Currently, we implement a single solver: Yuksel's iterative algorithm

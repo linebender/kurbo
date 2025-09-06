@@ -1,3 +1,6 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 //! Utilities for fuzz and/or property testing using `arbitrary`.
 
 use core::f64;

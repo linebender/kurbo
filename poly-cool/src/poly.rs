@@ -1,3 +1,6 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use arrayvec::ArrayVec;
 
 /// A polynomial whose degree is known at compile-time.

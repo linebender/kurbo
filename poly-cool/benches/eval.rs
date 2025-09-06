@@ -1,3 +1,6 @@
+// Copyright 2025 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use poly_cool::Poly;
 use std::hint::black_box;
