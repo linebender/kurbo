@@ -272,7 +272,17 @@ impl BezPath {
         self.push(PathEl::ClosePath);
     }
 
+    /// Consumes the `BezPath` and returns a vector of [`PathEl`]s.
+    #[inline]
+    pub fn into_elements(self) -> Vec<PathEl> {
+        self.0
+    }
+
     /// Get the path elements.
+    ///
+    /// For owned elements, see [`into_elements`].
+    ///
+    /// [`into_elements`]: Self::into_elements
     #[inline(always)]
     pub fn elements(&self) -> &[PathEl] {
         &self.0
