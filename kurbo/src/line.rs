@@ -170,7 +170,11 @@ impl ParamCurveNearest for Line {
         let t = d.dot(v) / d.hypot2();
 
         // Clamp the parameter to be on the line segment. This results in `t==0` if `t==inf` above.
-        let t = t.max(0.).min(1.);
+        #[expect(
+            clippy::manual_clamp,
+            reason = "`clamp` uses slightly more instructions than chained `max` and `min` on x86 and aarch64"
+        )]
+        let t = { t.max(0.).min(1.) };
 
         // Calculate ||p - s(t)||^2.
         let distance_sq = (v - t * d).hypot2();
