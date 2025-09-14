@@ -158,19 +158,23 @@ impl ParamCurveArea for Line {
 }
 
 impl ParamCurveNearest for Line {
+    #[inline]
     fn nearest(&self, p: Point, _accuracy: f64) -> Nearest {
         let d = self.p1 - self.p0;
-        let dotp = d.dot(p - self.p0);
-        let d_squared = d.dot(d);
-        let (t, distance_sq) = if dotp <= 0.0 {
-            (0.0, (p - self.p0).hypot2())
-        } else if dotp >= d_squared {
-            (1.0, (p - self.p1).hypot2())
-        } else {
-            let t = dotp / d_squared;
-            let dist = (p - self.eval(t)).hypot2();
-            (t, dist)
-        };
+        let v = p - self.p0;
+
+        // Calculate projection parameter `t` of the point onto s(t), with s(t) the line segment
+        // such that s(t) = (1-t) * p0 + t * p1.
+        //
+        // Note this will be inf when the segment has 0 length; see the clamping below.
+        let t = d.dot(v) / d.hypot2();
+
+        // Clamp the parameter to be on the line segment. This results in `t==0` if `t==inf` above.
+        let t = t.max(0.).min(1.);
+
+        // Calculate ||p - s(t)||^2.
+        let distance_sq = (v - t * d).hypot2();
+
         Nearest { distance_sq, t }
     }
 }
@@ -393,5 +397,40 @@ mod tests {
             }
         })
         .is_finite());
+    }
+
+    #[test]
+    fn line_nearest() {
+        use crate::{ParamCurve, ParamCurveNearest};
+
+        const EPSILON: f64 = 1e-9;
+
+        let line = Line::new((-4., 0.), (2., 1.));
+
+        // Projects onto the line segment end point.
+        let point = Point::new(4., 0.);
+        let nearest = line.nearest(point, 0.);
+        assert_eq!(nearest.t, 1.);
+        assert!((nearest.distance_sq - line.p1.distance_squared(point)).abs() < EPSILON);
+
+        // Projects onto the line segment start point.
+        let point = Point::new(0., -50.);
+        let nearest = line.nearest(point, 0.);
+        assert_eq!(nearest.t, 0.);
+        assert!((nearest.distance_sq - line.p0.distance_squared(point)).abs() < EPSILON);
+
+        // Projects onto the line segment proper (not just onto one of its extrema).
+        let point = Point::new(-1., 0.5);
+        let nearest = line.nearest(point, 0.);
+        assert!(nearest.t > 0. && nearest.t < 1.);
+        // Ensure evaluating and calculating distance manually has the same result.
+        assert!(
+            (line.eval(nearest.t).distance_squared(point) - nearest.distance_sq).abs() < EPSILON
+        );
+
+        // Test minimality while avoiding reimplementing projection in this test by checking that
+        // moving to a slightly different point on the segment increases the distance.
+        assert!(line.eval(nearest.t * 0.95).distance_squared(point) > nearest.distance_sq);
+        assert!(line.eval(nearest.t * 1.05).distance_squared(point) > nearest.distance_sq);
     }
 }
