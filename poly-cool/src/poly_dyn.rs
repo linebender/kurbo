@@ -3,7 +3,7 @@
 
 //! Polynomials of dynamic (run-time) degree.
 
-use crate::{Cubic, different_signs, yuksel};
+use crate::{Cubic, Quadratic, different_signs, yuksel};
 
 /// A polynomial of dynamic degree.
 ///
@@ -114,6 +114,19 @@ impl PolyDyn {
         }
     }
 
+    /// If this polynomial has degree 2 or less, converts it to a [cubic](crate::Quadratic).
+    fn to_quadratic(&self) -> Option<Quadratic> {
+        if self.degree() <= 2 {
+            Some(Quadratic::new([
+                self.coeffs.first().copied().unwrap_or(0.0),
+                self.coeffs.get(1).copied().unwrap_or(0.0),
+                self.coeffs.get(2).copied().unwrap_or(0.0),
+            ]))
+        } else {
+            None
+        }
+    }
+
     /// Finds all the roots in an interval, using Yuksel's algorithm.
     ///
     /// This is a numerical, iterative method. It first constructs critical
@@ -151,6 +164,10 @@ impl PolyDyn {
         out.clear();
         scratch.clear();
 
+        if let Some(q) = self.to_quadratic() {
+            out.extend(q.roots());
+            return;
+        }
         if let Some(c) = self.to_cubic() {
             out.extend(c.roots_between(lower, upper, x_error));
             return;
