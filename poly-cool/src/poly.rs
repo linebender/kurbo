@@ -428,6 +428,7 @@ mod tests {
             // Check that the roots are sorted.
             if roots.iter().all(|r| r.is_finite()) {
                 assert!(roots.is_sorted());
+                assert!(roots.iter().all(|r| (-2.0..=2.0).contains(r)));
             }
 
             // We can't expect great accuracy for huge coefficients, because the

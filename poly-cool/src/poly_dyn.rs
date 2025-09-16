@@ -165,7 +165,7 @@ impl PolyDyn {
         scratch.clear();
 
         if let Some(q) = self.to_quadratic() {
-            out.extend(q.roots());
+            out.extend(q.roots().into_iter().filter(|&r| lower <= r && r <= upper));
             return;
         }
         if let Some(c) = self.to_cubic() {
