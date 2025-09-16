@@ -70,7 +70,7 @@ impl<const N: usize> Poly<N> {
     /// Returns the largest absolute value of any coefficient.
     ///
     /// Always returns a non-negative number, or NaN if some coefficient is NaN.
-    pub fn magnitude(&self) -> f64 {
+    pub fn max_abs_coefficient(&self) -> f64 {
         let mut max = 0.0f64;
         for c in &self.coeffs {
             max = max.max(c.abs());
@@ -371,7 +371,7 @@ mod tests {
     fn check_root_values<const N: usize>(p: &Poly<N>, roots: &[f64]) {
         // Arbitrary cubics can have coefficients with wild magnitudes,
         // so we need to adjust our error expectations accordingly.
-        let magnitude = p.magnitude().max(1.0);
+        let magnitude = p.max_abs_coefficient().max(1.0);
         let accuracy = magnitude * 1e-12;
 
         for r in roots {
@@ -420,7 +420,7 @@ mod tests {
             // Bear in mind that Yuksel's algorithm needs iterated derivatives to be
             // finite (and that we aren't doing any preconditioning or normalization yet),
             // ensure that the polynomial isn't too big.
-            if (poly.magnitude() * 1024.0).is_infinite() {
+            if (poly.max_abs_coefficient() * 1024.0).is_infinite() {
                 return Err(arbitrary::Error::IncorrectFormat);
             }
             let roots = poly.roots_between(-2.0, 2.0, 1e-13);
@@ -432,7 +432,7 @@ mod tests {
 
             // We can't expect great accuracy for huge coefficients, because the
             // evaluations during Newton iteration are subject to error.
-            let error = poly.magnitude().max(1.0) * 1e-12;
+            let error = poly.max_abs_coefficient().max(1.0) * 1e-12;
             assert!(roots.iter().any(|r| (r - planted_root).abs() <= error));
             Ok(())
         })

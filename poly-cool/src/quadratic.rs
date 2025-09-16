@@ -116,7 +116,7 @@ mod tests {
             let q = crate::arbitrary::quadratic(u)?;
             // Arbitrary quadratics can have coefficients with wild magnitudes,
             // so we need to adjust our error expectations accordingly.
-            let magnitude = q.magnitude().max(1.0);
+            let magnitude = q.max_abs_coefficient().max(1.0);
 
             for r in q.roots() {
                 let y = q.eval(r);

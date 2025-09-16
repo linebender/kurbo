@@ -163,7 +163,7 @@ mod tests {
         arbtest::arbtest(|u| {
             let r = float_in_unit_interval(u)?;
             let p: Poly<6> = poly_with_planted_root(u, r, 1e-6)?;
-            assert!(p.eval(r).abs() <= 1e-12 * p.magnitude().max(1.0));
+            assert!(p.eval(r).abs() <= 1e-12 * p.max_abs_coefficient().max(1.0));
             Ok(())
         });
     }
