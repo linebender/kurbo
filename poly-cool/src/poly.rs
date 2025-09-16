@@ -137,7 +137,7 @@ macro_rules! impl_roots_between_recursive {
             ) -> ArrayVec<f64, $N_MINUS_ONE> {
                 let mut ret = ArrayVec::new();
                 let mut scratch = ArrayVec::new();
-                self.roots_between_with_buffer(lower, upper, x_error, &mut scratch, &mut ret);
+                self.roots_between_with_buffer(lower, upper, x_error, &mut ret, &mut scratch);
                 ret
             }
 
@@ -149,14 +149,14 @@ macro_rules! impl_roots_between_recursive {
                 lower: f64,
                 upper: f64,
                 x_error: f64,
-                scratch: &mut ArrayVec<f64, M>,
                 out: &mut ArrayVec<f64, M>,
+                scratch: &mut ArrayVec<f64, M>,
             ) {
                 let deriv = self.deriv();
                 if !deriv.is_finite() {
                     return;
                 }
-                deriv.roots_between_with_buffer(lower, upper, x_error, out, scratch);
+                deriv.roots_between_with_buffer(lower, upper, x_error, scratch, out);
                 scratch.push(upper);
                 out.clear();
                 let mut last = lower;

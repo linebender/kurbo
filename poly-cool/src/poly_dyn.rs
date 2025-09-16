@@ -66,7 +66,7 @@ impl PolyDyn {
 
     /// Returns the polynomial that's the derivative of this polynomial.
     pub fn deriv(&self) -> PolyDyn {
-        let mut coeffs = Vec::with_capacity(self.coeffs.len() - 1);
+        let mut coeffs = Vec::with_capacity(self.coeffs.len().saturating_sub(1));
         // If we're empty (meaning that we're the constant zero polynomial),
         // this will just return the zero polynomial again: no need for a
         // special case.

@@ -153,7 +153,7 @@ impl Cubic {
     pub fn roots_between(self, lower: f64, upper: f64, x_error: f64) -> ArrayVec<f64, 3> {
         let mut ret = ArrayVec::new();
         let mut scratch = ArrayVec::new();
-        self.roots_between_with_buffer(lower, upper, x_error, &mut scratch, &mut ret);
+        self.roots_between_with_buffer(lower, upper, x_error, &mut ret, &mut scratch);
         ret
     }
 
@@ -162,8 +162,8 @@ impl Cubic {
         lower: f64,
         upper: f64,
         x_error: f64,
-        _scratch: &mut ArrayVec<f64, M>,
         out: &mut ArrayVec<f64, M>,
+        _scratch: &mut ArrayVec<f64, M>,
     ) {
         if let Some(r) = self.first_root(lower, upper, x_error) {
             out.push(r);
