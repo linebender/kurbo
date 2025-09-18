@@ -147,7 +147,7 @@ This release has an [MSRV][] of 1.65.
 Note: A changelog was not kept for or before this release
 
 [@anthrotype]: https://github.com/anthrotype
-[@beholdnec]: https://githun.com/beholdnec
+[@beholdnec]: https://github.com/beholdnec
 [@cmyr]: https://github.com/cmyr
 [@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
