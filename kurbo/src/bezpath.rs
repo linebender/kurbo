@@ -787,6 +787,7 @@ pub struct Segments<I: Iterator<Item = PathEl>> {
 impl<I: Iterator<Item = PathEl>> Iterator for Segments<I> {
     type Item = PathSeg;
 
+    #[inline]
     fn next(&mut self) -> Option<PathSeg> {
         for el in &mut self.elements {
             // We first need to check whether this is the first
