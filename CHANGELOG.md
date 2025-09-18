@@ -15,6 +15,10 @@ You can find its changes [documented below](#0120-2025-09-04).
 
 This release has an [MSRV][] of 1.82.
 
+## Added
+
+- The newly added `BezPath::into_elements` method allows getting all path elements as a `Vec` without allocating, consuming the original path. This is the counterpart of `BezPath::from_vec`. ([#504][] by [@cmyr][])
+
 ## Changed
 
 - Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
@@ -144,6 +148,7 @@ Note: A changelog was not kept for or before this release
 
 [@anthrotype]: https://github.com/anthrotype
 [@beholdnec]: https://githun.com/beholdnec
+[@cmyr]: https://github.com/cmyr
 [@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
 [@ErisianArchitect]: https://github.com/ErisianArchitect
@@ -223,6 +228,7 @@ Note: A changelog was not kept for or before this release
 [#496]: https://github.com/linebender/kurbo/pull/496
 [#497]: https://github.com/linebender/kurbo/pull/497
 [#499]: https://github.com/linebender/kurbo/pull/499
+[#504]: https://github.com/linebender/kurbo/pull/504
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
