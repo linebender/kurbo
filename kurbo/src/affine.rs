@@ -405,12 +405,46 @@ impl Affine {
         let ab = a * b;
         let cd = c * d;
         let angle = 0.5 * (2.0 * (ab + cd)).atan2(a2 - b2 + c2 - d2);
-        let s1 = a2 + b2 + c2 + d2;
-        let s2 = ((a2 - b2 + c2 - d2).powi(2) + 4.0 * (ab + cd).powi(2)).sqrt();
+
+        // Given matrix A = [ a c ]
+        //                  [ b d ]
+        //
+        // The two singular values σ1, σ2 of A are the square roots of the two eigen values λ1, λ2
+        // of M = A^T A. The common formula for 2x2 eigenvalues requires evaluating a square root,
+        // but we'd like to compute the singular values of the matrix without nested square roots.
+        //
+        // M = A^T A = [ aa+cc   ab+cd ]
+        //             [ ab+cd   bb+dd ]
+        //
+        // We have
+        // λ = 1/2 (tr(M) ± sqrt(tr(M)^2 - 4 det(M))).
+        //
+        // Note det(M) = det(A^T A) = det(A)^2.
+        // => 2λ = tr(M) ± sqrt(tr(M)^2 - 4 det(A)^2)
+        // => 2λ = tr(M) ± sqrt[(a^2+b^2+c^2+d^2)^2 - 4 (ad-bc)^2]
+        // By factorizing the inner term,
+        // => 2λ = tr(M) ± sqrt[((a+d)^2 + (b-c)^2) ((a-d)^2 + (b+c)^2)]
+        // => 2λ = tr(M) ± sqrt[(a+d)^2 + (b-c)^2] sqrt[(a-d)^2 + (b+c)^2]
+        //
+        // Define S1 = sqrt[(a+d)^2 + (b-c)^2]
+        //        S2 = sqrt[(a-d)^2 + (b+c)^2].
+        //
+        // => 2λ = tr(M) ± S1 S2
+        // => 2λ = 1/2 (S1^2 + S2^2) ± S1 S2
+        // => λ = 1/4 (S1^2 + S2^2 ± 2 S1 S2)
+        // => λ = 1/4 (S1 ± S2)^2
+        //
+        // Note we're interested in
+        // σ = sqrt(λ).
+        //
+        // => σ1 = 1/2 (S1 + S2)
+        // and similarly σ2 = 1/2 |S1 - S2|
+        let s1 = ((a + d).powi(2) + (b - c).powi(2)).sqrt();
+        let s2 = ((a - d).powi(2) + (b + c).powi(2)).sqrt();
         (
             Vec2 {
-                x: (0.5 * (s1 + s2)).sqrt(),
-                y: (0.5 * (s1 - s2)).sqrt(),
+                x: 0.5 * (s1 + s2),
+                y: 0.5 * (s1 - s2).abs(),
             },
             angle,
         )
@@ -638,5 +672,52 @@ mod tests {
         let (scale, rotation) = a.svd();
         assert_eq!(scale, Vec2::new(0., 0.));
         assert_eq!(rotation, 0.);
+    }
+
+    #[test]
+    fn svd_singular_values() {
+        // Test a few known singular values.
+        let mat = |a, b, c, d| Affine::new([a, b, c, d, 0., 0.]);
+
+        let s = mat(1., 0., 0., 1.).svd().0;
+        assert_near(s.to_point(), Point::new(1., 1.));
+
+        let s = mat(1., 0., 0., -1.).svd().0;
+        assert_near(s.to_point(), Point::new(1., 1.));
+
+        let s = mat(1., 1., 1., 1.).svd().0;
+        assert_near(s.to_point(), Point::new(2., 0.));
+
+        let s = mat(1., 1., 1., 1.).svd().0;
+        assert_near(s.to_point(), Point::new(2., 0.));
+
+        let s = mat(0., 0., 1., 0.).svd().0;
+        assert_near(s.to_point(), Point::new(1., 0.));
+
+        // The singular values are the scaling of the affine map. So let's test that.
+        let s = Affine::scale_non_uniform(4., 8.)
+            .then_rotate_about(42_f64.to_radians(), (-2., 50.))
+            .svd()
+            .0;
+        assert_near(s.to_point(), Point::new(8., 4.));
+
+        // Correctly handles negative scaling (singular values are necessarily non-negative).
+        let s = Affine::scale_non_uniform(-20., 3.).svd().0;
+        assert_near(s.to_point(), Point::new(20., 3.));
+        let s = Affine::scale_non_uniform(-20., -3.).svd().0;
+        assert_near(s.to_point(), Point::new(20., 3.));
+        let s = Affine::scale_non_uniform(20., -3.).svd().0;
+        assert_near(s.to_point(), Point::new(20., 3.));
+
+        // One more property: given a full-rank transform, the product of its singular values
+        // should be equal to its absolute determinant.
+        let m = mat(10., 9., -2.5, 3.3333);
+        let s = m.svd().0;
+        let prod = s.x * s.y;
+        let det = m.determinant().abs();
+        assert!(
+            (prod - det) < 1e-9,
+            "The product of the singular values {s:?} ({prod}) should be equal to the absolute determinant {det}.",
+        );
     }
 }
