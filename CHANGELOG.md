@@ -22,6 +22,7 @@ This release has an [MSRV][] of 1.82.
 ## Changed
 
 - Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
+- The `Line::nearest` method to calculate the projection of a point onto a line segment has been made more performant. ([#505][] by [@tomcur][])
 
 ## [0.12.0] (2025-09-04)
 
