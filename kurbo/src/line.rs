@@ -163,13 +163,15 @@ impl ParamCurveNearest for Line {
         let d = self.p1 - self.p0;
         let v = p - self.p0;
 
-        // Calculate projection parameter `t` of the point onto s(t), with s(t) the line segment
-        // such that s(t) = (1-t) * p0 + t * p1.
+        // Calculate projection parameter `t` of the point onto the line segment s(t), with
+        // s(t) = (1-t) * p0 + t * p1.
         //
-        // Note this will be infinite or nan when the segment has 0 length; see the clamping below.
+        // Note when the segment has 0 length, this will be positive or negative infinity or NaN;
+        // see the clamping below.
         let t = d.dot(v) / d.hypot2();
 
-        // Clamp the parameter to be on the line segment. This clamps `-inf` and `nan` to `0`, and `inf` to `1`.
+        // Clamp the parameter to be on the line segment. This clamps negative infinity and NaN to
+        // `0.`, and positive infinity to `1.`.
         #[expect(
             clippy::manual_clamp,
             reason = "`clamp` uses slightly more instructions than chained `max` and `min` on x86 and aarch64"
