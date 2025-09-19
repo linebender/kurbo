@@ -273,7 +273,7 @@ impl BezPath {
     }
 
     /// Consumes the `BezPath` and returns a vector of [`PathEl`]s.
-    #[inline]
+    #[inline(always)]
     pub fn into_elements(self) -> Vec<PathEl> {
         self.0
     }
