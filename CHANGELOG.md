@@ -230,6 +230,7 @@ Note: A changelog was not kept for or before this release
 [#497]: https://github.com/linebender/kurbo/pull/497
 [#499]: https://github.com/linebender/kurbo/pull/499
 [#504]: https://github.com/linebender/kurbo/pull/504
+[#505]: https://github.com/linebender/kurbo/pull/505
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
