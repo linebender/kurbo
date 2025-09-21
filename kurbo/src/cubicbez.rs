@@ -46,6 +46,7 @@ struct ToQuads {
 
 /// Classification result for cusp detection.
 #[derive(Debug)]
+#[repr(u8)]
 pub enum CuspType {
     /// Cusp is a loop.
     Loop,
