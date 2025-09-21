@@ -59,7 +59,7 @@ impl Point {
 
     /// Determine the midpoint of two points.
     #[inline]
-    pub fn midpoint(self, other: Point) -> Point {
+    pub const fn midpoint(self, other: Point) -> Point {
         Point::new(0.5 * (self.x + other.x), 0.5 * (self.y + other.y))
     }
 

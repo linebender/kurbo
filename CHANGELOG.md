@@ -23,6 +23,7 @@ This release has an [MSRV][] of 1.82.
 
 - Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
 - The `Line::nearest` method to calculate the projection of a point onto a line segment has been made more performant. ([#505][] by [@tomcur][])
+- `Point::midpoint` is now callable from `const` contexts. ([#510][] by [@tomcur][])
 
 ## [0.12.0] (2025-09-04)
 
@@ -231,6 +232,7 @@ Note: A changelog was not kept for or before this release
 [#499]: https://github.com/linebender/kurbo/pull/499
 [#504]: https://github.com/linebender/kurbo/pull/504
 [#505]: https://github.com/linebender/kurbo/pull/505
+[#510]: https://github.com/linebender/kurbo/pull/510
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
