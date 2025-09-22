@@ -273,7 +273,12 @@ impl ParamCurveArclen for QuadBez {
 
         let v0 = 0.25 * a2 * a2 * b * (2.0 * sabc - c2) + sabc;
         // TODO: justify and fine-tune this exact constant.
-        if ba_c2 < 1e-13 {
+        // The factor of a2 here is a little arbitrary: we really want
+        // to test whether ba_c2 is small, but it's also important for
+        // this comparison to be scale-invariant. We chose a2 (instead of,
+        // for example, c2 on the rhs) because it's unchanged under
+        // reversing the parametrization.
+        if ba_c2 * a2 < 1e-13 {
             // This case happens for Béziers with a sharp kink.
             v0
         } else {
@@ -544,5 +549,15 @@ mod tests {
         assert_eq!(extrema.len(), 2);
         assert!((extrema[0] - 1.0 / 3.0).abs() < 1e-6);
         assert!((extrema[1] - 2.0 / 3.0).abs() < 1e-6);
+    }
+
+    // A regression test for #477: the approximate-linearity test for
+    // using the analytic solution needs to be scale-invariant.
+    #[test]
+    fn perimeter_not_nan() {
+        let q = QuadBez::new((2685., -1251.), (2253., -1303.), (2253., -1303.));
+
+        let len = q.arclen(crate::DEFAULT_ACCURACY);
+        assert!(len.is_finite());
     }
 }
