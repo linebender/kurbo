@@ -104,7 +104,7 @@ impl Rect {
     ///
     /// Note: nothing forbids negative width.
     #[inline]
-    pub fn width(&self) -> f64 {
+    pub const fn width(&self) -> f64 {
         self.x1 - self.x0
     }
 
@@ -112,7 +112,7 @@ impl Rect {
     ///
     /// Note: nothing forbids negative height.
     #[inline]
-    pub fn height(&self) -> f64 {
+    pub const fn height(&self) -> f64 {
         self.y1 - self.y0
     }
 
@@ -145,32 +145,32 @@ impl Rect {
     /// This is the top left corner in a y-down space and with
     /// non-negative width and height.
     #[inline(always)]
-    pub fn origin(&self) -> Point {
+    pub const fn origin(&self) -> Point {
         Point::new(self.x0, self.y0)
     }
 
     /// The size of the rectangle.
     #[inline]
-    pub fn size(&self) -> Size {
+    pub const fn size(&self) -> Size {
         Size::new(self.width(), self.height())
     }
 
     /// The area of the rectangle.
     #[inline]
-    pub fn area(&self) -> f64 {
+    pub const fn area(&self) -> f64 {
         self.width() * self.height()
     }
 
     /// Whether this rectangle has zero area.
     #[doc(alias = "is_empty")]
     #[inline]
-    pub fn is_zero_area(&self) -> bool {
+    pub const fn is_zero_area(&self) -> bool {
         self.area() == 0.0
     }
 
     /// The center point of the rectangle.
     #[inline]
-    pub fn center(&self) -> Point {
+    pub const fn center(&self) -> Point {
         Point::new(0.5 * (self.x0 + self.x1), 0.5 * (self.y0 + self.y1))
     }
 
@@ -265,7 +265,7 @@ impl Rect {
     /// assert!(rect1.overlaps(rect2));
     /// ```
     #[inline]
-    pub fn overlaps(&self, other: Rect) -> bool {
+    pub const fn overlaps(&self, other: Rect) -> bool {
         self.x0 <= other.x1 && self.x1 >= other.x0 && self.y0 <= other.y1 && self.y1 >= other.y0
     }
 
@@ -293,7 +293,7 @@ impl Rect {
     /// assert!(rect.contains_rect(rect));
     /// ```
     #[inline]
-    pub fn contains_rect(&self, other: Rect) -> bool {
+    pub const fn contains_rect(&self, other: Rect) -> bool {
         self.x0 <= other.x0 && self.y0 <= other.y0 && self.x1 >= other.x1 && self.y1 >= other.y1
     }
 
@@ -301,7 +301,7 @@ impl Rect {
     ///
     /// The logic simply applies the amount in each direction. If rectangle
     /// area or added dimensions are negative, this could give odd results.
-    pub fn inflate(&self, width: f64, height: f64) -> Rect {
+    pub const fn inflate(&self, width: f64, height: f64) -> Rect {
         Rect::new(
             self.x0 - width,
             self.y0 - height,
@@ -509,7 +509,7 @@ impl Rect {
     /// assert_eq!(rect.x1, 8.);
     /// ```
     #[inline]
-    pub fn scale_from_origin(self, factor: f64) -> Rect {
+    pub const fn scale_from_origin(self, factor: f64) -> Rect {
         Rect {
             x0: self.x0 * factor,
             y0: self.y0 * factor,
