@@ -380,19 +380,36 @@ mod tests {
             // large terms.
             let accuracy = accuracy * r.abs().powi(N as i32 - 1).max(1.0);
             let y = p.eval(*r);
-            if y.is_finite() {
-                assert!(
-                    y.abs() <= accuracy,
-                    "poly {p:?} had root {r} evaluate to {y:?}, but expected {accuracy:?}"
-                );
-            }
+            assert!(
+                y.abs() <= accuracy,
+                "poly {p:?} had root {r} evaluate to {y:?}, but expected {accuracy:?}"
+            );
         }
+    }
+
+    #[test]
+    fn root_evaluation_deg3() {
+        arbtest::arbtest(|u| {
+            let poly: Poly<4> = crate::arbitrary::poly(u)?;
+            // Ignore very large polynomials, because they'll just overflow everything.
+            if (poly.max_abs_coefficient() * 10.0f64.powi(4)).is_infinite() {
+                return Err(arbitrary::Error::IncorrectFormat);
+            }
+            let roots = poly.roots_between(-10.0, 10.0, 1e-13);
+
+            check_root_values(&poly, &roots);
+            Ok(())
+        })
+        .budget_ms(5_000);
     }
 
     #[test]
     fn root_evaluation_deg4() {
         arbtest::arbtest(|u| {
             let poly: Poly<5> = crate::arbitrary::poly(u)?;
+            if (poly.max_abs_coefficient() * 10.0f64.powi(5)).is_infinite() {
+                return Err(arbitrary::Error::IncorrectFormat);
+            }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
             check_root_values(&poly, &roots);
             Ok(())
@@ -404,6 +421,9 @@ mod tests {
     fn root_evaluation_deg9() {
         arbtest::arbtest(|u| {
             let poly: Poly<10> = crate::arbitrary::poly(u)?;
+            if (poly.max_abs_coefficient() * 10.0f64.powi(11)).is_infinite() {
+                return Err(arbitrary::Error::IncorrectFormat);
+            }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
             check_root_values(&poly, &roots);
             Ok(())
@@ -425,11 +445,11 @@ mod tests {
             }
             let roots = poly.roots_between(-2.0, 2.0, 1e-13);
 
+            assert!(roots.iter().all(|r| r.is_finite()));
+
             // Check that the roots are sorted.
-            if roots.iter().all(|r| r.is_finite()) {
-                assert!(roots.is_sorted());
-                assert!(roots.iter().all(|r| (-2.0..=2.0).contains(r)));
-            }
+            assert!(roots.is_sorted());
+            assert!(roots.iter().all(|r| (-2.0..=2.0).contains(r)));
 
             // We can't expect great accuracy for huge coefficients, because the
             // evaluations during Newton iteration are subject to error.

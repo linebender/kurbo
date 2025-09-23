@@ -36,6 +36,12 @@ pub(crate) fn find_root<F: Fn(f64) -> f64, DF: Fn(f64) -> f64>(
         let deriv_x = deriv(x);
         let val_x = f(x);
 
+        // By returning early on zero, we make it impossible for `step` to
+        // be NaN. This seems to benchmark a little better than checking for
+        // NaN after the fact.
+        if val_x == 0.0 {
+            return x;
+        }
         let root_in_first_half = different_signs(val_lower, val_x);
         if root_in_first_half {
             upper = x;

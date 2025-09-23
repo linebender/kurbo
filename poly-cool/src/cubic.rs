@@ -186,3 +186,18 @@ impl Cubic {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Embarrassingly, an early version gave NaN on x^3, because
+    // the Newton iterations ran into 0.0/0.0.
+    #[test]
+    fn x_cubed() {
+        let p = Cubic::new([0.0, 0.0, 0.0, 1.0]);
+        let roots = p.roots_between(-1.0, 1.0, 1e-6);
+        assert_eq!(roots.len(), 1);
+        assert!(roots[0].abs() <= 1e-6);
+    }
+}
