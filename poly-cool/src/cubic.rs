@@ -61,8 +61,11 @@ impl Cubic {
     /// The return values are in increasing order.
     ///
     /// Some corner cases worth noting:
-    ///   - If the discriminant is zero, returns nothing. That is,
-    ///     we don't find double-roots of the derivative.
+    ///   - If the discriminant is zero, returns nothing. That is, we don't find
+    ///     double-roots of the derivative. These aren't needed anyway, as these
+    ///     critical points are used to construct bracketing intervals for the
+    ///     roots. Double-roots of the derivative are inflection points of the
+    ///     cubic, and they aren't needed to bracket roots.
     ///   - If the derivative is linear or close to it, we might
     ///     return +/- infinity as one of the roots.
     ///   - Unless some input is NaN, we don't return NaN.
