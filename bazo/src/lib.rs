@@ -1,0 +1,138 @@
+// Copyright 2018 the Kurbo Authors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
+//! 2D geometry, with a focus on curves.
+//!
+//! The bazo library contains data structures and algorithms for curves and
+//! vector paths. It was designed to serve the needs of 2D graphics applications,
+//! but it is intended to be general enough to be useful for other applications.
+//! It can be used as "vocabulary types" for representing curves and paths, and
+//! also contains a number of computational geometry methods.
+//!
+//! # Examples
+//!
+//! Basic UI-style geometry:
+//! ```
+//! use bazo::{Insets, Point, Rect, Size, Vec2};
+//!
+//! let pt = Point::new(10.0, 10.0);
+//! let vector = Vec2::new(5.0, -5.0);
+//! let pt2 = pt + vector;
+//! assert_eq!(pt2, Point::new(15.0, 5.0));
+//!
+//! let rect = Rect::from_points(pt, pt2);
+//! assert_eq!(rect, Rect::from_origin_size((10.0, 5.0), (5.0, 5.0)));
+//!
+//! let insets = Insets::uniform(1.0);
+//! let inset_rect = rect - insets;
+//! assert_eq!(inset_rect.size(), Size::new(3.0, 3.0));
+//! ```
+//!
+//!
+//! # Feature Flags
+//!
+//! The following crate [feature flags](https://doc.rust-lang.org/cargo/reference/features.html#dependency-features) are available:
+//!
+//! - `std` (enabled by default): Get floating point functions from the standard library
+//!   (likely using your target's libc).
+//! - `libm`: Use floating point implementations from [libm][].
+//!   This is useful for `no_std` environments.
+//!   However, note that the `libm` crate is not as efficient as the standard library.
+//! - `mint`: Enable `From`/`Into` conversion of Kurbo and [mint][] types, enabling interoperability
+//!   with other graphics libraries.
+//! - `euclid`: Enable `From`/`Into` conversion of Kurbo and [euclid][] types.
+//!   Note that if you're using both Kurbo and euclid at the same time, you *must*
+//!   also enable one of euclid's `std` or `libm` features.
+//! - `serde`: Implement `serde::Deserialize` and `serde::Serialize` on various types.
+//! - `schemars`: Add best-effort support for using Kurbo types in JSON schemas using [schemars][].
+//!
+//! At least one of `std` and `libm` is required; `std` overrides `libm`.
+//! Note that Kurbo does require that an allocator is available (i.e. it uses [alloc]).
+
+// LINEBENDER LINT SET - lib.rs - v1
+// See https://linebender.org/wiki/canonical-lints/
+// These lints aren't included in Cargo.toml because they
+// shouldn't apply to examples and tests
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+#![warn(clippy::print_stdout, clippy::print_stderr)]
+// END LINEBENDER LINT SET
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![allow(
+    clippy::unreadable_literal,
+    clippy::many_single_char_names,
+    clippy::excessive_precision,
+    clippy::bool_to_int_with_if
+)]
+// The following lints are part of the Linebender standard set,
+// but resolving them has been deferred for now.
+// Feel free to send a PR that solves one or more of these.
+#![allow(
+    missing_debug_implementations,
+    elided_lifetimes_in_paths,
+    single_use_lifetimes,
+    trivial_numeric_casts,
+    unnameable_types,
+    clippy::use_self,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::wildcard_imports,
+    clippy::shadow_unrelated,
+    clippy::missing_assert_message,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::exhaustive_enums,
+    clippy::match_same_arms,
+    clippy::partial_pub_fields,
+    clippy::unseparated_literal_suffix,
+    clippy::duplicated_attributes,
+    clippy::allow_attributes,
+    clippy::allow_attributes_without_reason
+)]
+
+#[cfg(not(any(feature = "std", feature = "libm")))]
+compile_error!("bazo requires either the `std` or `libm` feature");
+
+// Suppress the unused_crate_dependencies lint when both std and libm are specified.
+#[cfg(all(feature = "std", feature = "libm"))]
+use libm as _;
+
+extern crate alloc;
+
+mod affine;
+mod arc;
+mod axis;
+mod circle;
+pub mod common;
+mod ellipse;
+mod insets;
+mod line;
+mod point;
+mod rect;
+mod rounded_rect;
+mod rounded_rect_radii;
+mod size;
+mod svg;
+mod translate_scale;
+mod triangle;
+mod vec2;
+
+#[cfg(feature = "euclid")]
+mod interop_euclid;
+
+pub use crate::affine::Affine;
+pub use crate::arc::Arc;
+pub use crate::axis::Axis;
+pub use crate::circle::{Circle, CircleSegment};
+pub use crate::ellipse::Ellipse;
+pub use crate::insets::Insets;
+pub use crate::line::{ConstPoint, Line};
+pub use crate::point::Point;
+pub use crate::rect::Rect;
+pub use crate::rounded_rect::RoundedRect;
+pub use crate::rounded_rect_radii::RoundedRectRadii;
+pub use crate::size::Size;
+pub use crate::svg::SvgArc;
+pub use crate::translate_scale::TranslateScale;
+pub use crate::triangle::Triangle;
+pub use crate::vec2::Vec2;
