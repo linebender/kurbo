@@ -36,6 +36,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "bazo"
+version = "0.12.0"
+dependencies = [
+ "euclid",
+ "getrandom",
+ "libm",
+ "mint",
+ "rand",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
