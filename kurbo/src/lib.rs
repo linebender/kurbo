@@ -82,7 +82,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![warn(clippy::print_stdout, clippy::print_stderr)]
 // END LINEBENDER LINT SET
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 #![allow(
     clippy::unreadable_literal,
