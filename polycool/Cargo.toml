@@ -1,5 +1,5 @@
 [package]
-name = "poly-cool"
+name = "polycool"
 version = "0.3.3"
 authors = ["Raph Levien <raph.levien@gmail.com>"]
 edition = "2024"

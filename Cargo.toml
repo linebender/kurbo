@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["kurbo", "poly-cool"]
+members = ["kurbo", "polycool"]
 
 [workspace.package]
 # Kurbo version, also used by other packages which want to mimic Kurbo's version.

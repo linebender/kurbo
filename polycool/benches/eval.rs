@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use poly_cool::Poly;
+use polycool::Poly;
 use std::hint::black_box;
 
 pub fn eval(c: &mut Criterion) {

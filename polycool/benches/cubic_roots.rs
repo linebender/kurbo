@@ -5,7 +5,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
 pub fn cubic_roots(c: &mut Criterion) {
-    let poly = poly_cool::Cubic::new([-6.0, 11.0, -6.0, 1.0]);
+    let poly = polycool::Cubic::new([-6.0, 11.0, -6.0, 1.0]);
 
     let mut group = c.benchmark_group("simple roots");
 
