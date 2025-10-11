@@ -271,7 +271,6 @@ impl Display for SvgParseError {
     }
 }
 
-#[cfg(feature = "std")]
 impl Error for SvgParseError {}
 
 struct SvgLexer<'a> {
