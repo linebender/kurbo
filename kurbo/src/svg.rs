@@ -6,9 +6,7 @@
 use alloc::vec::Vec;
 use core::f64::consts::PI;
 use core::fmt::{self, Display, Formatter};
-// MSRV: Once our MSRV is 1.81, we can switch to `core::error`
-#[cfg(feature = "std")]
-use std::error::Error;
+use core::error::Error;
 #[cfg(feature = "std")]
 use std::io::{self, Write};
 
