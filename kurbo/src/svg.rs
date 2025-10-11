@@ -4,9 +4,9 @@
 //! SVG path representation.
 
 use alloc::vec::Vec;
+use core::error::Error;
 use core::f64::consts::PI;
 use core::fmt::{self, Display, Formatter};
-use core::error::Error;
 #[cfg(feature = "std")]
 use std::io::{self, Write};
 
