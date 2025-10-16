@@ -1,0 +1,66 @@
+[package]
+name = "bazo"
+authors = ["The bazo developers"]
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+description = "A simple 2D shapes library"
+keywords = ["graphics", "geometry"]
+categories = ["graphics"]
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+# There are no platform specific docs.
+default-target = "x86_64-unknown-linux-gnu"
+targets = []
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+# Get floating point functions from the standard library (likely using your target's libc)
+std = ["euclid?/std"]
+# Use floating point implementations from libm
+libm = ["dep:libm", "euclid?/libm"]
+# Enable `From`/`Into` conversion of Kurbo and [mint] types, enabling interoperability
+# with other graphics libraries
+mint = ["dep:mint"]
+# Enable `From`/`Into` conversion of Kurbo and euclid types
+euclid = ["dep:euclid"]
+# Implement `serde::Deserialize` and `serde::Serialize` on various types
+serde = ["dep:serde"]
+# Add best-effort support for using Kurbo types in JSON schemas using schemars
+schemars = ["schemars/smallvec", "dep:schemars"]
+
+[dependencies]
+euclid = { version = "0.22", optional = true, default-features = false }
+
+[dependencies.libm]
+version = "0.2.15"
+optional = true
+
+[dependencies.mint]
+version = "0.5.9"
+optional = true
+
+[dependencies.schemars]
+version = "0.8.22"
+optional = true
+
+[dependencies.serde]
+version = "1.0.219"
+optional = true
+default-features = false
+features = ["alloc", "derive"]
+
+[dev-dependencies]
+# This is used for research but not really needed; maybe refactor.
+rand = "0.9.2"
+
+[target.wasm32-unknown-unknown.dev-dependencies]
+# We have a transitive dependency on getrandom and it does not automatically
+# support wasm32-unknown-unknown. We need to enable the wasm_js feature.
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
