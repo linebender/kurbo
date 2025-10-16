@@ -4,11 +4,9 @@
 //! SVG path representation.
 
 use alloc::vec::Vec;
+use core::error::Error;
 use core::f64::consts::PI;
 use core::fmt::{self, Display, Formatter};
-// MSRV: Once our MSRV is 1.81, we can switch to `core::error`
-#[cfg(feature = "std")]
-use std::error::Error;
 #[cfg(feature = "std")]
 use std::io::{self, Write};
 
@@ -273,7 +271,6 @@ impl Display for SvgParseError {
     }
 }
 
-#[cfg(feature = "std")]
 impl Error for SvgParseError {}
 
 struct SvgLexer<'a> {
