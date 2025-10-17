@@ -6,7 +6,7 @@
 //! This example has been lightly adapted from Vello, which in turn has
 //! been adapted from the Skia "tricky stroke" test.
 
-use kurbo::{stroke, Affine, BezPath, Cap, Join, Rect, Shape, Stroke};
+use kurbo::{stroke, Affine, BezPath, Cap, Join, Rect, Shape, Stroke, StrokeOpts};
 
 fn tricky_strokes() {
     const CELL_SIZE: f64 = 200.;
@@ -140,7 +140,7 @@ fn tricky_strokes() {
         let mut path = BezPath::new();
         path.move_to(cubic[0]);
         path.curve_to(cubic[1], cubic[2], cubic[3]);
-        let stroked = stroke(path, &style, &Default::default(), tolerance);
+        let stroked = stroke(path, &style, &StrokeOpts::default(), tolerance);
         println!(
             "  <path d='{}' stroke='#000' fill='#aec' stroke-width='1'/>",
             (t * stroked).to_svg()
@@ -167,7 +167,7 @@ fn tricky_strokes() {
         let style = Stroke::new(STROKE_WIDTH / s)
             .with_caps(Cap::Butt)
             .with_join(Join::Miter);
-        let stroked = stroke(path, &style, &Default::default(), tolerance);
+        let stroked = stroke(path, &style, &StrokeOpts::default(), tolerance);
         println!(
             "  <path d='{}' stroke='#000' fill='#aec' stroke-width='1'/>",
             (t * stroked).to_svg()

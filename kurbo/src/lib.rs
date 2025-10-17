@@ -75,12 +75,14 @@
 //! At least one of `std` and `libm` is required; `std` overrides `libm`.
 //! Note that Kurbo does require that an allocator is available (i.e. it uses [alloc]).
 
-// LINEBENDER LINT SET - lib.rs - v1
+// LINEBENDER LINT SET - lib.rs - v4
 // See https://linebender.org/wiki/canonical-lints/
-// These lints aren't included in Cargo.toml because they
-// shouldn't apply to examples and tests
+// These lints shouldn't apply to examples or tests.
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+// These lints shouldn't apply to examples.
 #![warn(clippy::print_stdout, clippy::print_stderr)]
+// Targeting e.g. 32-bit means structs containing usize can give false positives for 64-bit.
+#![cfg_attr(target_pointer_width = "64", warn(clippy::trivially_copy_pass_by_ref))]
 // END LINEBENDER LINT SET
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
@@ -96,23 +98,13 @@
 #![allow(
     missing_debug_implementations,
     elided_lifetimes_in_paths,
-    single_use_lifetimes,
     trivial_numeric_casts,
     unnameable_types,
     clippy::use_self,
-    clippy::return_self_not_must_use,
     clippy::cast_possible_truncation,
-    clippy::wildcard_imports,
-    clippy::shadow_unrelated,
     clippy::missing_assert_message,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::exhaustive_enums,
-    clippy::match_same_arms,
-    clippy::partial_pub_fields,
     clippy::unseparated_literal_suffix,
     clippy::duplicated_attributes,
-    clippy::allow_attributes,
     clippy::allow_attributes_without_reason
 )]
 
