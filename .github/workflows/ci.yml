@@ -8,12 +8,12 @@ env:
   # If the compilation fails, then the version specified here needs to be bumped up to reality.
   # Be sure to also update the rust-version property in the workspace Cargo.toml file,
   # plus all the README.md files of the affected packages.
-  RUST_MIN_VER: "1.82"
+  RUST_MIN_VER: "1.85"
   # List of packages that will be checked with the minimum supported Rust version.
   # This should be limited to packages that are intended for publishing.
-  RUST_MIN_VER_PKGS: "-p kurbo"
+  RUST_MIN_VER_PKGS: "-p kurbo -p polycool"
   # List of features that depend on the standard library and will be excluded from no_std checks.
-  FEATURES_DEPENDING_ON_STD: "std,default,schemars"
+  FEATURES_DEPENDING_ON_STD: "std,default,schemars,arbitrary"
 
 
 # Rationale

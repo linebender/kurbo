@@ -1,6 +1,5 @@
 [package]
 name = "kurbo"
-authors = ["Raph Levien <raph.levien@gmail.com>"]
 version.workspace = true
 license.workspace = true
 edition.workspace = true
