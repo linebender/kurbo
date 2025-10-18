@@ -60,7 +60,7 @@ pub(crate) fn find_root<F: Fn(f64) -> f64, DF: Fn(f64) -> f64>(
 
             if new_x == upper || new_x == lower {
                 // This should be rare, but it happens if they ask for more
-                // accuracy than is reasonable. For example, suppse (because
+                // accuracy than is reasonable. For example, suppose (because
                 // of large coefficients) the output value jumps from -1.0
                 // to 1.0 between adjacent floats and they ask for an output
                 // error of smaller than 0.5. Then we'll eventually shrink
