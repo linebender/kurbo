@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["kurbo"]
+members = ["kurbo", "polycool"]
 
 [workspace.package]
 # Kurbo version, also used by other packages which want to mimic Kurbo's version.
@@ -12,7 +12,7 @@ version = "0.12.0"
 edition = "2021"
 # Keep in sync with RUST_MIN_VER in .github/workflows/ci.yml, with the relevant README.md files
 # and with the MSRV in the `Unreleased` section of CHANGELOG.md.
-rust-version = "1.82"
+rust-version = "1.85"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/linebender/kurbo"
 
