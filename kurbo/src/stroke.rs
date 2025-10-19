@@ -19,6 +19,7 @@ use crate::{
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(u8)]
 pub enum Join {
     /// A straight line connecting the segments.
     Bevel,
@@ -32,6 +33,7 @@ pub enum Join {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(u8)]
 pub enum Cap {
     /// Flat cap.
     Butt,
@@ -76,6 +78,7 @@ pub struct StrokeOpts {
 /// should set it appropriately. For real time rendering, the appropriate
 /// value is `Subdivide`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
 pub enum StrokeOptLevel {
     /// Adaptively subdivide segments in half.
     Subdivide,
