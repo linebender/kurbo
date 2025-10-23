@@ -17,12 +17,12 @@ arbitrary = ["dep:arbitrary"]
 libm = ["dep:libm"]
 
 [dependencies]
-arbitrary = { version = "1.4.1", optional = true }
+arbitrary = { version = "1.4.2", optional = true }
 arrayvec = { version = "0.7.6", default-features = false }
 libm = { version = "0.2.15", optional = true }
 
 [dev-dependencies]
-arbitrary = "1.4.1"
+arbitrary = "1.4.2"
 arbtest = "0.3.2"
 
 # wasm doesn't support rayon, so disable criterion's rayon support. (In
