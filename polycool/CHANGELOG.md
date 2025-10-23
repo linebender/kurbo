@@ -8,10 +8,11 @@ Subheadings to categorize changes are `added, changed, deprecated, removed, fixe
 
 # Changelog
 
-The latest published Kurbo release is [0.4.0](#040-2025-10-99) which was released on 2025-10-99.
-You can find its changes [documented below](#040-2025-10-99).
+The latest published Kurbo release is [0.4.0](#040-2025-10-23) which
+was released on 2025-10-23. You can find its changes
+[documented below](#040-2025-10-23).
 
-## [0.4.0] (2025-10-99)
+## [0.4.0] (2025-10-23)
 
 This release has an [MSRV][] of 1.85.
 It is the first release since `polycool` was transferred to the Linebender organization.
