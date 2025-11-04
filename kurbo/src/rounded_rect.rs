@@ -135,13 +135,13 @@ impl RoundedRect {
 
     /// Is this rounded rectangle finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub const fn is_finite(&self) -> bool {
         self.rect.is_finite() && self.radii.is_finite()
     }
 
     /// Is this rounded rectangle NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub const fn is_nan(&self) -> bool {
         self.rect.is_nan() || self.radii.is_nan()
     }
 }

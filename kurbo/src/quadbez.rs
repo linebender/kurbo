@@ -101,13 +101,13 @@ impl QuadBez {
 
     /// Is this quadratic Bezier curve finite?
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub const fn is_finite(&self) -> bool {
         self.p0.is_finite() && self.p1.is_finite() && self.p2.is_finite()
     }
 
     /// Is this quadratic Bezier curve NaN?
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub const fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan()
     }
 }

@@ -191,7 +191,7 @@ impl Point {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(self) -> bool {
+    pub const fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite()
     }
 
@@ -199,7 +199,7 @@ impl Point {
     ///
     /// [`NaN`]: f64::is_nan
     #[inline]
-    pub fn is_nan(self) -> bool {
+    pub const fn is_nan(self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
 

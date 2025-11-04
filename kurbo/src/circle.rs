@@ -267,7 +267,7 @@ impl CircleSegment {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub const fn is_finite(&self) -> bool {
         self.center.is_finite()
             && self.outer_radius.is_finite()
             && self.inner_radius.is_finite()
@@ -279,7 +279,7 @@ impl CircleSegment {
     ///
     /// [NaN]: f64::is_nan
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub const fn is_nan(&self) -> bool {
         self.center.is_nan()
             || self.outer_radius.is_nan()
             || self.inner_radius.is_nan()

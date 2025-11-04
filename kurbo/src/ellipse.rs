@@ -165,7 +165,7 @@ impl Ellipse {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub const fn is_finite(&self) -> bool {
         self.inner.is_finite()
     }
 
@@ -173,7 +173,7 @@ impl Ellipse {
     ///
     /// [NaN]: f64::is_nan
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub const fn is_nan(&self) -> bool {
         self.inner.is_nan()
     }
 }

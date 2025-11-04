@@ -77,7 +77,7 @@ impl Line {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(self) -> bool {
+    pub const fn is_finite(self) -> bool {
         self.p0.is_finite() && self.p1.is_finite()
     }
 
@@ -85,7 +85,7 @@ impl Line {
     ///
     /// [NaN]: f64::is_nan
     #[inline]
-    pub fn is_nan(self) -> bool {
+    pub const fn is_nan(self) -> bool {
         self.p0.is_nan() || self.p1.is_nan()
     }
 }
@@ -210,7 +210,7 @@ impl ConstPoint {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(self) -> bool {
+    pub const fn is_finite(self) -> bool {
         self.0.is_finite()
     }
 
@@ -218,7 +218,7 @@ impl ConstPoint {
     ///
     /// [NaN]: f64::is_nan
     #[inline]
-    pub fn is_nan(self) -> bool {
+    pub const fn is_nan(self) -> bool {
         self.0.is_nan()
     }
 }
