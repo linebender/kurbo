@@ -151,7 +151,7 @@ impl Triangle {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub const fn is_finite(&self) -> bool {
         self.a.is_finite() && self.b.is_finite() && self.c.is_finite()
     }
 
@@ -159,7 +159,7 @@ impl Triangle {
     ///
     /// [NaN]: f64::is_nan
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub const fn is_nan(&self) -> bool {
         self.a.is_nan() || self.b.is_nan() || self.c.is_nan()
     }
 }

@@ -629,7 +629,7 @@ impl Rect {
     ///
     /// [finite]: f64::is_finite
     #[inline]
-    pub fn is_finite(&self) -> bool {
+    pub const fn is_finite(&self) -> bool {
         self.x0.is_finite() && self.x1.is_finite() && self.y0.is_finite() && self.y1.is_finite()
     }
 
@@ -637,7 +637,7 @@ impl Rect {
     ///
     /// [NaN]: f64::is_nan
     #[inline]
-    pub fn is_nan(&self) -> bool {
+    pub const fn is_nan(&self) -> bool {
         self.x0.is_nan() || self.y0.is_nan() || self.x1.is_nan() || self.y1.is_nan()
     }
 
