@@ -347,7 +347,7 @@ impl Vec2 {
 
     /// Get the member matching the given axis.
     #[inline]
-    pub fn get_coord(self, axis: Axis) -> f64 {
+    pub const fn get_coord(self, axis: Axis) -> f64 {
         match axis {
             Axis::Horizontal => self.x,
             Axis::Vertical => self.y,
@@ -356,7 +356,7 @@ impl Vec2 {
 
     /// Get a mutable reference to the member matching the given axis.
     #[inline]
-    pub fn get_coord_mut(&mut self, axis: Axis) -> &mut f64 {
+    pub const fn get_coord_mut(&mut self, axis: Axis) -> &mut f64 {
         match axis {
             Axis::Horizontal => &mut self.x,
             Axis::Vertical => &mut self.y,
@@ -365,7 +365,7 @@ impl Vec2 {
 
     /// Set the member matching the given axis to the given value.
     #[inline]
-    pub fn set_coord(&mut self, axis: Axis, value: f64) {
+    pub const fn set_coord(&mut self, axis: Axis, value: f64) {
         match axis {
             Axis::Horizontal => self.x = value,
             Axis::Vertical => self.y = value,
