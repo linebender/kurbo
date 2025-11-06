@@ -512,6 +512,18 @@ impl IntoIterator for BezPath {
 }
 
 impl Extend<PathEl> for BezPath {
+    /// Add the items from the iterator to this path.
+    ///
+    /// <div class="warning">
+    ///
+    /// Note that if you're attempting to make a continuous path, you will generally
+    /// want to ensure that the iterator does not contain any [`MoveTo`](PathEl::MoveTo)
+    /// or [`ClosePath`](PathEl::ClosePath) elements.
+    /// Note especially that many (open) [shapes](Shape) will start with a `MoveTo` if
+    /// you use their [`path_elements`](Shape::path_elements) function.
+    /// Some shapes have alternatives for this use case, such as [`Arc::append_iter`](crate::Arc::append_iter).
+    ///
+    /// </div>
     fn extend<I: IntoIterator<Item = PathEl>>(&mut self, iter: I) {
         self.0.extend(iter);
     }
