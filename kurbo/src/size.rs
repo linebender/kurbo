@@ -45,7 +45,7 @@ impl Size {
     /// let size = Size::new(-10.5, 42.0);
     /// assert_eq!(size.max_side(), 42.0);
     /// ```
-    pub fn max_side(self) -> f64 {
+    pub const fn max_side(self) -> f64 {
         self.width.max(self.height)
     }
 
@@ -58,20 +58,20 @@ impl Size {
     /// let size = Size::new(-10.5, 42.0);
     /// assert_eq!(size.min_side(), -10.5);
     /// ```
-    pub fn min_side(self) -> f64 {
+    pub const fn min_side(self) -> f64 {
         self.width.min(self.height)
     }
 
     /// The area covered by this size.
     #[inline]
-    pub fn area(self) -> f64 {
+    pub const fn area(self) -> f64 {
         self.width * self.height
     }
 
     /// Whether this size has zero area.
     #[doc(alias = "is_empty")]
     #[inline]
-    pub fn is_zero_area(self) -> bool {
+    pub const fn is_zero_area(self) -> bool {
         self.area() == 0.0
     }
 
@@ -87,7 +87,7 @@ impl Size {
     ///
     /// assert_eq!(this.min(other), Size::new(0., 10.));
     /// ```
-    pub fn min(self, other: Size) -> Self {
+    pub const fn min(self, other: Size) -> Self {
         Size {
             width: self.width.min(other.width),
             height: self.height.min(other.height),
@@ -106,7 +106,7 @@ impl Size {
     ///
     /// assert_eq!(this.max(other), Size::new(10., 100.));
     /// ```
-    pub fn max(self, other: Size) -> Self {
+    pub const fn max(self, other: Size) -> Self {
         Size {
             width: self.width.max(other.width),
             height: self.height.max(other.height),
@@ -125,7 +125,7 @@ impl Size {
     /// let max = Size::new(50., 50.);
     /// assert_eq!(this.clamp(min, max), Size::new(10., 50.))
     /// ```
-    pub fn clamp(self, min: Size, max: Size) -> Self {
+    pub const fn clamp(self, min: Size, max: Size) -> Self {
         self.max(min).min(max)
     }
 
@@ -252,7 +252,7 @@ impl Size {
     /// If the height is `0`, the output will be `sign(self.width) * infinity`. If the width and
     /// height are both `0`, then the output will be `NaN`.
     #[inline]
-    pub fn aspect_ratio_width(self) -> f64 {
+    pub const fn aspect_ratio_width(self) -> f64 {
         // ratio is determined by width / height
         // https://en.wikipedia.org/wiki/Aspect_ratio_(image)
         // https://en.wikipedia.org/wiki/Ratio
