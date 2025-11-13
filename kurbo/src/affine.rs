@@ -122,7 +122,7 @@ impl Affine {
     /// let oblique_transform = kurbo::Affine::skew(20f64.to_radians().tan(), 0.0);
     /// ```
     #[inline(always)]
-    pub fn skew(skew_x: f64, skew_y: f64) -> Affine {
+    pub const fn skew(skew_x: f64, skew_y: f64) -> Affine {
         Affine([1.0, skew_y, skew_x, 1.0, 0.0, 0.0])
     }
 
@@ -287,7 +287,7 @@ impl Affine {
     /// [translation]: Affine::translate
     #[inline]
     #[must_use]
-    pub fn then_translate(mut self, trans: Vec2) -> Self {
+    pub const fn then_translate(mut self, trans: Vec2) -> Self {
         self.0[4] += trans.x;
         self.0[5] += trans.y;
         self
@@ -297,25 +297,25 @@ impl Affine {
     ///
     /// Useful when you want to draw into the unit square but have your output fill any rectangle.
     /// In this case push the `Affine` onto the transform stack.
-    pub fn map_unit_square(rect: Rect) -> Affine {
+    pub const fn map_unit_square(rect: Rect) -> Affine {
         Affine([rect.width(), 0., 0., rect.height(), rect.x0, rect.y0])
     }
 
     /// Get the coefficients of the transform.
     #[inline(always)]
-    pub fn as_coeffs(self) -> [f64; 6] {
+    pub const fn as_coeffs(self) -> [f64; 6] {
         self.0
     }
 
     /// Compute the determinant of this transform.
-    pub fn determinant(self) -> f64 {
+    pub const fn determinant(self) -> f64 {
         self.0[0] * self.0[3] - self.0[1] * self.0[2]
     }
 
     /// Compute the inverse transform.
     ///
     /// Produces NaN values when the determinant is zero.
-    pub fn inverse(self) -> Affine {
+    pub const fn inverse(self) -> Affine {
         let inv_det = self.determinant().recip();
         Affine([
             inv_det * self.0[3],
@@ -452,7 +452,7 @@ impl Affine {
 
     /// Returns the translation part of this affine map (`(self.0[4], self.0[5])`).
     #[inline(always)]
-    pub fn translation(self) -> Vec2 {
+    pub const fn translation(self) -> Vec2 {
         Vec2 {
             x: self.0[4],
             y: self.0[5],
@@ -464,7 +464,7 @@ impl Affine {
     /// The translation can be seen as being applied after the linear part of the map.
     #[must_use]
     #[inline(always)]
-    pub fn with_translation(mut self, trans: Vec2) -> Affine {
+    pub const fn with_translation(mut self, trans: Vec2) -> Affine {
         self.0[4] = trans.x;
         self.0[5] = trans.y;
         self
