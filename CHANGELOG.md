@@ -18,7 +18,7 @@ This release has an [MSRV][] of 1.85.
 ## Added
 
 - The newly added `BezPath::into_elements` method allows getting all path elements as a `Vec` without allocating, consuming the original path. This is the counterpart of `BezPath::from_vec`. ([#504][] by [@cmyr][])
-- Add a derive `Hash` to the `Axis` type. ([#][] by [@jrmoulton])
+- Add a derive `Hash` to the `Axis` type. ([#527][] by [@jrmoulton])
 
 ## Changed
 
