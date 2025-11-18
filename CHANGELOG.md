@@ -24,7 +24,18 @@ This release has an [MSRV][] of 1.85.
 
 - Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
 - The `Line::nearest` method to calculate the projection of a point onto a line segment has been made more performant. ([#505][] by [@tomcur][])
-- The following functions are now callable from `const` contexts: `Point::midpoint`, `Rect::{width, height, origin, size, area, is_zero_area, center, overlap, contains_rect, inflate, scale_from_origin}`. ([#510][], [#512][] by [@tomcur][])
+- The `QuadBez::arclen` calculation has been made more numerically stable ([#503][] by [@jneem][]).
+- `SvgParseError` now implements `core::error:Error`. It previously implemented `std::error::Error` in `std`-enabled builds. ([#517][] by [@Bombaninha][])
+- The behavior of open versus closed shapes when using `BezPath::extend` (extending Bezier paths using an iterator over `PathEl`) has been clarified. [#523][] by [@DJMcNab][])
+- More methods are marked `inline`. ([#506][] by [@LaurenzV][], [#509][] by [@tomcur][])
+
+The following functions are now callable from `const` contexts. ([#510][], [#512][], [#521][], [#522][], [#524][], [#525][], [#526][] by [@tomcur][])
+
+- `Affine::{skew, then_translate, map_unit_square, as_coeffs, determinant, inverse, translation, with_translation}`
+- `Point::midpoint`
+- `Rect::{width, height, origin, size, area, is_zero_area, center, aspect_ratio_width, overlap, contains_rect, union, intersect, inscribed_rect_with_aspect_ratio, inflate, scale_from_origin, abs}`
+- `Size::{max_side, min_side, area, is_zero_area, min, max, clamp, aspect_ratio_width}`
+- In addition, the `is_finite` and `is_nan` methods on the following types are now `const`: `Affine`, `Circle`, `ConstPoint`, `CubicBez`, `Ellipse`, `Insets`, `Line`, `Point`, `QuadBez`, `Rect`, `RoundedRect`, `RoundedRectRadii`, `Size`, `Triangle`, `Vec2`.
 
 ## [0.12.0] (2025-09-04)
 
@@ -151,6 +162,7 @@ Note: A changelog was not kept for or before this release
 
 [@anthrotype]: https://github.com/anthrotype
 [@beholdnec]: https://github.com/beholdnec
+[@Bombaninha]: https://github.com/Bombaninha
 [@cmyr]: https://github.com/cmyr
 [@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
@@ -231,10 +243,20 @@ Note: A changelog was not kept for or before this release
 [#496]: https://github.com/linebender/kurbo/pull/496
 [#497]: https://github.com/linebender/kurbo/pull/497
 [#499]: https://github.com/linebender/kurbo/pull/499
+[#503]: https://github.com/linebender/kurbo/pull/503
 [#504]: https://github.com/linebender/kurbo/pull/504
 [#505]: https://github.com/linebender/kurbo/pull/505
+[#506]: https://github.com/linebender/kurbo/pull/506
+[#509]: https://github.com/linebender/kurbo/pull/509
 [#510]: https://github.com/linebender/kurbo/pull/510
 [#512]: https://github.com/linebender/kurbo/pull/512
+[#517]: https://github.com/linebender/kurbo/pull/517
+[#521]: https://github.com/linebender/kurbo/pull/521
+[#522]: https://github.com/linebender/kurbo/pull/522
+[#523]: https://github.com/linebender/kurbo/pull/523
+[#524]: https://github.com/linebender/kurbo/pull/524
+[#525]: https://github.com/linebender/kurbo/pull/525
+[#526]: https://github.com/linebender/kurbo/pull/526
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
