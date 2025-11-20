@@ -18,7 +18,7 @@ This release has an [MSRV][] of 1.85.
 ## Added
 
 - The newly added `BezPath::into_elements` method allows getting all path elements as a `Vec` without allocating, consuming the original path. This is the counterpart of `BezPath::from_vec`. ([#504][] by [@cmyr][])
-- Add a derive `Hash` to the `Axis` type. ([#527][] by [@jrmoulton])
+- Add a derive `Hash` to the `Axis` type. ([#527][] by [@jrmoulton][])
 
 ## Changed
 
@@ -170,6 +170,7 @@ Note: A changelog was not kept for or before this release
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@gemberg]: https://github.com/gemberg
 [@jneem]: https://github.com/jneem
+[@jrmoulton]: https://github.com/jrmoulton
 [@juliapaci]: https://github.com/juliapaci
 [@LaurenzV]: https://github.com/LaurenzV
 [@liferooter]: https://github.com/liferooter
@@ -257,6 +258,7 @@ Note: A changelog was not kept for or before this release
 [#524]: https://github.com/linebender/kurbo/pull/524
 [#525]: https://github.com/linebender/kurbo/pull/525
 [#526]: https://github.com/linebender/kurbo/pull/526
+[#527]: https://github.com/linebender/kurbo/pull/527
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.12.0...HEAD
 [0.11.0]: https://github.com/linebender/kurbo/releases/tag/v0.11.0
