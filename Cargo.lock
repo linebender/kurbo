@@ -305,6 +305,7 @@ dependencies = [
  "getrandom",
  "libm",
  "mint",
+ "polycool",
  "rand",
  "schemars",
  "serde",

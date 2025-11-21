@@ -21,9 +21,9 @@ workspace = true
 [features]
 default = ["std"]
 # Get floating point functions from the standard library (likely using your target's libc)
-std = ["euclid?/std"]
+std = ["polycool/std", "euclid?/std"]
 # Use floating point implementations from libm
-libm = ["dep:libm", "euclid?/libm"]
+libm = ["dep:libm", "polycool/libm", "euclid?/libm"]
 # Enable `From`/`Into` conversion of Kurbo and [mint] types, enabling interoperability
 # with other graphics libraries
 mint = ["dep:mint"]
@@ -37,6 +37,7 @@ schemars = ["schemars/smallvec", "dep:schemars"]
 [dependencies]
 smallvec = "1.15.1"
 euclid = { version = "0.22", optional = true, default-features = false }
+polycool.workspace = true
 
 [dependencies.arrayvec]
 version = "0.7.6"
@@ -89,6 +90,10 @@ harness = false
 
 [[bench]]
 name = "quartic"
+harness = false
+
+[[bench]]
+name = "nearest"
 harness = false
 
 [[bench]]
