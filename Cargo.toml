@@ -18,6 +18,7 @@ repository = "https://github.com/linebender/kurbo"
 
 [workspace.dependencies]
 kurbo = { version = "0.13.0", path = "kurbo", default-features = false }
+polycool = { version = "0.4.0", path = "polycool", default-features = false }
 
 [workspace.lints]
 rust.unsafe_code = "forbid"
