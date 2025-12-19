@@ -117,9 +117,13 @@ pub enum PathEl {
     MoveTo(Point),
     /// Draw a line from the current location to the point.
     LineTo(Point),
-    /// Draw a quadratic bezier using the current location and the two points.
+    /// Draw a quadratic Bézier using the current location and the two points.
+    ///
+    /// The first point is the Bézier's control point, the second is its end point.
     QuadTo(Point, Point),
-    /// Draw a cubic bezier using the current location and the three points.
+    /// Draw a cubic Bézier using the current location and the three points.
+    ///
+    /// The first two points are the Bézier's control points, the last point is its end point.
     CurveTo(Point, Point, Point),
     /// Close off the path.
     ClosePath,
@@ -132,9 +136,9 @@ pub enum PathEl {
 pub enum PathSeg {
     /// A line segment.
     Line(Line),
-    /// A quadratic bezier segment.
+    /// A quadratic Bézier segment.
     Quad(QuadBez),
-    /// A cubic bezier segment.
+    /// A cubic Bézier segment.
     Cubic(CubicBez),
 }
 
@@ -977,7 +981,7 @@ impl PathSeg {
         }
     }
 
-    /// Convert this segment to a cubic bezier.
+    /// Convert this segment to a cubic Bézier.
     pub fn to_cubic(&self) -> CubicBez {
         match *self {
             PathSeg::Line(Line { p0, p1 }) => CubicBez::new(p0, p0, p1, p1),
@@ -1181,7 +1185,7 @@ impl PathSeg {
         result
     }
 
-    /// Is this Bezier path finite?
+    /// Is this Bézier path finite?
     #[inline]
     pub fn is_finite(&self) -> bool {
         match self {
@@ -1191,7 +1195,7 @@ impl PathSeg {
         }
     }
 
-    /// Is this Bezier path NaN?
+    /// Is this Bézier path NaN?
     #[inline]
     pub fn is_nan(&self) -> bool {
         match self {
@@ -1310,7 +1314,7 @@ impl LineIntersection {
     }
 }
 
-// Return polynomial coefficients given cubic bezier coordinates.
+// Return polynomial coefficients given cubic Bézier coordinates.
 fn quadratic_bez_coefs(x0: f64, x1: f64, x2: f64) -> (f64, f64, f64) {
     let p0 = x0;
     let p1 = 2.0 * x1 - 2.0 * x0;
@@ -1318,7 +1322,7 @@ fn quadratic_bez_coefs(x0: f64, x1: f64, x2: f64) -> (f64, f64, f64) {
     (p0, p1, p2)
 }
 
-// Return polynomial coefficients given cubic bezier coordinates.
+// Return polynomial coefficients given cubic Bézier coordinates.
 fn cubic_bez_coefs(x0: f64, x1: f64, x2: f64, x3: f64) -> (f64, f64, f64, f64) {
     let p0 = x0;
     let p1 = 3.0 * x1 - 3.0 * x0;
