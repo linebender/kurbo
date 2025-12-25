@@ -301,13 +301,26 @@ impl Shape for RoundedRect {
 
         // 2. Pick a radius value to use based on which quadrant the point is
         //    in.
-        let radii = self.radii();
-        let radius = match pt {
-            pt if pt.x < 0.0 && pt.y < 0.0 => radii.top_left,
-            pt if pt.x >= 0.0 && pt.y < 0.0 => radii.top_right,
-            pt if pt.x >= 0.0 && pt.y >= 0.0 => radii.bottom_right,
-            pt if pt.x < 0.0 && pt.y >= 0.0 => radii.bottom_left,
-            _ => 0.0,
+        let radius = {
+            /// Calculates `if !cond { a } else { b }`.
+            ///
+            /// This function is theoretically pretty nonsensical to have, as the compiler should
+            /// pretty trivially be able to compile both this function and the explicit
+            /// `if`-statement equivalent to the same thing. However, for some reason, writing
+            /// these bit operations explicitly causes the compiler to be better about prefetching
+            /// the rounded rect data.
+            ///
+            /// See <https://github.com/linebender/kurbo/pull/534> for more.
+            #[inline(always)]
+            fn select(a: f64, b: f64, cond: bool) -> f64 {
+                let mask = (cond as u64).wrapping_neg(); // 0 or !0
+                f64::from_bits((a.to_bits() & !mask) | (b.to_bits() & mask))
+            }
+
+            let radii = self.radii();
+            let radius_top = select(radii.top_left, radii.top_right, pt.x >= 0.);
+            let radius_bottom = select(radii.bottom_left, radii.bottom_right, pt.x >= 0.);
+            select(radius_top, radius_bottom, pt.y >= 0.)
         };
 
         // 3. This is the width and height of a rectangle with one corner at

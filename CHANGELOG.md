@@ -15,6 +15,10 @@ You can find its changes [documented below](#0130-2025-11-27).
 
 This release has an [MSRV][] of 1.85.
 
+## Changed
+
+- Improve performance of `RoundedRect::winding` and `RoundedRect::contains`. ([#534][] by [@tomcur][])
+
 ## [0.13.0] (2025-11-27)
 
 This release has an [MSRV][] of 1.85.
@@ -263,6 +267,7 @@ Note: A changelog was not kept for or before this release
 [#525]: https://github.com/linebender/kurbo/pull/525
 [#526]: https://github.com/linebender/kurbo/pull/526
 [#527]: https://github.com/linebender/kurbo/pull/527
+[#534]: https://github.com/linebender/kurbo/pull/534
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
