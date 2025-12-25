@@ -602,6 +602,8 @@ enum DashState {
     ToStash,
     Working,
     FromStash,
+    /// for open paths: output stash contents then work
+    OutputStashThenWork,
 }
 
 impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
@@ -646,6 +648,17 @@ impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
                         } else {
                             self.state = DashState::ToStash;
                         }
+                    }
+                }
+                DashState::OutputStashThenWork => {
+                    // output stashed content then continue working
+                    if let Some(el) = self.stash.get(self.stash_ix) {
+                        self.stash_ix += 1;
+                        return Some(*el);
+                    } else {
+                        self.stash.clear();
+                        self.stash_ix = 0;
+                        self.state = DashState::Working;
                     }
                 }
             }
@@ -790,7 +803,13 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             if self.is_active {
                 let subseg = seg.subsegment(0.0..t1);
                 result = Some(seg_to_el(&subseg));
-                self.state = DashState::Working;
+                // For open paths: output stash first, then continue working
+                // For closed paths: stay in ToStash until the path closes
+                if self.state == DashState::ToStash && !self.closepath_pending {
+                    self.state = DashState::OutputStashThenWork;
+                } else {
+                    self.state = DashState::Working;
+                }
             } else {
                 let p = seg.eval(t1);
                 result = Some(PathEl::MoveTo(p));
@@ -925,10 +944,10 @@ mod tests {
         let shape = Line::new((0.0, 0.0), (21.0, 0.0));
         let dashes = [1., 5., 2., 5.];
         let expansion = [
+            PathSeg::Line(Line::new((0., 0.), (1., 0.))),
             PathSeg::Line(Line::new((6., 0.), (8., 0.))),
             PathSeg::Line(Line::new((13., 0.), (14., 0.))),
             PathSeg::Line(Line::new((19., 0.), (21., 0.))),
-            PathSeg::Line(Line::new((0., 0.), (1., 0.))),
         ];
         let iter = segments(dash(shape.path_elements(0.), 0., &dashes));
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
