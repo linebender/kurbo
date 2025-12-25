@@ -320,7 +320,7 @@ impl Shape for RoundedRect {
             let radii = self.radii();
             let radius_top = select(radii.top_left, radii.top_right, pt.x >= 0.);
             let radius_bottom = select(radii.bottom_left, radii.bottom_right, pt.x >= 0.);
-            select(radius_top, radius_bottom, pt.y >= 0.).max(0.0)
+            select(radius_top, radius_bottom, pt.y >= 0.)
         };
 
         // 3. This is the width and height of a rectangle with one corner at
