@@ -368,17 +368,24 @@ mod tests {
     // Asserts that the supplied "roots" are close to being roots of the
     // cubic, in the sense that the cubic evaluates to approximately zero
     // on each of the roots.
-    fn check_root_values<const N: usize>(p: &Poly<N>, roots: &[f64]) {
+    //
+    // `dp` is the derivative of `p`, which should really be a `Poly<N-1>`.
+    fn check_root_values<const N: usize, const M: usize>(p: &Poly<N>, dp: &Poly<M>, roots: &[f64]) {
         // Arbitrary cubics can have coefficients with wild magnitudes,
         // so we need to adjust our error expectations accordingly.
+        let eps = 1e-12;
         let magnitude = p.max_abs_coefficient().max(1.0);
-        let accuracy = magnitude * 1e-12;
+        let accuracy = magnitude * eps;
 
         for r in roots {
             // We can't expect great accuracy for very large roots,
             // because the polynomial evaluation will involve very
             // large terms.
             let accuracy = accuracy * r.abs().powi(N as i32 - 1).max(1.0);
+            // The solver aims for accuracy in the parameter, not the value.
+            // So the value's accuracy will be affected by the derivative
+            // at the root.
+            let accuracy = accuracy.max(dp.eval(*r).abs() * eps);
             let y = p.eval(*r);
             assert!(
                 y.abs() <= accuracy,
@@ -397,7 +404,7 @@ mod tests {
             }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
 
-            check_root_values(&poly, &roots);
+            check_root_values(&poly, &poly.deriv(), &roots);
             Ok(())
         })
         .budget_ms(5_000);
@@ -411,7 +418,7 @@ mod tests {
                 return Err(arbitrary::Error::IncorrectFormat);
             }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
-            check_root_values(&poly, &roots);
+            check_root_values(&poly, &poly.deriv(), &roots);
             Ok(())
         })
         .budget_ms(5_000);
@@ -425,7 +432,7 @@ mod tests {
                 return Err(arbitrary::Error::IncorrectFormat);
             }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
-            check_root_values(&poly, &roots);
+            check_root_values(&poly, &poly.deriv(), &roots);
             Ok(())
         })
         .budget_ms(5_000);
