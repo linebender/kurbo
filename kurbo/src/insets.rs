@@ -148,7 +148,7 @@ impl Insets {
     /// assert_eq!(insets.x_value(), -7.);
     /// ```
     #[inline]
-    pub fn x_value(self) -> f64 {
+    pub const fn x_value(self) -> f64 {
         self.x0 + self.x1
     }
 
@@ -166,7 +166,7 @@ impl Insets {
     /// assert_eq!(insets.y_value(), 14.);
     /// ```
     #[inline]
-    pub fn y_value(self) -> f64 {
+    pub const fn y_value(self) -> f64 {
         self.y0 + self.y1
     }
 
@@ -188,12 +188,12 @@ impl Insets {
     ///
     /// [`x_value`]: Insets::x_value
     /// [`y_value`]: Insets::y_value
-    pub fn size(self) -> Size {
+    pub const fn size(self) -> Size {
         Size::new(self.x_value(), self.y_value())
     }
 
     /// Return `true` iff all values are nonnegative.
-    pub fn are_nonnegative(self) -> bool {
+    pub const fn are_nonnegative(self) -> bool {
         let Insets { x0, y0, x1, y1 } = self;
         x0 >= 0.0 && y0 >= 0.0 && x1 >= 0.0 && y1 >= 0.0
     }
@@ -213,7 +213,7 @@ impl Insets {
     /// assert_eq!(nonnegative.x_value(), 0.0);
     /// assert_eq!(nonnegative.y_value(), 7.0);
     /// ```
-    pub fn nonnegative(self) -> Insets {
+    pub const fn nonnegative(self) -> Insets {
         let Insets { x0, y0, x1, y1 } = self;
         Insets {
             x0: x0.max(0.0),

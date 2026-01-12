@@ -274,7 +274,7 @@ impl Size {
     #[inline]
     // TODO: When we remove this, we should also work out what to do with aspect_ratio_width
     // The tentatitive plan is to rename `aspect_ratio_width` back to this name
-    pub fn aspect_ratio(self) -> f64 {
+    pub const fn aspect_ratio(self) -> f64 {
         self.height / self.width
     }
 

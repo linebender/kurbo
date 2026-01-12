@@ -97,25 +97,25 @@ impl RoundedRect {
 
     /// The width of the rectangle.
     #[inline]
-    pub fn width(&self) -> f64 {
+    pub const fn width(&self) -> f64 {
         self.rect.width()
     }
 
     /// The height of the rectangle.
     #[inline]
-    pub fn height(&self) -> f64 {
+    pub const fn height(&self) -> f64 {
         self.rect.height()
     }
 
     /// Radii of the rounded corners.
     #[inline(always)]
-    pub fn radii(&self) -> RoundedRectRadii {
+    pub const fn radii(&self) -> RoundedRectRadii {
         self.radii
     }
 
     /// The (non-rounded) rectangle.
     #[inline(always)]
-    pub fn rect(&self) -> Rect {
+    pub const fn rect(&self) -> Rect {
         self.rect
     }
 
@@ -123,13 +123,13 @@ impl RoundedRect {
     ///
     /// This is the top left corner in a y-down space.
     #[inline(always)]
-    pub fn origin(&self) -> Point {
+    pub const fn origin(&self) -> Point {
         self.rect.origin()
     }
 
     /// The center point of the rectangle.
     #[inline]
-    pub fn center(&self) -> Point {
+    pub const fn center(&self) -> Point {
         self.rect.center()
     }
 

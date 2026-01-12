@@ -114,31 +114,31 @@ impl Stroke {
     }
 
     /// Builder method for setting the join style.
-    pub fn with_join(mut self, join: Join) -> Self {
+    pub const fn with_join(mut self, join: Join) -> Self {
         self.join = join;
         self
     }
 
     /// Builder method for setting the limit for miter joins.
-    pub fn with_miter_limit(mut self, limit: f64) -> Self {
+    pub const fn with_miter_limit(mut self, limit: f64) -> Self {
         self.miter_limit = limit;
         self
     }
 
     /// Builder method for setting the cap style for the start of the stroke.
-    pub fn with_start_cap(mut self, cap: Cap) -> Self {
+    pub const fn with_start_cap(mut self, cap: Cap) -> Self {
         self.start_cap = cap;
         self
     }
 
     /// Builder method for setting the cap style for the end of the stroke.
-    pub fn with_end_cap(mut self, cap: Cap) -> Self {
+    pub const fn with_end_cap(mut self, cap: Cap) -> Self {
         self.end_cap = cap;
         self
     }
 
     /// Builder method for setting the cap style.
-    pub fn with_caps(mut self, cap: Cap) -> Self {
+    pub const fn with_caps(mut self, cap: Cap) -> Self {
         self.start_cap = cap;
         self.end_cap = cap;
         self

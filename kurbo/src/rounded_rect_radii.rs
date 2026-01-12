@@ -58,7 +58,7 @@ impl RoundedRectRadii {
     }
 
     /// Takes the absolute value of all corner radii.
-    pub fn abs(&self) -> Self {
+    pub const fn abs(&self) -> Self {
         RoundedRectRadii::new(
             self.top_left.abs(),
             self.top_right.abs(),
@@ -68,7 +68,7 @@ impl RoundedRectRadii {
     }
 
     /// For each corner, takes the min of that corner's radius and `max`.
-    pub fn clamp(&self, max: f64) -> Self {
+    pub const fn clamp(&self, max: f64) -> Self {
         RoundedRectRadii::new(
             self.top_left.min(max),
             self.top_right.min(max),
@@ -95,7 +95,7 @@ impl RoundedRectRadii {
 
     /// If all radii are equal, returns the value of the radii. Otherwise,
     /// returns `None`.
-    pub fn as_single_radius(&self) -> Option<f64> {
+    pub const fn as_single_radius(&self) -> Option<f64> {
         let epsilon = 1e-9;
 
         if (self.top_left - self.top_right).abs() < epsilon
