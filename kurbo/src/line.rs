@@ -38,7 +38,7 @@ impl Line {
     /// points in the opposite direction.
     #[must_use]
     #[inline(always)]
-    pub fn reversed(&self) -> Line {
+    pub const fn reversed(&self) -> Line {
         Self {
             p0: self.p1,
             p1: self.p0,
