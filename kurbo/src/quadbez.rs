@@ -7,7 +7,7 @@ use core::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::common::solve_cubic;
+use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
@@ -109,6 +109,37 @@ impl QuadBez {
     #[inline]
     pub const fn is_nan(&self) -> bool {
         self.p0.is_nan() || self.p1.is_nan() || self.p2.is_nan()
+    }
+
+    /// Finds the value of `t` for which `self.eval(t)` is about `y`.
+    ///
+    /// Assumes that this segment is monotonic in `y` and that it crosses
+    /// the height `y`. (Under these assumptions, there is a unique answer.)
+    pub(crate) fn solve_monotonic_for_y(&self, y: f64) -> f64 {
+        let start = self.start();
+        let end = self.end();
+
+        debug_assert!(start.y.min(end.y) <= y && y <= start.y.max(end.y));
+        let a = end.y - 2.0 * self.p1.y + start.y;
+        let b = 2.0 * (self.p1.y - start.y);
+        let c = start.y - y;
+
+        for t in solve_quadratic(c, b, a) {
+            if (0.0..=1.0).contains(&t) {
+                return t;
+            }
+        }
+
+        // Even though we asserted that our y range contains `y`, it's possible
+        // that we failed to find a solution numerically. (For example, rounding
+        // of a, b, or c might have pushed the root outside of [0.0, 1.0].)
+        // If we failed to find a solution, the real solution should be close
+        // to one of the endpoints. So just find whichever endpoint was closer.
+        if (start.y - y).abs() <= (end.y - y).abs() {
+            0.0
+        } else {
+            1.0
+        }
     }
 }
 
