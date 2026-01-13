@@ -20,6 +20,10 @@ This release has an [MSRV][] of 1.85.
 - Improve performance of `RoundedRect::winding` and `RoundedRect::contains`. ([#534][] by [@tomcur][])
 - `Axis`, `Insets`, `Line::reversed`, `Rect::min_x/max_x/min_y/max_y`, `RoundedRectRadii::abs/clamp/as_single_radius`, `RoundedRect::width/height/radii/rect/origin/center`, `Size::aspect_ratio`, `Stroke::new/with_join/with_miter_limit/with_start_cap/with_end_cap/with_caps` are all now `const`. ([#536][] by [@xStrom], [#539][] by [@tomcur][])
 
+## Fixed
+
+- Improved numerical robustness of winding numbers for paths. ([#537][] by [@jneem][])
+
 ## [0.13.0] (2025-11-27)
 
 This release has an [MSRV][] of 1.85.
@@ -271,6 +275,7 @@ Note: A changelog was not kept for or before this release
 [#527]: https://github.com/linebender/kurbo/pull/527
 [#534]: https://github.com/linebender/kurbo/pull/534
 [#536]: https://github.com/linebender/kurbo/pull/536
+[#537]: https://github.com/linebender/kurbo/pull/537
 [#539]: https://github.com/linebender/kurbo/pull/539
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
