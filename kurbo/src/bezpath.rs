@@ -990,7 +990,16 @@ impl PathSeg {
         }
     }
 
-    // Assumes split at extrema.
+    /// A single-segment "winding" number.
+    ///
+    /// Assume that `self` is monotonic in `y`, and take a ray pointing
+    /// left from `p`. If `self` crosses that ray, returns 1 (if we're
+    /// decreasing in y) or -1 (if we're increasing in y). Otherwise, returns 0.
+    ///
+    /// Handling of endpoints is a little subtle, just to make sure that
+    /// we correctly handle consecutive segments: we consider `self` to
+    /// contain the endpoint with smaller y, and not contain the endpoint
+    /// with larger y.
     fn winding_inner(&self, p: Point) -> i32 {
         let start = self.start();
         let end = self.end();
@@ -1033,20 +1042,13 @@ impl PathSeg {
                 if p.x >= start.x.max(end.x).max(p1.x) {
                     return sign;
                 }
-                let a = end.y - 2.0 * p1.y + start.y;
-                let b = 2.0 * (p1.y - start.y);
-                let c = start.y - p.y;
-                for t in solve_quadratic(c, b, a) {
-                    if (0.0..=1.0).contains(&t) {
-                        let x = quad.eval(t).x;
-                        if p.x >= x {
-                            return sign;
-                        } else {
-                            return 0;
-                        }
-                    }
+                let t = quad.solve_monotonic_for_y(p.y);
+                let x = quad.eval(t).x;
+                if p.x >= x {
+                    sign
+                } else {
+                    0
                 }
-                0
             }
             PathSeg::Cubic(cubic) => {
                 let p1 = cubic.p1;
@@ -1057,21 +1059,13 @@ impl PathSeg {
                 if p.x >= start.x.max(end.x).max(p1.x).max(p2.x) {
                     return sign;
                 }
-                let a = end.y - 3.0 * p2.y + 3.0 * p1.y - start.y;
-                let b = 3.0 * (p2.y - 2.0 * p1.y + start.y);
-                let c = 3.0 * (p1.y - start.y);
-                let d = start.y - p.y;
-                for t in solve_cubic(d, c, b, a) {
-                    if (0.0..=1.0).contains(&t) {
-                        let x = cubic.eval(t).x;
-                        if p.x >= x {
-                            return sign;
-                        } else {
-                            return 0;
-                        }
-                    }
+                let t = cubic.solve_monotonic_for_y(p.y);
+                let x = cubic.eval(t).x;
+                if p.x >= x {
+                    sign
+                } else {
+                    0
                 }
-                0
             }
         }
     }
@@ -2127,5 +2121,44 @@ mod tests {
         assert_eq!(path.current_position(), Some(Point::new(0., 10.)));
         path.close_path();
         assert_eq!(path.current_position(), None);
+    }
+
+    // Regression test for #531
+    //
+    // When testing the winding number of a point whose y coordinate is very
+    // close (or equal to) the y coordinate of a segment's start or end, we need
+    // to be consistent about how we treat it. In particular, in #531 we noticed
+    // that the point was within the y range of a monotonic segment, but because
+    // of rounding errors the cubic solver disagreed.
+    #[test]
+    fn winding_endpoints() {
+        let bez = BezPath::from_vec(vec![
+            PathEl::MoveTo((200.0, 410.0).into()),
+            PathEl::CurveTo(
+                (139.0, 410.0).into(),
+                (90.0, 360.8772277832031).into(),
+                (90.0, 300.0).into(),
+            ),
+            PathEl::CurveTo(
+                (90.0, 239.0).into(),
+                (139.0, 190.0).into(),
+                (200.0, 190.0).into(),
+            ),
+            PathEl::CurveTo(
+                (150.0, 210.0).into(),
+                (110.0, 250.0).into(),
+                (110.0, 300.0).into(),
+            ),
+            PathEl::CurveTo(
+                (110.0, 349.0).into(),
+                (150.0, 390.0).into(),
+                (200.0, 390.0).into(),
+            ),
+            PathEl::ClosePath,
+        ]);
+
+        assert!(bez.contains((100.0, 300.1).into()));
+        assert!(bez.contains((100.0, 299.9).into()));
+        assert!(bez.contains((100.0, 300.0).into()));
     }
 }

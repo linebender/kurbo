@@ -12,8 +12,8 @@ use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
 use crate::common::{
-    solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16_HALF, GAUSS_LEGENDRE_COEFFS_24_HALF,
-    GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF,
+    solve_cubic, solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16_HALF,
+    GAUSS_LEGENDRE_COEFFS_24_HALF, GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF,
 };
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
@@ -457,6 +457,40 @@ impl CubicBez {
             }
         }
         None
+    }
+
+    /// Finds the value of `t` for which `self.eval(t)` is about `y`.
+    ///
+    /// Assumes that this segment is monotonic in `y` and that it crosses
+    /// the height `y`. (Under these assumptions, there is a unique answer.)
+    pub(crate) fn solve_monotonic_for_y(&self, y: f64) -> f64 {
+        let start = self.start();
+        let end = self.end();
+
+        debug_assert!(start.y.min(end.y) <= y && y <= start.y.max(end.y));
+
+        let p1 = self.p1;
+        let p2 = self.p2;
+        let a = end.y - 3.0 * p2.y + 3.0 * p1.y - start.y;
+        let b = 3.0 * (p2.y - 2.0 * p1.y + start.y);
+        let c = 3.0 * (p1.y - start.y);
+        let d = start.y - y;
+        for t in solve_cubic(d, c, b, a) {
+            if (0.0..=1.0).contains(&t) {
+                return t;
+            }
+        }
+
+        // Even though we asserted that our y range contains `y`, it's possible
+        // that we failed to find a solution numerically. (For example, rounding
+        // of a, b, or c might have pushed the root outside of [0.0, 1.0].)
+        // If we failed to find a solution, the real solution should be close
+        // to one of the endpoints. So just find whichever endpoint was closer.
+        if (start.y - y).abs() <= (end.y - y).abs() {
+            0.0
+        } else {
+            1.0
+        }
     }
 }
 
