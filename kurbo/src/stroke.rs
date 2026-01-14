@@ -92,24 +92,21 @@ impl Default for StrokeOpts {
 
 impl Default for Stroke {
     fn default() -> Self {
-        Self {
-            width: 1.0,
-            join: Join::Round,
-            miter_limit: 4.0,
-            start_cap: Cap::Round,
-            end_cap: Cap::Round,
-            dash_pattern: SmallVec::default(),
-            dash_offset: 0.0,
-        }
+        Self::new(1.0)
     }
 }
 
 impl Stroke {
     /// Creates a new stroke with the specified width.
-    pub fn new(width: f64) -> Self {
+    pub const fn new(width: f64) -> Self {
         Self {
             width,
-            ..Stroke::default()
+            join: Join::Round,
+            miter_limit: 4.0,
+            start_cap: Cap::Round,
+            end_cap: Cap::Round,
+            dash_pattern: SmallVec::new_const(),
+            dash_offset: 0.0,
         }
     }
 
