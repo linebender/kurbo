@@ -249,7 +249,6 @@ impl Add<Rect> for Insets {
     type Output = Rect;
 
     #[inline]
-    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, other: Rect) -> Rect {
         let other = other.abs();
         Rect::new(

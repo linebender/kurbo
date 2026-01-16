@@ -3,7 +3,7 @@
 
 //! Common mathematical operations
 
-#![allow(missing_docs)]
+#![expect(missing_docs)]
 
 #[cfg(not(feature = "std"))]
 mod sealed {
@@ -672,7 +672,7 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
 ///
 /// [ITP method]: https://en.wikipedia.org/wiki/ITP_Method
 /// [An Enhancement of the Bisection Method Average Performance Preserving Minmax Optimality]: https://dl.acm.org/doi/10.1145/3423597
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn solve_itp(
     mut f: impl FnMut(f64) -> f64,
     mut a: f64,
@@ -722,7 +722,7 @@ pub fn solve_itp(
 ///
 /// Another difference: it returns the bracket that contains the root,
 /// which may be important if the function has a discontinuity.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn solve_itp_fallible<E>(
     mut f: impl FnMut(f64) -> Result<f64, E>,
     mut a: f64,

@@ -152,7 +152,7 @@ pub(crate) fn min_dist_param(
 
 // $ S(u,v)=\sum_{r=0}^{2n} \sum _{k=0}^{2m} D_{r,k} B_{2n}^r(u) B_{2m}^k(v) $
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 fn S(u: f64, v: f64, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
     let n = bez1.len() - 1;
     let m = bez2.len() - 1;
@@ -167,7 +167,7 @@ fn S(u: f64, v: f64, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
 }
 
 // $ C_{r,k} = ( \sum_{i=\theta}^\upsilon P_i C_n^i C_n^{r-i} / C_{2n}^r ) \cdot (\sum_{j=\sigma}^\varsigma Q_j C_m^j C_m^{k-j} / C_{2m}^k ) $
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 fn C_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
     let n = bez1.len() - 1;
     let upsilon = r.min(n);
@@ -190,7 +190,7 @@ fn C_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
 // $ A_r=\sum _{i=\theta} ^\upsilon (P_i \cdot P_{r-i}) C_n^i C_n^{r-i} / C_{2n}^r $
 // ($ B_k $ is just the same as $ A_r $ but for the other curve.)
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 fn A_r(r: usize, p: &[Vec2]) -> f64 {
     let n = p.len() - 1;
     let upsilon = r.min(n);
@@ -204,7 +204,7 @@ fn A_r(r: usize, p: &[Vec2]) -> f64 {
         .sum()
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 fn D_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
     // In the paper, B_k is used for the second factor, but it's the same thing
     A_r(r, bez1) + A_r(k, bez2) - 2.0 * C_rk(r, k, bez1, bez2)

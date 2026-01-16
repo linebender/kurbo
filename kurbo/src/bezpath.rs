@@ -3,7 +3,7 @@
 
 //! Bézier paths (up to cubic).
 
-#![allow(clippy::many_single_char_names)]
+#![expect(clippy::many_single_char_names)]
 
 use core::iter::{Extend, FromIterator};
 use core::mem;

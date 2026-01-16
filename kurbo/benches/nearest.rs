@@ -3,7 +3,7 @@
 
 //! Benchmarks of the quartic equation solver.
 
-#![allow(missing_docs, reason = "criterion emits undocumented functions")]
+#![expect(missing_docs, reason = "criterion emits undocumented functions")]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;

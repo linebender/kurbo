@@ -475,7 +475,7 @@ impl Div<f64> for Vec2 {
     ///
     /// This is more efficient but has different roundoff behavior than division.
     #[inline]
-    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[expect(clippy::suspicious_arithmetic_impl)]
     fn div(self, other: f64) -> Vec2 {
         self * other.recip()
     }

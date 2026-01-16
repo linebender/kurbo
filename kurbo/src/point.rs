@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[expect(clippy::float_cmp)]
     fn distance() {
         let p1 = Point::new(0., 10.);
         let p2 = Point::new(0., 5.);

@@ -3,7 +3,7 @@
 
 //! A test program to plot the error of arclength approximation.
 
-#![allow(unused, reason = "a bunch of experiments in the code")]
+#![expect(unused, reason = "a bunch of experiments in the code")]
 
 // TODO: make more functionality accessible from command line rather than uncommenting.
 

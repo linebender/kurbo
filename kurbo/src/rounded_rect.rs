@@ -8,7 +8,7 @@ use core::ops::{Add, Sub};
 
 use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
 
-#[allow(unused_imports)] // This is unused in later versions of Rust because of additions to core::f32
+#[expect(unused_imports)] // This is unused in later versions of Rust because of additions to core::f32
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 

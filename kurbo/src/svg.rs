@@ -526,7 +526,7 @@ mod tests {
 
     // Regression test for #51
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[expect(clippy::float_cmp)]
     fn test_parse_svg_arc_pie() {
         let path = BezPath::from_svg("M 100 100 h 25 a 25 25 0 1 0 -25 25 z").unwrap();
         // Approximate figures, but useful for regression testing
@@ -541,7 +541,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_parse_scientific_notation() {
         let path = BezPath::from_svg("M 0 0 L 1e-123 -4E+5").unwrap();
         assert_eq!(
