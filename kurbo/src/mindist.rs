@@ -13,6 +13,19 @@ use core::cmp::Ordering;
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
+/// Given the control points of n- and m-dimensional Bézier curves in `bez1` and `bez2`
+/// respectively, calculate the minimum distance between the two curves.
+///
+/// This should work for arbitrary Bézier curves up to and including degree 255, but only lines,
+/// quadratics and cubics are tested.
+///
+/// Returns a tuple of the distance, the path time `t1` of the closest point on the first Bézier,
+/// and the path time `t2` of the closest point on the second Bézier.
+///
+/// # Panics
+///
+/// This panics if more than 256 control points are given in `bez1` or `bez2`, i.e., if either
+/// Bézier is of degree greater than 255.
 pub(crate) fn min_dist_param(
     bez1: &[Vec2],
     bez2: &[Vec2],
@@ -22,8 +35,8 @@ pub(crate) fn min_dist_param(
     best_alpha: Option<f64>,
 ) -> (f64, f64, f64) {
     assert!(!bez1.is_empty() && !bez2.is_empty());
-    let n = bez1.len() - 1;
-    let m = bez2.len() - 1;
+    let n = u8::try_from(bez1.len() - 1).expect("At most 256 control points");
+    let m = u8::try_from(bez2.len() - 1).expect("At most 256 control points");
     let (umin, umax) = u;
     let (vmin, vmax) = v;
     let umid = (umin + umax) / 2.0;
@@ -154,8 +167,11 @@ pub(crate) fn min_dist_param(
 
 #[allow(non_snake_case)]
 fn S(u: f64, v: f64, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
-    let n = bez1.len() - 1;
-    let m = bez2.len() - 1;
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "By the checks in `min_dist_param` we know `bez1.len()` and `bez2.len()` are less than or equal to 256"
+    )]
+    let (n, m) = { ((bez1.len() - 1) as u8, (bez2.len() - 1) as u8) };
     let mut summand = 0.0;
     for r in 0..=2 * n {
         for k in 0..=2 * m {
@@ -168,20 +184,25 @@ fn S(u: f64, v: f64, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
 
 // $ C_{r,k} = ( \sum_{i=\theta}^\upsilon P_i C_n^i C_n^{r-i} / C_{2n}^r ) \cdot (\sum_{j=\sigma}^\varsigma Q_j C_m^j C_m^{k-j} / C_{2m}^k ) $
 #[allow(non_snake_case)]
-fn C_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
-    let n = bez1.len() - 1;
+fn C_rk(r: u8, k: u8, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "By the checks in `min_dist_param` we know `bez1.len()` and `bez2.len()` are less than or equal to 256"
+    )]
+    let (n, m) = { ((bez1.len() - 1) as u8, (bez2.len() - 1) as u8) };
     let upsilon = r.min(n);
     let theta = r - n.min(r);
     let mut left: Vec2 = Vec2::ZERO;
-    for (i, &item) in bez1.iter().enumerate().take(upsilon + 1).skip(theta) {
+    for i in theta..upsilon + 1 {
+        let item = bez1[usize::from(i)];
         left += item * (choose(n, i) * choose(n, r - i)) as f64 / (choose(2 * n, r) as f64);
     }
 
-    let m = bez2.len() - 1;
     let varsigma = k.min(m);
     let sigma = k - m.min(k);
     let mut right: Vec2 = Vec2::ZERO;
-    for (j, &item) in bez2.iter().enumerate().take(varsigma + 1).skip(sigma) {
+    for j in sigma..varsigma + 1 {
+        let item = bez2[usize::from(j)];
         right += item * (choose(m, j) * choose(m, k - j)) as f64 / (choose(2 * m, k) as f64);
     }
     left.dot(right)
@@ -191,13 +212,17 @@ fn C_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
 // ($ B_k $ is just the same as $ A_r $ but for the other curve.)
 
 #[allow(non_snake_case)]
-fn A_r(r: usize, p: &[Vec2]) -> f64 {
-    let n = p.len() - 1;
+fn A_r(r: u8, p: &[Vec2]) -> f64 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "By the checks in `min_dist_param` we know `p.len()` is less than or equal to 256"
+    )]
+    let n = (p.len() - 1) as u8;
     let upsilon = r.min(n);
     let theta = r - n.min(r);
     (theta..=upsilon)
         .map(|i| {
-            let dot = p[i].dot(p[r - i]); // These are bounds checked by the sum limits
+            let dot = p[usize::from(i)].dot(p[usize::from(r - i)]); // These are bounds checked by the sum limits
             let factor = (choose(n, i) * choose(n, r - i)) as f64 / (choose(2 * n, r) as f64);
             dot * factor
         })
@@ -205,19 +230,20 @@ fn A_r(r: usize, p: &[Vec2]) -> f64 {
 }
 
 #[allow(non_snake_case)]
-fn D_rk(r: usize, k: usize, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
+fn D_rk(r: u8, k: u8, bez1: &[Vec2], bez2: &[Vec2]) -> f64 {
     // In the paper, B_k is used for the second factor, but it's the same thing
     A_r(r, bez1) + A_r(k, bez2) - 2.0 * C_rk(r, k, bez1, bez2)
 }
 
-// Bezier basis function
-fn basis_function(n: usize, i: usize, u: f64) -> f64 {
+// Bézier basis function
+fn basis_function(n: u8, i: u8, u: f64) -> f64 {
     choose(n, i) as f64 * (1.0 - u).powi((n - i) as i32) * u.powi(i as i32)
 }
 
 // Binomial co-efficient, but returning zeros for values outside of domain
-fn choose(n: usize, k: usize) -> u32 {
-    let mut n = n;
+fn choose(n: u8, k: u8) -> u32 {
+    let mut n = n as u32;
+    let k = k as u32;
     if k > n {
         return 0;
     }
@@ -227,7 +253,7 @@ fn choose(n: usize, k: usize) -> u32 {
         p /= i;
         n -= 1;
     }
-    p as u32
+    p
 }
 
 #[cfg(test)]
