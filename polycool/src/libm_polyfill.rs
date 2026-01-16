@@ -1,7 +1,7 @@
 // Copyright 2025 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-#[allow(dead_code, reason = "unused if std and libm are both around")]
+#[expect(dead_code, reason = "unused if std and libm are both around")]
 pub(crate) trait FloatFuncs: Sized {
     fn sqrt(self) -> Self;
     fn cbrt(self) -> Self;

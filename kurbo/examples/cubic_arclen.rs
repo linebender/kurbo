@@ -3,7 +3,7 @@
 
 //! Research testbed for arclengths of cubic Bézier segments.
 
-#![allow(unused, reason = "a bunch of experiments in the code")]
+#![expect(unused, reason = "a bunch of experiments in the code")]
 
 use kurbo::common::{GAUSS_LEGENDRE_COEFFS_11, GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9};
 use kurbo::{

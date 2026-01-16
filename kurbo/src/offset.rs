@@ -578,7 +578,6 @@ impl CubicOffset {
 }
 
 impl OffsetRec {
-    #[allow(clippy::too_many_arguments)]
     fn new(
         t0: f64,
         t1: f64,

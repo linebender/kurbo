@@ -22,7 +22,7 @@ use crate::common::FloatFuncs;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[allow(missing_docs)]
+#[expect(missing_docs)]
 pub struct QuadBez {
     pub p0: Point,
     pub p1: Point,

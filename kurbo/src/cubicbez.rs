@@ -29,7 +29,7 @@ const MAX_SPLINE_SPLIT: usize = 100;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[allow(missing_docs)]
+#[expect(missing_docs)]
 pub struct CubicBez {
     pub p0: Point,
     pub p1: Point,
@@ -922,7 +922,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[expect(clippy::float_cmp)]
     fn cubicbez_signed_area_linear() {
         // y = 1 - x
         let c = CubicBez::new(
