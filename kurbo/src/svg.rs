@@ -541,7 +541,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::float_cmp)]
     fn test_parse_scientific_notation() {
         let path = BezPath::from_svg("M 0 0 L 1e-123 -4E+5").unwrap();
         assert_eq!(
