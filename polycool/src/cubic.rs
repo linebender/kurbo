@@ -6,7 +6,7 @@ use arrayvec::ArrayVec;
 use crate::{Cubic, Quadratic, different_signs};
 
 #[cfg(feature = "libm")]
-#[expect(unused_imports, reason = "unused if libm and std are both around")]
+#[allow(unused_imports, reason = "unused if libm and std are both around")]
 use crate::libm_polyfill::FloatFuncs as _;
 
 // We assume that there is at least one element, at most 3 elements, and buf[1]
