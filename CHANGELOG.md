@@ -15,6 +15,10 @@ You can find its changes [documented below](#0130-2025-11-27).
 
 This release has an [MSRV][] of 1.85.
 
+## Added
+
+- Add `Stroke::is_finite` and `Stroke::is_nan`. ([#545][] by [@waywardmonkeys][])
+
 ## Changed
 
 - Improve performance of `RoundedRect::winding` and `RoundedRect::contains`. ([#534][] by [@tomcur][])
@@ -277,6 +281,7 @@ Note: A changelog was not kept for or before this release
 [#536]: https://github.com/linebender/kurbo/pull/536
 [#537]: https://github.com/linebender/kurbo/pull/537
 [#539]: https://github.com/linebender/kurbo/pull/539
+[#545]: https://github.com/linebender/kurbo/pull/545
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
