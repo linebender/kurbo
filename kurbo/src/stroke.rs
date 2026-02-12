@@ -153,6 +153,26 @@ impl Stroke {
             .extend(pattern.into_iter().map(|dash| *dash.borrow()));
         self
     }
+
+    /// Returns `true` if all floating-point stroke parameters are [finite].
+    ///
+    /// [finite]: f64::is_finite
+    pub fn is_finite(&self) -> bool {
+        self.width.is_finite()
+            && self.miter_limit.is_finite()
+            && self.dash_offset.is_finite()
+            && self.dash_pattern.iter().all(|dash| dash.is_finite())
+    }
+
+    /// Returns `true` if any floating-point stroke parameter is [`NaN`].
+    ///
+    /// [`NaN`]: f64::is_nan
+    pub fn is_nan(&self) -> bool {
+        self.width.is_nan()
+            || self.miter_limit.is_nan()
+            || self.dash_offset.is_nan()
+            || self.dash_pattern.iter().any(|dash| dash.is_nan())
+    }
 }
 
 impl StrokeOpts {
@@ -954,5 +974,48 @@ mod tests {
         let pos = segments(dash(shape.path_elements(0.), 60., &dashes)).collect::<Vec<PathSeg>>();
         let neg = segments(dash(shape.path_elements(0.), -60., &dashes)).collect::<Vec<PathSeg>>();
         assert_eq!(neg, pos);
+    }
+
+    #[test]
+    fn stroke_is_finite_fields() {
+        let finite = Stroke::new(2.0)
+            .with_miter_limit(4.0)
+            .with_dashes(0.0, [1.0, 2.0]);
+        assert!(finite.is_finite());
+
+        let non_finite_width = Stroke::new(f64::INFINITY);
+        assert!(!non_finite_width.is_finite());
+
+        let non_finite_miter = Stroke::new(2.0).with_miter_limit(f64::NAN);
+        assert!(!non_finite_miter.is_finite());
+
+        let non_finite_dash_offset = Stroke::new(2.0).with_dashes(f64::NEG_INFINITY, [1.0, 2.0]);
+        assert!(!non_finite_dash_offset.is_finite());
+
+        let non_finite_dash_pattern = Stroke::new(2.0).with_dashes(0.0, [1.0, f64::NAN]);
+        assert!(!non_finite_dash_pattern.is_finite());
+    }
+
+    #[test]
+    fn stroke_is_nan_fields() {
+        let finite = Stroke::new(2.0)
+            .with_miter_limit(4.0)
+            .with_dashes(0.0, [1.0, 2.0]);
+        assert!(!finite.is_nan());
+
+        let nan_width = Stroke::new(f64::NAN);
+        assert!(nan_width.is_nan());
+
+        let nan_miter = Stroke::new(2.0).with_miter_limit(f64::NAN);
+        assert!(nan_miter.is_nan());
+
+        let nan_dash_offset = Stroke::new(2.0).with_dashes(f64::NAN, [1.0, 2.0]);
+        assert!(nan_dash_offset.is_nan());
+
+        let nan_dash_pattern = Stroke::new(2.0).with_dashes(0.0, [1.0, f64::NAN]);
+        assert!(nan_dash_pattern.is_nan());
+
+        let infinite_width = Stroke::new(f64::INFINITY);
+        assert!(!infinite_width.is_nan());
     }
 }
