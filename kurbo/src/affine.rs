@@ -459,7 +459,7 @@ impl Affine {
         }
     }
 
-    /// Replaces the translation portion of this affine map
+    /// Replaces the translation portion of this affine map.
     ///
     /// The translation can be seen as being applied after the linear part of the map.
     #[must_use]
@@ -467,6 +467,46 @@ impl Affine {
     pub const fn with_translation(mut self, trans: Vec2) -> Affine {
         self.0[4] = trans.x;
         self.0[5] = trans.y;
+        self
+    }
+
+    /// Returns the scaling part of this affine map (`(self.0[0], self.0[3])`).
+    #[inline(always)]
+    pub const fn scaling(self) -> Vec2 {
+        Vec2 {
+            x: self.0[0],
+            y: self.0[3],
+        }
+    }
+
+    /// Replaces the scaling portion of this affine map.
+    ///
+    /// The scaling can be seen as being applied after the linear part of the map.
+    #[must_use]
+    #[inline(always)]
+    pub const fn with_scaling(mut self, scale: Vec2) -> Affine {
+        self.0[0] = scale.x;
+        self.0[3] = scale.y;
+        self
+    }
+
+    /// Returns the skewing part of this affine map (`(self.0[1], self.0[2])`).
+    #[inline(always)]
+    pub const fn skewing(self) -> Vec2 {
+        Vec2 {
+            x: self.0[1],
+            y: self.0[2],
+        }
+    }
+
+    /// Replaces the skewing portion of this affine map.
+    ///
+    /// The skewing can be seen as being applied after the linear part of the map.
+    #[must_use]
+    #[inline(always)]
+    pub const fn with_skewing(mut self, skew: Vec2) -> Affine {
+        self.0[1] = skew.x;
+        self.0[2] = skew.y;
         self
     }
 }
