@@ -18,6 +18,7 @@ This release has an [MSRV][] of 1.85.
 ## Added
 
 - Add `Stroke::is_finite` and `Stroke::is_nan`. ([#545][] by [@waywardmonkeys][])
+- Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom])
 
 ## Changed
 
@@ -282,6 +283,7 @@ Note: A changelog was not kept for or before this release
 [#537]: https://github.com/linebender/kurbo/pull/537
 [#539]: https://github.com/linebender/kurbo/pull/539
 [#545]: https://github.com/linebender/kurbo/pull/545
+[#548]: https://github.com/linebender/kurbo/pull/548
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0

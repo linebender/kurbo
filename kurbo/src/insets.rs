@@ -234,6 +234,48 @@ impl Insets {
     pub const fn is_nan(&self) -> bool {
         self.x0.is_nan() || self.y0.is_nan() || self.x1.is_nan() || self.y1.is_nan()
     }
+
+    /// Returns the component-wise minimum of `self` and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Insets;
+    ///
+    /// let this = Insets::new(1., 2., 3., 4.);
+    /// let other = Insets::new(4., 3., 2., 1.);
+    ///
+    /// assert_eq!(this.min(other), Insets::new(1., 2., 2., 1.));
+    /// ```
+    pub const fn min(self, other: Insets) -> Self {
+        Self {
+            x0: self.x0.min(other.x0),
+            x1: self.x1.min(other.x1),
+            y0: self.y0.min(other.y0),
+            y1: self.y1.min(other.y1),
+        }
+    }
+
+    /// Returns the component-wise maximum of `self` and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::Insets;
+    ///
+    /// let this = Insets::new(1., 2., 3., 4.);
+    /// let other = Insets::new(4., 3., 2., 1.);
+    ///
+    /// assert_eq!(this.max(other), Insets::new(4., 3., 3., 4.));
+    /// ```
+    pub const fn max(self, other: Insets) -> Self {
+        Self {
+            x0: self.x0.max(other.x0),
+            x1: self.x1.max(other.x1),
+            y0: self.y0.max(other.y0),
+            y1: self.y1.max(other.y1),
+        }
+    }
 }
 
 impl Neg for Insets {
