@@ -287,6 +287,32 @@ impl Neg for Insets {
     }
 }
 
+impl Add<Insets> for Insets {
+    type Output = Insets;
+
+    fn add(self, other: Insets) -> Self::Output {
+        Insets {
+            x0: self.x0 + other.x0,
+            x1: self.x1 + other.x1,
+            y0: self.y0 + other.y0,
+            y1: self.y1 + other.y1,
+        }
+    }
+}
+
+impl Sub<Insets> for Insets {
+    type Output = Insets;
+
+    fn sub(self, other: Insets) -> Self::Output {
+        Insets {
+            x0: self.x0 - other.x0,
+            x1: self.x1 - other.x1,
+            y0: self.y0 - other.y0,
+            y1: self.y1 - other.y1,
+        }
+    }
+}
+
 impl Add<Rect> for Insets {
     type Output = Rect;
 
