@@ -18,7 +18,7 @@ This release has an [MSRV][] of 1.85.
 ## Added
 
 - Add `Stroke::is_finite` and `Stroke::is_nan`. ([#545][] by [@waywardmonkeys][])
-- Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom])
+- Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom][])
 
 ## Changed
 
