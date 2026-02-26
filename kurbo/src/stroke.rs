@@ -277,8 +277,21 @@ pub fn stroke_with(
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, ctx);
     } else {
-        let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
-        stroke_undashed(dashed, style, tolerance, ctx);
+        #[cfg(feature = "stable-dash-order")]
+        {
+            let mut iter = dash_iter(path.into_iter(), style.dash_offset, &style.dash_pattern);
+            let mut dashed = Vec::new();
+            while let Some(el) = iter.next() {
+                dashed.push((iter.last_seq_ix(), el));
+            }
+            dashed.sort_unstable_by_key(|(ix, _)| *ix);
+            stroke_undashed(dashed.into_iter().map(|(_, el)| el), style, tolerance, ctx);
+        }
+        #[cfg(not(feature = "stable-dash-order"))]
+        {
+            let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
+            stroke_undashed(dashed, style, tolerance, ctx);
+        }
     }
 }
 
@@ -611,6 +624,12 @@ struct DashIterator<'a, T> {
     last_pt: Point,
     stash: Vec<PathEl>,
     stash_ix: usize,
+    #[cfg(feature = "stable-dash-order")]
+    next_seq_ix: u32,
+    #[cfg(feature = "stable-dash-order")]
+    stash_seq_ix: u32,
+    #[cfg(feature = "stable-dash-order")]
+    last_seq_ix: u32,
 }
 
 #[derive(PartialEq, Eq)]
@@ -639,16 +658,32 @@ impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
                 }
                 DashState::ToStash => {
                     if let Some(el) = self.step() {
+                        #[cfg(feature = "stable-dash-order")]
+                        {
+                            if self.stash.is_empty() {
+                                self.stash_seq_ix = self.next_seq_ix;
+                            }
+                            self.next_seq_ix += 1;
+                        }
                         self.stash.push(el);
                     }
                 }
                 DashState::Working => {
                     if let Some(el) = self.step() {
+                        #[cfg(feature = "stable-dash-order")]
+                        {
+                            self.last_seq_ix = self.next_seq_ix;
+                            self.next_seq_ix += 1;
+                        }
                         return Some(el);
                     }
                 }
                 DashState::FromStash => {
                     if let Some(el) = self.stash.get(self.stash_ix) {
+                        #[cfg(feature = "stable-dash-order")]
+                        {
+                            self.last_seq_ix = self.stash_seq_ix + self.stash_ix as u32;
+                        }
                         self.stash_ix += 1;
                         return Some(*el);
                     } else {
@@ -698,6 +733,14 @@ pub fn dash<'a>(
     dash_offset: f64,
     dashes: &'a [f64],
 ) -> impl Iterator<Item = PathEl> + 'a {
+    dash_iter(inner, dash_offset, dashes)
+}
+
+fn dash_iter<'a>(
+    inner: impl Iterator<Item = PathEl> + 'a,
+    dash_offset: f64,
+    dashes: &'a [f64],
+) -> DashIterator<'a, impl Iterator<Item = PathEl> + 'a> {
     // ensure that offset is positive and minimal by normalization using period
     let period = dashes.iter().sum();
     let dash_offset = dash_offset.rem_euclid(period);
@@ -730,10 +773,21 @@ pub fn dash<'a>(
         last_pt: Point::ORIGIN,
         stash: Vec::new(),
         stash_ix: 0,
+        #[cfg(feature = "stable-dash-order")]
+        next_seq_ix: 0,
+        #[cfg(feature = "stable-dash-order")]
+        stash_seq_ix: 0,
+        #[cfg(feature = "stable-dash-order")]
+        last_seq_ix: 0,
     }
 }
 
 impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
+    #[cfg(feature = "stable-dash-order")]
+    fn last_seq_ix(&self) -> u32 {
+        self.last_seq_ix
+    }
+
     fn get_input(&mut self) {
         loop {
             if self.closepath_pending {
@@ -836,8 +890,11 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             // Have looped back without breaking a dash, just play it back
             self.stash.push(PathEl::ClosePath);
         } else if self.is_active {
-            // connect with path in stash, skip MoveTo.
-            self.stash_ix = 1;
+            #[cfg(not(feature = "stable-dash-order"))]
+            {
+                // connect with path in stash, skip MoveTo.
+                self.stash_ix = 1;
+            }
         }
         self.state = DashState::FromStash;
         self.reset_phase();
@@ -949,6 +1006,35 @@ mod tests {
         ];
         let iter = segments(dash(shape.path_elements(0.), 0., &dashes));
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    #[test]
+    fn dash_sequence_closed_path() {
+        let shape = crate::Rect::from_points((0.0, 0.0), (4.0, 4.0));
+        let dashes = [5., 1.];
+        #[cfg(feature = "stable-dash-order")]
+        let expansion = [
+            PathEl::MoveTo((4.0, 2.0).into()),
+            PathEl::LineTo((4.0, 4.0).into()),
+            PathEl::LineTo((1.0, 4.0).into()),
+            PathEl::MoveTo((0.0, 4.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((4.0, 0.0).into()),
+            PathEl::LineTo((4.0, 1.0).into()),
+        ];
+        #[cfg(not(feature = "stable-dash-order"))]
+        let expansion = [
+            PathEl::MoveTo((4.0, 2.0).into()),
+            PathEl::LineTo((4.0, 4.0).into()),
+            PathEl::LineTo((1.0, 4.0).into()),
+            PathEl::MoveTo((0.0, 4.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::LineTo((4.0, 0.0).into()),
+            PathEl::LineTo((4.0, 1.0).into()),
+        ];
+        let iter = dash(shape.path_elements(0.), 0., &dashes);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
     }
 
     #[test]

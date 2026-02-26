@@ -33,6 +33,8 @@ euclid = ["dep:euclid"]
 serde = ["smallvec/serde", "dep:serde"]
 # Add best-effort support for using Kurbo types in JSON schemas using schemars
 schemars = ["schemars/smallvec", "dep:schemars"]
+# Emit dashed stroke segments in input path order
+stable-dash-order = []
 
 [dependencies]
 smallvec = { version = "1.15.1", features = ["const_new"] }
