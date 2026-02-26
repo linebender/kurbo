@@ -23,6 +23,7 @@ This release has an [MSRV][] of 1.85.
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
 - Add `Affine::{pre,then}_skew` and `Affine::{pre,then}_reflect` fluent composition helpers. ([#563][] by [@waywardmonkeys][])
 - Add three transform matrix norms: `Affine::{nuclear_norm_squared,frobenius_norm_squared,spectral_norm}`. ([#569][] by [@tomcur][])
+- Add `stable_dash_order` option to emit dashes in a closed path in the order they appear. ([#550][] by [@RobertBrewitz][])
 
 ## Changed
 
@@ -211,6 +212,7 @@ Note: A changelog was not kept for or before this release
 [@waywardmonkeys]: https://github.com/waywardmonkeys
 [@xorgy]: https://github.com/xorgy
 [@xStrom]: https://github.com/xStrom
+[@RobertBrewitz]: https://github.com/RobertBrewitz
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
@@ -293,6 +295,7 @@ Note: A changelog was not kept for or before this release
 [#545]: https://github.com/linebender/kurbo/pull/545
 [#548]: https://github.com/linebender/kurbo/pull/548
 [#549]: https://github.com/linebender/kurbo/pull/549
+[#550]: https://github.com/linebender/kurbo/pull/550
 [#559]: https://github.com/linebender/kurbo/pull/559
 [#561]: https://github.com/linebender/kurbo/pull/561
 [#563]: https://github.com/linebender/kurbo/pull/563
