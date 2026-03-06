@@ -324,6 +324,17 @@ impl SvgLexer<'_> {
         self.ix -= 1;
     }
 
+    fn get_str(&mut self, s: &[u8]) -> Result<(), SvgParseError> {
+        for &expected_c in s.into_iter() {
+            let c = self.get_byte().ok_or(SvgParseError::UnexpectedEof)?;
+            if c != expected_c {
+                return Err(SvgParseError::Wrong);
+            }
+        }
+
+        Ok(())
+    }
+
     fn get_number(&mut self) -> Result<f64, SvgParseError> {
         self.skip_ws();
         let start = self.ix;
@@ -331,6 +342,23 @@ impl SvgLexer<'_> {
         if !(c == b'-' || c == b'+') {
             self.unget();
         }
+
+        // Handle NaN and Infinity cases
+        // TODO: +- for Infinity
+        match c {
+            b'n' | b'N' => {
+                self.unget();
+                self.get_str(b"NaN")?;
+                return Ok(f64::NAN);
+            }
+            b'i' | b'I' => {
+                self.unget();
+                self.get_str(b"Infinity")?;
+                return Ok(f64::INFINITY);
+            }
+            _ => {}
+        };
+
         let mut digit_count = 0;
         let mut seen_period = false;
         while let Some(c) = self.get_byte() {
