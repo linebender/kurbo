@@ -325,7 +325,7 @@ impl SvgLexer<'_> {
     }
 
     fn get_str(&mut self, s: &[u8]) -> Result<(), SvgParseError> {
-        for &expected_c in s.into_iter() {
+        for &expected_c in s.iter() {
             let c = self.get_byte().ok_or(SvgParseError::UnexpectedEof)?;
             if c != expected_c {
                 return Err(SvgParseError::Wrong);
@@ -338,26 +338,34 @@ impl SvgLexer<'_> {
     fn get_number(&mut self) -> Result<f64, SvgParseError> {
         self.skip_ws();
         let start = self.ix;
-        let c = self.get_byte().ok_or(SvgParseError::UnexpectedEof)?;
-        if !(c == b'-' || c == b'+') {
+        let mut is_negative = false;
+        let mut c = self.get_byte().ok_or(SvgParseError::UnexpectedEof)?;
+
+        // Handle NaN
+        if c == b'n' || c == b'N' {
             self.unget();
+            self.get_str(b"NaN")?;
+            return Ok(f64::NAN);
         }
 
-        // Handle NaN and Infinity cases
-        // TODO: +- for Infinity
-        match c {
-            b'n' | b'N' => {
-                self.unget();
-                self.get_str(b"NaN")?;
-                return Ok(f64::NAN);
-            }
-            b'i' | b'I' => {
-                self.unget();
-                self.get_str(b"Infinity")?;
+        // If first byte is + or - then read the next byte
+        if c == b'-' || c == b'+' {
+            is_negative = c == b'-';
+            c = self.get_byte().ok_or(SvgParseError::UnexpectedEof)?;
+        }
+
+        // Handle Infinity, +Infinity, and -Infinity
+        if c == b'i' || c == b'I' {
+            self.get_str(b"Infinity")?;
+            if is_negative {
+                return Ok(-f64::INFINITY);
+            } else {
                 return Ok(f64::INFINITY);
-            }
-            _ => {}
-        };
+            };
+        }
+
+        // Reset back by 1 byte after checking for NaN and Infinity
+        self.unget();
 
         let mut digit_count = 0;
         let mut seen_period = false;
