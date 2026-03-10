@@ -421,7 +421,7 @@ impl BezPath {
         }
     }
 
-    /// Returns an iterator over the subpaths of this path. See [Elements and Segments](#elements-and-segments) for more information.
+    /// Returns a vector of the subpaths of this path. See [Elements and Segments](#elements-and-segments) for more information.
     pub fn subpaths(&self) -> Vec<BezPath> {
         let elements = self.elements();
         let mut subpaths = Vec::new();
