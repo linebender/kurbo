@@ -20,6 +20,7 @@ This release has an [MSRV][] of 1.85.
 - Add `Stroke::is_finite` and `Stroke::is_nan`. ([#545][] by [@waywardmonkeys][])
 - Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom][])
 - Ability to add and subtract `Insets` from other `Insets`. ([#549][] by [@xStrom][])
+- `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
 
 ## Changed
 
@@ -223,6 +224,7 @@ Note: A changelog was not kept for or before this release
 [#370]: https://github.com/linebender/kurbo/pull/370
 [#375]: https://github.com/linebender/kurbo/pull/375
 [#376]: https://github.com/linebender/kurbo/pull/376
+[#378]: https://github.com/linebender/kurbo/pull/378
 [#379]: https://github.com/linebender/kurbo/pull/379
 [#383]: https://github.com/linebender/kurbo/pull/383
 [#384]: https://github.com/linebender/kurbo/pull/384
