@@ -262,6 +262,7 @@ mod tests {
     use crate::mindist::{choose, D_rk};
     use crate::param_curve::ParamCurve;
     use crate::{CubicBez, Line, PathSeg, Vec2};
+    use alloc::vec;
 
     #[test]
     fn test_choose() {

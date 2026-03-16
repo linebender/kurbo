@@ -98,8 +98,8 @@ use crate::common::FloatFuncs;
 /// [`flatten`]: flatten
 /// [`intersect_line`]: PathSeg::intersect_line
 /// [`segments` free function]: segments
-/// [`FromIterator<PathEl>`]: std::iter::FromIterator
-/// [`Extend<PathEl>`]: std::iter::Extend
+/// [`FromIterator<PathEl>`]: core::iter::FromIterator
+/// [`Extend<PathEl>`]: core::iter::Extend
 #[derive(Clone, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1572,6 +1572,7 @@ impl Iterator for PathSegIter {
 #[cfg(test)]
 mod tests {
     use crate::{Circle, DEFAULT_ACCURACY};
+    use alloc::vec;
 
     use super::*;
 

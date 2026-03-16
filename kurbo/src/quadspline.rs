@@ -64,6 +64,8 @@ impl Iterator for ToQuadBez<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{Point, QuadBez, QuadSpline};
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn no_points_no_quads() {

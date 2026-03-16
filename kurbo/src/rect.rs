@@ -823,6 +823,7 @@ impl fmt::Display for Rect {
 #[cfg(test)]
 mod tests {
     use crate::{Point, Rect, Shape};
+    use alloc::format;
 
     fn assert_approx_eq(x: f64, y: f64) {
         assert!((x - y).abs() < 1e-7);

@@ -3,6 +3,11 @@
 
 //! SVG path representation.
 
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "std")]
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::error::Error;
 use core::f64::consts::PI;
@@ -14,6 +19,9 @@ use crate::{Arc, BezPath, ParamCurve, PathEl, PathSeg, Point, Vec2};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
+
+#[cfg(feature = "schemars")]
+use alloc::borrow::ToOwned;
 
 // Note: the SVG arc logic is heavily adapted from https://github.com/nical/lyon
 
@@ -504,6 +512,8 @@ impl Arc {
 #[cfg(test)]
 mod tests {
     use crate::{BezPath, CubicBez, Line, ParamCurve, PathEl, PathSeg, Point, QuadBez, Shape};
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn test_parse_svg() {

@@ -13,6 +13,9 @@ use crate::{Axis, Point, Size};
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
+#[cfg(feature = "schemars")]
+use alloc::borrow::ToOwned;
+
 /// A 2D vector.
 ///
 /// This is intended primarily for a vector in the mathematical sense,
@@ -529,6 +532,7 @@ impl From<mint::Vector2<f64>> for Vec2 {
 
 #[cfg(test)]
 mod tests {
+    use alloc::format;
     use core::f64::consts::FRAC_PI_2;
 
     use super::*;
