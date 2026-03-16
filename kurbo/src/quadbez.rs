@@ -11,8 +11,8 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
-    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
-    Rect, Shape,
+    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent,
+    PathEl, Point, Rect, Shape, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -262,6 +262,14 @@ impl ParamCurveDeriv for QuadBez {
     }
 }
 
+impl ParamCurveTangent for QuadBez {
+    #[inline]
+    fn tangent(&self, t: f64) -> Vec2 {
+        let mt = 1.0 - t;
+        2.0 * (((self.p1 - self.p0) * mt) + ((self.p2 - self.p1) * t))
+    }
+}
+
 impl ParamCurveArclen for QuadBez {
     /// Arclength of a quadratic Bézier segment.
     ///
@@ -426,7 +434,7 @@ impl Mul<QuadBez> for Affine {
 mod tests {
     use crate::{
         Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
+        ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent, Point, QuadBez,
     };
 
     fn assert_near(p0: Point, p1: Point, epsilon: f64) {
@@ -447,6 +455,7 @@ mod tests {
             let d_approx = (p1 - p) * delta.recip();
             let d = deriv.eval(t).to_vec2();
             assert!((d - d_approx).hypot() < delta * 2.0);
+            assert!((q.tangent(t) - d).hypot() < 1e-12);
         }
     }
 

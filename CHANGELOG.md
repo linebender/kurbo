@@ -21,6 +21,7 @@ This release has an [MSRV][] of 1.85.
 - Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom][])
 - Ability to add and subtract `Insets` from other `Insets`. ([#549][] by [@xStrom][])
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
+- Add `ParamCurveTangent` for pointwise tangents. ([#556][] by [@waywardmonkeys][])
 
 ## Changed
 
@@ -288,6 +289,7 @@ Note: A changelog was not kept for or before this release
 [#545]: https://github.com/linebender/kurbo/pull/545
 [#548]: https://github.com/linebender/kurbo/pull/548
 [#549]: https://github.com/linebender/kurbo/pull/549
+[#556]: https://github.com/linebender/kurbo/pull/556
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
