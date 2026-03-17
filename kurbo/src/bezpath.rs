@@ -421,24 +421,22 @@ impl BezPath {
         }
     }
 
-    /// Returns a vector of the subpaths of this path. See [Elements and Segments](#elements-and-segments) for more information.
-    pub fn subpaths(&self) -> Vec<BezPath> {
+    /// Returns an iterator over the subpaths of this path. See [Elements and Segments](#elements-and-segments) for more information.
+    pub fn subpaths(&self) -> impl Iterator<Item = &[PathEl]> {
         let elements = self.elements();
-        let mut subpaths = Vec::new();
-        let mut current = BezPath::new();
+        let mut i = 0;
 
-        for el in elements {
-            if matches!(el, PathEl::MoveTo(_)) && !current.elements().is_empty() {
-                subpaths.push(mem::take(&mut current));
+        std::iter::from_fn(move || {
+            if i >= elements.len() {
+                return None;
             }
-            current.push(*el);
-        }
-
-        if !current.elements().is_empty() {
-            subpaths.push(current);
-        }
-
-        subpaths
+            let start = i;
+            i += 1;
+            while i < elements.len() && !matches!(elements[i], PathEl::MoveTo(_)) {
+                i += 1;
+            }
+            Some(&elements[start..i])
+        })
     }
 
     /// Returns a new path with the winding direction of all subpaths reversed.
@@ -1709,9 +1707,9 @@ mod tests {
             vec![
                 BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z").unwrap(), 
                 BezPath::from_svg("M100,100").unwrap(), 
-                BezPath::from_svg("M30,0 Q35,10,40,0 L30,0").unwrap()
+                BezPath::from_svg("M30,0 Q35,10,40,0 L30,0").unwrap(),
             ], 
-            path.subpaths()
+            path.subpaths().map(|sp| BezPath::from_vec(sp.to_vec())).collect::<Vec<_>>()
         );
     }
 
