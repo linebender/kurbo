@@ -237,8 +237,13 @@ impl Shape for Ellipse {
 
     #[inline]
     fn area(&self) -> f64 {
-        let Vec2 { x, y } = self.radii();
-        PI * x * y
+        // `Ellipse` is represented as a unit circle transformed by `Affine`. The transformed area
+        // of a region is `area * |det(affine)|`, see
+        // <https://en.wikipedia.org/w/index.php?title=Determinant&oldid=1344268205#Geometric_meaning>.
+        //
+        // A unit circle has area `PI`. Therefore, the area of this ellipse is PI multiplied by the
+        // affine's determinant.
+        PI * self.inner.determinant().abs()
     }
 
     /// Approximate the ellipse perimeter.
