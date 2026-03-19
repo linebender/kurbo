@@ -1702,14 +1702,17 @@ mod tests {
 
     #[test]
     fn test_subpaths() {
-        let path = BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z M100,100 M30,0 Q35,10,40,0 L30,0").unwrap();
+        let path = BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z M100,100 M30,0 Q35,10,40,0 L30,0")
+            .unwrap();
         assert_eq!(
             vec![
-                BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z").unwrap(), 
-                BezPath::from_svg("M100,100").unwrap(), 
+                BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z").unwrap(),
+                BezPath::from_svg("M100,100").unwrap(),
                 BezPath::from_svg("M30,0 Q35,10,40,0 L30,0").unwrap(),
-            ], 
-            path.subpaths().map(|sp| BezPath::from_vec(sp.to_vec())).collect::<Vec<_>>()
+            ],
+            path.subpaths()
+                .map(|sp| BezPath::from_vec(sp.to_vec()))
+                .collect::<Vec<_>>()
         );
     }
 
