@@ -631,6 +631,7 @@ struct DashIterator<'a, T> {
     stash: Vec<PathEl>,
     stash_ix: usize,
     stable_dash_order: bool,
+    needs_moveto: bool,
 }
 
 #[derive(PartialEq, Eq)]
@@ -659,11 +660,10 @@ impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
                 }
                 DashState::ToStash => {
                     if let Some(el) = self.step() {
-                        self.stash.push(el);
                         if self.stable_dash_order {
-                            self.stash_ix = self.stash.len();
                             return Some(el);
                         }
+                        self.stash.push(el);
                     }
                 }
                 DashState::Working => {
@@ -764,6 +764,7 @@ fn dash_iter<'a>(
         stash: Vec::new(),
         stash_ix: 0,
         stable_dash_order,
+        needs_moveto: true,
     }
 }
 
@@ -828,7 +829,8 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
     /// Move arc length forward to next event.
     fn step(&mut self) -> Option<PathEl> {
         let mut result = None;
-        if self.state == DashState::ToStash && self.stash.is_empty() {
+        if self.state == DashState::ToStash && self.needs_moveto {
+            self.needs_moveto = false;
             if self.is_active {
                 result = Some(PathEl::MoveTo(self.current_seg.start()));
             } else {
@@ -881,6 +883,7 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         self.dash_ix = self.init_dash_ix;
         self.dash_remaining = self.init_dash_remaining;
         self.is_active = self.init_is_active;
+        self.needs_moveto = true;
     }
 }
 
@@ -1049,6 +1052,28 @@ mod tests {
         ];
         let iter = segments(dash(shape.path_elements(0.), 3., &dashes));
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    #[test]
+    fn dash_stable_order_multi_subpath() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((2., 0.));
+        path.line_to((2., 2.));
+        path.line_to((0., 2.));
+        path.close_path();
+        path.move_to((10., 10.));
+        path.line_to((12., 10.));
+        path.line_to((12., 12.));
+        path.line_to((10., 12.));
+        path.close_path();
+        let dashes = [3., 1.];
+        let result: Vec<PathEl> = dash_iter(path.into_iter(), 0., &dashes, true).collect();
+        assert_eq!(result[0], PathEl::MoveTo((0., 0.).into()));
+        let second_move = result
+            .iter()
+            .position(|el| matches!(el, PathEl::MoveTo(p) if p.x == 10.0));
+        assert!(second_move.is_some(), "second subpath should have a MoveTo");
     }
 
     #[test]
