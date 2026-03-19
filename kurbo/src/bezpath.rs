@@ -426,7 +426,7 @@ impl BezPath {
         let elements = self.elements();
         let mut i = 0;
 
-        std::iter::from_fn(move || {
+        core::iter::from_fn(move || {
             if i >= elements.len() {
                 return None;
             }
