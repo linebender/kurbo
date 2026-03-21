@@ -21,6 +21,7 @@ This release has an [MSRV][] of 1.85.
 - Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom][])
 - Ability to add and subtract `Insets` from other `Insets`. ([#549][] by [@xStrom][])
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
+- Add `stable_dash_order` option to emit dashes in a closed path in the order they appear. ([#550][] by [@RobertBrewitz][])
 
 ## Changed
 
@@ -206,6 +207,7 @@ Note: A changelog was not kept for or before this release
 [@waywardmonkeys]: https://github.com/waywardmonkeys
 [@xorgy]: https://github.com/xorgy
 [@xStrom]: https://github.com/xStrom
+[@RobertBrewitz]: https://github.com/RobertBrewitz
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
@@ -288,6 +290,7 @@ Note: A changelog was not kept for or before this release
 [#545]: https://github.com/linebender/kurbo/pull/545
 [#548]: https://github.com/linebender/kurbo/pull/548
 [#549]: https://github.com/linebender/kurbo/pull/549
+[#550]: https://github.com/linebender/kurbo/pull/550
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
