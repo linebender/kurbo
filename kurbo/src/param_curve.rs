@@ -7,7 +7,7 @@ use core::ops::Range;
 
 use arrayvec::ArrayVec;
 
-use crate::{common, Point, Rect};
+use crate::{common, Point, Rect, Vec2};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -51,6 +51,9 @@ pub trait ParamCurve: Sized {
 // TODO: I might not want to have separate traits for all these.
 
 /// A differentiable parameterized curve.
+///
+/// For code that only needs the tangent vector at a parameter value, see
+/// [`ParamCurveTangent`].
 pub trait ParamCurveDeriv {
     /// The parametric curve obtained by taking the derivative of this one.
     type DerivResult: ParamCurve;
@@ -75,6 +78,29 @@ pub trait ParamCurveDeriv {
             .map(|(wi, xi)| wi * d.eval(0.5 * (xi + 1.0)).to_vec2().hypot())
             .sum::<f64>()
             * 0.5
+    }
+}
+
+/// A parameterized curve with a tangent vector.
+///
+/// This trait complements [`ParamCurveDeriv`] by exposing the most common
+/// derivative query directly as a vector-valued operation.
+pub trait ParamCurveTangent: ParamCurve {
+    /// Evaluate the tangent vector at parameter `t`.
+    ///
+    /// Generally `t` is in the range `[0, 1]`.
+    ///
+    /// Degenerate curves may return the zero vector.
+    fn tangent(&self, t: f64) -> Vec2;
+
+    /// Evaluate the tangent vector at parameter `t` and normalize it.
+    ///
+    /// Returns `None` when the tangent has zero length and therefore does
+    /// not admit a unit-length normalization.
+    fn unit_tangent(&self, t: f64) -> Option<Vec2> {
+        let tangent = self.tangent(t);
+        let norm = tangent.hypot();
+        (norm > 0.0).then_some(tangent / norm)
     }
 }
 
@@ -217,5 +243,61 @@ pub trait ParamCurveExtrema: ParamCurve {
             bbox = bbox.union_pt(self.eval(t));
         }
         bbox
+    }
+}
+
+#[cfg(test)]
+mod tangent_tests {
+    use crate::{CubicBez, Line, ParamCurve, ParamCurveDeriv, QuadBez, Vec2};
+
+    use super::ParamCurveTangent;
+
+    fn assert_vec_near(actual: Vec2, expected: Vec2) {
+        let epsilon = 1e-12;
+        assert!(
+            (actual - expected).hypot() <= epsilon,
+            "expected {expected:?}, got {actual:?}"
+        );
+    }
+
+    #[test]
+    fn line_tangent_matches_displacement() {
+        let line = Line::new((1.0, 2.0), (4.0, 6.0));
+        let expected = Vec2::new(3.0, 4.0);
+        assert_vec_near(line.tangent(0.0), expected);
+        assert_vec_near(line.tangent(0.5), expected);
+        assert_vec_near(line.tangent(1.0), expected);
+        assert_vec_near(line.tangent(0.25), expected);
+        assert_vec_near(line.unit_tangent(0.25).unwrap(), expected.normalize());
+    }
+
+    #[test]
+    fn degenerate_line_has_no_unit_tangent() {
+        let line = Line::new((1.0, 2.0), (1.0, 2.0));
+        assert_eq!(line.tangent(0.5), Vec2::ZERO);
+        assert_eq!(line.unit_tangent(0.5), None);
+    }
+
+    #[test]
+    fn const_point_has_no_unit_tangent() {
+        let point = Line::new((2.0, -3.0), (5.0, 1.0)).deriv();
+        assert_eq!(point.tangent(0.5), Vec2::ZERO);
+        assert_eq!(point.unit_tangent(0.5), None);
+    }
+
+    #[test]
+    fn quad_tangent_matches_derivative_curve() {
+        let quad = QuadBez::new((0.0, 0.0), (2.0, 3.0), (4.0, 0.0));
+        for t in [0.0, 0.25, 0.5, 1.0] {
+            assert_vec_near(quad.tangent(t), quad.deriv().eval(t).to_vec2());
+        }
+    }
+
+    #[test]
+    fn cubic_tangent_matches_derivative_curve() {
+        let cubic = CubicBez::new((0.0, 0.0), (1.0, 2.0), (3.0, 2.0), (4.0, 0.0));
+        for t in [0.0, 0.25, 0.5, 1.0] {
+            assert_vec_near(cubic.tangent(t), cubic.deriv().eval(t).to_vec2());
+        }
     }
 }

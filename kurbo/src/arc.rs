@@ -3,7 +3,7 @@
 
 //! An ellipse arc.
 
-use crate::{Affine, Ellipse, ParamCurve, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Ellipse, ParamCurve, ParamCurveTangent, PathEl, Point, Rect, Shape, Vec2};
 use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
@@ -193,6 +193,12 @@ impl ParamCurve for Arc {
     }
 }
 
+impl ParamCurveTangent for Arc {
+    fn tangent(&self, t: f64) -> Vec2 {
+        self.sweep_angle * sample_ellipse(self.radii, self.x_rotation, self.angle_at(t) + FRAC_PI_2)
+    }
+}
+
 impl Shape for Arc {
     type PathElementsIter<'iter> = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
@@ -248,7 +254,7 @@ impl Mul<Arc> for Affine {
 mod tests {
     use core::f64::consts::{FRAC_PI_4, FRAC_PI_6};
 
-    use crate::ParamCurve;
+    use crate::{ParamCurve, ParamCurveTangent};
 
     use super::*;
 
@@ -319,6 +325,21 @@ mod tests {
         assert_point_near(reversed.start(), arc.end());
         assert_point_near(reversed.end(), arc.start());
         assert_point_near(reversed.eval(0.5), arc.eval(0.5));
+    }
+
+    #[test]
+    fn tangent_circle_matches_closed_form() {
+        let arc = Arc::new((0.0, 0.0), (2.0, 2.0), 0.0, PI / 2.0, 0.0);
+        assert!((arc.tangent(0.0) - Vec2::new(0.0, PI)).hypot() <= 1e-12);
+        assert!(
+            (arc.tangent(0.5) - Vec2::new(-PI / 2.0_f64.sqrt(), PI / 2.0_f64.sqrt())).hypot()
+                <= 1e-12
+        );
+        assert!((arc.tangent(1.0) - Vec2::new(-PI, 0.0)).hypot() <= 1e-12);
+
+        let reversed = arc.reversed();
+        assert!((reversed.tangent(0.0) - Vec2::new(PI, 0.0)).hypot() <= 1e-12);
+        assert!((reversed.tangent(1.0) - Vec2::new(0.0, -PI)).hypot() <= 1e-12);
     }
 
     #[test]

@@ -9,8 +9,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, Rect, Shape, Vec2,
-    DEFAULT_ACCURACY, MAX_EXTREMA,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent, PathEl, Point, Rect,
+    Shape, Vec2, DEFAULT_ACCURACY, MAX_EXTREMA,
 };
 
 /// A single line.
@@ -138,6 +138,13 @@ impl ParamCurveDeriv for Line {
     }
 }
 
+impl ParamCurveTangent for Line {
+    #[inline]
+    fn tangent(&self, _t: f64) -> Vec2 {
+        self.p1 - self.p0
+    }
+}
+
 impl ParamCurveArclen for Line {
     #[inline]
     fn arclen(&self, _accuracy: f64) -> f64 {
@@ -241,6 +248,13 @@ impl ParamCurveDeriv for ConstPoint {
     #[inline(always)]
     fn deriv(&self) -> ConstPoint {
         ConstPoint(Point::new(0.0, 0.0))
+    }
+}
+
+impl ParamCurveTangent for ConstPoint {
+    #[inline]
+    fn tangent(&self, _t: f64) -> Vec2 {
+        Vec2::ZERO
     }
 }
 

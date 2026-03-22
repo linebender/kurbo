@@ -17,7 +17,8 @@ use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
-    ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale, Vec2,
+    ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent, Point, QuadBez, Rect, Shape,
+    TranslateScale, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -909,6 +910,16 @@ impl ParamCurve for PathSeg {
             PathSeg::Line(line) => line.end(),
             PathSeg::Quad(quad) => quad.end(),
             PathSeg::Cubic(cubic) => cubic.end(),
+        }
+    }
+}
+
+impl ParamCurveTangent for PathSeg {
+    fn tangent(&self, t: f64) -> Vec2 {
+        match *self {
+            PathSeg::Line(line) => line.tangent(t),
+            PathSeg::Quad(quad) => quad.tangent(t),
+            PathSeg::Cubic(cubic) => cubic.tangent(t),
         }
     }
 }

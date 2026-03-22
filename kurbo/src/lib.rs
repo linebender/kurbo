@@ -168,7 +168,7 @@ pub use crate::line::{ConstPoint, Line, LinePathIter};
 pub use crate::moments::{Moments, ParamCurveMoments};
 pub use crate::param_curve::{
     Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, DEFAULT_ACCURACY, MAX_EXTREMA,
+    ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent, DEFAULT_ACCURACY, MAX_EXTREMA,
 };
 pub use crate::point::Point;
 pub use crate::quadbez::{QuadBez, QuadBezIter};

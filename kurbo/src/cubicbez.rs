@@ -17,7 +17,8 @@ use crate::common::{
 };
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
-    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point, QuadBez, Rect, Shape,
+    ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent, PathEl, Point,
+    QuadBez, Rect, Shape,
 };
 
 #[cfg(not(feature = "std"))]
@@ -441,9 +442,11 @@ impl CubicBez {
             let nearest = q.nearest(Point::ORIGIN, 1e-9);
             // detect whether curvature at minimum derivative exceeds 1/dimension,
             // without division.
-            let d = q.eval(nearest.t);
-            let d2 = q.deriv().eval(nearest.t);
-            let cross = d.to_vec2().cross(d2.to_vec2());
+            let d = q.eval(nearest.t).to_vec2();
+            // `q` is the first-derivative curve of `self`, so `q.tangent(t)`
+            // is the second derivative of `self` at `t`.
+            let d2 = q.tangent(nearest.t);
+            let cross = d.cross(d2);
             if nearest.distance_sq.powi(3) <= (cross * dimension).powi(2) {
                 let a = 3. * det_012 + det_023 - 2. * det_013;
                 let b = -3. * det_012 + det_013;
@@ -560,10 +563,9 @@ impl ParamCurve for CubicBez {
         let (t0, t1) = (range.start, range.end);
         let p0 = self.eval(t0);
         let p3 = self.eval(t1);
-        let d = self.deriv();
         let scale = (t1 - t0) * (1.0 / 3.0);
-        let p1 = p0 + scale * d.eval(t0).to_vec2();
-        let p2 = p3 - scale * d.eval(t1).to_vec2();
+        let p1 = p0 + scale * self.tangent(t0);
+        let p2 = p3 - scale * self.tangent(t1);
         CubicBez { p0, p1, p2, p3 }
     }
 
@@ -610,6 +612,17 @@ impl ParamCurveDeriv for CubicBez {
             (3.0 * (self.p2 - self.p1)).to_point(),
             (3.0 * (self.p3 - self.p2)).to_point(),
         )
+    }
+}
+
+impl ParamCurveTangent for CubicBez {
+    #[inline]
+    fn tangent(&self, t: f64) -> Vec2 {
+        let mt = 1.0 - t;
+        let d01 = self.p1 - self.p0;
+        let d12 = self.p2 - self.p1;
+        let d23 = self.p3 - self.p2;
+        3.0 * (d01 * (mt * mt) + d12 * (2.0 * mt * t) + d23 * (t * t))
     }
 }
 
@@ -832,8 +845,8 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
 mod tests {
     use crate::{
         cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
-        ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
-        QuadSpline,
+        ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, ParamCurveTangent,
+        Point, QuadBez, QuadSpline,
     };
 
     #[test]
@@ -856,6 +869,7 @@ mod tests {
             let d_approx = (p1 - p) * delta.recip();
             let d = deriv.eval(t).to_vec2();
             assert!((d - d_approx).hypot() < delta * 2.0);
+            assert!((c.tangent(t) - d).hypot() < 1e-12);
         }
     }
 
