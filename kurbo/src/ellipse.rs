@@ -60,7 +60,7 @@ impl Ellipse {
 
     /// Create an ellipse from an affine transformation of the unit circle.
     #[inline(always)]
-    pub fn from_affine(affine: Affine) -> Self {
+    pub const fn from_affine(affine: Affine) -> Self {
         Ellipse { inner: affine }
     }
 
