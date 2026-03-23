@@ -235,6 +235,13 @@ impl Shape for Ellipse {
         .path_elements(tolerance)
     }
 
+    /// The area of the ellipse.
+    ///
+    /// This is always positive if the result is finite.
+    ///
+    /// If non-finite, this will be [`f64::INFINITY`] or [`f64::NAN`] depending on whether the
+    /// inner affine's [determinant](Affine::determinant) is [`f64::INFINITY`] (either positive or
+    /// negative) or [`f64::NAN`].
     #[inline]
     fn area(&self) -> f64 {
         // `Ellipse` is represented as a unit circle transformed by `Affine`. The transformed area
