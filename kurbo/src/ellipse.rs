@@ -235,10 +235,22 @@ impl Shape for Ellipse {
         .path_elements(tolerance)
     }
 
+    /// The area of the ellipse.
+    ///
+    /// This is always positive if the result is finite.
+    ///
+    /// If non-finite, this will be [`f64::INFINITY`] or [`f64::NAN`] depending on whether the
+    /// inner affine's [determinant](Affine::determinant) is [`f64::INFINITY`] (either positive or
+    /// negative) or [`f64::NAN`].
     #[inline]
     fn area(&self) -> f64 {
-        let Vec2 { x, y } = self.radii();
-        PI * x * y
+        // `Ellipse` is represented as a unit circle transformed by `Affine`. The transformed area
+        // of a region is `area * |det(affine)|`, see
+        // <https://en.wikipedia.org/w/index.php?title=Determinant&oldid=1344268205#Geometric_meaning>.
+        //
+        // A unit circle has area `PI`. Therefore, the area of this ellipse is PI multiplied by the
+        // affine's determinant.
+        PI * self.inner.determinant().abs()
     }
 
     /// Approximate the ellipse perimeter.
