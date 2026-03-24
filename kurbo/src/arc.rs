@@ -193,60 +193,10 @@ impl ParamCurve for Arc {
     }
 }
 
-/// The "derivative curve" of an [`Arc`].
-///
-/// Note that, like the documentation of [`ParamCurveDeriv::deriv`] states, implementations on this
-/// type are semantically somewhat inaccurate: the derivative of a curve is not, strictly speaking,
-/// a curve itself.
-///
-/// The difference with [`Arc`] is that this object has no `center`: that's a constant that
-/// differentiates to zero.
-pub struct ArcDeriv {
-    /// The arc's radii, where the vector's x-component is the radius in the
-    /// positive x direction after applying `x_rotation`.
-    pub radii: Vec2,
-    /// The start angle in radians.
-    pub start_angle: f64,
-    /// The angle between the start and end of the arc, in radians.
-    pub sweep_angle: f64,
-    /// How much the arc is rotated, in radians.
-    pub x_rotation: f64,
-}
-
-impl ArcDeriv {
-    #[inline(always)]
-    const fn as_arc_with_center(&self, center: Point) -> Arc {
-        Arc {
-            center,
-            radii: self.radii,
-            start_angle: self.start_angle,
-            sweep_angle: self.sweep_angle,
-            x_rotation: self.x_rotation,
-        }
-    }
-}
-
 impl ParamCurveDeriv for Arc {
-    type DerivResult = ArcDeriv;
+    type DerivResult = Arc;
 
-    fn deriv(&self) -> ArcDeriv {
-        // The center is constant over `t` and differentiates away, and as the arc's derivative is
-        // represented by another arc (but without center), we can just delegate to `ArcDeriv`
-        // directly.
-        ArcDeriv {
-            radii: self.radii,
-            start_angle: self.start_angle,
-            sweep_angle: self.sweep_angle,
-            x_rotation: self.x_rotation,
-        }
-        .deriv()
-    }
-}
-
-impl ParamCurveDeriv for ArcDeriv {
-    type DerivResult = ArcDeriv;
-
-    fn deriv(&self) -> ArcDeriv {
+    fn deriv(&self) -> Arc {
         // Given the axis-aligned parametric elliptical arc
         //
         // ```
@@ -280,30 +230,14 @@ impl ParamCurveDeriv for ArcDeriv {
         // sweep_angle * R(x_rotation) * (radii.x cos(angle_at(t) + pi/2), radii.y * sin(angle_at(t) + pi/2)).
         // ```
         //
-        // This is exactly another `Arc`, but with zero center, precisely what `ArcDeriv` models.
-        // As this has the same form again, `ArcDeriv` is closed under repeated differentiation.
-        ArcDeriv {
+        // This is exactly another `Arc`. As this has the same form again, `Arc` is closed under
+        // repeated differentiation.
+        Arc {
+            center: Point::ZERO,
             radii: self.radii * self.sweep_angle,
             start_angle: self.start_angle + FRAC_PI_2,
             sweep_angle: self.sweep_angle,
             x_rotation: self.x_rotation,
-        }
-    }
-}
-
-impl ParamCurve for ArcDeriv {
-    fn eval(&self, t: f64) -> Point {
-        self.as_arc_with_center(Point::ZERO).eval(t)
-    }
-
-    fn subsegment(&self, range: Range<f64>) -> Self {
-        let arc = self.as_arc_with_center(Point::ZERO).subsegment(range);
-
-        Self {
-            radii: arc.radii,
-            start_angle: arc.start_angle,
-            sweep_angle: arc.sweep_angle,
-            x_rotation: arc.x_rotation,
         }
     }
 }
