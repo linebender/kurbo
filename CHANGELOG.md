@@ -26,6 +26,7 @@ This release has an [MSRV][] of 1.85.
 
 - Improve performance of `RoundedRect::winding` and `RoundedRect::contains`. ([#534][] by [@tomcur][])
 - `Axis`, `Ellipse::from_affine`, `Insets`, `Line::reversed`, `Rect::min_x/max_x/min_y/max_y`, `RoundedRectRadii::abs/clamp/as_single_radius`, `RoundedRect::width/height/radii/rect/origin/center`, `Size::aspect_ratio`, `Stroke::new/with_join/with_miter_limit/with_start_cap/with_end_cap/with_caps` are all now `const`. ([#536][] by [@xStrom], [#539][] and [#561][] by [@tomcur][])
+- Improve performance of `Ellipse::area`. Note: for non-finite ellipses, this method may now return `f64::INFINITY` where it returned `f64::NAN` before. ([#559][] by [@tomcur][])
 
 ## Fixed
 
@@ -288,6 +289,7 @@ Note: A changelog was not kept for or before this release
 [#545]: https://github.com/linebender/kurbo/pull/545
 [#548]: https://github.com/linebender/kurbo/pull/548
 [#549]: https://github.com/linebender/kurbo/pull/549
+[#559]: https://github.com/linebender/kurbo/pull/559
 [#561]: https://github.com/linebender/kurbo/pull/561
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
