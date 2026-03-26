@@ -1032,4 +1032,22 @@ mod tests {
         let inner = Rect::new(11.0, 11.0, 15.0, 15.0);
         assert!(!outer.contains_rect(inner));
     }
+
+    #[test]
+    fn rect_intersect_zero() {
+        // These rectangles don't overlap vertically.
+        let a = Rect::new(25., 101., 200., 130.);
+        let b = Rect::new(0., 0., 100., 100.);
+
+        for intersection in [a.intersect(b), b.intersect(a)] {
+            assert_eq!(intersection.x0, 25.);
+            assert_eq!(intersection.x1, 100.);
+            assert_eq!(intersection.area(), 0.);
+            assert_eq!(intersection.y0, intersection.y1);
+
+            // We don't guarantee this in the documentation, but the intersection's `y` values should
+            // be a sensible value taken from the input.
+            assert!([0., 100., 101., 130.].contains(&intersection.y0));
+        }
+    }
 }
