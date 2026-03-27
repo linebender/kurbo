@@ -225,6 +225,28 @@ impl Affine {
         self * Affine::translate(trans)
     }
 
+    /// A [skew] of `(skew_x, skew_y)` followed by `self`.
+    ///
+    /// Equivalent to `self * Affine::skew(skew_x, skew_y)`
+    ///
+    /// [skew]: Affine::skew
+    #[inline]
+    #[must_use]
+    pub fn pre_skew(self, skew_x: f64, skew_y: f64) -> Self {
+        self * Affine::skew(skew_x, skew_y)
+    }
+
+    /// A [reflection] about the line through `point` in `direction` followed by `self`.
+    ///
+    /// Equivalent to `self * Affine::reflect(point, direction)`
+    ///
+    /// [reflection]: Affine::reflect
+    #[inline]
+    #[must_use]
+    pub fn pre_reflect(self, point: impl Into<Point>, direction: impl Into<Vec2>) -> Self {
+        self * Affine::reflect(point, direction)
+    }
+
     /// `self` followed by a [rotation] of `th`.
     ///
     /// Equivalent to `Affine::rotate(th) * self`
@@ -278,6 +300,28 @@ impl Affine {
     #[must_use]
     pub fn then_scale_about(self, scale: f64, center: impl Into<Point>) -> Self {
         Affine::scale_about(scale, center) * self
+    }
+
+    /// `self` followed by a [skew] of `(skew_x, skew_y)`.
+    ///
+    /// Equivalent to `Affine::skew(skew_x, skew_y) * self`
+    ///
+    /// [skew]: Affine::skew
+    #[inline]
+    #[must_use]
+    pub fn then_skew(self, skew_x: f64, skew_y: f64) -> Self {
+        Affine::skew(skew_x, skew_y) * self
+    }
+
+    /// `self` followed by a [reflection] about the line through `point` in `direction`.
+    ///
+    /// Equivalent to `Affine::reflect(point, direction) * self`
+    ///
+    /// [reflection]: Affine::reflect
+    #[inline]
+    #[must_use]
+    pub fn then_reflect(self, point: impl Into<Point>, direction: impl Into<Vec2>) -> Self {
+        Affine::reflect(point, direction) * self
     }
 
     /// `self` followed by a translation of `trans`.
