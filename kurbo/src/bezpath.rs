@@ -43,9 +43,12 @@ use crate::common::FloatFuncs;
 /// For tasks like drawing, elements are a natural fit, but when doing
 /// hit-testing or subdividing, we need to have access to the segments.
 ///
-/// Conceptually, a `BezPath` contains zero or more subpaths. Each subpath
-/// *always* begins with a `MoveTo`, then has zero or more `LineTo`, `QuadTo`,
-/// and `CurveTo` elements, and optionally ends with a `ClosePath`.
+/// Conceptually, a `BezPath` contains zero or more subpaths. Each non-empty
+/// path *always* starts its first subpath with a `MoveTo`, then has zero or
+/// more `LineTo`, `QuadTo`, and `CurveTo` elements. A subpath can optionally
+/// be closed with `ClosePath`. New subpaths start after a `ClosePath` or
+/// `MoveTo`. Subpaths without an initial `MoveTo` start at the previous
+/// subpath's initial point.
 ///
 /// Internally, a `BezPath` is a list of [`PathEl`]s; as such it implements
 /// [`FromIterator<PathEl>`] and [`Extend<PathEl>`]:
@@ -107,7 +110,14 @@ pub struct BezPath(Vec<PathEl>);
 
 /// The element of a Bézier path.
 ///
-/// A valid path has `MoveTo` at the beginning of each subpath.
+/// Every valid non-empty path starts with [`PathEl::MoveTo`], beginning its first
+/// subpath. Subsequent [`PathEl::MoveTo`] elements start new subpaths. A [`PathEl::ClosePath`]
+/// followed by anything other than a [`PathEl::MoveTo`] also starts a new subpath with the same
+/// initial point as the current subpath. This matches SVG's path semantics, see
+/// [Scalable Vector Graphics 2 § 9.3.3][svg-moveto] and [§ 9.3.4][svg-closepath]
+///
+/// [svg-moveto]: https://www.w3.org/TR/SVG2/paths.html#PathDataMovetoCommands
+/// [svg-closepath]: https://www.w3.org/TR/SVG2/paths.html#PathDataClosePathCommand
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -126,6 +136,8 @@ pub enum PathEl {
     /// The first two points are the Bézier's control points, the last point is its end point.
     CurveTo(Point, Point, Point),
     /// Close off the path.
+    ///
+    /// Any element after this starts a new subpath.
     ClosePath,
 }
 
