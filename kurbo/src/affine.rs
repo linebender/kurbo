@@ -189,7 +189,7 @@ impl Affine {
     #[inline]
     #[must_use]
     pub fn pre_rotate_about(self, th: f64, center: impl Into<Point>) -> Self {
-        Affine::rotate_about(th, center) * self
+        self * Affine::rotate_about(th, center)
     }
 
     /// A [scale] by `scale` followed by `self`.
