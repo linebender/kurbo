@@ -720,4 +720,38 @@ mod tests {
             "The product of the singular values {s:?} ({prod}) should be equal to the absolute determinant {det}.",
         );
     }
+
+    #[test]
+    fn rotate_about_composition() {
+        let theta = core::f64::consts::FRAC_PI_2;
+        let center = Point::new(-1., 0.);
+        let translation = Vec2::new(0., 1.);
+        let probe = Point::ORIGIN;
+
+        let rotate_about = Affine::rotate_about(theta, center);
+        let translate = Affine::translate(translation);
+
+        // Establish baselines with raw matrix composition
+        // (also a sanity check to ensure the order of ops matters for this contrived test)
+        let rotate_then_translate = translate * rotate_about;
+        let translate_then_rotate = rotate_about * translate;
+        assert_near(rotate_then_translate * probe, Point::new(-1., 2.));
+        assert_near(translate_then_rotate * probe, Point::new(-2., 1.));
+
+        // Check .then__ semantics
+        affine_assert_near(
+            rotate_about.then_translate(translation),
+            rotate_then_translate,
+        );
+        affine_assert_near(
+            translate.then_rotate_about(theta, center),
+            translate_then_rotate,
+        );
+
+        // Check .pre_rotate_about semantics
+        affine_assert_near(
+            translate.pre_rotate_about(theta, center),
+            rotate_then_translate,
+        );
+    }
 }
