@@ -738,7 +738,7 @@ mod tests {
         assert_near(rotate_then_translate * probe, Point::new(-1., 2.));
         assert_near(translate_then_rotate * probe, Point::new(-2., 1.));
 
-        // Check .then__ semantics
+        // Check .then_* semantics
         affine_assert_near(
             rotate_about.then_translate(translation),
             rotate_then_translate,

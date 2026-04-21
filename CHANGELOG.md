@@ -31,6 +31,7 @@ This release has an [MSRV][] of 1.85.
 ## Fixed
 
 - Improved numerical robustness of winding numbers for paths. ([#537][] by [@jneem][])
+- `Affine::pre_rotate_about` calculation. ([#567][] by [@dannymcgee][])
 
 ## [0.13.0] (2025-11-27)
 
@@ -185,6 +186,7 @@ Note: A changelog was not kept for or before this release
 [@beholdnec]: https://github.com/beholdnec
 [@Bombaninha]: https://github.com/Bombaninha
 [@cmyr]: https://github.com/cmyr
+[@dannymcgee]: https://github.com/dannymcgee
 [@DJMcNab]: https://github.com/DJMcNab
 [@dominikh]: https://github.com/dominikh
 [@ErisianArchitect]: https://github.com/ErisianArchitect
@@ -291,6 +293,7 @@ Note: A changelog was not kept for or before this release
 [#549]: https://github.com/linebender/kurbo/pull/549
 [#559]: https://github.com/linebender/kurbo/pull/559
 [#561]: https://github.com/linebender/kurbo/pull/561
+[#567]: https://github.com/linebender/kurbo/pull/567
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
