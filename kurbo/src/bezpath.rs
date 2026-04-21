@@ -344,18 +344,24 @@ impl BezPath {
             PathEl::LineTo(p) => p,
             PathEl::QuadTo(_, p2) => p2,
             PathEl::CurveTo(_, _, p3) => p3,
-            PathEl::ClosePath => return None,
+            // Drawing elements following this `ClosePath` implicitly start at this closed subpath's
+            // initial point.
+            PathEl::ClosePath => subpath_initial_point(&self.0[..ix - 1])?,
         };
         match self.0[ix] {
             PathEl::LineTo(p) => Some(PathSeg::Line(Line::new(last, p))),
             PathEl::QuadTo(p1, p2) => Some(PathSeg::Quad(QuadBez::new(last, p1, p2))),
             PathEl::CurveTo(p1, p2, p3) => Some(PathSeg::Cubic(CubicBez::new(last, p1, p2, p3))),
-            PathEl::ClosePath => self.0[..ix].iter().rev().find_map(|el| match *el {
-                PathEl::MoveTo(start) if start != last => {
-                    Some(PathSeg::Line(Line::new(last, start)))
+            PathEl::ClosePath => {
+                // If the previous element was also `ClosePath`, we don't produce a segment (and don't
+                // walk back again).
+                if matches!(self.0[ix - 1], PathEl::ClosePath) {
+                    None
+                } else {
+                    let start = subpath_initial_point(&self.0[..ix])?;
+                    (start != last).then(|| PathSeg::Line(Line::new(last, start)))
                 }
-                _ => None,
-            }),
+            }
             PathEl::MoveTo(_) => None,
         }
     }
@@ -422,14 +428,7 @@ impl BezPath {
             PathEl::LineTo(p1) => Some(*p1),
             PathEl::QuadTo(_, p2) => Some(*p2),
             PathEl::CurveTo(_, _, p3) => Some(*p3),
-            PathEl::ClosePath => self
-                .elements()
-                .iter()
-                .rev()
-                .skip(1)
-                .take_while(|el| !matches!(el, PathEl::ClosePath))
-                .last()
-                .and_then(|el| el.end_point()),
+            PathEl::ClosePath => subpath_initial_point(&self.0[..self.0.len() - 1]),
         }
     }
 
@@ -493,6 +492,18 @@ impl BezPath {
         }
         reversed
     }
+}
+
+/// Find the initial point of the last subpath in `elements`.
+///
+/// Subpaths started implicitly after a `ClosePath` (i.e., subpaths without their own `MoveTo`)
+/// inherit the initial point of the preceding subpath, thus the initial point of a subpath is
+/// always the nearest preceding `MoveTo`.
+fn subpath_initial_point(elements: &[PathEl]) -> Option<Point> {
+    elements.iter().rev().find_map(|el| match el {
+        PathEl::MoveTo(p) => Some(*p),
+        _ => None,
+    })
 }
 
 /// Helper for reversing a subpath.
@@ -1703,6 +1714,36 @@ mod tests {
         assert_eq!(segments, get_segs);
     }
 
+    // An implicit subpath after `ClosePath` inherits the previous subpath's
+    // initial point, and `get_seg` must return segments relative to it.
+    #[test]
+    fn test_get_seg_implicit_subpaths() {
+        let path = BezPath::from_vec(vec![
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((10., 0.).into()),
+            PathEl::ClosePath,
+            PathEl::LineTo((5., 5.).into()),
+            PathEl::ClosePath,
+        ]);
+        assert_eq!(
+            path.get_seg(3),
+            Some(PathSeg::Line(Line::new((0., 0.), (5., 5.)))),
+        );
+        assert_eq!(
+            path.get_seg(4),
+            Some(PathSeg::Line(Line::new((5., 5.), (0., 0.)))),
+        );
+
+        // Consecutive `ClosePath`s produce no segment.
+        let path = BezPath::from_vec(vec![
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((10., 0.).into()),
+            PathEl::ClosePath,
+            PathEl::ClosePath,
+        ]);
+        assert_eq!(path.get_seg(3), None);
+    }
+
     #[test]
     fn test_control_box() {
         // a sort of map ping looking thing drawn with a single cubic
@@ -2158,15 +2199,28 @@ mod tests {
         path.close_path();
         assert_eq!(path.current_position(), Some(Point::new(0., 0.)));
 
+        // A `ClosePath` following another `ClosePath` starts (and immediately closes) an implicit
+        // subpath inheriting the previous subpath's initial point.
         path.close_path();
-        assert_eq!(path.current_position(), None);
+        assert_eq!(path.current_position(), Some(Point::new(0., 0.)));
 
         path.move_to((0., 10.));
         assert_eq!(path.current_position(), Some(Point::new(0., 10.)));
         path.close_path();
         assert_eq!(path.current_position(), Some(Point::new(0., 10.)));
         path.close_path();
-        assert_eq!(path.current_position(), None);
+        assert_eq!(path.current_position(), Some(Point::new(0., 10.)));
+
+        // An implicit subpath started by a drawing element after `ClosePath` inherits the previous
+        // subpath's initial point; closing it returns to that point.
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((10., 10.));
+        path.close_path();
+        path.line_to((5., 5.));
+        assert_eq!(path.current_position(), Some(Point::new(5., 5.)));
+        path.close_path();
+        assert_eq!(path.current_position(), Some(Point::new(0., 0.)));
     }
 
     // Regression test for #531
