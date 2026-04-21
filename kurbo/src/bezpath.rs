@@ -432,21 +432,42 @@ impl BezPath {
         }
     }
 
-    /// Returns an iterator over the subpaths of this path. See [Elements and Segments](#elements-and-segments) for more information.
-    pub fn subpaths(&self) -> impl Iterator<Item = &[PathEl]> {
+    /// Returns an iterator over the subpaths of this path.
+    ///
+    /// A subpath begins with a [`PathEl::MoveTo`] or implicitly with a drawing command following a
+    /// [`PathEl::ClosePath`]; in the latter case the subpath inherits its initial point from the
+    /// preceding subpath.
+    ///
+    /// See [Elements and Segments](#elements-and-segments) for more information.
+    pub fn subpaths(&self) -> impl Iterator<Item = Subpath<'_>> {
         let elements = self.elements();
         let mut i = 0;
+        let mut initial_point = Point::ZERO;
 
         core::iter::from_fn(move || {
             if i >= elements.len() {
                 return None;
             }
             let start = i;
-            i += 1;
-            while i < elements.len() && !matches!(elements[i], PathEl::MoveTo(_)) {
-                i += 1;
+            if let PathEl::MoveTo(p) = elements[i] {
+                initial_point = p;
             }
-            Some(&elements[start..i])
+            // An implicit subpath inherits `initial_point` from the previous iteration.
+            i += 1;
+            while i < elements.len() {
+                match elements[i] {
+                    PathEl::MoveTo(_) => break,
+                    PathEl::ClosePath => {
+                        i += 1;
+                        break;
+                    }
+                    _ => i += 1,
+                }
+            }
+            Some(Subpath {
+                start: initial_point,
+                elements: &elements[start..i],
+            })
         })
     }
 
@@ -491,6 +512,37 @@ impl BezPath {
             reversed.push(PathEl::MoveTo(start_pt));
         }
         reversed
+    }
+}
+
+/// A subpath of a [`BezPath`].
+///
+/// Returned by [`BezPath::subpaths`]. See
+/// [`BezPath`'s documentation on elements and segments][elements-and-segment]
+/// for more information.
+///
+/// [elements-and-segments]: BezPath#elements-and-segments
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Subpath<'a> {
+    start: Point,
+    elements: &'a [PathEl],
+}
+
+impl<'a> Subpath<'a> {
+    /// The initial point of this subpath.
+    ///
+    /// For subpaths that begin with an explicit [`PathEl::MoveTo`], this is the `MoveTo` target.
+    /// For implicit subpaths (those that follow a [`PathEl::ClosePath`] without a `MoveTo`) this is
+    /// the initial point of the preceding subpath.
+    pub fn start(&self) -> Point {
+        self.start
+    }
+
+    /// The elements of this subpath.
+    ///
+    /// The first element is a [`PathEl::MoveTo`] for subpaths with an explicit initial point.
+    pub fn elements(&self) -> &'a [PathEl] {
+        self.elements
     }
 }
 
@@ -649,11 +701,13 @@ pub fn flatten(
 ) {
     let sqrt_tol = tolerance.sqrt();
     let mut last_pt = None;
+    let mut subpath_start = None;
     let mut quad_buf = Vec::new();
     for el in path {
         match el {
             PathEl::MoveTo(p) => {
                 last_pt = Some(p);
+                subpath_start = Some(p);
                 callback(PathEl::MoveTo(p));
             }
             PathEl::LineTo(p) => {
@@ -722,7 +776,9 @@ pub fn flatten(
                 last_pt = Some(p3);
             }
             PathEl::ClosePath => {
-                last_pt = None;
+                // A drawing element following this `ClosePath` starts an implicit subpath at this
+                // `ClosePath`'s endpoint (or equivalently, at the current subpath's initial point).
+                last_pt = subpath_start;
                 callback(PathEl::ClosePath);
             }
         }
@@ -1714,12 +1770,12 @@ mod tests {
         assert_eq!(segments, get_segs);
     }
 
-    // An implicit subpath after `ClosePath` inherits the previous subpath's
-    // initial point, and `get_seg` must return segments relative to it.
+    // An implicit subpath after `ClosePath` inherits the previous subpath's initial point, and
+    // `get_seg` must return segments relative to it.
     #[test]
     fn test_get_seg_implicit_subpaths() {
         let path = BezPath::from_vec(vec![
-            PathEl::MoveTo((0., 0.).into()),
+            PathEl::MoveTo((2., 3.).into()),
             PathEl::LineTo((10., 0.).into()),
             PathEl::ClosePath,
             PathEl::LineTo((5., 5.).into()),
@@ -1727,16 +1783,16 @@ mod tests {
         ]);
         assert_eq!(
             path.get_seg(3),
-            Some(PathSeg::Line(Line::new((0., 0.), (5., 5.)))),
+            Some(PathSeg::Line(Line::new((2., 3.), (5., 5.)))),
         );
         assert_eq!(
             path.get_seg(4),
-            Some(PathSeg::Line(Line::new((5., 5.), (0., 0.)))),
+            Some(PathSeg::Line(Line::new((5., 5.), (2., 3.)))),
         );
 
         // Consecutive `ClosePath`s produce no segment.
         let path = BezPath::from_vec(vec![
-            PathEl::MoveTo((0., 0.).into()),
+            PathEl::MoveTo((2., 3.).into()),
             PathEl::LineTo((10., 0.).into()),
             PathEl::ClosePath,
             PathEl::ClosePath,
@@ -1755,18 +1811,75 @@ mod tests {
 
     #[test]
     fn test_subpaths() {
-        let path = BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z M100,100 M30,0 Q35,10,40,0 L30,0")
-            .unwrap();
+        // The following path contains four subpaths:
+        // - the first starts with a `MoveTo` is explicitly closed,
+        // - the second starts implicitly and is explicitly closed,
+        // - the third starts with a `MoveTo` and is left open, and
+        // - the fourth starts with a `MoveTo` and is left open.
+        let path = BezPath::from_svg(
+            "M10,10 L0,10 L0,0 L10,0 Z L20,20 Z M100,100 M30,0 Q35,10,40,0 L30,0",
+        )
+        .unwrap();
+
+        let subpaths: Vec<_> = path.subpaths().collect();
+        assert_eq!(subpaths.len(), 4);
+
+        assert_eq!(subpaths[0].start(), Point::new(10., 10.));
         assert_eq!(
-            vec![
-                BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z").unwrap(),
-                BezPath::from_svg("M100,100").unwrap(),
-                BezPath::from_svg("M30,0 Q35,10,40,0 L30,0").unwrap(),
-            ],
-            path.subpaths()
-                .map(|sp| BezPath::from_vec(sp.to_vec()))
-                .collect::<Vec<_>>()
+            subpaths[0].elements(),
+            BezPath::from_svg("M10,10 L0,10 L0,0 L10,0 Z")
+                .unwrap()
+                .elements(),
         );
+
+        // Implicit subpath: inherits the last point from subpath 0.
+        assert_eq!(subpaths[1].start(), Point::new(10., 10.));
+        assert_eq!(
+            subpaths[1].elements(),
+            &[PathEl::LineTo((20., 20.).into()), PathEl::ClosePath],
+        );
+
+        assert_eq!(subpaths[2].start(), Point::new(100., 100.));
+        assert_eq!(
+            subpaths[2].elements(),
+            BezPath::from_svg("M100,100").unwrap().elements(),
+        );
+
+        assert_eq!(subpaths[3].start(), Point::new(30., 0.));
+        assert_eq!(
+            subpaths[3].elements(),
+            BezPath::from_svg("M30,0 Q35,10,40,0 L30,0")
+                .unwrap()
+                .elements(),
+        );
+    }
+
+    // A curve starting an implicit subpath after `ClosePath` starts at the preceding subpath's end
+    // point (or, equivalently, at the preceding subpath's initial point); flattening must yield the
+    // same result as the equivalent path with an explicit `MoveTo` to that point.
+    #[test]
+    fn test_flatten_implicit_subpaths() {
+        let implicit = BezPath::from_vec(vec![
+            PathEl::MoveTo((2., 3.).into()),
+            PathEl::LineTo((10., 0.).into()),
+            PathEl::ClosePath,
+            PathEl::QuadTo((15., 10.).into(), (20., 0.).into()),
+        ]);
+        let explicit = BezPath::from_vec(vec![
+            PathEl::MoveTo((2., 3.).into()),
+            PathEl::LineTo((10., 0.).into()),
+            PathEl::ClosePath,
+            PathEl::MoveTo((2., 3.).into()),
+            PathEl::QuadTo((15., 10.).into(), (20., 0.).into()),
+        ]);
+        let mut implicit_out = Vec::new();
+        flatten(implicit, 0.1, |el| implicit_out.push(el));
+        let mut explicit_out = Vec::new();
+        flatten(explicit, 0.1, |el| explicit_out.push(el));
+        // The explicit version has an extra `MoveTo(2, 3)` after `ClosePath`; remove it so we can
+        // compare the two sequences directly.
+        explicit_out.remove(3);
+        assert_eq!(implicit_out, explicit_out);
     }
 
     #[test]

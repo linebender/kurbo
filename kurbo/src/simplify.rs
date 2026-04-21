@@ -301,6 +301,7 @@ pub fn simplify_bezpath(
     options: &SimplifyOptions,
 ) -> BezPath {
     let mut last_pt = None;
+    let mut subpath_start = None;
     let mut last_seg: Option<PathSeg> = None;
     let mut state = SimplifyState::default();
     for el in path {
@@ -310,6 +311,7 @@ pub fn simplify_bezpath(
                 state.flush(accuracy, options);
                 state.needs_moveto = true;
                 last_pt = Some(p);
+                subpath_start = Some(p);
             }
             PathEl::LineTo(p) => {
                 let last = last_pt.unwrap();
@@ -337,6 +339,9 @@ pub fn simplify_bezpath(
                 state.result.close_path();
                 state.needs_moveto = true;
                 last_seg = None;
+                // A drawing element following this `ClosePath` starts an implicit
+                // subpath at the current subpath's initial point.
+                last_pt = subpath_start;
                 continue;
             }
         }
@@ -392,5 +397,32 @@ mod tests {
         let options = SimplifyOptions::default();
         let simplified = simplify_bezpath(path.clone(), 1.0, &options);
         assert_eq!(path, simplified);
+    }
+
+    // An implicit subpath after `ClosePath` starts the preceding subpath's end point (or,
+    // equivalently, at the preceding subpath's initial point); simplifying must yield the same
+    // result as the equivalent path with an explicit `MoveTo` to that point.
+    #[test]
+    fn simplify_implicit_subpaths() {
+        use crate::PathEl;
+
+        let implicit = BezPath::from_vec(vec![
+            PathEl::MoveTo((2., 3.).into()),
+            PathEl::LineTo((10., 0.).into()),
+            PathEl::ClosePath,
+            PathEl::LineTo((5., 5.).into()),
+        ]);
+        let explicit = BezPath::from_vec(vec![
+            PathEl::MoveTo((2., 3.).into()),
+            PathEl::LineTo((10., 0.).into()),
+            PathEl::ClosePath,
+            PathEl::MoveTo((2., 3.).into()),
+            PathEl::LineTo((5., 5.).into()),
+        ]);
+        let options = SimplifyOptions::default();
+        assert_eq!(
+            simplify_bezpath(implicit, 1.0, &options),
+            simplify_bezpath(explicit, 1.0, &options),
+        );
     }
 }
