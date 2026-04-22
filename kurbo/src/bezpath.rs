@@ -48,7 +48,7 @@ use crate::common::FloatFuncs;
 /// more `LineTo`, `QuadTo`, and `CurveTo` elements. A subpath can optionally
 /// be closed with `ClosePath`. New subpaths start after a `ClosePath` or
 /// `MoveTo`. Subpaths without an initial `MoveTo` start at the previous
-/// subpath's initial point.
+/// subpath's end point.
 ///
 /// Internally, a `BezPath` is a list of [`PathEl`]s; as such it implements
 /// [`FromIterator<PathEl>`] and [`Extend<PathEl>`]:
@@ -135,9 +135,11 @@ pub enum PathEl {
     ///
     /// The first two points are the Bézier's control points, the last point is its end point.
     CurveTo(Point, Point, Point),
-    /// Close off the path.
+    /// Close off the path by drawing a line from the current location to the current subpath's
+    /// start point.
     ///
-    /// Any element after this starts a new subpath.
+    /// Any element after this starts a new subpath from the closing line's end point (or,
+    /// equivalently, from this subpath's start point).
     ClosePath,
 }
 
