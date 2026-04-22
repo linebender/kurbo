@@ -520,10 +520,8 @@ impl BezPath {
 /// A subpath of a [`BezPath`].
 ///
 /// Returned by [`BezPath::subpaths`]. See
-/// [`BezPath`'s documentation on elements and segments][elements-and-segment]
+/// [`BezPath`'s documentation on elements and segments][BezPath#elements-and-segments]
 /// for more information.
-///
-/// [elements-and-segments]: BezPath#elements-and-segments
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Subpath<'a> {
     start: Point,

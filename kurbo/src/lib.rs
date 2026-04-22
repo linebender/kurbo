@@ -155,7 +155,7 @@ pub use crate::arc::{Arc, ArcAppendIter};
 pub use crate::axis::Axis;
 pub use crate::bezpath::{
     flatten, segments, BezPath, LineIntersection, MinDistance, PathEl, PathSeg, PathSegIter,
-    Segments,
+    Segments, Subpath,
 };
 pub use crate::circle::{Circle, CirclePathIter, CircleSegment};
 pub use crate::cubicbez::{cubics_to_quadratic_splines, CubicBez, CubicBezIter, CuspType};
