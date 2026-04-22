@@ -308,8 +308,72 @@ impl Affine {
     }
 
     /// Compute the determinant of this transform.
+    ///
+    /// # Geometric interpretation
+    ///
+    /// Consider a region transformed by this affine. The transformed region's area is the area of
+    /// the original region scaled by the absolute value of the determinant. A negative determinant
+    /// indicates orientation reversal.
+    #[inline]
     pub const fn determinant(self) -> f64 {
         self.0[0] * self.0[3] - self.0[1] * self.0[2]
+    }
+
+    /// Compute the square of the nuclear norm of this transform.
+    ///
+    /// This is the square of the [Schatten p-norm][schatten] with `p=1`, also known as the "trace norm."
+    ///
+    /// Returns the squared norm for efficiency; take the square root as necessary.
+    ///
+    /// # Geometric interpretation
+    ///
+    /// Consider a unit circle transformed by this affine. The nuclear norm is the sum of the
+    /// resulting ellipse's radii (semi axes). That sum multiplied by π is a first-order
+    /// approximation of the ellipse's perimeter.
+    ///
+    /// [schatten]: <https://en.wikipedia.org/w/index.php?title=Matrix_norm&oldid=1348997593#Schatten_norms>
+    #[inline]
+    pub const fn nuclear_norm_squared(self) -> f64 {
+        self.frobenius_norm_squared() + 2. * self.determinant().abs()
+    }
+
+    /// Compute the square of the Frobenius norm of this transform.
+    ///
+    /// This is the square of the [Schatten p-norm][schatten] with `p=2`.
+    ///
+    /// Returns the squared norm for efficiency; take the square root as necessary.
+    ///
+    /// # Geometric interpretation
+    ///
+    /// Consider a unit circle transformed by this affine. The squared Frobenius norm is twice the
+    /// mean squared radius of the resulting ellipse. Alternatively, it is equal to the squared
+    /// distance from the ellipse's center to a corner of the rectangle spanned by the ellipse's
+    /// axes.
+    ///
+    /// [schatten]: <https://en.wikipedia.org/w/index.php?title=Matrix_norm&oldid=1348997593#Schatten_norms>
+    #[inline]
+    pub const fn frobenius_norm_squared(self) -> f64 {
+        let [a, b, c, d, _, _] = self.as_coeffs();
+        a * a + b * b + c * c + d * d
+    }
+
+    /// Compute the spectral norm of this transform.
+    ///
+    /// This is the [Schatten p-norm][schatten] with `p=∞`.
+    ///
+    /// # Geometric interpretation
+    ///
+    /// Consider a unit circle transformed by this affine. The spectral norm is the major radius
+    /// (semi-major axis) of the Ellipse.
+    ///
+    /// [schatten]: <https://en.wikipedia.org/w/index.php?title=Matrix_norm&oldid=1348997593#Schatten_norms>
+    #[inline]
+    pub fn spectral_norm(self) -> f64 {
+        // Note a different calculation, returning the `_squared` form like our nuclear and
+        // Frobenius norms, could be `0.5 (frob^2 + sqrt(frob^4 - 4 det^2))`. In terms of operations
+        // it's a wash: one fewer sqrt if the user actually wants the squared form, but it uses more
+        // muls. More importantly, that form has worse numeric conditioning.
+        self.svd().0.x
     }
 
     /// Compute the inverse transform.
