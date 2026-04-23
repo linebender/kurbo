@@ -7,7 +7,12 @@
 //! for finding roots in a bounded interval. We aspire to have
 //! more, with thorough tests and benchmarks.
 
-#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![no_std]
+
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
+
 mod cubic;
 #[cfg(feature = "libm")]
 mod libm_polyfill;
@@ -21,7 +26,7 @@ mod yuksel;
 pub mod arbitrary;
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
-compile_error!("kurbo requires either the `std` or `libm` feature");
+compile_error!("polycool requires either the `std` or `libm` feature");
 
 // Suppress the unused_crate_dependencies lint when both std and libm are specified.
 #[cfg(all(feature = "std", feature = "libm"))]

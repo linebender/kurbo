@@ -460,6 +460,7 @@ impl From<Size> for (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::format;
 
     #[test]
     fn display() {

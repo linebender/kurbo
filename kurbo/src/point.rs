@@ -363,6 +363,8 @@ impl From<mint::Point2<f64>> for Point {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::format;
+
     #[test]
     fn point_arithmetic() {
         assert_eq!(

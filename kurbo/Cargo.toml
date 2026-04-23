@@ -32,7 +32,7 @@ euclid = ["dep:euclid"]
 # Implement `serde::Deserialize` and `serde::Serialize` on various types
 serde = ["smallvec/serde", "dep:serde"]
 # Add best-effort support for using Kurbo types in JSON schemas using schemars
-schemars = ["schemars/smallvec", "dep:schemars"]
+schemars = ["schemars/smallvec", "dep:schemars", "std"]
 
 [dependencies]
 smallvec = { version = "1.15.1", features = ["const_new"] }

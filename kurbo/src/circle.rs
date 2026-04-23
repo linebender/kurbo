@@ -396,7 +396,7 @@ fn point_on_circle(center: Point, radius: f64, angle: f64) -> Point {
 #[cfg(test)]
 mod tests {
     use crate::{Circle, Point, Shape};
-    use std::f64::consts::PI;
+    use core::f64::consts::PI;
 
     fn assert_approx_eq(x: f64, y: f64) {
         // Note: we might want to be more rigorous in testing the accuracy

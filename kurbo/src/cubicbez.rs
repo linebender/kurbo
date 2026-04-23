@@ -835,6 +835,8 @@ mod tests {
         ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
         QuadSpline,
     };
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn cubicbez_deriv() {

@@ -3,6 +3,9 @@
 
 //! Polynomials of dynamic (run-time) degree.
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::{Cubic, Quadratic, different_signs, yuksel};
 
 /// A polynomial of dynamic degree.
@@ -19,7 +22,7 @@ pub struct PolyDyn {
     coeffs: Vec<f64>,
 }
 
-impl<'a> std::ops::Mul<&'a PolyDyn> for &'a PolyDyn {
+impl<'a> core::ops::Mul<&'a PolyDyn> for &'a PolyDyn {
     type Output = PolyDyn;
 
     fn mul(self, rhs: &PolyDyn) -> PolyDyn {
@@ -34,7 +37,7 @@ impl<'a> std::ops::Mul<&'a PolyDyn> for &'a PolyDyn {
     }
 }
 
-impl std::ops::Mul<&PolyDyn> for PolyDyn {
+impl core::ops::Mul<&PolyDyn> for PolyDyn {
     type Output = PolyDyn;
 
     fn mul(self, rhs: &PolyDyn) -> PolyDyn {

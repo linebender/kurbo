@@ -565,6 +565,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
+
     use crate::BezPath;
 
     use super::*;

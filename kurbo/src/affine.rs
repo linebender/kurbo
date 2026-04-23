@@ -562,7 +562,7 @@ impl From<mint::ColumnMatrix2x3<f64>> for Affine {
 #[cfg(test)]
 mod tests {
     use crate::{Affine, Point, Vec2};
-    use std::f64::consts::PI;
+    use core::f64::consts::PI;
 
     fn assert_near(p0: Point, p1: Point) {
         assert!((p1 - p0).hypot() < 1e-9, "{p0:?} != {p1:?}");

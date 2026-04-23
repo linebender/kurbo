@@ -10,6 +10,9 @@ use smallvec::SmallVec;
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
+#[cfg(feature = "schemars")]
+use alloc::borrow::ToOwned;
+
 use crate::{
     common::solve_quadratic, Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen,
     PathEl, PathSeg, Point, QuadBez, Vec2,
@@ -852,6 +855,8 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::{vec, vec::Vec};
+
     use crate::{
         dash, segments, stroke, BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg,
         Shape, Stroke, StrokeOpts,

@@ -5,8 +5,7 @@ use arrayvec::ArrayVec;
 
 use crate::Quadratic;
 
-#[cfg(feature = "libm")]
-#[allow(unused_imports, reason = "unused if libm and std are both around")]
+#[cfg(not(feature = "std"))]
 use crate::libm_polyfill::FloatFuncs as _;
 
 impl Quadratic {

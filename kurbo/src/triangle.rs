@@ -11,6 +11,9 @@ use core::ops::{Add, Sub};
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
+#[cfg(feature = "schemars")]
+use alloc::borrow::ToOwned;
+
 /// Triangle
 //     A
 //     *

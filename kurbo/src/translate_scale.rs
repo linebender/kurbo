@@ -9,6 +9,9 @@ use crate::{
     Affine, Circle, CubicBez, Line, Point, QuadBez, Rect, RoundedRect, RoundedRectRadii, Vec2,
 };
 
+#[cfg(feature = "schemars")]
+use alloc::borrow::ToOwned;
+
 /// A transformation consisting of a uniform scaling followed by a translation.
 ///
 /// If the translation is `(x, y)` and the scale is `s`, then this

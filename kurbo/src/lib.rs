@@ -85,7 +85,7 @@
 #![cfg_attr(target_pointer_width = "64", warn(clippy::trivially_copy_pass_by_ref))]
 // END LINEBENDER LINT SET
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
+#![no_std]
 #![allow(
     clippy::unreadable_literal,
     clippy::many_single_char_names,
@@ -107,6 +107,9 @@
     clippy::duplicated_attributes,
     clippy::allow_attributes_without_reason
 )]
+
+#[cfg(feature = "schemars")]
+extern crate std;
 
 #[cfg(not(any(feature = "std", feature = "libm")))]
 compile_error!("kurbo requires either the `std` or `libm` feature");
