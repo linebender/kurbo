@@ -44,7 +44,7 @@ version = "0.7.6"
 default-features = false
 
 [dependencies.libm]
-version = "0.2.15"
+version = "0.2.16"
 optional = true
 
 [dependencies.mint]
@@ -56,14 +56,14 @@ version = "0.8.22"
 optional = true
 
 [dependencies.serde]
-version = "1.0.219"
+version = "1.0.228"
 optional = true
 default-features = false
 features = ["alloc", "derive"]
 
 [dev-dependencies]
 # This is used for research but not really needed; maybe refactor.
-rand = "0.9.3"
+rand = "0.9.4"
 # wasm doesn't support rayon, so disable criterion's rayon support. (In
 # principle we could make it target-dependent.)
 criterion = { version = "0.5.1", default-features = false, features = [
@@ -74,7 +74,7 @@ criterion = { version = "0.5.1", default-features = false, features = [
 [target.wasm32-unknown-unknown.dev-dependencies]
 # We have a transitive dependency on getrandom and it does not automatically
 # support wasm32-unknown-unknown. We need to enable the wasm_js feature.
-getrandom = { version = "0.3.3", features = ["wasm_js"] }
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
 
 [[bench]]
 name = "cubic"

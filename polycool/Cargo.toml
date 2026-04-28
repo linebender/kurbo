@@ -18,7 +18,7 @@ libm = ["dep:libm"]
 [dependencies]
 arbitrary = { version = "1.4.2", optional = true }
 arrayvec = { version = "0.7.6", default-features = false }
-libm = { version = "0.2.15", optional = true }
+libm = { version = "0.2.16", optional = true }
 
 [dev-dependencies]
 arbitrary = "1.4.2"
