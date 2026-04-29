@@ -259,7 +259,7 @@ fn choose(n: u8, k: u8) -> u32 {
 #[cfg(test)]
 mod tests {
     use crate::mindist::A_r;
-    use crate::mindist::{choose, D_rk};
+    use crate::mindist::{D_rk, choose};
     use crate::param_curve::ParamCurve;
     use crate::{CubicBez, Line, PathSeg, Vec2};
 

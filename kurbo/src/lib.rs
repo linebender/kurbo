@@ -154,21 +154,21 @@ pub use crate::affine::Affine;
 pub use crate::arc::{Arc, ArcAppendIter};
 pub use crate::axis::Axis;
 pub use crate::bezpath::{
-    flatten, segments, BezPath, LineIntersection, MinDistance, PathEl, PathSeg, PathSegIter,
-    Segments,
+    BezPath, LineIntersection, MinDistance, PathEl, PathSeg, PathSegIter, Segments, flatten,
+    segments,
 };
 pub use crate::circle::{Circle, CirclePathIter, CircleSegment};
-pub use crate::cubicbez::{cubics_to_quadratic_splines, CubicBez, CubicBezIter, CuspType};
+pub use crate::cubicbez::{CubicBez, CubicBezIter, CuspType, cubics_to_quadratic_splines};
 pub use crate::ellipse::Ellipse;
 pub use crate::fit::{
-    fit_to_bezpath, fit_to_bezpath_opt, fit_to_cubic, CurveFitSample, ParamCurveFit,
+    CurveFitSample, ParamCurveFit, fit_to_bezpath, fit_to_bezpath_opt, fit_to_cubic,
 };
 pub use crate::insets::Insets;
 pub use crate::line::{ConstPoint, Line, LinePathIter};
 pub use crate::moments::{Moments, ParamCurveMoments};
 pub use crate::param_curve::{
-    Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature, ParamCurveDeriv,
-    ParamCurveExtrema, ParamCurveNearest, DEFAULT_ACCURACY, MAX_EXTREMA,
+    DEFAULT_ACCURACY, MAX_EXTREMA, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
+    ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest,
 };
 pub use crate::point::Point;
 pub use crate::quadbez::{QuadBez, QuadBezIter};
@@ -179,7 +179,7 @@ pub use crate::rounded_rect_radii::RoundedRectRadii;
 pub use crate::shape::Shape;
 pub use crate::size::Size;
 pub use crate::stroke::{
-    dash, stroke, stroke_with, Cap, Dashes, Join, Stroke, StrokeCtx, StrokeOptLevel, StrokeOpts,
+    Cap, Dashes, Join, Stroke, StrokeCtx, StrokeOptLevel, StrokeOpts, dash, stroke, stroke_with,
 };
 pub use crate::svg::{SvgArc, SvgParseError};
 pub use crate::translate_scale::TranslateScale;

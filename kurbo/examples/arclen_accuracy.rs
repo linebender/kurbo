@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, QuadBez};
 
-use kurbo::common::{GAUSS_LEGENDRE_COEFFS_24, GAUSS_LEGENDRE_COEFFS_5, GAUSS_LEGENDRE_COEFFS_7};
+use kurbo::common::{GAUSS_LEGENDRE_COEFFS_5, GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_24};
 
 /// Calculate arclength using Gauss-Legendre quadrature using formula from Behdad
 /// in <https://github.com/Pomax/BezierInfo-2/issues/77>

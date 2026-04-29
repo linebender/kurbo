@@ -7,8 +7,8 @@ use core::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
+use crate::common::{solve_cubic, solve_quadratic};
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,

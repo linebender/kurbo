@@ -12,8 +12,8 @@ use crate::{Line, QuadSpline, Vec2};
 use arrayvec::ArrayVec;
 
 use crate::common::{
-    solve_cubic, solve_quadratic, solve_quartic, GAUSS_LEGENDRE_COEFFS_16_HALF,
-    GAUSS_LEGENDRE_COEFFS_24_HALF, GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF,
+    GAUSS_LEGENDRE_COEFFS_8, GAUSS_LEGENDRE_COEFFS_8_HALF, GAUSS_LEGENDRE_COEFFS_16_HALF,
+    GAUSS_LEGENDRE_COEFFS_24_HALF, solve_cubic, solve_quadratic, solve_quartic,
 };
 use crate::{
     Affine, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveCurvature,
@@ -831,9 +831,9 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
 #[cfg(test)]
 mod tests {
     use crate::{
-        cubics_to_quadratic_splines, Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen,
-        ParamCurveArea, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, Point, QuadBez,
-        QuadSpline,
+        Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
+        ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, QuadSpline,
+        cubics_to_quadratic_splines,
     };
 
     #[test]

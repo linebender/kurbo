@@ -72,10 +72,12 @@ mod tests {
 
     #[test]
     fn one_point_no_quads() {
-        assert!(QuadSpline::new(vec![Point::new(1.0, 1.0)])
-            .to_quads()
-            .next()
-            .is_none());
+        assert!(
+            QuadSpline::new(vec![Point::new(1.0, 1.0)])
+                .to_quads()
+                .next()
+                .is_none()
+        );
     }
 
     #[test]

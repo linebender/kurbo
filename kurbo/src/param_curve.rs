@@ -7,7 +7,7 @@ use core::ops::Range;
 
 use arrayvec::ArrayVec;
 
-use crate::{common, Point, Rect};
+use crate::{Point, Rect, common};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;

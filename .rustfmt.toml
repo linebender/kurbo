@@ -1,0 +1,11 @@
+# LINEBENDER RUSTFMT CONFIG - v1
+# Ensure lines end with \n even if the git configuration core.autocrlf is not set to true
+newline_style = "Unix"
+
+# `Foobar { foo, bar }` is more readable than `Foo { foo: foo, bar: bar }`
+use_field_init_shorthand = true
+
+# Commented out because it is still unstable, but works fine in practice.
+# imports_granularity = "Module"
+
+# END LINEBENDER RUSTFMT CONFIG
