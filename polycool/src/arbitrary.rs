@@ -17,6 +17,7 @@ fn check_finite(f: f64) -> Result<f64, arbitrary::Error> {
     }
 }
 
+/// Generates a float
 pub fn finite_float(u: &mut Unstructured<'_>) -> Result<f64, arbitrary::Error> {
     check_finite(u.arbitrary()?)
 }
@@ -26,7 +27,7 @@ fn another_finite_float(orig: f64, u: &mut Unstructured<'_>) -> Result<f64, arbi
     let close: bool = u.arbitrary()?;
     if close {
         let ulps: i32 = u.int_in_range(-32..=32)?;
-        let scale = 1.0f64 + ulps as f64 * f64::EPSILON;
+        let scale = 1.0_f64 + ulps as f64 * f64::EPSILON;
         check_finite(orig * scale)
     } else {
         finite_float(u)
@@ -36,9 +37,9 @@ fn another_finite_float(orig: f64, u: &mut Unstructured<'_>) -> Result<f64, arbi
 /// An arbitrary float in (-1.0, 1.0).
 pub fn float_in_unit_interval(u: &mut Unstructured<'_>) -> Result<f64, arbitrary::Error> {
     let mantissa: u64 = u.arbitrary()?;
-    let mantissa = mantissa & ((1u64 << 52) - 1);
+    let mantissa = mantissa & ((1_u64 << 52) - 1);
     let negative: bool = u.arbitrary()?;
-    let sign: u64 = if negative { 1u64 << 63 } else { 0 };
+    let sign: u64 = if negative { 1_u64 << 63 } else { 0 };
 
     // 1023 is an exponent of zero, which would lead to numbers of the form 1.something.
     // `% 1023` means we get a maximum exponent of 1022, so our biggest number is 0.11111...
@@ -49,7 +50,7 @@ pub fn float_in_unit_interval(u: &mut Unstructured<'_>) -> Result<f64, arbitrary
     let exponent: u64 = if large {
         1022 << 52
     } else {
-        (u.arbitrary::<u64>()? % 1023u64) << 52
+        (u.arbitrary::<u64>()? % 1023_u64) << 52
     };
 
     Ok(f64::from_bits(sign | exponent | mantissa))
@@ -67,7 +68,7 @@ pub fn cubic(u: &mut Unstructured<'_>) -> Result<Cubic, arbitrary::Error> {
 
 /// Generate an arbitrary polynomial (with finite coefficients).
 pub fn poly<const N: usize>(u: &mut Unstructured<'_>) -> Result<Poly<N>, arbitrary::Error> {
-    assert!(N >= 2);
+    assert!(N >= 2, "N is below 2");
 
     let use_coeffs: bool = u.arbitrary()?;
     if use_coeffs {
@@ -107,7 +108,7 @@ pub fn poly_with_planted_root<const N: usize>(
     root: f64,
     buffer: f64,
 ) -> Result<Poly<N>, arbitrary::Error> {
-    assert!(N >= 2);
+    assert!(N >= 2, "N is below 2");
 
     // Generate the roots, with a bias towards roots being almost-repeated.
     let mut coeffs = [0.0; N];

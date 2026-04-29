@@ -1,6 +1,8 @@
 // Copyright 2025 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
+#![allow(missing_docs, reason = "criterion emits undocumented functions")]
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 

@@ -19,7 +19,10 @@ pub(crate) fn find_root<F: Fn(f64) -> f64, DF: Fn(f64) -> f64>(
     if !val_lower.is_finite() || !val_upper.is_finite() {
         return f64::NAN;
     }
-    debug_assert!(different_signs(val_lower, val_upper));
+    debug_assert!(
+        different_signs(val_lower, val_upper),
+        "lower and upper values have the same sign"
+    );
 
     let mut x = lower + (upper - lower) / 2.0;
     let mut step = (upper - lower) / 2.0;
@@ -49,8 +52,8 @@ pub(crate) fn find_root<F: Fn(f64) -> f64, DF: Fn(f64) -> f64>(
             lower = x;
         }
 
-        debug_assert!(deriv_x.is_finite());
-        debug_assert!(val_x.is_finite());
+        debug_assert!(deriv_x.is_finite(), "deriv_x is not finite");
+        debug_assert!(val_x.is_finite(), "val_x is not finite");
 
         step = -val_x / deriv_x;
         let mut new_x = x + step;

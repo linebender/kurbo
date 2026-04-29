@@ -30,7 +30,7 @@ impl Quadratic {
             let mut ret = ArrayVec::new();
             let mut push = |r: f64| {
                 if r.is_finite() {
-                    ret.push(r)
+                    ret.push(r);
                 }
             };
             if disc > 0.0 {
@@ -67,7 +67,7 @@ impl Quadratic {
             // do an extra factor of 2^{-3} for some wiggle room. This can't
             // completely destroy all the coefficients: because of the overflow,
             // we know that at least one of them was big.
-            let scale = 2.0f64.powi(-515);
+            let scale = 2.0_f64.powi(-515);
             // If we're infinite, just give up. (Otherwise, we'd stack overflow
             // by repeatedly trying to rescale.)
             if self.is_finite() {
@@ -100,7 +100,7 @@ impl Quadratic {
     #[cold]
     fn positive_discriminant_roots_scaled(&self) -> Option<(f64, f64)> {
         if self.is_finite() {
-            let scale = 2.0f64.powi(-515);
+            let scale = 2.0_f64.powi(-515);
             (*self * scale).positive_discriminant_roots()
         } else {
             None

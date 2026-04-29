@@ -45,8 +45,8 @@ impl<const N: usize> Poly<N> {
     /// The constant coefficient comes first, then the linear coefficient, and
     /// so on. So if you pass `[c, b, a]` you'll get the polynomial
     /// `a x^2 + b x + c`.
-    pub const fn new(coeffs: [f64; N]) -> Poly<N> {
-        Poly { coeffs }
+    pub const fn new(coeffs: [f64; N]) -> Self {
+        Self { coeffs }
     }
 
     /// The coefficients of this polynomial.
@@ -71,7 +71,7 @@ impl<const N: usize> Poly<N> {
     ///
     /// Always returns a non-negative number, or NaN if some coefficient is NaN.
     pub fn max_abs_coefficient(&self) -> f64 {
-        let mut max = 0.0f64;
+        let mut max = 0.0_f64;
         for c in &self.coeffs {
             max = max.max(c.abs());
         }
@@ -204,9 +204,9 @@ impl_roots_between_recursive!(9, 8);
 impl_roots_between_recursive!(10, 9);
 
 impl<const N: usize> core::ops::Mul<f64> for Poly<N> {
-    type Output = Poly<N>;
+    type Output = Self;
 
-    fn mul(mut self, scale: f64) -> Poly<N> {
+    fn mul(mut self, scale: f64) -> Self {
         self *= scale;
         self
     }
@@ -229,9 +229,9 @@ impl<const N: usize> core::ops::Mul<f64> for &Poly<N> {
 }
 
 impl<const N: usize> core::ops::Div<f64> for Poly<N> {
-    type Output = Poly<N>;
+    type Output = Self;
 
-    fn div(mut self, scale: f64) -> Poly<N> {
+    fn div(mut self, scale: f64) -> Self {
         self /= scale;
         self
     }
@@ -253,33 +253,33 @@ impl<const N: usize> core::ops::Div<f64> for &Poly<N> {
     }
 }
 
-impl<const N: usize> core::ops::AddAssign<&Poly<N>> for Poly<N> {
-    fn add_assign(&mut self, rhs: &Poly<N>) {
+impl<const N: usize> core::ops::AddAssign<&Self> for Poly<N> {
+    fn add_assign(&mut self, rhs: &Self) {
         for (c, d) in self.coeffs.iter_mut().zip(rhs.coeffs) {
             *c += d;
         }
     }
 }
 
-impl<const N: usize> core::ops::AddAssign<Poly<N>> for Poly<N> {
-    fn add_assign(&mut self, rhs: Poly<N>) {
+impl<const N: usize> core::ops::AddAssign<Self> for Poly<N> {
+    fn add_assign(&mut self, rhs: Self) {
         *self += &rhs;
     }
 }
 
-impl<const N: usize> core::ops::Add<Poly<N>> for Poly<N> {
-    type Output = Poly<N>;
+impl<const N: usize> core::ops::Add<Self> for Poly<N> {
+    type Output = Self;
 
-    fn add(mut self, rhs: Poly<N>) -> Poly<N> {
+    fn add(mut self, rhs: Self) -> Self {
         self += rhs;
         self
     }
 }
 
-impl<const N: usize> core::ops::Add<&Poly<N>> for Poly<N> {
-    type Output = Poly<N>;
+impl<const N: usize> core::ops::Add<&Self> for Poly<N> {
+    type Output = Self;
 
-    fn add(mut self, rhs: &Poly<N>) -> Poly<N> {
+    fn add(mut self, rhs: &Self) -> Self {
         self += rhs;
         self
     }
@@ -294,33 +294,33 @@ impl<const N: usize> core::ops::Add<Poly<N>> for &Poly<N> {
     }
 }
 
-impl<const N: usize> core::ops::SubAssign<&Poly<N>> for Poly<N> {
-    fn sub_assign(&mut self, rhs: &Poly<N>) {
+impl<const N: usize> core::ops::SubAssign<&Self> for Poly<N> {
+    fn sub_assign(&mut self, rhs: &Self) {
         for (c, d) in self.coeffs.iter_mut().zip(rhs.coeffs) {
             *c -= d;
         }
     }
 }
 
-impl<const N: usize> core::ops::SubAssign<Poly<N>> for Poly<N> {
-    fn sub_assign(&mut self, rhs: Poly<N>) {
+impl<const N: usize> core::ops::SubAssign<Self> for Poly<N> {
+    fn sub_assign(&mut self, rhs: Self) {
         *self -= &rhs;
     }
 }
 
-impl<const N: usize> core::ops::Sub<Poly<N>> for Poly<N> {
-    type Output = Poly<N>;
+impl<const N: usize> core::ops::Sub<Self> for Poly<N> {
+    type Output = Self;
 
-    fn sub(mut self, rhs: Poly<N>) -> Poly<N> {
+    fn sub(mut self, rhs: Self) -> Self {
         self -= rhs;
         self
     }
 }
 
-impl<const N: usize> core::ops::Sub<&Poly<N>> for Poly<N> {
-    type Output = Poly<N>;
+impl<const N: usize> core::ops::Sub<&Self> for Poly<N> {
+    type Output = Self;
 
-    fn sub(mut self, rhs: &Poly<N>) -> Poly<N> {
+    fn sub(mut self, rhs: &Self) -> Self {
         self -= rhs;
         self
     }
@@ -381,7 +381,7 @@ mod tests {
             // We can't expect great accuracy for very large roots,
             // because the polynomial evaluation will involve very
             // large terms.
-            let accuracy = accuracy * r.abs().powi(N as i32 - 1).max(1.0);
+            let accuracy = accuracy * r.abs().powi(i32::try_from(N).unwrap() - 1).max(1.0);
             // The solver aims for accuracy in the parameter, not the value.
             // So the value's accuracy will be affected by the derivative
             // at the root.
@@ -399,7 +399,7 @@ mod tests {
         arbtest::arbtest(|u| {
             let poly: Poly<4> = crate::arbitrary::poly(u)?;
             // Ignore very large polynomials, because they'll just overflow everything.
-            if (poly.max_abs_coefficient() * 10.0f64.powi(4)).is_infinite() {
+            if (poly.max_abs_coefficient() * 10.0_f64.powi(4)).is_infinite() {
                 return Err(arbitrary::Error::IncorrectFormat);
             }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
@@ -414,7 +414,7 @@ mod tests {
     fn root_evaluation_deg4() {
         arbtest::arbtest(|u| {
             let poly: Poly<5> = crate::arbitrary::poly(u)?;
-            if (poly.max_abs_coefficient() * 10.0f64.powi(5)).is_infinite() {
+            if (poly.max_abs_coefficient() * 10.0_f64.powi(5)).is_infinite() {
                 return Err(arbitrary::Error::IncorrectFormat);
             }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
@@ -428,7 +428,7 @@ mod tests {
     fn root_evaluation_deg9() {
         arbtest::arbtest(|u| {
             let poly: Poly<10> = crate::arbitrary::poly(u)?;
-            if (poly.max_abs_coefficient() * 10.0f64.powi(11)).is_infinite() {
+            if (poly.max_abs_coefficient() * 10.0_f64.powi(11)).is_infinite() {
                 return Err(arbitrary::Error::IncorrectFormat);
             }
             let roots = poly.roots_between(-10.0, 10.0, 1e-13);
