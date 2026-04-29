@@ -3,7 +3,7 @@
 
 //! A generic trait for shapes.
 
-use crate::{segments, BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments};
+use crate::{BezPath, Circle, Line, PathEl, Point, Rect, RoundedRect, Segments, segments};
 
 /// A generic trait for open and closed shapes.
 ///

@@ -5,7 +5,7 @@
 
 #![allow(unused, reason = "a bunch of experiments in the code")]
 
-use kurbo::common::{GAUSS_LEGENDRE_COEFFS_11, GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9};
+use kurbo::common::{GAUSS_LEGENDRE_COEFFS_7, GAUSS_LEGENDRE_COEFFS_9, GAUSS_LEGENDRE_COEFFS_11};
 use kurbo::{
     CubicBez, ParamCurve, ParamCurveArclen, ParamCurveCurvature, ParamCurveDeriv, Point, Vec2,
 };
@@ -144,11 +144,7 @@ fn est_gauss11_error_3(c: CubicBez) -> f64 {
     let pc_err = (lp - lc) * 0.02;
     let ks = est_max_curvature(c) * lp;
     let est = ks.powi(3) * lp * 8e-9;
-    if est < pc_err {
-        est
-    } else {
-        pc_err
-    }
+    if est < pc_err { est } else { pc_err }
 }
 
 fn est_gauss9_error_3(c: CubicBez) -> f64 {
@@ -157,11 +153,7 @@ fn est_gauss9_error_3(c: CubicBez) -> f64 {
     let pc_err = (lp - lc) * 0.02;
     let ks = est_max_curvature(c) * lp;
     let est = ks.powi(3) * lp * 5e-8;
-    if est < pc_err {
-        est
-    } else {
-        pc_err
-    }
+    if est < pc_err { est } else { pc_err }
 }
 
 // A new approach based on integrating local error; the cost of evaluating the

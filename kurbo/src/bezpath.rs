@@ -13,8 +13,8 @@ use alloc::vec::Vec;
 
 use arrayvec::ArrayVec;
 
-use crate::common::{solve_cubic, solve_quadratic};
 use crate::MAX_EXTREMA;
+use crate::common::{solve_cubic, solve_quadratic};
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, Rect, Shape, TranslateScale, Vec2,
@@ -1062,11 +1062,7 @@ impl PathSeg {
                 }
                 let t = quad.solve_monotonic_for_y(p.y);
                 let x = quad.eval(t).x;
-                if p.x >= x {
-                    sign
-                } else {
-                    0
-                }
+                if p.x >= x { sign } else { 0 }
             }
             PathSeg::Cubic(cubic) => {
                 let p1 = cubic.p1;
@@ -1079,11 +1075,7 @@ impl PathSeg {
                 }
                 let t = cubic.solve_monotonic_for_y(p.y);
                 let x = cubic.eval(t).x;
-                if p.x >= x {
-                    sign
-                } else {
-                    0
-                }
+                if p.x >= x { sign } else { 0 }
             }
         }
     }
@@ -1284,22 +1276,14 @@ impl PathSeg {
                     d01
                 } else {
                     let d02 = c.p2 - c.p0;
-                    if d02.hypot2() > EPS {
-                        d02
-                    } else {
-                        c.p3 - c.p0
-                    }
+                    if d02.hypot2() > EPS { d02 } else { c.p3 - c.p0 }
                 };
                 let d23 = c.p3 - c.p2;
                 let d1 = if d23.hypot2() > EPS {
                     d23
                 } else {
                     let d13 = c.p3 - c.p1;
-                    if d13.hypot2() > EPS {
-                        d13
-                    } else {
-                        c.p3 - c.p0
-                    }
+                    if d13.hypot2() > EPS { d13 } else { c.p3 - c.p0 }
                 };
                 (d0, d1)
             }
@@ -2119,18 +2103,22 @@ mod tests {
         let r = Rect::from_points((x0, y0), (x1, y1));
 
         let path0 = r.into_path(0.0);
-        assert!(path0
-            .elements()
-            .iter()
-            .skip(1)
-            .all(|el| !matches!(el, PathEl::MoveTo(_))));
+        assert!(
+            path0
+                .elements()
+                .iter()
+                .skip(1)
+                .all(|el| !matches!(el, PathEl::MoveTo(_)))
+        );
 
         let path1 = BezPath::from_path_segments(path0.segments());
-        assert!(path1
-            .elements()
-            .iter()
-            .skip(1)
-            .all(|el| !matches!(el, PathEl::MoveTo(_))));
+        assert!(
+            path1
+                .elements()
+                .iter()
+                .skip(1)
+                .all(|el| !matches!(el, PathEl::MoveTo(_)))
+        );
     }
 
     #[test]

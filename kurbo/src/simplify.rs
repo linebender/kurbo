@@ -38,8 +38,8 @@ use core::ops::Range;
 use crate::common::FloatFuncs;
 
 use crate::{
-    fit_to_bezpath, fit_to_bezpath_opt, BezPath, CubicBez, CurveFitSample, Line, ParamCurve,
-    ParamCurveDeriv, ParamCurveFit, PathEl, PathSeg, Point, QuadBez, Vec2,
+    BezPath, CubicBez, CurveFitSample, Line, ParamCurve, ParamCurveDeriv, ParamCurveFit, PathEl,
+    PathSeg, Point, QuadBez, Vec2, fit_to_bezpath, fit_to_bezpath_opt,
 };
 
 /// A Bézier path which has been prepared for simplification.
@@ -380,7 +380,7 @@ impl SimplifyOptions {
 mod tests {
     use crate::BezPath;
 
-    use super::{simplify_bezpath, SimplifyOptions};
+    use super::{SimplifyOptions, simplify_bezpath};
 
     #[test]
     fn simplify_lines_corner() {

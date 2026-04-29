@@ -11,8 +11,8 @@ use smallvec::SmallVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    common::solve_quadratic, Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen,
-    PathEl, PathSeg, Point, QuadBez, Vec2,
+    Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point,
+    QuadBez, Vec2, common::solve_quadratic,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -853,8 +853,8 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        dash, segments, stroke, BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg,
-        Shape, Stroke, StrokeOpts,
+        BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg, Shape, Stroke,
+        StrokeOpts, dash, segments, stroke,
     };
 
     // A degenerate stroke with a cusp at the endpoint.

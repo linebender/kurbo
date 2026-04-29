@@ -11,11 +11,11 @@ use alloc::vec::Vec;
 use arrayvec::ArrayVec;
 
 use crate::{
-    common::{
-        factor_quartic_inner, solve_cubic, solve_itp_fallible, solve_quadratic,
-        GAUSS_LEGENDRE_COEFFS_16,
-    },
     Affine, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveNearest, Point, Vec2,
+    common::{
+        GAUSS_LEGENDRE_COEFFS_16, factor_quartic_inner, solve_cubic, solve_itp_fallible,
+        solve_quadratic,
+    },
 };
 
 #[cfg(not(feature = "std"))]
@@ -527,11 +527,7 @@ fn cubic_fit(th0: f64, th1: f64, area: f64, mx: f64) -> ArrayVec<(CubicBez, f64,
         .filter_map(|&d0| {
             let (d0, d1) = if d0 > 0.0 {
                 let d1 = (d0 * s0 - area * (10. / 3.)) / (0.5 * d0 * s01 - s1);
-                if d1 > 0.0 {
-                    (d0, d1)
-                } else {
-                    (s1 / s01, 0.0)
-                }
+                if d1 > 0.0 { (d0, d1) } else { (s1 / s01, 0.0) }
             } else {
                 (0.0, s0 / s01)
             };

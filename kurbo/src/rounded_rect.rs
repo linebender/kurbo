@@ -6,7 +6,7 @@
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 use core::ops::{Add, Sub};
 
-use crate::{arc::ArcAppendIter, Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2};
+use crate::{Arc, PathEl, Point, Rect, RoundedRectRadii, Shape, Size, Vec2, arc::ArcAppendIter};
 
 #[allow(unused_imports)] // This is unused in later versions of Rust because of additions to core::f32
 #[cfg(not(feature = "std"))]
@@ -347,11 +347,7 @@ impl Shape for RoundedRect {
         //    (px, py) is inside a circle centered around the origin with the
         //    given radius.
         let inside = px * px + py * py <= radius * radius;
-        if inside {
-            1
-        } else {
-            0
-        }
+        if inside { 1 } else { 0 }
     }
 
     #[inline]

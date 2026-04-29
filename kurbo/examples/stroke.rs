@@ -6,7 +6,7 @@
 //! This example has been lightly adapted from Vello, which in turn has
 //! been adapted from the Skia "tricky stroke" test.
 
-use kurbo::{stroke, Affine, BezPath, Cap, Join, Rect, Shape, Stroke, StrokeOpts};
+use kurbo::{Affine, BezPath, Cap, Join, Rect, Shape, Stroke, StrokeOpts, stroke};
 
 fn tricky_strokes() {
     const CELL_SIZE: f64 = 200.;

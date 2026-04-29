@@ -7,7 +7,7 @@
 
 // TODO: organize so there's less cut'n'paste from arclen_accuracy example.
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
 use kurbo::{ParamCurve, ParamCurveArclen, ParamCurveDeriv, QuadBez};

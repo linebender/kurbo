@@ -220,11 +220,7 @@ impl Shape for Triangle {
         let s1 = (self.c - self.b).cross(pt - self.b).signum();
         let s2 = (self.a - self.c).cross(pt - self.c).signum();
 
-        if s0 == s1 && s1 == s2 {
-            s0 as i32
-        } else {
-            0
-        }
+        if s0 == s1 && s1 == s2 { s0 as i32 } else { 0 }
     }
 
     #[inline]

@@ -5,7 +5,7 @@
 //! new quartic solver.
 
 use arrayvec::ArrayVec;
-use kurbo::{common::solve_quartic, ParamCurve, Point, QuadBez, Shape};
+use kurbo::{ParamCurve, Point, QuadBez, Shape, common::solve_quartic};
 use rand::Rng;
 
 fn rand_point() -> Point {
