@@ -21,6 +21,7 @@ This release has an [MSRV][] of 1.85.
 - Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom][])
 - Ability to add and subtract `Insets` from other `Insets`. ([#549][] by [@xStrom][])
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
+- Add `expand` for directional expansion of filled `BezPath`s by a `Vec2`. ([#570][] by [@jrmoulton][])
 
 ## Changed
 

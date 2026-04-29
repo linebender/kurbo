@@ -12,7 +12,7 @@ use crate::common::FloatFuncs;
 
 use crate::{
     common::solve_quadratic, Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen,
-    PathEl, PathSeg, Point, QuadBez, Vec2,
+    PathEl, PathSeg, Point, QuadBez, Shape, Vec2,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -258,6 +258,115 @@ pub fn stroke(
     ctx.output
 }
 
+/// Expand a filled path.
+///
+/// This applies a contour-aware offset to each subpath, which is useful for
+/// expanding or shrinking glyph outlines. Positive values expand the filled
+/// region and negative values shrink it.
+///
+/// The interpretation of "outward" depends on subpath winding. Each contour is
+/// offset according to its own winding direction, so the result is most
+/// predictable when the input uses consistent fill winding conventions.
+///
+/// For font outlines, that convention is usually already present: outer
+/// contours and counters are typically wound in opposite directions. In that
+/// case, expanding grows the outer contour and shrinks counters, while negative
+/// expansion does the reverse.
+///
+/// If different subpaths use inconsistent winding, `expand` will still offset
+/// each contour according to the winding it observes, but the result may not
+/// match the caller's intended notion of "outer" and "hole". In particular,
+/// two visually nested contours with the same winding will both expand in the
+/// same winding-relative direction rather than being treated automatically as
+/// outer contour and hole.
+pub fn expand(
+    path: &BezPath,
+    expand: Vec2,
+    join: Join,
+    miter_limit: f64,
+    tolerance: f64,
+) -> BezPath {
+    let params = ExpandParams {
+        expand,
+        join,
+        miter_limit,
+    };
+    let contour_sign = if path.area() < 0.0 { -1.0 } else { 1.0 };
+    // If `expand` has the same sign on both axes, scale into a space where the
+    // requested anisotropic expand becomes a unit-radius scalar offset.
+    if let Some(normalized) = normalized_expand_space(expand, tolerance) {
+        expand_same_sign(path, params, normalized, contour_sign, tolerance)
+    } else {
+        // Mixed-sign or zero-axis expansion stays in original space and uses the flattened path.
+        expand_anisotropic_flattened(path.iter(), params, tolerance, contour_sign)
+    }
+}
+
+/// Expand a same-sign anisotropic fill, using normalized-space curves when they are beneficial.
+fn expand_same_sign(
+    path: &BezPath,
+    params: ExpandParams,
+    normalized: NormalizedExpandSpace,
+    contour_sign: f64,
+    tolerance: f64,
+) -> BezPath {
+    if !path
+        .elements()
+        .iter()
+        .any(|el| matches!(el, PathEl::QuadTo(_, _) | PathEl::CurveTo(_, _, _)))
+    {
+        // Purely linear contours do not need normalized scalar handling; the
+        // original-space anisotropic polyline path keeps support-face corner
+        // selection consistent for these contours.
+        return expand_anisotropic_flattened(path.iter(), params, tolerance, contour_sign);
+    }
+
+    let mut result = BezPath::new();
+    if append_normalized_curves(
+        path,
+        normalized,
+        contour_sign,
+        params.join,
+        params.miter_limit,
+        &mut result,
+    ) {
+        // Prefer the curve-preserving result when the quadratic/cubic approximation succeeds.
+        result
+    } else {
+        // Fall back to the flattened normalized-space implementation for hard curve cases.
+        expand_normalized_flattened(
+            path,
+            normalized,
+            contour_sign,
+            params.join,
+            params.miter_limit,
+        )
+    }
+}
+
+/// Expand in normalized space by flattening first, then offsetting the
+/// resulting polyline with scalar-radius join logic.
+fn expand_normalized_flattened(
+    path: &BezPath,
+    normalized: NormalizedExpandSpace,
+    contour_sign: f64,
+    join: Join,
+    miter_limit: f64,
+) -> BezPath {
+    let scalar_style = Stroke::new(2.0 * normalized.radius.abs())
+        .with_caps(Cap::Round)
+        .with_join(join)
+        .with_miter_limit(miter_limit);
+    expand_normalized_flattened_impl(
+        path.iter().map(|el| normalized.to_unit * el),
+        scalar_style,
+        normalized.radius,
+        normalized.from_unit,
+        normalized.tolerance,
+        contour_sign,
+    )
+}
+
 /// Expand a stroke into a fill.
 ///
 /// This is the same as [`stroke`], except for the fact that you can explicitly pass a
@@ -290,23 +399,13 @@ fn stroke_undashed(
     ctx: &mut StrokeCtx,
 ) {
     ctx.reset();
-    ctx.join_thresh = 2.0 * tolerance / style.width;
+    ctx.join_thresh = 2.0 * tolerance / style.width.max(f64::EPSILON);
 
     for el in path {
         let p0 = ctx.last_pt;
         match el {
-            PathEl::MoveTo(p) => {
-                ctx.finish(style);
-                ctx.start_pt = p;
-                ctx.last_pt = p;
-            }
-            PathEl::LineTo(p1) => {
-                if p1 != p0 {
-                    let tangent = p1 - p0;
-                    ctx.do_join(style, tangent);
-                    ctx.last_tan = tangent;
-                    ctx.do_line(style, tangent, p1);
-                }
+            PathEl::MoveTo(_) | PathEl::LineTo(_) | PathEl::ClosePath => {
+                stroke_undashed_line_el(el, p0, style, ctx);
             }
             PathEl::QuadTo(p1, p2) => {
                 if p1 != p0 || p2 != p0 {
@@ -326,18 +425,788 @@ fn stroke_undashed(
                     ctx.last_tan = tan1;
                 }
             }
-            PathEl::ClosePath => {
-                if p0 != ctx.start_pt {
-                    let tangent = ctx.start_pt - p0;
-                    ctx.do_join(style, tangent);
-                    ctx.last_tan = tangent;
-                    ctx.do_line(style, tangent, ctx.start_pt);
-                }
-                ctx.finish_closed(style);
-            }
         }
     }
     ctx.finish(style);
+}
+
+fn stroke_undashed_line_el(el: PathEl, p0: Point, style: &Stroke, ctx: &mut StrokeCtx) {
+    match el {
+        PathEl::MoveTo(p) => {
+            ctx.finish(style);
+            ctx.start_pt = p;
+            ctx.last_pt = p;
+        }
+        PathEl::LineTo(p1) => {
+            if p1 != p0 {
+                let tangent = p1 - p0;
+                ctx.do_join(style, tangent);
+                ctx.last_tan = tangent;
+                ctx.do_line(style, tangent, p1);
+            }
+        }
+        PathEl::ClosePath => {
+            if p0 != ctx.start_pt {
+                let tangent = ctx.start_pt - p0;
+                ctx.do_join(style, tangent);
+                ctx.last_tan = tangent;
+                ctx.do_line(style, tangent, ctx.start_pt);
+            }
+            ctx.finish_closed(style);
+        }
+        PathEl::QuadTo(_, _) | PathEl::CurveTo(_, _, _) => unreachable!(),
+    }
+}
+
+#[derive(Copy, Clone)]
+struct NormalizedExpandSpace {
+    to_unit: Affine,
+    from_unit: Affine,
+    radius: f64,
+    tolerance: f64,
+}
+
+#[derive(Copy, Clone)]
+enum OffsetSeg {
+    Line(Point),
+    Cubic(CubicBez),
+}
+
+struct OffsetSegInfo {
+    center: Point,
+    start: Point,
+    tan_start: Vec2,
+    tan_end: Vec2,
+    seg: OffsetSeg,
+}
+
+#[derive(Copy, Clone)]
+struct ExpandParams {
+    expand: Vec2,
+    join: Join,
+    miter_limit: f64,
+}
+
+/// Emit one completed original-space contour for flattened anisotropic expansion.
+fn flush_anisotropic_flattened_subpath(
+    out: &mut BezPath,
+    tolerance: f64,
+    contour_sign: f64,
+    params: ExpandParams,
+    points: &mut Vec<Point>,
+) {
+    match points.as_slice() {
+        [p0, p1] => {
+            let degenerate_style = Stroke::new(0.0)
+                .with_caps(Cap::Round)
+                .with_join(params.join)
+                .with_miter_limit(params.miter_limit);
+            let stroked = stroke(
+                [PathEl::MoveTo(*p0), PathEl::LineTo(*p1)],
+                &degenerate_style,
+                &StrokeOpts::default(),
+                tolerance,
+            );
+            out.extend(stroked.iter());
+        }
+        [_, _, ..] => offset_closed_polyline_into(points, params, contour_sign, tolerance, out),
+        _ => {}
+    }
+    points.clear();
+}
+
+/// Flatten the path once and expand each contour in the original coordinate space.
+fn expand_anisotropic_flattened(
+    path: impl IntoIterator<Item = PathEl>,
+    params: ExpandParams,
+    tolerance: f64,
+    contour_sign: f64,
+) -> BezPath {
+    let mut result = BezPath::new();
+    let mut points = Vec::new();
+
+    crate::flatten(path, tolerance, |el| match el {
+        PathEl::MoveTo(p) => {
+            // Each closed contour is expanded independently once its flattened
+            // point sequence is complete.
+            flush_anisotropic_flattened_subpath(
+                &mut result,
+                tolerance,
+                contour_sign,
+                params,
+                &mut points,
+            );
+            points.push(p);
+        }
+        PathEl::LineTo(p) => points.push(p),
+        PathEl::ClosePath => flush_anisotropic_flattened_subpath(
+            &mut result,
+            tolerance,
+            contour_sign,
+            params,
+            &mut points,
+        ),
+        PathEl::QuadTo(_, _) | PathEl::CurveTo(_, _, _) => unreachable!(),
+    });
+    flush_anisotropic_flattened_subpath(&mut result, tolerance, contour_sign, params, &mut points);
+    result
+}
+
+/// Emit one completed normalized-space contour for flattened scalar expansion.
+fn flush_scalar_flattened_subpath(
+    out: &mut BezPath,
+    tolerance: f64,
+    contour_sign: f64,
+    style: &Stroke,
+    radius: f64,
+    from_unit: Affine,
+    points: &mut Vec<Point>,
+) {
+    match points.as_slice() {
+        [p0, p1] => {
+            let stroked = stroke(
+                [PathEl::MoveTo(*p0), PathEl::LineTo(*p1)],
+                style,
+                &StrokeOpts::default(),
+                tolerance,
+            );
+            out.extend(stroked.iter().map(|el| from_unit * el));
+        }
+        [_, _, ..] => offset_closed_polyline_scalar_into(
+            points,
+            contour_sign,
+            radius,
+            style.join,
+            style.miter_limit,
+            tolerance,
+            from_unit,
+            out,
+        ),
+        _ => {}
+    }
+    points.clear();
+}
+
+/// Flatten the normalized path once and expand each contour with scalar-radius logic.
+fn expand_normalized_flattened_impl(
+    path: impl IntoIterator<Item = PathEl>,
+    style: Stroke,
+    radius: f64,
+    from_unit: Affine,
+    tolerance: f64,
+    contour_sign: f64,
+) -> BezPath {
+    let mut result = BezPath::new();
+    let mut points = Vec::new();
+
+    crate::flatten(path, tolerance, |el| match el {
+        PathEl::MoveTo(p) => {
+            flush_scalar_flattened_subpath(
+                &mut result,
+                tolerance,
+                contour_sign,
+                &style,
+                radius,
+                from_unit,
+                &mut points,
+            );
+            points.push(p);
+        }
+        PathEl::LineTo(p) => points.push(p),
+        PathEl::ClosePath => flush_scalar_flattened_subpath(
+            &mut result,
+            tolerance,
+            contour_sign,
+            &style,
+            radius,
+            from_unit,
+            &mut points,
+        ),
+        PathEl::QuadTo(_, _) | PathEl::CurveTo(_, _, _) => unreachable!(),
+    });
+    flush_scalar_flattened_subpath(
+        &mut result,
+        tolerance,
+        contour_sign,
+        &style,
+        radius,
+        from_unit,
+        &mut points,
+    );
+    result
+}
+
+/// Build the affine-normalized scalar-offset representation for a same-sign anisotropic expand.
+fn normalized_expand_space(expand: Vec2, tolerance: f64) -> Option<NormalizedExpandSpace> {
+    // Same-sign axis-aligned expansion is equivalent to unit-radius offsetting
+    // after scaling into ellipse-normalized coordinates.
+    let common_sign = if expand.x != 0.0 {
+        expand.x.signum()
+    } else {
+        expand.y.signum()
+    };
+    if common_sign == 0.0 {
+        return None;
+    }
+    if expand.x != 0.0 && expand.y != 0.0 && expand.y.signum() != common_sign {
+        return None;
+    }
+    let max_scale = expand.x.abs().max(expand.y.abs());
+    let zero_axis_scale = (max_scale * 1e-3).max(tolerance * 1e-3).max(f64::EPSILON);
+    let scale_x = if expand.x == 0.0 {
+        zero_axis_scale
+    } else {
+        expand.x.abs()
+    };
+    let scale_y = if expand.y == 0.0 {
+        zero_axis_scale
+    } else {
+        expand.y.abs()
+    };
+    Some(NormalizedExpandSpace {
+        to_unit: Affine::scale_non_uniform(1.0 / scale_x, 1.0 / scale_y),
+        from_unit: Affine::scale_non_uniform(scale_x, scale_y),
+        radius: common_sign,
+        tolerance: tolerance / scale_x.max(scale_y),
+    })
+}
+
+/// Append all contours using the curve-preserving normalized-space path.
+fn append_normalized_curves(
+    path: &BezPath,
+    normalized: NormalizedExpandSpace,
+    contour_sign: f64,
+    join: Join,
+    miter_limit: f64,
+    out: &mut BezPath,
+) -> bool {
+    let mut subpath = Vec::new();
+
+    for el in path.iter().map(|el| normalized.to_unit * el) {
+        if matches!(el, PathEl::MoveTo(_)) && !subpath.is_empty() {
+            if !append_subpath_scalar_curve(
+                &subpath,
+                contour_sign,
+                normalized.radius,
+                join,
+                miter_limit,
+                normalized.tolerance,
+                normalized.from_unit,
+                out,
+            ) {
+                return false;
+            }
+            subpath.clear();
+        }
+        subpath.push(el);
+    }
+
+    append_subpath_scalar_curve(
+        &subpath,
+        contour_sign,
+        normalized.radius,
+        join,
+        miter_limit,
+        normalized.tolerance,
+        normalized.from_unit,
+        out,
+    )
+}
+
+/// Expand a single normalized-space contour using line offsets and quadratic-derived curve offsets.
+fn append_subpath_scalar_curve(
+    subpath: &[PathEl],
+    contour_sign: f64,
+    radius: f64,
+    join: Join,
+    miter_limit: f64,
+    tolerance: f64,
+    from_unit: Affine,
+    out: &mut BezPath,
+) -> bool {
+    let mut current = match subpath.first().copied() {
+        None => return true,
+        Some(PathEl::MoveTo(p)) => p,
+        Some(PathEl::LineTo(p)) | Some(PathEl::QuadTo(_, p)) | Some(PathEl::CurveTo(_, _, p)) => p,
+        Some(PathEl::ClosePath) => return true,
+    };
+    let start = current;
+    let mut segs = Vec::new();
+    // Positive contour winding and positive radius should expand outward, so
+    // the scalar offset distance in normalized space is the opposite sign.
+    let signed_distance = -radius * contour_sign;
+
+    for &el in &subpath[1..] {
+        match el {
+            PathEl::MoveTo(_) => break,
+            PathEl::LineTo(p1) => {
+                if p1 != current {
+                    segs.push(offset_line_segment(current, p1, contour_sign, radius));
+                    current = p1;
+                }
+            }
+            PathEl::QuadTo(p1, p2) => {
+                let quad = QuadBez::new(current, p1, p2);
+                let Some(seg) = offset_quad_segment(quad, contour_sign, signed_distance, radius)
+                else {
+                    return false;
+                };
+                segs.push(seg);
+                current = p2;
+            }
+            PathEl::CurveTo(p1, p2, p3) => {
+                let cubic = CubicBez::new(current, p1, p2, p3);
+                // Cubics are approximated by quadratic pieces so the same
+                // quadratic offset fit can be reused for all curved segments.
+                let Some(spline) = cubic.approx_spline(tolerance) else {
+                    return false;
+                };
+                for quad in spline.to_quads() {
+                    let Some(seg) =
+                        offset_quad_segment(quad, contour_sign, signed_distance, radius)
+                    else {
+                        return false;
+                    };
+                    segs.push(seg);
+                }
+                current = p3;
+            }
+            PathEl::ClosePath => {
+                if current != start {
+                    segs.push(offset_line_segment(current, start, contour_sign, radius));
+                    current = start;
+                }
+            }
+        }
+    }
+
+    if segs.len() == 1 {
+        if let OffsetSeg::Line(line_end) = segs[0].seg {
+            let scalar_style = Stroke::new(2.0 * radius.abs())
+                .with_caps(Cap::Round)
+                .with_join(join)
+                .with_miter_limit(miter_limit);
+            let stroked = stroke(
+                [PathEl::MoveTo(segs[0].start), PathEl::LineTo(line_end)],
+                &scalar_style,
+                &StrokeOpts::default(),
+                tolerance,
+            );
+            out.extend(stroked.iter().map(|el| from_unit * el));
+            return true;
+        }
+    }
+
+    if let Some((first, rest)) = segs.split_first() {
+        let last = segs.last().unwrap();
+        let start_norm = scalar_normal_for_tangent(last.tan_end, radius);
+        out.move_to(from_unit * (start - start_norm));
+        offset_polyline_join_scalar(
+            out,
+            first.center,
+            last.tan_end,
+            first.tan_start,
+            contour_sign,
+            radius,
+            join,
+            miter_limit,
+            tolerance / radius.abs().max(f64::EPSILON),
+            tolerance,
+            from_unit,
+        );
+        append_offset_seg_info(out, first, from_unit);
+        let mut prev_tan = first.tan_end;
+        for seg in rest {
+            offset_polyline_join_scalar(
+                out,
+                seg.center,
+                prev_tan,
+                seg.tan_start,
+                contour_sign,
+                radius,
+                join,
+                miter_limit,
+                tolerance / radius.abs().max(f64::EPSILON),
+                tolerance,
+                from_unit,
+            );
+            append_offset_seg_info(out, seg, from_unit);
+            prev_tan = seg.tan_end;
+        }
+        out.close_path();
+    }
+    true
+}
+
+/// Append one already-offset segment, folding the preceding join into cubic starts when possible.
+fn append_offset_seg_info(out: &mut BezPath, seg: &OffsetSegInfo, from_unit: Affine) {
+    match seg.seg {
+        OffsetSeg::Line(end) => out.line_to(from_unit * end),
+        OffsetSeg::Cubic(cubic) => {
+            let start = from_unit * seg.start;
+            let current = out
+                .elements()
+                .last()
+                .and_then(PathEl::end_point)
+                .unwrap_or(start);
+            let delta = current - start;
+            // When the join lands on the cubic's tangent line, absorb that
+            // join point into the cubic start instead of emitting a visible
+            // straight segment back to the fitted offset start.
+            out.curve_to(
+                from_unit * cubic.p1 + delta,
+                from_unit * cubic.p2,
+                from_unit * cubic.p3,
+            );
+        }
+    }
+}
+
+/// Offset a single line segment in normalized space and record its tangent data for joins.
+fn offset_line_segment(p0: Point, p1: Point, contour_sign: f64, radius: f64) -> OffsetSegInfo {
+    let tan = contour_sign * (p1 - p0);
+    let norm = scalar_normal_for_tangent(tan, radius);
+    OffsetSegInfo {
+        center: p0,
+        start: p0 - norm,
+        tan_start: tan,
+        tan_end: tan,
+        seg: OffsetSeg::Line(p1 - norm),
+    }
+}
+
+/// Offset a quadratic segment and package the result for contour assembly.
+fn offset_quad_segment(
+    quad: QuadBez,
+    contour_sign: f64,
+    signed_distance: f64,
+    radius: f64,
+) -> Option<OffsetSegInfo> {
+    let (raw_tan0, raw_tan1) = PathSeg::Quad(quad).tangents();
+    let tan0 = contour_sign * nonzero_tangent(raw_tan0, quad.p2 - quad.p0)?;
+    let tan1 = contour_sign * nonzero_tangent(raw_tan1, quad.p2 - quad.p0)?;
+
+    let cubic = offset_quad_cubic(quad, signed_distance)?;
+    let start_norm = scalar_normal_for_tangent(tan0, radius);
+    Some(OffsetSegInfo {
+        center: quad.p0,
+        start: quad.p0 - start_norm,
+        tan_start: tan0,
+        tan_end: tan1,
+        seg: OffsetSeg::Cubic(cubic),
+    })
+}
+
+/// Prefer a nonzero tangent, falling back to a chord direction for degenerate endpoints.
+fn nonzero_tangent(tangent: Vec2, fallback: Vec2) -> Option<Vec2> {
+    if tangent.hypot2() > f64::EPSILON {
+        Some(tangent)
+    } else if fallback.hypot2() > f64::EPSILON {
+        Some(fallback)
+    } else {
+        None
+    }
+}
+
+fn offset_quad_cubic(quad: QuadBez, distance: f64) -> Option<CubicBez> {
+    let tan0 = nonzero_tangent(quad.p1 - quad.p0, quad.p2 - quad.p0)?;
+    let tan1 = nonzero_tangent(quad.p2 - quad.p1, quad.p2 - quad.p0)?;
+    let chord = nonzero_tangent(quad.p2 - quad.p0, tan0)?;
+    let utan0 = tan0.normalize();
+    let utan1 = tan1.normalize();
+
+    let p0 = quad.p0 + distance * utan0.turn_90();
+    let p3 = quad.p2 + distance * utan1.turn_90();
+    let m = quad.eval(0.5) + distance * chord.normalize().turn_90();
+
+    let rhs = m - p0.midpoint(p3);
+    let det = utan1.cross(utan0);
+    let (p1, p2) = if det.abs() > 1e-10 {
+        // Fit a cubic that matches offset endpoints, endpoint tangents, and
+        // the midpoint sample of the offset quadratic.
+        let idet = (8.0 / 3.0) / det;
+        let a = (utan1.cross(rhs) * idet).max(0.0);
+        let b = (utan0.cross(rhs) * idet).max(0.0);
+        (p0 + a * utan0, p3 - b * utan1)
+    } else {
+        // Near-parallel endpoint tangents are numerically unstable; fall back
+        // to a chord-thirds cubic, which is exact for straight lines.
+        let chord = p3 - p0;
+        (p0 + chord * (1.0 / 3.0), p3 - chord * (1.0 / 3.0))
+    };
+    Some(CubicBez::new(p0, p1, p2, p3))
+}
+
+/// Offset a flattened anisotropic contour directly in the original coordinate space.
+fn offset_closed_polyline_into(
+    points: &[Point],
+    params: ExpandParams,
+    contour_sign: f64,
+    tolerance: f64,
+    out: &mut BezPath,
+) {
+    let effective_width = 2.0 * params.expand.x.max(params.expand.y);
+    let join_thresh = 2.0 * tolerance / effective_width.max(f64::EPSILON);
+    let n = points.len();
+    let first_tan = contour_sign * (points[1] - points[0]);
+    let mut last_tan = contour_sign * (points[0] - points[n - 1]);
+    let start_norm = expand_support_for_edge(params.expand, last_tan, first_tan);
+    let start_pt = selected_offset_point(points[0], start_norm, true);
+
+    out.move_to(start_pt);
+    for i in 0..n {
+        let p0 = points[i];
+        let p1 = points[(i + 1) % n];
+        let tan0 = contour_sign * (p1 - p0);
+        let next_tan = contour_sign * (points[(i + 2) % n] - p1);
+        offset_polyline_join(
+            out,
+            p0,
+            last_tan,
+            tan0,
+            params,
+            true,
+            join_thresh,
+            tolerance,
+        );
+        let norm = expand_support_for_edge(params.expand, tan0, next_tan);
+        let end_pt = selected_offset_point(p1, norm, true);
+        if i + 1 != n || end_pt != start_pt {
+            line_to_if_needed(out, end_pt);
+        }
+        last_tan = tan0;
+    }
+    out.close_path();
+}
+
+/// Compute the scalar-radius normal used in normalized-space offsetting.
+fn scalar_normal_for_tangent(tangent: Vec2, radius: f64) -> Vec2 {
+    radius / tangent.hypot() * Vec2::new(-tangent.y, tangent.x)
+}
+
+/// Return the sign of a scalar, but preserve exact zeros instead of inheriting signed-zero quirks.
+fn axis_sign(value: f64) -> f64 {
+    if value > 0.0 {
+        1.0
+    } else if value < 0.0 {
+        -1.0
+    } else {
+        0.0
+    }
+}
+
+/// Compute the support point of the anisotropic expand box for the given tangent.
+fn expand_support_for_tangent(expand: Vec2, tangent: Vec2) -> Vec2 {
+    Vec2::new(
+        -expand.x * axis_sign(tangent.y),
+        expand.y * axis_sign(tangent.x),
+    )
+}
+
+/// Pick a support point for an edge, falling back to the next tangent when the edge lies on a face.
+fn expand_support_for_edge(expand: Vec2, tangent: Vec2, fallback_tangent: Vec2) -> Vec2 {
+    Vec2::new(
+        -expand.x
+            * if tangent.y != 0.0 {
+                axis_sign(tangent.y)
+            } else {
+                axis_sign(fallback_tangent.y)
+            },
+        expand.y
+            * if tangent.x != 0.0 {
+                axis_sign(tangent.x)
+            } else {
+                axis_sign(fallback_tangent.x)
+            },
+    )
+}
+
+/// Offset a flattened normalized-space contour and map the result back through `from_unit`.
+fn offset_closed_polyline_scalar_into(
+    points: &[Point],
+    contour_sign: f64,
+    radius: f64,
+    join: Join,
+    miter_limit: f64,
+    tolerance: f64,
+    from_unit: Affine,
+    out: &mut BezPath,
+) {
+    let join_thresh = tolerance / radius.abs().max(f64::EPSILON);
+    let n = points.len();
+    let mut last_tan = contour_sign * (points[0] - points[n - 1]);
+    let start_norm = scalar_normal_for_tangent(last_tan, radius);
+    let start_pt = from_unit * (points[0] - start_norm);
+
+    out.move_to(start_pt);
+    for i in 0..n {
+        let p0 = points[i];
+        let p1 = points[(i + 1) % n];
+        let tan0 = contour_sign * (p1 - p0);
+        offset_polyline_join_scalar(
+            out,
+            p0,
+            last_tan,
+            tan0,
+            contour_sign,
+            radius,
+            join,
+            miter_limit,
+            join_thresh,
+            tolerance,
+            from_unit,
+        );
+        let norm = scalar_normal_for_tangent(tan0, radius);
+        let end_pt = from_unit * (p1 - norm);
+        if i + 1 != n || end_pt != start_pt {
+            line_to_if_needed(out, end_pt);
+        }
+        last_tan = tan0;
+    }
+    out.close_path();
+}
+
+/// Choose the forward- or backward-side offset point around a contour vertex.
+fn selected_offset_point(center: Point, norm: Vec2, use_forward: bool) -> Point {
+    if use_forward {
+        center - norm
+    } else {
+        center + norm
+    }
+}
+
+/// Append a line only when it changes the current point.
+fn line_to_if_needed(out: &mut BezPath, point: Point) {
+    let current = out.elements().last().and_then(PathEl::end_point);
+    if current != Some(point) {
+        out.line_to(point);
+    }
+}
+
+/// Emit the join geometry for an anisotropic polyline offset in original coordinates.
+fn offset_polyline_join(
+    out: &mut BezPath,
+    center: Point,
+    prev_tan: Vec2,
+    next_tan: Vec2,
+    params: ExpandParams,
+    use_forward: bool,
+    join_thresh: f64,
+    tolerance: f64,
+) {
+    let norm = expand_support_for_tangent(params.expand, next_tan);
+    let prev_norm = expand_support_for_tangent(params.expand, prev_tan);
+    let cross = prev_tan.cross(next_tan);
+    let dot = prev_tan.dot(next_tan);
+    let hypot = cross.hypot(dot);
+    if hypot == 0.0 || dot > 0.0 && cross.abs() < hypot * join_thresh {
+        return;
+    }
+    let stable_cross = cross.abs() >= hypot * join_thresh;
+
+    let outer = if use_forward {
+        cross > 0.0
+    } else {
+        cross < 0.0
+    };
+    let next_pt = selected_offset_point(center, norm, use_forward);
+
+    if !outer {
+        return;
+    }
+
+    match params.join {
+        Join::Bevel => line_to_if_needed(out, next_pt),
+        Join::Miter => {
+            if stable_cross && 2.0 * hypot < (hypot + dot) * params.miter_limit.powi(2) {
+                let prev_pt = selected_offset_point(center, prev_norm, use_forward);
+                let h = prev_tan.cross(next_pt - prev_pt) / cross;
+                line_to_if_needed(out, next_pt - next_tan * h);
+            } else {
+                line_to_if_needed(out, next_pt);
+            }
+        }
+        Join::Round => {
+            let angle = cross.atan2(dot);
+            if use_forward {
+                round_join(out, tolerance, center, norm, angle);
+            } else {
+                round_join_rev(out, tolerance, center, -norm, -angle);
+            }
+        }
+    }
+}
+
+/// Emit the join geometry for a scalar-radius polyline offset in normalized space.
+fn offset_polyline_join_scalar(
+    out: &mut BezPath,
+    center: Point,
+    prev_tan: Vec2,
+    next_tan: Vec2,
+    contour_sign: f64,
+    radius: f64,
+    join: Join,
+    miter_limit: f64,
+    join_thresh: f64,
+    tolerance: f64,
+    from_unit: Affine,
+) {
+    let norm = scalar_normal_for_tangent(next_tan, radius);
+    let prev_norm = scalar_normal_for_tangent(prev_tan, radius);
+    let cross = prev_tan.cross(next_tan);
+    let dot = prev_tan.dot(next_tan);
+    let hypot = cross.hypot(dot);
+    if hypot == 0.0 || dot > 0.0 && cross.abs() < hypot * join_thresh {
+        return;
+    }
+    let stable_cross = cross.abs() >= hypot * join_thresh;
+
+    let outer = if contour_sign > 0.0 {
+        cross > 0.0
+    } else {
+        cross < 0.0
+    };
+    if !outer {
+        return;
+    }
+
+    let next_pt = center - norm;
+    match join {
+        Join::Bevel => line_to_if_needed(out, from_unit * next_pt),
+        Join::Miter => {
+            if stable_cross && 2.0 * hypot < (hypot + dot) * miter_limit.powi(2) {
+                let prev_pt = center - prev_norm;
+                let h = prev_tan.cross(next_pt - prev_pt) / cross;
+                line_to_if_needed(out, from_unit * (next_pt - next_tan * h));
+            } else {
+                line_to_if_needed(out, from_unit * next_pt);
+            }
+        }
+        Join::Round => {
+            round_join_transformed(
+                out,
+                tolerance,
+                from_unit,
+                center,
+                norm,
+                contour_sign * cross.atan2(dot),
+            );
+        }
+    }
+}
+
+/// Emit a round join after an affine map back out of normalized space.
+fn round_join_transformed(
+    out: &mut BezPath,
+    tolerance: f64,
+    transform: Affine,
+    center: Point,
+    norm: Vec2,
+    angle: f64,
+) {
+    let a = transform * Affine::new([norm.x, norm.y, -norm.y, norm.x, center.x, center.y]);
+    let arc = Arc::new(Point::ORIGIN, (1.0, 1.0), PI - angle, angle, 0.0);
+    arc.to_cubic_beziers(tolerance, |p1, p2, p3| out.curve_to(a * p1, a * p2, a * p3));
 }
 
 fn round_cap(out: &mut BezPath, tolerance: f64, center: Point, norm: Vec2) {
@@ -853,9 +1722,51 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        dash, segments, stroke, BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg,
-        Shape, Stroke, StrokeOpts,
+        dash, expand, segments, stroke, BezPath,
+        Cap::Butt,
+        Circle, CubicBez,
+        Join::{Bevel, Miter, Round},
+        Line, PathEl, PathSeg, Point, Rect, Shape, Stroke, StrokeOpts, Vec2,
     };
+
+    fn assert_path_eq(path: &BezPath, expected: &[PathEl]) {
+        assert_eq!(expected, path.elements());
+    }
+
+    fn assert_point_close(actual: Point, expected: Point) {
+        assert!((actual.x - expected.x).abs() < 1e-9);
+        assert!((actual.y - expected.y).abs() < 1e-9);
+    }
+
+    fn assert_path_similar(actual: &BezPath, expected: &BezPath, tolerance: f64) {
+        let actual = actual.elements();
+        let expected = expected.elements();
+        assert_eq!(actual.len(), expected.len());
+        for (actual, expected) in actual.iter().zip(expected.iter()) {
+            match (*actual, *expected) {
+                (PathEl::MoveTo(a), PathEl::MoveTo(b)) | (PathEl::LineTo(a), PathEl::LineTo(b)) => {
+                    assert!((a.x - b.x).abs() <= tolerance);
+                    assert!((a.y - b.y).abs() <= tolerance);
+                }
+                (PathEl::QuadTo(a1, a2), PathEl::QuadTo(b1, b2)) => {
+                    assert!((a1.x - b1.x).abs() <= tolerance);
+                    assert!((a1.y - b1.y).abs() <= tolerance);
+                    assert!((a2.x - b2.x).abs() <= tolerance);
+                    assert!((a2.y - b2.y).abs() <= tolerance);
+                }
+                (PathEl::CurveTo(a1, a2, a3), PathEl::CurveTo(b1, b2, b3)) => {
+                    assert!((a1.x - b1.x).abs() <= tolerance);
+                    assert!((a1.y - b1.y).abs() <= tolerance);
+                    assert!((a2.x - b2.x).abs() <= tolerance);
+                    assert!((a2.y - b2.y).abs() <= tolerance);
+                    assert!((a3.x - b3.x).abs() <= tolerance);
+                    assert!((a3.y - b3.y).abs() <= tolerance);
+                }
+                (PathEl::ClosePath, PathEl::ClosePath) => {}
+                _ => panic!("path element kinds differ"),
+            }
+        }
+    }
 
     // A degenerate stroke with a cusp at the endpoint.
     #[test]
@@ -935,6 +1846,264 @@ mod tests {
             let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
             assert!(stroked.is_finite());
         }
+    }
+
+    #[test]
+    fn directional_expand_fill_preserves_hole_winding() {
+        let path = BezPath::from_svg("M0,0 L10,0 L10,10 L0,10 Z M3,3 L3,7 L7,7 L7,3 Z").unwrap();
+        let expanded = expand(&path, Vec2::splat(1.0), Miter, 4.0, 0.1);
+        let mut subpaths = expanded.subpaths();
+        let outer = BezPath::from_vec(subpaths.next().unwrap().to_vec());
+        let inner = BezPath::from_vec(subpaths.next().unwrap().to_vec());
+        assert!(outer.area() > 100.0);
+        assert!(inner.area() < 0.0);
+        assert!(inner.area().abs() < 16.0);
+    }
+
+    #[test]
+    fn directional_expand_bevel_shrinks_hole() {
+        let path = BezPath::from_svg("M0,0 L10,0 L10,10 L0,10 Z M3,3 L3,7 L7,7 L7,3 Z").unwrap();
+        let expanded = expand(&path, Vec2::splat(1.0), Bevel, 4.0, 0.1);
+        let mut subpaths = expanded.subpaths();
+        let outer = BezPath::from_vec(subpaths.next().unwrap().to_vec());
+        let inner = BezPath::from_vec(subpaths.next().unwrap().to_vec());
+        assert!(outer.area() > 100.0);
+        assert!(inner.area() < 0.0);
+        assert!(inner.area().abs() < 16.0);
+    }
+
+    #[test]
+    fn directional_expand_round_shrinks_hole() {
+        let path = BezPath::from_svg("M0,0 L10,0 L10,10 L0,10 Z M3,3 L3,7 L7,7 L7,3 Z").unwrap();
+        let expanded = expand(&path, Vec2::splat(1.0), Round, 4.0, 0.1);
+        let mut subpaths = expanded.subpaths();
+        let outer = BezPath::from_vec(subpaths.next().unwrap().to_vec());
+        let inner = BezPath::from_vec(subpaths.next().unwrap().to_vec());
+        assert!(outer.area() > 100.0);
+        assert!(inner.area() < 0.0);
+        assert!(inner.area().abs() < 16.0);
+    }
+
+    #[test]
+    fn directional_expand_miter_square_svg() {
+        let rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+        let expanded = expand(&rect.to_path(0.1), Vec2::splat(5.0), Miter, 4.0, 0.1);
+        assert_path_eq(
+            &expanded,
+            &[
+                PathEl::MoveTo(Point::new(-5.0, -5.0)),
+                PathEl::LineTo(Point::new(55.0, -5.0)),
+                PathEl::LineTo(Point::new(55.0, 55.0)),
+                PathEl::LineTo(Point::new(-5.0, 55.0)),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn directional_expand_miter_square_svg_anisotropic() {
+        let rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+        let expanded = expand(&rect.to_path(0.1), Vec2::new(5.0, 10.0), Miter, 4.0, 0.1);
+        assert_path_eq(
+            &expanded,
+            &[
+                PathEl::MoveTo(Point::new(-5.0, -10.0)),
+                PathEl::LineTo(Point::new(55.0, -10.0)),
+                PathEl::LineTo(Point::new(55.0, 60.0)),
+                PathEl::LineTo(Point::new(-5.0, 60.0)),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn directional_expand_bevel_square_svg() {
+        let rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+        let expanded = expand(&rect.to_path(0.1), Vec2::splat(5.0), Bevel, 4.0, 0.1);
+        assert_path_eq(
+            &expanded,
+            &[
+                PathEl::MoveTo(Point::new(-5.0, -5.0)),
+                PathEl::LineTo(Point::new(0.0, -5.0)),
+                PathEl::LineTo(Point::new(55.0, -5.0)),
+                PathEl::LineTo(Point::new(55.0, 0.0)),
+                PathEl::LineTo(Point::new(55.0, 55.0)),
+                PathEl::LineTo(Point::new(50.0, 55.0)),
+                PathEl::LineTo(Point::new(-5.0, 55.0)),
+                PathEl::LineTo(Point::new(-5.0, 50.0)),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn directional_expand_round_rect_points() {
+        let rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+        let expanded = expand(&rect.to_path(0.1), Vec2::splat(5.0), Round, 4.0, 0.1);
+        let els = expanded.elements();
+        assert_eq!(9, els.len());
+        assert_eq!(PathEl::MoveTo(Point::new(-5.0, -5.0)), els[0]);
+        match els[1] {
+            PathEl::CurveTo(p1, p2, p3) => {
+                assert_point_close(p1, Point::new(-5.0, -2.7614237491539666));
+                assert_point_close(p2, Point::new(-2.761423749153968, -5.0));
+                assert_point_close(p3, Point::new(0.0, -5.0));
+            }
+            _ => panic!("expected first corner curve"),
+        }
+        assert_eq!(PathEl::LineTo(Point::new(55.0, -5.0)), els[2]);
+        match els[3] {
+            PathEl::CurveTo(_, _, p) => assert_point_close(p, Point::new(55.0, 0.0)),
+            _ => panic!("expected second corner curve"),
+        }
+        assert_eq!(PathEl::LineTo(Point::new(55.0, 55.0)), els[4]);
+        match els[5] {
+            PathEl::CurveTo(_, _, p) => assert_point_close(p, Point::new(50.0, 55.0)),
+            _ => panic!("expected third corner curve"),
+        }
+        assert_eq!(PathEl::LineTo(Point::new(-5.0, 55.0)), els[6]);
+        match els[7] {
+            PathEl::CurveTo(_, _, p) => assert_point_close(p, Point::new(-5.0, 50.0)),
+            _ => panic!("expected fourth corner curve"),
+        }
+        assert_eq!(PathEl::ClosePath, els[8]);
+    }
+
+    #[test]
+    fn directional_expand_quad_emits_curves() {
+        let path = BezPath::from_vec(vec![
+            PathEl::MoveTo(Point::new(0.0, 0.0)),
+            PathEl::QuadTo(Point::new(25.0, 40.0), Point::new(50.0, 0.0)),
+            PathEl::LineTo(Point::new(0.0, 0.0)),
+            PathEl::ClosePath,
+        ]);
+        let expanded = expand(&path, Vec2::splat(10.0), Round, 4.0, 0.1);
+        assert!(expanded
+            .elements()
+            .iter()
+            .any(|el| matches!(el, PathEl::CurveTo(_, _, _))));
+    }
+
+    #[test]
+    fn directional_expand_zero_axis_ring_does_not_disappear() {
+        let outer = Circle::new((0.0, 0.0), 10.0).to_path(0.1);
+        let inner = Circle::new((0.0, 0.0), 5.0).to_path(0.1).reverse_subpaths();
+        let mut ring = outer;
+        ring.extend(inner.iter());
+
+        let expanded = expand(&ring, Vec2::new(0.0, 2.0), Miter, 4.0, 0.1);
+
+        assert!(!expanded.is_empty());
+        assert!(expanded.area().abs() > ring.area().abs());
+        assert_eq!(expanded.subpaths().count(), 2);
+    }
+
+    #[test]
+    fn directional_expand_zero_y_capital_l() {
+        let path = BezPath::from_svg("M0,0 L0,10 L3,10 L3,3 L10,3 L10,0 Z").unwrap();
+        let expanded = expand(&path, Vec2::new(1.5, 0.0), Miter, 4.0, 0.1);
+        assert_path_eq(
+            &expanded,
+            &[
+                PathEl::MoveTo(Point::new(-1.5, 0.0)),
+                PathEl::LineTo(Point::new(-1.5, 10.0)),
+                PathEl::LineTo(Point::new(4.5, 10.0)),
+                PathEl::LineTo(Point::new(4.5, 3.0)),
+                PathEl::LineTo(Point::new(11.5, 3.0)),
+                PathEl::LineTo(Point::new(11.5, 0.0)),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn directional_expand_near_zero_y_capital_l() {
+        let path = BezPath::from_svg("M0,0 L0,10 L3,10 L3,3 L10,3 L10,0 Z").unwrap();
+        let expanded = expand(&path, Vec2::new(1.5, 0.001), Miter, 4.0, 0.1);
+        assert_path_eq(
+            &expanded,
+            &[
+                PathEl::MoveTo(Point::new(-1.5, -0.001)),
+                PathEl::LineTo(Point::new(-1.5, 10.001)),
+                PathEl::LineTo(Point::new(4.5, 10.001)),
+                PathEl::LineTo(Point::new(4.5, 3.001)),
+                PathEl::LineTo(Point::new(11.5, 3.001)),
+                PathEl::LineTo(Point::new(11.5, -0.001)),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn directional_expand_capital_l_isotropic() {
+        let path = BezPath::from_svg("M0,0 L0,10 L3,10 L3,3 L10,3 L10,0 Z").unwrap();
+        let expanded = expand(&path, Vec2::splat(1.5), Miter, 4.0, 0.1);
+        assert_path_eq(
+            &expanded,
+            &[
+                PathEl::MoveTo(Point::new(-1.5, -1.5)),
+                PathEl::LineTo(Point::new(-1.5, 11.5)),
+                PathEl::LineTo(Point::new(4.5, 11.5)),
+                PathEl::LineTo(Point::new(4.5, 4.5)),
+                PathEl::LineTo(Point::new(11.5, 4.5)),
+                PathEl::LineTo(Point::new(11.5, -1.5)),
+                PathEl::ClosePath,
+            ],
+        );
+    }
+
+    #[test]
+    fn directional_expand_roboto_e_is_continuous_across_small_x_threshold() {
+        let path = BezPath::from_svg(
+            "M10.359375,-0.359375 Q6.484375,-0.359375 4.0625,2.1875 Q1.640625,4.734375 1.640625,8.984375 \
+             L1.640625,9.578125 Q1.640625,12.40625 2.71875,14.625 Q3.796875,16.859375 5.734375,18.109375 \
+             Q7.6875,19.375 9.953125,19.375 Q13.65625,19.375 15.703125,16.921875 Q17.765625,14.484375 17.765625,9.9375 \
+             L17.765625,8.578125 L4.890625,8.578125 Q4.953125,5.765625 6.53125,4.03125 Q8.109375,2.296875 10.53125,2.296875 \
+             Q12.25,2.296875 13.4375,3 Q14.640625,3.703125 15.546875,4.875 L17.53125,3.328125 Q15.140625,-0.359375 10.359375,-0.359375 Z \
+             M9.953125,16.703125 Q7.984375,16.703125 6.640625,15.265625 Q5.3125,13.828125 5,11.25 L14.515625,11.25 L14.515625,11.5 \
+             Q14.375,13.96875 13.171875,15.328125 Q11.984375,16.703125 9.953125,16.703125 Z",
+        )
+        .unwrap();
+
+        let a = expand(&path, Vec2::new(0.099, 0.5), Miter, 4.0, 0.1);
+        let b = expand(&path, Vec2::new(0.101, 0.5), Miter, 4.0, 0.1);
+        assert_path_similar(&a, &b, 0.01);
+    }
+
+    #[test]
+    fn directional_expand_roboto_e_is_stable_at_zero_x() {
+        let path = BezPath::from_svg(
+            "M10.359375,-0.359375 Q6.484375,-0.359375 4.0625,2.1875 Q1.640625,4.734375 1.640625,8.984375 \
+             L1.640625,9.578125 Q1.640625,12.40625 2.71875,14.625 Q3.796875,16.859375 5.734375,18.109375 \
+             Q7.6875,19.375 9.953125,19.375 Q13.65625,19.375 15.703125,16.921875 Q17.765625,14.484375 17.765625,9.9375 \
+             L17.765625,8.578125 L4.890625,8.578125 Q4.953125,5.765625 6.53125,4.03125 Q8.109375,2.296875 10.53125,2.296875 \
+             Q12.25,2.296875 13.4375,3 Q14.640625,3.703125 15.546875,4.875 L17.53125,3.328125 Q15.140625,-0.359375 10.359375,-0.359375 Z \
+             M9.953125,16.703125 Q7.984375,16.703125 6.640625,15.265625 Q5.3125,13.828125 5,11.25 L14.515625,11.25 L14.515625,11.5 \
+             Q14.375,13.96875 13.171875,15.328125 Q11.984375,16.703125 9.953125,16.703125 Z",
+        )
+        .unwrap();
+
+        let a = expand(&path, Vec2::new(0.0, 0.5), Miter, 4.0, 0.1);
+        let b = expand(&path, Vec2::new(0.001, 0.5), Miter, 4.0, 0.1);
+        assert!((a.area() - b.area()).abs() < 0.05);
+    }
+
+    #[test]
+    fn directional_expand_roboto_e_bar_is_stable_at_zero_x() {
+        let path = BezPath::from_svg(
+            "M10.359375,-0.359375 Q6.484375,-0.359375 4.0625,2.1875 Q1.640625,4.734375 1.640625,8.984375 \
+             L1.640625,9.578125 Q1.640625,12.40625 2.71875,14.625 Q3.796875,16.859375 5.734375,18.109375 \
+             Q7.6875,19.375 9.953125,19.375 Q13.65625,19.375 15.703125,16.921875 Q17.765625,14.484375 17.765625,9.9375 \
+             L17.765625,8.578125 L4.890625,8.578125 Q4.953125,5.765625 6.53125,4.03125 Q8.109375,2.296875 10.53125,2.296875 \
+             Q12.25,2.296875 13.4375,3 Q14.640625,3.703125 15.546875,4.875 L17.53125,3.328125 Q15.140625,-0.359375 10.359375,-0.359375 Z \
+             M9.953125,16.703125 Q7.984375,16.703125 6.640625,15.265625 Q5.3125,13.828125 5,11.25 L14.515625,11.25 L14.515625,11.5 \
+             Q14.375,13.96875 13.171875,15.328125 Q11.984375,16.703125 9.953125,16.703125 Z",
+        )
+        .unwrap();
+
+        let a = expand(&path, Vec2::new(0.0, 1.5), Miter, 4.0, 0.1);
+        let b = expand(&path, Vec2::new(0.001, 1.5), Miter, 4.0, 0.1);
+        assert!((a.area() - b.area()).abs() < 0.1);
     }
 
     #[test]
