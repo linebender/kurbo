@@ -20,6 +20,18 @@ repository = "https://github.com/linebender/kurbo"
 kurbo = { version = "0.13.0", path = "kurbo", default-features = false }
 polycool = { version = "0.4.0", path = "polycool", default-features = false }
 
+arbitrary = "1.4.2"
+arbtest = "0.3.2"
+arrayvec = { version = "0.7.6", default-features = false }
+criterion = { version = "0.7.0", default-features = false }
+euclid = { version = "0.22", default-features = false }
+libm = "0.2.16"
+mint = "0.5.9"
+rand = "0.9.4"
+schemars = "0.8.22"
+serde = { version = "1.0.228", default-features = false }
+smallvec = "1.15.1"
+
 [workspace.lints]
 rust.unsafe_code = "forbid"
 
