@@ -15,9 +15,6 @@ all-features = true
 default-target = "x86_64-unknown-linux-gnu"
 targets = []
 
-[lints]
-workspace = true
-
 [features]
 default = ["std"]
 # Get floating point functions from the standard library (likely using your target's libc)
@@ -35,46 +32,29 @@ serde = ["smallvec/serde", "dep:serde"]
 schemars = ["schemars/smallvec", "dep:schemars"]
 
 [dependencies]
-smallvec = { version = "1.15.1", features = ["const_new"] }
-euclid = { version = "0.22", optional = true, default-features = false }
-polycool.workspace = true
-
-[dependencies.arrayvec]
-version = "0.7.6"
-default-features = false
-
-[dependencies.libm]
-version = "0.2.16"
-optional = true
-
-[dependencies.mint]
-version = "0.5.9"
-optional = true
-
-[dependencies.schemars]
-version = "0.8.22"
-optional = true
-
-[dependencies.serde]
-version = "1.0.228"
-optional = true
-default-features = false
-features = ["alloc", "derive"]
+arrayvec = { workspace = true }
+euclid = { workspace = true, optional = true }
+libm = { workspace = true, optional = true }
+mint = { workspace = true, optional = true }
+polycool = { workspace = true }
+schemars = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = ["alloc", "derive"] }
+smallvec = { workspace = true, features = ["const_new"] }
 
 [dev-dependencies]
 # This is used for research but not really needed; maybe refactor.
-rand = "0.9.4"
+rand = { workspace = true }
 # wasm doesn't support rayon, so disable criterion's rayon support. (In
 # principle we could make it target-dependent.)
-criterion = { version = "0.5.1", default-features = false, features = [
-    "plotters",
-    "cargo_bench_support",
-] }
+criterion = { workspace = true, features = ["plotters", "cargo_bench_support"] }
 
 [target.wasm32-unknown-unknown.dev-dependencies]
 # We have a transitive dependency on getrandom and it does not automatically
 # support wasm32-unknown-unknown. We need to enable the wasm_js feature.
 getrandom = { version = "0.3.4", features = ["wasm_js"] }
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "cubic"
