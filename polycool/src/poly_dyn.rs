@@ -34,10 +34,10 @@ impl<'a> std::ops::Mul<&'a PolyDyn> for &'a PolyDyn {
     }
 }
 
-impl std::ops::Mul<&PolyDyn> for PolyDyn {
-    type Output = PolyDyn;
+impl std::ops::Mul<&Self> for PolyDyn {
+    type Output = Self;
 
-    fn mul(self, rhs: &PolyDyn) -> PolyDyn {
+    fn mul(self, rhs: &Self) -> Self {
         (&self) * rhs
     }
 }
@@ -48,7 +48,7 @@ impl PolyDyn {
     /// The first coefficient provided will be the constant term, the second will
     /// be the linear term, and so on.
     pub fn new(coeffs: impl IntoIterator<Item = f64>) -> Self {
-        PolyDyn {
+        Self {
             coeffs: coeffs.into_iter().collect(),
         }
     }
@@ -65,7 +65,7 @@ impl PolyDyn {
     }
 
     /// Returns the polynomial that's the derivative of this polynomial.
-    pub fn deriv(&self) -> PolyDyn {
+    pub fn deriv(&self) -> Self {
         let mut coeffs = Vec::with_capacity(self.coeffs.len().saturating_sub(1));
         // If we're empty (meaning that we're the constant zero polynomial),
         // this will just return the zero polynomial again: no need for a
@@ -73,7 +73,7 @@ impl PolyDyn {
         for (i, c) in self.coeffs.iter().enumerate().skip(1) {
             coeffs.push(c * (i as f64));
         }
-        PolyDyn { coeffs }
+        Self { coeffs }
     }
 
     /// Evaluates this polynomial at a point.

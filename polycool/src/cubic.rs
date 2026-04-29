@@ -91,7 +91,7 @@ impl Cubic {
 
     #[cold]
     fn rescaled_critical_points(&self) -> Option<(f64, f64)> {
-        let scale = 2.0f64.powi(-515);
+        let scale = 2.0_f64.powi(-515);
         (*self * scale).critical_points()
     }
 

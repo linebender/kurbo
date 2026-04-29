@@ -35,6 +35,9 @@ arbtest = { workspace = true }
 # principle we could make it target-dependent.)
 criterion = { workspace = true, features = ["plotters", "cargo_bench_support"] }
 
+[lints]
+workspace = true
+
 [[bench]]
 name = "cubic_roots"
 harness = false
