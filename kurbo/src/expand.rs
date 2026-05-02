@@ -56,10 +56,16 @@ impl Diagonal2 {
         Diagonal2::new(1.0 / self.xx, 1.0 / self.yy)
     }
 
+    /// Absolute value of transform components.
+    pub fn abs(self) -> Self {
+        Self::new(self.xx.abs(), self.yy.abs())
+    }
+
     /// Scale a normal vector.
     ///
     /// This is mathematically equivalent to `self * (self * n).normalize()`
-    /// but handles zeros.
+    /// for positive transforms, but handles zeros and gets the sign correct
+    /// when negative.
     ///
     /// Note that `n` need not be unit length.
     pub fn scale_normal(self, n: Vec2) -> Vec2 {
@@ -69,7 +75,7 @@ impl Diagonal2 {
             Vec2::ZERO
         } else {
             let inv_scale = 1.0 / z_hypot2.sqrt();
-            self * z * inv_scale
+            self.abs() * z * inv_scale
         }
     }
 }
@@ -178,10 +184,10 @@ impl ExpandCtx {
             return;
         }
         let utanm = (einv * (p2 - self.last_pt)).normalize();
-        let n0 = self.expand * utan0.turn_90();
-        let n1 = self.expand * utan1.turn_90();
+        let n0 = self.expand.abs() * utan0.turn_90();
+        let n1 = self.expand.abs() * utan1.turn_90();
         let mid_chord = self.last_pt.midpoint(p2);
-        let m = mid_chord.midpoint(p1) + self.expand * utanm.turn_90();
+        let m = mid_chord.midpoint(p1) + self.expand.abs() * utanm.turn_90();
         let out_p0 = self.last_pt + n0;
         let out_p3 = p2 + n1;
         let rhs = einv * (m - out_p0.midpoint(out_p3));
@@ -222,13 +228,13 @@ impl ExpandCtx {
             soln = two_point_linear(&cx);
         }
         if let Some((a, b)) = soln {
-            let n0 = self.expand * utan0.turn_90();
-            let n1 = self.expand * utan1.turn_90();
+            let n0 = self.expand.abs() * utan0.turn_90();
+            let n1 = self.expand.abs() * utan1.turn_90();
             self.do_join(n0, self.expand * utan0, false);
             let out_p3 = p3 + n1;
             // TODO: clamp to correct direction
-            let out_p1 = p1 + n0 + self.expand * (a * utan0);
-            let out_p2 = p2 + n1 + self.expand * (b * utan1);
+            let out_p1 = p1 + n0 + self.expand.abs() * (a * utan0);
+            let out_p2 = p2 + n1 + self.expand.abs() * (b * utan1);
             self.result.curve_to(out_p1, out_p2, out_p3);
             self.last_n = Some(n1);
             self.last_tan = self.expand * utan1;
@@ -249,7 +255,7 @@ impl ExpandCtx {
             if !self.in_tolerance(n - last_n) {
                 if self.join != Join::Bevel {
                     let cross = self.last_tan.cross(tan);
-                    if cross < 0.0 {
+                    if cross * self.expand.xx < 0.0 {
                         match self.join {
                             Join::Bevel => unreachable!(),
                             Join::Miter => {
@@ -279,7 +285,7 @@ impl ExpandCtx {
                                 let tann = einv * tan;
                                 let crossn = (last_tann).cross(tann);
                                 let dotn = (last_tann).dot(tann);
-                                let angle = crossn.atan2(dotn);
+                                let angle = crossn.atan2(dotn).abs();
                                 let nt = self.expand * tann.normalize();
                                 let a = Affine::new([
                                     n.x,
@@ -290,7 +296,7 @@ impl ExpandCtx {
                                     self.last_pt.y,
                                 ]);
                                 let arc: Arc =
-                                    Arc::new(Point::ORIGIN, (1.0, 1.0), angle, -angle, 0.0);
+                                    Arc::new(Point::ORIGIN, (1.0, 1.0), -angle, angle, 0.0);
                                 let tolerance = self.tolerance * einv.xx.abs().min(einv.yy.abs());
                                 arc.to_cubic_beziers(tolerance, |p1, p2, p3| {
                                     self.result.curve_to(a * p1, a * p2, a * p3);
