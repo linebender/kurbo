@@ -1,11 +1,9 @@
 // Copyright 2026 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use core::ops::Mul;
-
 use crate::{
     Affine, Arc, BezPath, CubicBez, Join, ParamCurve, ParamCurveDeriv, PathEl, PathSeg, Point,
-    QuadBez, Vec2,
+    QuadBez, Shape, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -80,7 +78,15 @@ impl Diagonal2 {
     }
 }
 
-impl Mul<Vec2> for Diagonal2 {
+impl core::ops::Neg for Diagonal2 {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Diagonal2::new(-self.xx, -self.yy)
+    }
+}
+
+impl core::ops::Mul<Vec2> for Diagonal2 {
     type Output = Vec2;
 
     fn mul(self, rhs: Vec2) -> Vec2 {
@@ -88,7 +94,7 @@ impl Mul<Vec2> for Diagonal2 {
     }
 }
 
-impl Mul<Point> for Diagonal2 {
+impl core::ops::Mul<Point> for Diagonal2 {
     type Output = Point;
 
     fn mul(self, rhs: Point) -> Point {
@@ -101,22 +107,45 @@ impl Mul<Point> for Diagonal2 {
 /// Expand a path.
 ///
 /// Expands a filled path by the expansion, which allows separate x and y factors. The
-/// path (and the result) is interpreted according to the nonzero winding rule.
+/// path (and the result) is interpreted according to the nonzero winding rule. Both
+/// factors should be positive. A negative expansion will shrink the path but is also
+/// likely to leave intersection artifacts at corners.
 ///
-/// Each subpath must be closed.
+/// The direction of the expansion is based on the signed area of the overall path.
+/// This should give expected results most of the time, but there are exceptions. For a
+/// figure-eight path, one lobe will be expanded and the other shrunk. Similarly if
+/// there are two disjoint subpaths with opposite winding.
 ///
 /// The tolerance is mostly for joins and robustness; it is not used to guide
 /// subdivision. Rather, each Bézier segment in the input generally results in one
 /// cubic Bézier in the output. Thus, it is not expected to work well when the
 /// expansion factor is large compared with the radius of curvature on the input.
-pub fn expand(
+pub fn expand_path(
+    path: impl IntoIterator<Item = PathEl> + Shape,
+    mut expand: Diagonal2,
+    join: Join,
+    miter_limit: f64,
+    tolerance: f64,
+) -> BezPath {
+    if path.area() >= 0.0 {
+        expand = -expand;
+    }
+    expand_path_signed(path, expand, join, miter_limit, tolerance)
+}
+
+/// Expand a path when the sign is known.
+///
+/// Applies the expansion based on the path orientation, so that expansion happens
+/// with positive `expand` values on subpaths with negative area, or vice versa. This
+/// is backwards from the intuitive sign convention, but results from the choice of
+/// convention for the offset primitives.
+pub fn expand_path_signed(
     path: impl IntoIterator<Item = PathEl>,
     expand: Diagonal2,
     join: Join,
     miter_limit: f64,
     tolerance: f64,
 ) -> BezPath {
-    // TODO: evaluate area, adjust sign of expand
     let result = BezPath::new();
     let mut ctx = ExpandCtx {
         expand,
