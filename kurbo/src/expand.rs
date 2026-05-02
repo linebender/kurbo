@@ -4,7 +4,8 @@
 use core::ops::Mul;
 
 use crate::{
-    BezPath, CubicBez, Join, ParamCurve, ParamCurveDeriv, PathEl, PathSeg, Point, QuadBez, Vec2,
+    Affine, Arc, BezPath, CubicBez, Join, ParamCurve, ParamCurveDeriv, PathEl, PathSeg, Point,
+    QuadBez, Vec2,
 };
 
 #[cfg(not(feature = "std"))]
@@ -248,30 +249,55 @@ impl ExpandCtx {
             if !self.in_tolerance(n - last_n) {
                 if self.join != Join::Bevel {
                     let cross = self.last_tan.cross(tan);
-                    let dot = self.last_tan.dot(tan);
-                    let hypot = cross.hypot(dot);
-                    match self.join {
-                        Join::Bevel => unreachable!(),
-                        Join::Miter => {
-                            if cross < 0.0
-                                && 2.0 * hypot < (hypot + dot) * self.miter_limit * self.miter_limit
-                            {
-                                let h = (n - last_n).cross(tan) / self.last_tan.cross(tan);
-                                let miter_pt = self.last_pt + last_n + h * self.last_tan;
-                                // A cheap optimization to reduce line segments with joins to lines
-                                if let Some(PathEl::LineTo(p)) =
-                                    self.result.elements_mut().last_mut()
+                    if cross < 0.0 {
+                        match self.join {
+                            Join::Bevel => unreachable!(),
+                            Join::Miter => {
+                                let dot = self.last_tan.dot(tan);
+                                let hypot = cross.hypot(dot);
+                                if 2.0 * hypot < (hypot + dot) * self.miter_limit * self.miter_limit
                                 {
-                                    *p = miter_pt;
-                                } else {
-                                    self.result.line_to(miter_pt);
-                                }
-                                if is_line {
-                                    return;
+                                    let h = (n - last_n).cross(tan) / self.last_tan.cross(tan);
+                                    let miter_pt = self.last_pt + last_n + h * self.last_tan;
+                                    // A cheap optimization to reduce line segments with joins to lines
+                                    if let Some(PathEl::LineTo(p)) =
+                                        self.result.elements_mut().last_mut()
+                                    {
+                                        *p = miter_pt;
+                                    } else {
+                                        self.result.line_to(miter_pt);
+                                    }
+                                    if is_line {
+                                        return;
+                                    }
                                 }
                             }
+                            Join::Round => {
+                                // Cheaper inverse; everything is normalized so we don't care about uniform scaling.
+                                let einv = Diagonal2::new(self.expand.yy, self.expand.xx);
+                                let last_tann = einv * self.last_tan;
+                                let tann = einv * tan;
+                                let crossn = (last_tann).cross(tann);
+                                let dotn = (last_tann).dot(tann);
+                                let angle = crossn.atan2(dotn);
+                                let nt = self.expand * tann.normalize();
+                                let a = Affine::new([
+                                    n.x,
+                                    n.y,
+                                    nt.x,
+                                    nt.y,
+                                    self.last_pt.x,
+                                    self.last_pt.y,
+                                ]);
+                                let arc: Arc =
+                                    Arc::new(Point::ORIGIN, (1.0, 1.0), angle, -angle, 0.0);
+                                let tolerance = self.tolerance * einv.xx.abs().min(einv.yy.abs());
+                                arc.to_cubic_beziers(tolerance, |p1, p2, p3| {
+                                    self.result.curve_to(a * p1, a * p2, a * p3);
+                                });
+                                return;
+                            }
                         }
-                        _ => todo!(),
                     }
                 }
                 // Bevel case
