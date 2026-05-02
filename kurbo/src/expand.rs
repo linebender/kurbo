@@ -71,15 +71,6 @@ impl Diagonal2 {
             self * z * inv_scale
         }
     }
-
-    /// Determine whether transform is uniform scale.
-    pub fn as_uniform(self) -> Option<f64> {
-        if self.xx == self.yy {
-            Some(self.xx)
-        } else {
-            None
-        }
-    }
 }
 
 impl Mul<Vec2> for Diagonal2 {
@@ -177,57 +168,30 @@ impl ExpandCtx {
             self.do_line(p2);
             return;
         }
-        if let Some(d) = self.expand.as_uniform() {
-            // can consider getting rid of this branch if nonuniform is as performant
-            let utan0 = q0.normalize();
-            let utan1 = q1.normalize();
-            let det = utan1.cross(utan0);
-            if det.abs() < 1e-10 {
-                self.do_line(p2);
-                return;
-            }
-            let utanm = (p2 - self.last_pt).normalize();
-            let n0 = d * utan0.turn_90();
-            let n1 = d * utan1.turn_90();
-            let mid_chord = self.last_pt.midpoint(p2);
-            let m = mid_chord.midpoint(p1) + d * utanm.turn_90();
-            let out_p0 = self.last_pt + n0;
-            let out_p3 = p2 + n1;
-            let rhs = m - out_p0.midpoint(out_p3);
-            let idet = (8. / 3.) / det;
-            let a = (utan1.cross(rhs) * idet).max(0.0);
-            let b = (utan0.cross(rhs) * idet).max(0.0);
-            self.do_join(n0, q0, false);
-            let out_p1 = out_p0 + a * utan0;
-            let out_p2 = out_p3 - b * utan1;
-            self.result.curve_to(out_p1, out_p2, out_p3);
-            self.last_n = Some(n1);
-        } else {
-            let einv = self.expand.inv();
-            let utan0 = (einv * q0).normalize();
-            let utan1 = (einv * q1).normalize();
-            let det = utan1.cross(utan0);
-            if det.abs() < 1e-10 {
-                self.do_line(p2);
-                return;
-            }
-            let utanm = (einv * (p2 - self.last_pt)).normalize();
-            let n0 = self.expand * utan0.turn_90();
-            let n1 = self.expand * utan1.turn_90();
-            let mid_chord = self.last_pt.midpoint(p2);
-            let m = mid_chord.midpoint(p1) + self.expand * utanm.turn_90();
-            let out_p0 = self.last_pt + n0;
-            let out_p3 = p2 + n1;
-            let rhs = einv * (m - out_p0.midpoint(out_p3));
-            let idet = (8. / 3.) / det;
-            let a = (utan1.cross(rhs) * idet).max(0.0);
-            let b = (utan0.cross(rhs) * idet).max(0.0);
-            self.do_join(n0, q0, false);
-            let out_p1 = out_p0 + self.expand * (a * utan0);
-            let out_p2 = out_p3 - self.expand * (b * utan1);
-            self.result.curve_to(out_p1, out_p2, out_p3);
-            self.last_n = Some(n1);
+        let einv = self.expand.inv();
+        let utan0 = (einv * q0).normalize();
+        let utan1 = (einv * q1).normalize();
+        let det = utan1.cross(utan0);
+        if det.abs() < 1e-10 {
+            self.do_line(p2);
+            return;
         }
+        let utanm = (einv * (p2 - self.last_pt)).normalize();
+        let n0 = self.expand * utan0.turn_90();
+        let n1 = self.expand * utan1.turn_90();
+        let mid_chord = self.last_pt.midpoint(p2);
+        let m = mid_chord.midpoint(p1) + self.expand * utanm.turn_90();
+        let out_p0 = self.last_pt + n0;
+        let out_p3 = p2 + n1;
+        let rhs = einv * (m - out_p0.midpoint(out_p3));
+        let idet = (8. / 3.) / det;
+        let a = (utan1.cross(rhs) * idet).max(0.0);
+        let b = (utan0.cross(rhs) * idet).max(0.0);
+        self.do_join(n0, q0, false);
+        let out_p1 = out_p0 + self.expand * (a * utan0);
+        let out_p2 = out_p3 - self.expand * (b * utan1);
+        self.result.curve_to(out_p1, out_p2, out_p3);
+        self.last_n = Some(n1);
         self.last_tan = q1;
         self.last_pt = p2;
     }
