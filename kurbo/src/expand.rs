@@ -10,7 +10,9 @@ use crate::{
 use crate::common::FloatFuncs;
 
 /// A diagonal matrix, suitable for representing anisotropic scaling.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Diagonal2 {
     xx: f64,
     yy: f64,
@@ -102,7 +104,7 @@ impl core::ops::Mul<Point> for Diagonal2 {
     }
 }
 
-// Note: a bunch more ops could be implemented, but for now we'll stick to what we need.
+// Note: a bunch more ops on `Diagonal2` could be implemented, but for now we'll stick to what we need.
 
 /// Expand a path.
 ///
