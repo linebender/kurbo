@@ -43,19 +43,19 @@ struct TwoPointSample {
 
 impl Diagonal2 {
     /// Create a diagonal matrix.
-    pub fn new(xx: f64, yy: f64) -> Self {
+    pub const fn new(xx: f64, yy: f64) -> Self {
         Self { xx, yy }
     }
 
     /// Matrix inverse.
     ///
     /// Will of course produce infinities if a component is zero.
-    pub fn inv(self) -> Self {
+    pub const fn inv(self) -> Self {
         Diagonal2::new(1.0 / self.xx, 1.0 / self.yy)
     }
 
     /// Absolute value of transform components.
-    pub fn abs(self) -> Self {
+    pub const fn abs(self) -> Self {
         Self::new(self.xx.abs(), self.yy.abs())
     }
 
@@ -121,7 +121,7 @@ impl core::ops::Mul<Point> for Diagonal2 {
 /// cubic Bézier in the output. Thus, it is not expected to work well when the
 /// expansion factor is large compared with the radius of curvature on the input.
 pub fn expand_path(
-    path: impl IntoIterator<Item = PathEl> + Shape,
+    path: impl Shape,
     mut expand: Diagonal2,
     join: Join,
     miter_limit: f64,
@@ -140,7 +140,7 @@ pub fn expand_path(
 /// is backwards from the intuitive sign convention, but results from the choice of
 /// convention for the offset primitives.
 pub fn expand_path_signed(
-    path: impl IntoIterator<Item = PathEl>,
+    path: impl Shape,
     expand: Diagonal2,
     join: Join,
     miter_limit: f64,
@@ -160,7 +160,7 @@ pub fn expand_path_signed(
         last_tan: Vec2::default(),
     };
     let mut first_pt = Point::default();
-    for el in path {
+    for el in path.path_elements(tolerance) {
         match el {
             PathEl::MoveTo(point) => {
                 if ctx.last_n.is_some() {
@@ -186,6 +186,9 @@ impl ExpandCtx {
 
     /// Process a line segment. Includes initial join.
     fn do_line(&mut self, p1: Point) {
+        if p1 == self.last_pt {
+            return;
+        }
         let tan = p1 - self.last_pt;
         let n = self.expand.scale_normal(tan.turn_90());
         self.do_join(n, tan, true);
@@ -415,4 +418,132 @@ fn two_point_linear(cx: &CubicCtx) -> Option<(f64, f64)> {
     let a = idet * (s[0].c_n * s[1].b_n - s[1].c_n * s[0].b_n);
     let b = idet * (s[0].a_n * s[1].c_n - s[1].a_n * s[0].c_n);
     Some((a, b))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::f64::consts::PI;
+
+    use crate::{
+        Affine, BezPath, Circle, Diagonal2, Join, ParamCurveMoments, Point, Rect, Shape, Size,
+        Vec2, expand_path,
+    };
+
+    #[test]
+    fn expand_circle_basic() {
+        const CENTER: Point = Point::new(100., 100.);
+        const RADIUS: f64 = 10.0;
+        let circle = Circle::new(CENTER, RADIUS);
+        let expected_area = PI * RADIUS.powi(2);
+        let expected_perimeter = 2.0 * PI * RADIUS;
+        assert!((circle.area() - expected_area).abs() < 1e-9);
+        assert!((circle.perimeter(1e-12) - expected_perimeter).abs() < 1e-9);
+        const R_DELTA: f64 = 2.0;
+        const EXPAND: Diagonal2 = Diagonal2::new(R_DELTA, R_DELTA);
+        let expanded = expand_path(circle, EXPAND, Join::Bevel, 4.0, 1e-3);
+        let expected_area_expanded = PI * (RADIUS + R_DELTA).powi(2);
+        let expected_perimeter_expanded = 2.0 * PI * (RADIUS + R_DELTA);
+        assert!((expanded.area() - expected_area_expanded).abs() < 4e-2);
+        assert!((expanded.perimeter(1e-12) - expected_perimeter_expanded).abs() < 3e-3);
+
+        let mirror = Affine::reflect(CENTER, Vec2::new(0.0, 1.0));
+        // We have to convert to a path here as the circle type doesn't support negative area.
+        let circle_mirror = mirror * circle.to_path(1e-3);
+        let expanded_mirror = expand_path(circle_mirror, EXPAND, Join::Bevel, 4.0, 1e-3);
+        assert!((-expanded_mirror.area() - expected_area_expanded).abs() < 4e-2);
+        assert!((expanded_mirror.perimeter(1e-12) - expected_perimeter_expanded).abs() < 3e-3);
+    }
+
+    #[test]
+    fn expand_ellipse_anisotropic() {
+        const CENTER: Point = Point::new(100., 100.);
+        const RADIUS: f64 = 10.0;
+        let circle = Circle::new(CENTER, RADIUS);
+        const STRETCH: f64 = 2.717;
+        let ellipse = Affine::scale_non_uniform(STRETCH, 1.0) * circle;
+        let expected_area = PI * RADIUS.powi(2) * STRETCH;
+        assert!((ellipse.area() - expected_area).abs() < 1e-9);
+        const R_DELTA: f64 = 2.0;
+        const EXPAND: Diagonal2 = Diagonal2::new(R_DELTA * STRETCH, R_DELTA);
+        let expanded = expand_path(ellipse, EXPAND, Join::Bevel, 4.0, 1e-3);
+        let expected_area_expanded = PI * (RADIUS + R_DELTA).powi(2) * STRETCH;
+        assert!((expanded.area() - expected_area_expanded).abs() < 4e-2);
+    }
+
+    #[test]
+    fn expand_rect() {
+        const CENTER: Point = Point::new(100., 100.);
+        const SIZE: Size = Size::new(30., 20.);
+        let rect = Rect::from_center_size(CENTER, SIZE);
+        assert!((rect.area() - SIZE.area()).abs() < 1e-9);
+        const EXPAND: Diagonal2 = Diagonal2::new(10.0, 10.0);
+        let mitered = expand_path(rect, EXPAND, Join::Miter, 4.0, 1e-3);
+        let expected_area_mitered =
+            (SIZE.width + 2.0 * EXPAND.xx) * (SIZE.height + 2.0 * EXPAND.yy);
+        assert!((mitered.area() - expected_area_mitered).abs() < 1e-9);
+
+        let beveled = expand_path(rect, EXPAND, Join::Bevel, 4.0, 1e-3);
+        let expected_area_beveled = expected_area_mitered - 2.0 * EXPAND.xx * EXPAND.yy;
+        assert!((beveled.area() - expected_area_beveled).abs() < 1e-9);
+
+        let rounded = expand_path(rect, EXPAND, Join::Round, 4.0, 1e-6);
+        let expected_area_rounded = expected_area_mitered - (4.0 - PI) * EXPAND.xx * EXPAND.yy;
+        assert!((rounded.area() - expected_area_rounded).abs() < 1e-1);
+    }
+
+    #[test]
+    fn expand_rounding_tolerance() {
+        const CENTER: Point = Point::new(100., 100.);
+        const SIZE: Size = Size::new(30., 20.);
+        let rect = Rect::from_center_size(CENTER, SIZE);
+        const EXPAND: Diagonal2 = Diagonal2::new(10.0, 10.0);
+        let expected_area_mitered =
+            (SIZE.width + 2.0 * EXPAND.xx) * (SIZE.height + 2.0 * EXPAND.yy);
+        let expected_area_rounded = expected_area_mitered - (4.0 - PI) * EXPAND.xx * EXPAND.yy;
+        let rounded = expand_path(rect, EXPAND, Join::Round, 4.0, 1e-3);
+        assert!((rounded.area() - expected_area_rounded).abs() < 1e-1);
+        // Validate that a lower tolerance increases accuracy.
+        let rounded_fine = expand_path(rect, EXPAND, Join::Round, 4.0, 1e-6);
+        assert!((rounded_fine.area() - expected_area_rounded).abs() < 2e-3);
+    }
+
+    #[test]
+    fn expand_glyph_shape() {
+        // WARNING: this test is fragile. If there is optimization to simplify inner joins by
+        // computing intersections, the measurements change. A properly written test would
+        // compare the result after path intersection, or alternatively probe for zero/nonzero
+        // winding number for a collection of sample points. But at least it is sensitive to
+        // regressions.
+
+        // Roboto "e" glyph
+        let path = BezPath::from_svg(
+            "M10.359375,-0.359375 Q6.484375,-0.359375 4.0625,2.1875 Q1.640625,4.734375 1.640625,8.984375 \
+             L1.640625,9.578125 Q1.640625,12.40625 2.71875,14.625 Q3.796875,16.859375 5.734375,18.109375 \
+             Q7.6875,19.375 9.953125,19.375 Q13.65625,19.375 15.703125,16.921875 Q17.765625,14.484375 17.765625,9.9375 \
+             L17.765625,8.578125 L4.890625,8.578125 Q4.953125,5.765625 6.53125,4.03125 Q8.109375,2.296875 10.53125,2.296875 \
+             Q12.25,2.296875 13.4375,3 Q14.640625,3.703125 15.546875,4.875 L17.53125,3.328125 Q15.140625,-0.359375 10.359375,-0.359375 Z \
+             M9.953125,16.703125 Q7.984375,16.703125 6.640625,15.265625 Q5.3125,13.828125 5,11.25 L14.515625,11.25 L14.515625,11.5 \
+             Q14.375,13.96875 13.171875,15.328125 Q11.984375,16.703125 9.953125,16.703125 Z",
+        )
+        .unwrap();
+        const EXPAND: Diagonal2 = Diagonal2::new(1.5, 1.0);
+        let expanded = expand_path(&path, EXPAND, Join::Round, 4.0, 0.1);
+        //println!("{}", expanded.to_svg());
+        // The outline has been visually verified, these are measurements taken from known-good.
+        const EXPECTED_AREA: f64 = -291.3217958410297;
+        const EXPECTED_PERIMETER: f64 = 120.89147879578239;
+        const EXPECTED_MOMENT_X: f64 = -2788.568539588466;
+        const EXPECTED_MOMENT_Y: f64 = -2801.3818805722685;
+        const EXPECTED_MOMENT_XX: f64 = -34280.940819978576;
+        const EXPECTED_MOMENT_XY: f64 = -26971.281063345254;
+        const EXPECTED_MOMENT_YY: f64 = -36722.298990246876;
+        assert!((expanded.area() - EXPECTED_AREA).abs() < 1e-3);
+        assert!((expanded.perimeter(1e-9) - EXPECTED_PERIMETER).abs() < 1e-3);
+        let moments = expanded.moments();
+        assert!((moments.moment_x - EXPECTED_MOMENT_X).abs() < 1e-3);
+        assert!((moments.moment_y - EXPECTED_MOMENT_Y).abs() < 1e-3);
+        assert!((moments.moment_xx - EXPECTED_MOMENT_XX).abs() < 1e-3);
+        assert!((moments.moment_xy - EXPECTED_MOMENT_XY).abs() < 1e-3);
+        assert!((moments.moment_yy - EXPECTED_MOMENT_YY).abs() < 1e-3);
+    }
 }
