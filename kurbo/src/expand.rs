@@ -14,8 +14,10 @@ use crate::common::FloatFuncs;
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Diagonal2 {
-    xx: f64,
-    yy: f64,
+    /// The horizontal expansion factor.
+    pub xx: f64,
+    /// The vertical expansion factor.
+    pub yy: f64,
 }
 
 struct ExpandCtx {
@@ -177,6 +179,10 @@ pub fn expand_path_signed(
             PathEl::ClosePath => ctx.do_close_path(first_pt),
         }
     }
+    // Treat all subpaths as closed; close if left open in input.
+    if ctx.last_n.is_some() {
+        ctx.do_close_path(first_pt);
+    }
     ctx.result
 }
 
@@ -331,7 +337,7 @@ impl ExpandCtx {
                                 ]);
                                 let arc: Arc =
                                     Arc::new(Point::ORIGIN, (1.0, 1.0), -angle, angle, 0.0);
-                                let tolerance = self.tolerance * einv.xx.abs().min(einv.yy.abs());
+                                let tolerance = self.tolerance / einv.xx.abs().max(einv.yy.abs());
                                 arc.to_cubic_beziers(tolerance, |p1, p2, p3| {
                                     self.result.curve_to(a * p1, a * p2, a * p3);
                                 });
@@ -355,8 +361,10 @@ impl ExpandCtx {
         if first_pt.distance_squared(self.last_pt) > self.tolerance * self.tolerance {
             self.do_line(first_pt);
         }
-        self.do_join(self.first_n.unwrap(), self.first_tan, true);
-        self.result.close_path();
+        if let Some(first_n) = self.first_n {
+            self.do_join(first_n, self.first_tan, true);
+            self.result.close_path();
+        }
         self.last_n = None;
     }
 }
@@ -413,7 +421,8 @@ fn two_point_linear(cx: &CubicCtx) -> Option<(f64, f64)> {
         TwoPointSample { a_n, b_n, c_n }
     });
     let det = s[0].a_n * s[1].b_n - s[1].a_n * s[0].b_n;
-    if det.abs() < 1e-12 {
+    // Consider both near-zero and NaN determinants to be failures.
+    if det.abs().partial_cmp(&1e-12) != Some(core::cmp::Ordering::Greater) {
         return None;
     }
     let idet = -1.0 / det;
@@ -427,8 +436,8 @@ mod tests {
     use std::f64::consts::PI;
 
     use crate::{
-        Affine, BezPath, Circle, Diagonal2, Join, ParamCurveMoments, Point, Rect, Shape, Size,
-        Vec2, expand_path,
+        Affine, BezPath, Circle, Diagonal2, Join, ParamCurveMoments, PathEl, Point, Rect, Shape,
+        Size, Vec2, expand_path,
     };
 
     #[test]
@@ -488,7 +497,7 @@ mod tests {
         let expected_area_beveled = expected_area_mitered - 2.0 * EXPAND.xx * EXPAND.yy;
         assert!((beveled.area() - expected_area_beveled).abs() < 1e-9);
 
-        let rounded = expand_path(rect, EXPAND, Join::Round, 4.0, 1e-6);
+        let rounded = expand_path(rect, EXPAND, Join::Round, 4.0, 0.1);
         let expected_area_rounded = expected_area_mitered - (4.0 - PI) * EXPAND.xx * EXPAND.yy;
         assert!((rounded.area() - expected_area_rounded).abs() < 1e-1);
     }
@@ -503,10 +512,10 @@ mod tests {
             (SIZE.width + 2.0 * EXPAND.xx) * (SIZE.height + 2.0 * EXPAND.yy);
         let expected_area_rounded = expected_area_mitered - (4.0 - PI) * EXPAND.xx * EXPAND.yy;
         let rounded = expand_path(rect, EXPAND, Join::Round, 4.0, 1e-3);
-        assert!((rounded.area() - expected_area_rounded).abs() < 1e-1);
+        assert!((rounded.area() - expected_area_rounded).abs() < 2e-3);
         // Validate that a lower tolerance increases accuracy.
         let rounded_fine = expand_path(rect, EXPAND, Join::Round, 4.0, 1e-6);
-        assert!((rounded_fine.area() - expected_area_rounded).abs() < 2e-3);
+        assert!((rounded_fine.area() - expected_area_rounded).abs() < 3e-5);
     }
 
     #[test]
@@ -547,5 +556,24 @@ mod tests {
         assert!((moments.moment_xx - EXPECTED_MOMENT_XX).abs() < 1e-3);
         assert!((moments.moment_xy - EXPECTED_MOMENT_XY).abs() < 1e-3);
         assert!((moments.moment_yy - EXPECTED_MOMENT_YY).abs() < 1e-3);
+    }
+
+    #[test]
+    fn assert_expand_subpath_closed() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((100.0, 0.0));
+        path.line_to((100.0, 100.0));
+        path.line_to((0.0, 100.0));
+
+        let expanded = expand_path(path, Diagonal2::new(10.0, 10.0), Join::Miter, 4.0, 1e-3);
+        assert_eq!(expanded.elements().last(), Some(&PathEl::ClosePath));
+    }
+
+    #[test]
+    fn expand_degenerate_input() {
+        let path = BezPath::from_svg("M0,0 C0,0 0,0 0,0 Z").unwrap();
+        let expanded = expand_path(path, Diagonal2::new(10.0, 10.0), Join::Miter, 4.0, 1e-3);
+        assert!(expanded.is_empty());
     }
 }
