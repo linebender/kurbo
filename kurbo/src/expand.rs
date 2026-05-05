@@ -167,9 +167,7 @@ pub fn expand_path_signed(
     for el in path.path_elements(tolerance) {
         match el {
             PathEl::MoveTo(point) => {
-                if ctx.last_n.is_some() {
-                    ctx.do_close_path(first_pt);
-                }
+                ctx.do_close_path(first_pt);
                 first_pt = point;
                 ctx.last_pt = point;
             }
@@ -180,9 +178,7 @@ pub fn expand_path_signed(
         }
     }
     // Treat all subpaths as closed; close if left open in input.
-    if ctx.last_n.is_some() {
-        ctx.do_close_path(first_pt);
-    }
+    ctx.do_close_path(first_pt);
     ctx.result
 }
 
@@ -356,12 +352,13 @@ impl ExpandCtx {
         }
     }
 
+    /// Close an open subpath if there is one; no-op if already closed.
     fn do_close_path(&mut self, first_pt: Point) {
-        // maybe do this test inside do_line for all lines
-        if first_pt.distance_squared(self.last_pt) > self.tolerance * self.tolerance {
-            self.do_line(first_pt);
-        }
-        if let Some(first_n) = self.first_n {
+        if let Some(first_n) = self.first_n.take() {
+            // could do this test inside do_line for all lines, but it already checks for 0-length
+            if first_pt.distance_squared(self.last_pt) > self.tolerance * self.tolerance {
+                self.do_line(first_pt);
+            }
             self.do_join(first_n, self.first_tan, true);
             self.result.close_path();
         }
@@ -573,5 +570,18 @@ mod tests {
         let path = BezPath::from_svg("M0,0 C0,0 0,0 0,0 Z").unwrap();
         let expanded = expand_path(path, Diagonal2::new(10.0, 10.0), Join::Miter, 4.0, 1e-3);
         assert!(expanded.is_empty());
+    }
+
+    #[test]
+    fn expand_degenerate_ghost() {
+        let mut path = BezPath::new();
+        path.extend(Rect::new(0.0, 0.0, 10.0, 10.0).path_elements(1e-3));
+        let expected = expand_path(&path, Diagonal2::new(1.0, 1.0), Join::Miter, 4.0, 1e-3);
+
+        path.move_to((20.0, 20.0));
+        path.close_path();
+        let actual = expand_path(&path, Diagonal2::new(1.0, 1.0), Join::Miter, 4.0, 1e-3);
+
+        assert_eq!(actual, expected);
     }
 }
