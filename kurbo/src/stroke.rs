@@ -1051,6 +1051,7 @@ mod tests {
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
     }
 
+    // Differently-sized subpaths verify stable mode restarts the dash pattern per subpath without leaking state.
     #[test]
     fn dash_stable_order_multi_subpath() {
         let mut path = BezPath::new();
@@ -1060,17 +1061,34 @@ mod tests {
         path.line_to((0., 2.));
         path.close_path();
         path.move_to((10., 10.));
-        path.line_to((12., 10.));
-        path.line_to((12., 12.));
-        path.line_to((10., 12.));
+        path.line_to((15., 10.));
+        path.line_to((15., 14.));
+        path.line_to((10., 14.));
         path.close_path();
         let dashes = [3., 1.];
-        let result: Vec<PathEl> = dash_iter(path.into_iter(), 0., &dashes, true).collect();
-        assert_eq!(result[0], PathEl::MoveTo((0., 0.).into()));
-        let second_move = result
-            .iter()
-            .position(|el| matches!(el, PathEl::MoveTo(p) if p.x == 10.0));
-        assert!(second_move.is_some(), "second subpath should have a MoveTo");
+        let expansion = [
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((2., 0.).into()),
+            PathEl::LineTo((2., 1.).into()),
+            PathEl::MoveTo((2., 2.).into()),
+            PathEl::LineTo((0., 2.).into()),
+            PathEl::LineTo((0., 1.).into()),
+            PathEl::MoveTo((10., 10.).into()),
+            PathEl::LineTo((13., 10.).into()),
+            PathEl::MoveTo((14., 10.).into()),
+            PathEl::LineTo((15., 10.).into()),
+            PathEl::LineTo((15., 12.).into()),
+            PathEl::MoveTo((15., 13.).into()),
+            PathEl::LineTo((15., 14.).into()),
+            PathEl::LineTo((13., 14.).into()),
+            PathEl::MoveTo((12., 14.).into()),
+            PathEl::LineTo((10., 14.).into()),
+            PathEl::LineTo((10., 13.).into()),
+            PathEl::MoveTo((10., 12.).into()),
+            PathEl::LineTo((10., 10.).into()),
+        ];
+        let iter = dash_iter(path.into_iter(), 0., &dashes, true);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
     }
 
     #[test]
