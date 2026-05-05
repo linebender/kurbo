@@ -23,7 +23,7 @@ This release has an [MSRV][] of 1.85.
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
 - Add `Affine::{pre,then}_skew` and `Affine::{pre,then}_reflect` fluent composition helpers. ([#563][] by [@waywardmonkeys][])
 - Add three transform matrix norms: `Affine::{nuclear_norm_squared,frobenius_norm_squared,spectral_norm}`. ([#569][] by [@tomcur][])
-- Add `stable_dash_order` option to emit dashes in a closed path in the order they appear. ([#550][] by [@RobertBrewitz][])
+- Add `StrokeOpts::stable_dash_order` to keep dashes at fixed path-relative positions instead of merging the first/last dash across. ([#550][] by [@RobertBrewitz][])
 
 ## Changed
 

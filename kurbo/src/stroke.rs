@@ -66,7 +66,7 @@ pub struct Stroke {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
-    /// When `true`, dashes emits in the order they appear along the path.
+    /// When `true`, dashes are emitted in the order they appear along the path. The default `false` delays a subpath's first dash so it can be merged with a dash that wraps through `ClosePath`; this option disables both the reorder and the wraparound merge, so a dash spanning the seam is truncated there.
     stable_dash_order: bool,
 }
 
@@ -187,7 +187,7 @@ impl StrokeOpts {
         self
     }
 
-    /// When `true`, dashes emits in the order they appear along the path.
+    /// When `true`, dashes are emitted in the order they appear along the path.
     pub fn stable_dash_order(mut self, stable: bool) -> Self {
         self.stable_dash_order = stable;
         self
