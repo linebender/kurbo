@@ -402,9 +402,7 @@ fn try_one_point(cx: &CubicCtx) -> Option<(f64, f64)> {
 fn two_point_linear(cx: &CubicCtx) -> Option<(f64, f64)> {
     const T0: f64 = 0.35;
     let s = [T0, 1.0 - T0].map(|t| {
-        let q = cx.q.eval(t).to_vec2();
-        let qscale = 1.0 / q.length();
-        let utan = q * qscale;
+        let utan = cx.q.eval(t).to_vec2().normalize();
         let n = utan.turn_90();
         let utan0_n = cx.utan0.dot(n);
         let utan1_n = cx.utan1.dot(n);
