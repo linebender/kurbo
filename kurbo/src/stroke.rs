@@ -66,6 +66,8 @@ pub struct Stroke {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
+    /// When `true`, dashes are emitted in the order they appear along the path. The default `false` delays a subpath's first dash so it can be merged with a dash that wraps through `ClosePath`; this option disables both the reorder and the wraparound merge, so a dash spanning the seam is truncated there.
+    stable_dash_order: bool,
 }
 
 /// Optimization level for computing stroke outlines.
@@ -86,7 +88,10 @@ pub enum StrokeOptLevel {
 impl Default for StrokeOpts {
     fn default() -> Self {
         let opt_level = StrokeOptLevel::Subdivide;
-        StrokeOpts { opt_level }
+        StrokeOpts {
+            opt_level,
+            stable_dash_order: false,
+        }
     }
 }
 
@@ -181,6 +186,12 @@ impl StrokeOpts {
         self.opt_level = opt_level;
         self
     }
+
+    /// When `true`, dashes are emitted in the order they appear along the path.
+    pub fn stable_dash_order(mut self, stable: bool) -> Self {
+        self.stable_dash_order = stable;
+        self
+    }
 }
 
 /// Collection of values representing lengths in a dash pattern.
@@ -249,11 +260,11 @@ impl StrokeCtx {
 pub fn stroke(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
-    _opts: &StrokeOpts,
+    opts: &StrokeOpts,
     tolerance: f64,
 ) -> BezPath {
     let mut ctx = StrokeCtx::default();
-    stroke_with(path, style, _opts, tolerance, &mut ctx);
+    stroke_with(path, style, opts, tolerance, &mut ctx);
 
     ctx.output
 }
@@ -270,14 +281,19 @@ pub fn stroke(
 pub fn stroke_with(
     path: impl IntoIterator<Item = PathEl>,
     style: &Stroke,
-    _opts: &StrokeOpts,
+    opts: &StrokeOpts,
     tolerance: f64,
     ctx: &mut StrokeCtx,
 ) {
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, ctx);
     } else {
-        let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
+        let dashed = dash_iter(
+            path.into_iter(),
+            style.dash_offset,
+            &style.dash_pattern,
+            opts.stable_dash_order,
+        );
         stroke_undashed(dashed, style, tolerance, ctx);
     }
 }
@@ -611,6 +627,8 @@ struct DashIterator<'a, T> {
     last_pt: Point,
     stash: Vec<PathEl>,
     stash_ix: usize,
+    stable_dash_order: bool,
+    needs_moveto: bool,
 }
 
 #[derive(PartialEq, Eq)]
@@ -639,6 +657,9 @@ impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
                 }
                 DashState::ToStash => {
                     if let Some(el) = self.step() {
+                        if self.stable_dash_order {
+                            return Some(el);
+                        }
                         self.stash.push(el);
                     }
                 }
@@ -698,6 +719,15 @@ pub fn dash<'a>(
     dash_offset: f64,
     dashes: &'a [f64],
 ) -> impl Iterator<Item = PathEl> + 'a {
+    dash_iter(inner, dash_offset, dashes, false)
+}
+
+fn dash_iter<'a>(
+    inner: impl Iterator<Item = PathEl> + 'a,
+    dash_offset: f64,
+    dashes: &'a [f64],
+    stable_dash_order: bool,
+) -> DashIterator<'a, impl Iterator<Item = PathEl> + 'a> {
     // ensure that offset is positive and minimal by normalization using period
     let period = dashes.iter().sum();
     let dash_offset = dash_offset.rem_euclid(period);
@@ -730,6 +760,8 @@ pub fn dash<'a>(
         last_pt: Point::ORIGIN,
         stash: Vec::new(),
         stash_ix: 0,
+        stable_dash_order,
+        needs_moveto: true,
     }
 }
 
@@ -794,7 +826,8 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
     /// Move arc length forward to next event.
     fn step(&mut self) -> Option<PathEl> {
         let mut result = None;
-        if self.state == DashState::ToStash && self.stash.is_empty() {
+        if self.state == DashState::ToStash && self.needs_moveto {
+            self.needs_moveto = false;
             if self.is_active {
                 result = Some(PathEl::MoveTo(self.current_seg.start()));
             } else {
@@ -835,7 +868,7 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         if self.state == DashState::ToStash {
             // Have looped back without breaking a dash, just play it back
             self.stash.push(PathEl::ClosePath);
-        } else if self.is_active {
+        } else if self.is_active && !self.stable_dash_order {
             // connect with path in stash, skip MoveTo.
             self.stash_ix = 1;
         }
@@ -847,11 +880,13 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         self.dash_ix = self.init_dash_ix;
         self.dash_remaining = self.init_dash_remaining;
         self.is_active = self.init_is_active;
+        self.needs_moveto = true;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::dash_iter;
     use crate::{
         BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg, Shape, Stroke,
         StrokeOpts, dash, segments, stroke,
@@ -952,6 +987,55 @@ mod tests {
     }
 
     #[test]
+    fn dash_sequence_closed_path() {
+        let shape = crate::Rect::from_points((0.0, 0.0), (4.0, 4.0));
+        let dashes = [5., 1.];
+        let expansion = [
+            PathEl::MoveTo((4.0, 2.0).into()),
+            PathEl::LineTo((4.0, 4.0).into()),
+            PathEl::LineTo((1.0, 4.0).into()),
+            PathEl::MoveTo((0.0, 4.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::LineTo((4.0, 0.0).into()),
+            PathEl::LineTo((4.0, 1.0).into()),
+        ];
+        let iter = dash(shape.path_elements(0.), 0., &dashes);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
+    }
+
+    #[test]
+    fn dash_sequence_stable_order() {
+        let shape = Line::new((0.0, 0.0), (21.0, 0.0));
+        let dashes = [1., 5., 2., 5.];
+        let expansion = [
+            PathSeg::Line(Line::new((0., 0.), (1., 0.))),
+            PathSeg::Line(Line::new((6., 0.), (8., 0.))),
+            PathSeg::Line(Line::new((13., 0.), (14., 0.))),
+            PathSeg::Line(Line::new((19., 0.), (21., 0.))),
+        ];
+        let iter = segments(dash_iter(shape.path_elements(0.), 0., &dashes, true));
+        assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    #[test]
+    fn dash_sequence_closed_path_stable_order() {
+        let shape = crate::Rect::from_points((0.0, 0.0), (4.0, 4.0));
+        let dashes = [5., 1.];
+        let expansion = [
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((4.0, 0.0).into()),
+            PathEl::LineTo((4.0, 1.0).into()),
+            PathEl::MoveTo((4.0, 2.0).into()),
+            PathEl::LineTo((4.0, 4.0).into()),
+            PathEl::LineTo((1.0, 4.0).into()),
+            PathEl::MoveTo((0.0, 4.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+        ];
+        let iter = dash_iter(shape.path_elements(0.), 0., &dashes, true);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
+    }
+
+    #[test]
     fn dash_sequence_offset() {
         // Same as dash_sequence, but with a dash offset
         // of 3, which skips the first dash and cuts into
@@ -965,6 +1049,46 @@ mod tests {
         ];
         let iter = segments(dash(shape.path_elements(0.), 3., &dashes));
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    // Differently-sized subpaths verify stable mode restarts the dash pattern per subpath without leaking state.
+    #[test]
+    fn dash_stable_order_multi_subpath() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((2., 0.));
+        path.line_to((2., 2.));
+        path.line_to((0., 2.));
+        path.close_path();
+        path.move_to((10., 10.));
+        path.line_to((15., 10.));
+        path.line_to((15., 14.));
+        path.line_to((10., 14.));
+        path.close_path();
+        let dashes = [3., 1.];
+        let expansion = [
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((2., 0.).into()),
+            PathEl::LineTo((2., 1.).into()),
+            PathEl::MoveTo((2., 2.).into()),
+            PathEl::LineTo((0., 2.).into()),
+            PathEl::LineTo((0., 1.).into()),
+            PathEl::MoveTo((10., 10.).into()),
+            PathEl::LineTo((13., 10.).into()),
+            PathEl::MoveTo((14., 10.).into()),
+            PathEl::LineTo((15., 10.).into()),
+            PathEl::LineTo((15., 12.).into()),
+            PathEl::MoveTo((15., 13.).into()),
+            PathEl::LineTo((15., 14.).into()),
+            PathEl::LineTo((13., 14.).into()),
+            PathEl::MoveTo((12., 14.).into()),
+            PathEl::LineTo((10., 14.).into()),
+            PathEl::LineTo((10., 13.).into()),
+            PathEl::MoveTo((10., 12.).into()),
+            PathEl::LineTo((10., 10.).into()),
+        ];
+        let iter = dash_iter(path.into_iter(), 0., &dashes, true);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
     }
 
     #[test]
