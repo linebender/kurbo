@@ -287,16 +287,13 @@ pub fn stroke_with(
 ) {
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, ctx);
-    } else if opts.stable_dash_order {
+    } else {
         let dashed = dash_iter(
             path.into_iter(),
             style.dash_offset,
             &style.dash_pattern,
-            true,
+            opts.stable_dash_order,
         );
-        stroke_undashed(dashed, style, tolerance, ctx);
-    } else {
-        let dashed = dash(path.into_iter(), style.dash_offset, &style.dash_pattern);
         stroke_undashed(dashed, style, tolerance, ctx);
     }
 }
