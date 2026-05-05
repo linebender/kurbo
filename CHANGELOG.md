@@ -22,6 +22,7 @@ This release has an [MSRV][] of 1.85.
 - Ability to add and subtract `Insets` from other `Insets`. ([#549][] by [@xStrom][])
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
 - Add `Affine::{pre,then}_skew` and `Affine::{pre,then}_reflect` fluent composition helpers. ([#563][] by [@waywardmonkeys][])
+- Add three transform matrix norms: `Affine::{nuclear_norm_squared,frobenius_norm_squared,spectral_norm}`. ([#569][] by [@tomcur][])
 
 ## Changed
 
@@ -296,6 +297,7 @@ Note: A changelog was not kept for or before this release
 [#561]: https://github.com/linebender/kurbo/pull/561
 [#563]: https://github.com/linebender/kurbo/pull/563
 [#567]: https://github.com/linebender/kurbo/pull/567
+[#569]: https://github.com/linebender/kurbo/pull/569
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
