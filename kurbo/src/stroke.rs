@@ -744,7 +744,7 @@ fn dash_iter<'a>(
     let mut dash_remaining = dashes[dash_ix] - dash_offset;
     let mut is_active = true;
     // Find place in dashes array for initial offset.
-    while dash_remaining < 0.0 {
+    while dash_remaining <= DASH_ACCURACY {
         dash_ix = (dash_ix + 1) % dashes.len();
         dash_remaining += dashes[dash_ix];
         is_active = !is_active;
@@ -867,6 +867,17 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
                 result = Some(seg_to_el(&seg));
             }
             self.dash_remaining -= self.seg_remaining;
+
+            // If a dash transition coincides with a path vertex, advance the dash now
+            if self.is_active && self.dash_remaining <= DASH_ACCURACY {
+                self.is_active = false;
+                self.dash_ix += 1;
+                if self.dash_ix == self.dashes.len() {
+                    self.dash_ix = 0;
+                }
+                self.dash_remaining = self.dashes[self.dash_ix];
+            }
+
             self.get_input();
         }
         result
@@ -896,8 +907,12 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 mod tests {
     use super::dash_iter;
     use crate::{
-        BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg, Shape, Stroke,
-        StrokeOpts, dash, segments, stroke,
+        BezPath,
+        Cap::Butt,
+        CubicBez,
+        Join::Miter,
+        Line, PathEl, PathSeg, Shape, Stroke, StrokeOpts, dash, segments,
+        stroke::{self, DASH_ACCURACY},
     };
 
     // A degenerate stroke with a cusp at the endpoint.
@@ -911,7 +926,7 @@ mod tests {
         );
         let path = curve.into_path(0.1);
         let stroke_style = Stroke::new(1.);
-        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+        let stroked = stroke::stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
         assert!(stroked.is_finite());
     }
 
@@ -942,7 +957,7 @@ mod tests {
             .with_join(Miter)
             .with_caps(Butt)
             .with_dashes(0.0, [73.0, 12.0]);
-        let stroke = stroke(path, &stroke_style, &StrokeOpts::default(), 0.25);
+        let stroke = stroke::stroke(path, &stroke_style, &StrokeOpts::default(), 0.25);
         assert_eq!(stroke, expected_stroke);
     }
 
@@ -975,7 +990,7 @@ mod tests {
         let stroke_style = Stroke::new(30.).with_caps(Butt).with_join(Miter);
         for cubic in &broken_cubics {
             let path = CubicBez::new(cubic[0], cubic[1], cubic[2], cubic[3]).into_path(0.1);
-            let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+            let stroked = stroke::stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
             assert!(stroked.is_finite());
         }
     }
@@ -1097,6 +1112,92 @@ mod tests {
         ];
         let iter = dash_iter(path.into_iter(), 0., &dashes, true);
         assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
+    }
+
+    #[test]
+    fn dash_transition_on_vertex() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.line_to((3., 3.));
+        let dashes = [3., 1.];
+        let expected = [
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((3., 0.).into()),
+            PathEl::MoveTo((3., 1.).into()),
+            PathEl::LineTo((3., 3.).into()),
+        ];
+        let result: Vec<PathEl> = dash_iter(path.into_iter(), 0., &dashes, false).collect();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dash_transition_on_vertex_stable_dash_order() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.line_to((3., 3.));
+        let dashes = [3., 1.];
+        let expected = [
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((3., 0.).into()),
+            PathEl::MoveTo((3., 1.).into()),
+            PathEl::LineTo((3., 3.).into()),
+        ];
+        let result: Vec<PathEl> = dash_iter(path.into_iter(), 0., &dashes, true).collect();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dash_no_zero_length_across_offsets() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.line_to((3., 3.));
+        path.line_to((0., 3.));
+        let dashes = [3., 1.];
+        let offsets = [
+            0.0,
+            3.0,
+            3.0 + DASH_ACCURACY * 0.1,
+            3.0 + DASH_ACCURACY * 10.0,
+        ];
+        let stable = false;
+        for &offset in &offsets {
+            let result: Vec<PathEl> = dash_iter(path.iter(), offset, &dashes, stable).collect();
+            let bad = result.windows(2).any(|w| match (w[0], w[1]) {
+                (PathEl::LineTo(a), PathEl::LineTo(b)) => a == b,
+                (PathEl::MoveTo(a), PathEl::LineTo(b)) => a == b,
+                _ => false,
+            });
+            assert!(!bad, "zero-length LineTo at offset {offset}: {result:?}");
+        }
+    }
+
+    #[test]
+    fn dash_no_zero_length_across_offsets_stable_dash_order() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.line_to((3., 3.));
+        path.line_to((0., 3.));
+        let dashes = [3., 1.];
+        let offsets = [
+            0.0,
+            3.0,
+            3.0 + DASH_ACCURACY * 0.1,
+            3.0 + DASH_ACCURACY * 10.0,
+        ];
+        let stable = true;
+        for &offset in &offsets {
+            let result: Vec<PathEl> = dash_iter(path.iter(), offset, &dashes, stable).collect();
+            let bad = result.windows(2).any(|w| match (w[0], w[1]) {
+                (PathEl::LineTo(a), PathEl::LineTo(b)) => a == b,
+                (PathEl::MoveTo(a), PathEl::LineTo(b)) => a == b,
+                _ => false,
+            });
+            assert!(!bad, "zero-length LineTo at offset {offset}: {result:?}");
+        }
     }
 
     #[test]
