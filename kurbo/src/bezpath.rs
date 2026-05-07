@@ -828,7 +828,7 @@ impl<I: Iterator<Item = PathEl>> Iterator for CloseSubpaths<I> {
         match self.state {
             CloseSubpathState::Start => {
                 let el = self.elements.next();
-                if !matches!(el, Some(PathEl::ClosePath)) {
+                if !matches!(el, Some(PathEl::ClosePath) | None) {
                     self.state = CloseSubpathState::InSubpath;
                 }
                 el
