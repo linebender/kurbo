@@ -794,7 +794,7 @@ impl Mul<&BezPath> for TranslateScale {
 }
 
 /// Close all open subpaths in a path, expressed as iterator transform.
-pub fn close_subpaths<I>(elements: I) -> CloseSubpaths<I::IntoIter>
+pub(crate) fn close_subpaths<I>(elements: I) -> CloseSubpaths<I::IntoIter>
 where
     I: IntoIterator<Item = PathEl>,
 {
@@ -806,9 +806,9 @@ where
 
 /// An iterator that closes all open subpaths.
 ///
-/// This struct is created by the [`segments`] function.
+/// This struct is created by the [`close_subpaths`] function.
 #[derive(Clone)]
-pub struct CloseSubpaths<I: Iterator<Item = PathEl>> {
+pub(crate) struct CloseSubpaths<I: Iterator<Item = PathEl>> {
     elements: I,
     state: CloseSubpathState,
 }
@@ -843,6 +843,10 @@ impl<I: Iterator<Item = PathEl>> Iterator for CloseSubpaths<I> {
                     Some(PathEl::MoveTo(point)) => {
                         self.state = CloseSubpathState::PendingMoveTo(point);
                         Some(PathEl::ClosePath)
+                    }
+                    Some(PathEl::ClosePath) => {
+                        self.state = CloseSubpathState::Start;
+                        el
                     }
                     _ => el,
                 }
@@ -2276,5 +2280,32 @@ mod tests {
         bez3.line_to((160.0, 100.0));
         bez3.close_path();
         assert_eq!(&elements2, bez3.elements());
+    }
+
+    #[test]
+    fn close_subpaths_does_not_duplicate_existing_closepath() {
+        let path = BezPath::from_vec(vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((10.0, 0.0).into()),
+            PathEl::LineTo((10.0, 10.0).into()),
+            PathEl::ClosePath,
+            PathEl::MoveTo((20.0, 0.0).into()),
+            PathEl::LineTo((30.0, 0.0).into()),
+        ]);
+
+        let closed = close_subpaths(path.iter()).collect::<Vec<_>>();
+
+        assert_eq!(
+            closed,
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((10.0, 0.0).into()),
+                PathEl::LineTo((10.0, 10.0).into()),
+                PathEl::ClosePath,
+                PathEl::MoveTo((20.0, 0.0).into()),
+                PathEl::LineTo((30.0, 0.0).into()),
+                PathEl::ClosePath,
+            ]
+        );
     }
 }
