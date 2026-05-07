@@ -7,8 +7,8 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::{Mul, Range};
 
-use crate::MAX_EXTREMA;
 use crate::{Line, QuadSpline, Vec2};
+use crate::{MAX_EXTREMA, close_subpaths, segments};
 use arrayvec::ArrayVec;
 
 use crate::common::{
@@ -513,7 +513,7 @@ impl Shape for CubicBez {
 
     #[inline(always)]
     fn area(&self) -> f64 {
-        0.0
+        segments(close_subpaths(self.path_elements(0.0))).area()
     }
 
     #[inline]

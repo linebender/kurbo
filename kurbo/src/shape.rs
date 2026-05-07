@@ -97,7 +97,9 @@ pub trait Shape {
 
     /// Signed area.
     ///
-    /// This method only produces meaningful results with closed shapes.
+    /// This method interprets the shape as a filled path. For shapes that
+    /// potentially have open subpaths, the implementation should implicitly
+    /// close the subpaths while computing area.
     ///
     /// The convention for positive area is that y increases when x is
     /// positive. Thus, it is clockwise when down is increasing y (the

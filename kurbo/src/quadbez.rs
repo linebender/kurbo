@@ -7,13 +7,13 @@ use core::ops::{Mul, Range};
 
 use arrayvec::ArrayVec;
 
-use crate::MAX_EXTREMA;
 use crate::common::{solve_cubic, solve_quadratic};
 use crate::{
     Affine, CubicBez, Line, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea,
     ParamCurveCurvature, ParamCurveDeriv, ParamCurveExtrema, ParamCurveNearest, PathEl, Point,
     Rect, Shape,
 };
+use crate::{MAX_EXTREMA, close_subpaths, segments};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -158,7 +158,7 @@ impl Shape for QuadBez {
     }
 
     fn area(&self) -> f64 {
-        0.0
+        segments(close_subpaths(self.path_elements(0.0))).area()
     }
 
     #[inline]
