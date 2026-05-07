@@ -3,7 +3,7 @@
 
 use crate::{
     Affine, Arc, BezPath, CubicBez, Join, ParamCurve, ParamCurveDeriv, PathEl, PathSeg, Point,
-    QuadBez, Shape, Vec2,
+    QuadBez, Shape, Vec2, bezpath::close_subpaths, segments,
 };
 
 #[cfg(not(feature = "std"))]
@@ -131,7 +131,7 @@ pub fn expand_path(
     miter_limit: f64,
     tolerance: f64,
 ) -> BezPath {
-    if path.area() >= 0.0 {
+    if segments(close_subpaths(path.path_elements(tolerance))).area() >= 0.0 {
         expand = -expand;
     }
     expand_path_signed(path, expand, join, miter_limit, tolerance)
@@ -583,5 +583,22 @@ mod tests {
         let actual = expand_path(&path, Diagonal2::new(1.0, 1.0), Join::Miter, 4.0, 1e-3);
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn expand_open_subpath_uses_implicit_close_for_area_sign() {
+        let mut open = BezPath::new();
+        open.move_to((100.0, 100.0));
+        open.line_to((110.0, 100.0));
+        open.line_to((100.0, 110.0));
+
+        let mut closed = open.clone();
+        closed.close_path();
+
+        let expand = Diagonal2::new(1.0, 1.0);
+        let open_expanded = expand_path(open, expand, Join::Miter, 4.0, 1e-3);
+        let closed_expanded = expand_path(closed, expand, Join::Miter, 4.0, 1e-3);
+
+        assert_eq!(open_expanded, closed_expanded);
     }
 }
