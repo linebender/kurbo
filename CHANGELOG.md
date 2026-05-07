@@ -24,6 +24,7 @@ This release has an [MSRV][] of 1.85.
 - Add `Affine::{pre,then}_skew` and `Affine::{pre,then}_reflect` fluent composition helpers. ([#563][] by [@waywardmonkeys][])
 - Add three transform matrix norms: `Affine::{nuclear_norm_squared,frobenius_norm_squared,spectral_norm}`. ([#569][] by [@tomcur][])
 - Add `StrokeOpts::stable_dash_order` to keep dashes at fixed path-relative positions instead of merging the first/last dash across. ([#550][] by [@RobertBrewitz][])
+- Add `expand_path` anisotropic path expansion. ([#575][] by [@raphlinus][])
 
 ## Changed
 
@@ -301,6 +302,7 @@ Note: A changelog was not kept for or before this release
 [#563]: https://github.com/linebender/kurbo/pull/563
 [#567]: https://github.com/linebender/kurbo/pull/567
 [#569]: https://github.com/linebender/kurbo/pull/569
+[#575]: https://github.com/linebender/kurbo/pull/575
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
