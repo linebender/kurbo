@@ -793,6 +793,69 @@ impl Mul<&BezPath> for TranslateScale {
     }
 }
 
+/// Close all open subpaths in a path, expressed as iterator transform.
+pub fn close_subpaths<I>(elements: I) -> CloseSubpaths<I::IntoIter>
+where
+    I: IntoIterator<Item = PathEl>,
+{
+    CloseSubpaths {
+        elements: elements.into_iter(),
+        state: CloseSubpathState::Start,
+    }
+}
+
+/// An iterator that closes all open subpaths.
+///
+/// This struct is created by the [`segments`] function.
+#[derive(Clone)]
+pub struct CloseSubpaths<I: Iterator<Item = PathEl>> {
+    elements: I,
+    state: CloseSubpathState,
+}
+
+#[derive(Clone)]
+enum CloseSubpathState {
+    Start,
+    InSubpath,
+    ClosedLast,
+    PendingMoveTo(Point),
+}
+
+impl<I: Iterator<Item = PathEl>> Iterator for CloseSubpaths<I> {
+    type Item = PathEl;
+
+    fn next(&mut self) -> Option<PathEl> {
+        match self.state {
+            CloseSubpathState::Start => {
+                let el = self.elements.next();
+                if !matches!(el, Some(PathEl::ClosePath)) {
+                    self.state = CloseSubpathState::InSubpath;
+                }
+                el
+            }
+            CloseSubpathState::InSubpath => {
+                let el = self.elements.next();
+                match el {
+                    None => {
+                        self.state = CloseSubpathState::ClosedLast;
+                        Some(PathEl::ClosePath)
+                    }
+                    Some(PathEl::MoveTo(point)) => {
+                        self.state = CloseSubpathState::PendingMoveTo(point);
+                        Some(PathEl::ClosePath)
+                    }
+                    _ => el,
+                }
+            }
+            CloseSubpathState::ClosedLast => None,
+            CloseSubpathState::PendingMoveTo(point) => {
+                self.state = CloseSubpathState::Start;
+                Some(PathEl::MoveTo(point))
+            }
+        }
+    }
+}
+
 /// Transform an iterator over path elements into one over path
 /// segments.
 ///
@@ -2182,5 +2245,36 @@ mod tests {
         assert!(bez.contains((100.0, 300.1).into()));
         assert!(bez.contains((100.0, 299.9).into()));
         assert!(bez.contains((100.0, 300.0).into()));
+    }
+
+    #[test]
+    fn check_close_subpaths() {
+        let mut bez = BezPath::new();
+        bez.move_to((10.0, 10.0));
+        bez.line_to((100.0, 20.0));
+        bez.line_to((60.0, 100.0));
+        let elements = close_subpaths(&bez).collect::<Vec<_>>();
+        bez.close_path();
+        assert_eq!(&elements, bez.elements());
+
+        // Test implicit closepath in middle of path
+        let mut bez2 = BezPath::new();
+        bez2.move_to((10.0, 10.0));
+        bez2.line_to((100.0, 20.0));
+        bez2.line_to((60.0, 100.0));
+        bez2.move_to((110.0, 10.0));
+        bez2.line_to((200.0, 20.0));
+        bez2.line_to((160.0, 100.0));
+        let elements2 = close_subpaths(&bez2).collect::<Vec<_>>();
+        let mut bez3 = BezPath::new();
+        bez3.move_to((10.0, 10.0));
+        bez3.line_to((100.0, 20.0));
+        bez3.line_to((60.0, 100.0));
+        bez3.close_path();
+        bez3.move_to((110.0, 10.0));
+        bez3.line_to((200.0, 20.0));
+        bez3.line_to((160.0, 100.0));
+        bez3.close_path();
+        assert_eq!(&elements2, bez3.elements());
     }
 }

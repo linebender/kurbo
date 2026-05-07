@@ -3,7 +3,7 @@
 
 use crate::{
     Affine, Arc, BezPath, CubicBez, Join, ParamCurve, ParamCurveDeriv, PathEl, PathSeg, Point,
-    QuadBez, Shape, Vec2,
+    QuadBez, Shape, Vec2, close_subpaths, segments,
 };
 
 #[cfg(not(feature = "std"))]
@@ -131,7 +131,7 @@ pub fn expand_path(
     miter_limit: f64,
     tolerance: f64,
 ) -> BezPath {
-    if path.area() >= 0.0 {
+    if segments(close_subpaths(path.path_elements(tolerance))).area() >= 0.0 {
         expand = -expand;
     }
     expand_path_signed(path, expand, join, miter_limit, tolerance)
