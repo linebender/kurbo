@@ -74,12 +74,6 @@ impl ExpandCtx {
         core::mem::replace(&mut self.output, output)
     }
 
-    /// Take the output path by value, leaving an empty `BezPath` in its place.
-    #[inline(always)]
-    pub fn take_output(&mut self) -> BezPath {
-        core::mem::take(&mut self.output)
-    }
-
     #[inline(always)]
     fn reset(&mut self, expand: Diagonal2, join: Join, miter_limit: f64, tolerance: f64) {
         self.output.truncate(0);
