@@ -20,17 +20,80 @@ pub struct Diagonal2 {
     pub yy: f64,
 }
 
-struct ExpandCtx {
+/// Reusable context for [`expand_path_with`] and [`expand_path_signed_with`].
+#[derive(Debug)]
+pub struct ExpandCtx {
     expand: Diagonal2,
     join: Join,
     miter_limit: f64,
     tolerance: f64,
-    result: BezPath,
+    output: BezPath,
     first_n: Option<Vec2>,
     first_tan: Vec2,
     last_pt: Point,
     last_n: Option<Vec2>,
     last_tan: Vec2,
+}
+
+impl Default for ExpandCtx {
+    fn default() -> Self {
+        Self {
+            expand: Diagonal2::new(1.0, 1.0),
+            join: Join::Bevel,
+            miter_limit: 0.0,
+            tolerance: 0.0,
+            output: BezPath::new(),
+            first_n: None,
+            first_tan: Vec2::default(),
+            last_pt: Point::default(),
+            last_n: None,
+            last_tan: Vec2::default(),
+        }
+    }
+}
+
+impl ExpandCtx {
+    /// Get the output path.
+    #[inline(always)]
+    pub fn output(&self) -> &BezPath {
+        &self.output
+    }
+
+    /// Create a new `ExpandCtx` with the given output path.
+    #[inline(always)]
+    pub fn with_output(output: BezPath) -> Self {
+        Self {
+            output,
+            ..Self::default()
+        }
+    }
+
+    /// Replace the output path with the given path, returning the previous one.
+    #[inline(always)]
+    pub fn replace_output(&mut self, output: BezPath) -> BezPath {
+        core::mem::replace(&mut self.output, output)
+    }
+
+    /// Take the output path by value, leaving an empty `BezPath` in its place.
+    #[inline(always)]
+    pub fn take_output(&mut self) -> BezPath {
+        core::mem::take(&mut self.output)
+    }
+
+    #[inline(always)]
+    fn reset(&mut self, expand: Diagonal2, join: Join, miter_limit: f64, tolerance: f64) {
+        self.output.truncate(0);
+        self.first_n = None;
+        self.first_tan = Vec2::default();
+        self.last_pt = Point::default();
+        self.last_n = None;
+        self.last_tan = Vec2::default();
+
+        self.expand = expand;
+        self.join = join;
+        self.miter_limit = miter_limit;
+        self.tolerance = tolerance;
+    }
 }
 
 struct CubicCtx {
@@ -126,15 +189,30 @@ impl core::ops::Mul<Point> for Diagonal2 {
 /// expansion factor is large compared with the radius of curvature on the input.
 pub fn expand_path(
     path: impl Shape,
-    mut expand: Diagonal2,
+    expand: Diagonal2,
     join: Join,
     miter_limit: f64,
     tolerance: f64,
 ) -> BezPath {
+    let mut ctx = ExpandCtx::default();
+    expand_path_with(path, expand, join, miter_limit, tolerance, &mut ctx);
+    ctx.output
+}
+
+/// The same as [`expand_path`], but using a caller-provided [`ExpandCtx`] to enable
+/// allocation re-use.
+pub fn expand_path_with(
+    path: impl Shape,
+    mut expand: Diagonal2,
+    join: Join,
+    miter_limit: f64,
+    tolerance: f64,
+    ctx: &mut ExpandCtx,
+) {
     if segments(close_subpaths(path.path_elements(tolerance))).area() >= 0.0 {
         expand = -expand;
     }
-    expand_path_signed(path, expand, join, miter_limit, tolerance)
+    expand_path_signed_with(path, expand, join, miter_limit, tolerance, ctx);
 }
 
 /// Expand a path when the sign is known.
@@ -150,19 +228,23 @@ pub fn expand_path_signed(
     miter_limit: f64,
     tolerance: f64,
 ) -> BezPath {
-    let result = BezPath::new();
-    let mut ctx = ExpandCtx {
-        expand,
-        join,
-        miter_limit,
-        tolerance,
-        result,
-        first_n: None,
-        first_tan: Vec2::default(),
-        last_pt: Point::default(),
-        last_n: None,
-        last_tan: Vec2::default(),
-    };
+    let mut ctx = ExpandCtx::default();
+    expand_path_signed_with(path, expand, join, miter_limit, tolerance, &mut ctx);
+    ctx.output
+}
+
+/// The same as [`expand_path_signed`], but using a caller-provided [`ExpandCtx`] to enable
+/// allocation re-use.
+pub fn expand_path_signed_with(
+    path: impl Shape,
+    expand: Diagonal2,
+    join: Join,
+    miter_limit: f64,
+    tolerance: f64,
+    ctx: &mut ExpandCtx,
+) {
+    ctx.reset(expand, join, miter_limit, tolerance);
+
     let mut first_pt = Point::default();
     for el in path.path_elements(tolerance) {
         match el {
@@ -179,7 +261,6 @@ pub fn expand_path_signed(
     }
     // Treat all subpaths as closed; close if left open in input.
     ctx.do_close_path(first_pt);
-    ctx.result
 }
 
 impl ExpandCtx {
@@ -197,7 +278,7 @@ impl ExpandCtx {
         let n = self.expand.scale_normal(tan.turn_90());
         self.do_join(n, tan, true);
         let out_p1 = p1 + n;
-        self.result.line_to(out_p1);
+        self.output.line_to(out_p1);
         self.last_n = Some(n);
         self.last_tan = tan;
         self.last_pt = p1;
@@ -233,7 +314,7 @@ impl ExpandCtx {
         self.do_join(n0, q0, false);
         let out_p1 = out_p0 + self.expand * (a * utan0);
         let out_p2 = out_p3 - self.expand * (b * utan1);
-        self.result.curve_to(out_p1, out_p2, out_p3);
+        self.output.curve_to(out_p1, out_p2, out_p3);
         self.last_n = Some(n1);
         self.last_tan = q1;
         self.last_pt = p2;
@@ -271,7 +352,7 @@ impl ExpandCtx {
             // TODO: clamp to correct direction
             let out_p1 = p1 + n0 + self.expand.abs() * (a * utan0);
             let out_p2 = p2 + n1 + self.expand.abs() * (b * utan1);
-            self.result.curve_to(out_p1, out_p2, out_p3);
+            self.output.curve_to(out_p1, out_p2, out_p3);
             self.last_n = Some(n1);
             self.last_tan = self.expand * utan1;
             self.last_pt = p3;
@@ -303,11 +384,11 @@ impl ExpandCtx {
                                     let miter_pt = self.last_pt + last_n + h * self.last_tan;
                                     // A cheap optimization to reduce line segments with joins to lines
                                     if let Some(PathEl::LineTo(p)) =
-                                        self.result.elements_mut().last_mut()
+                                        self.output.elements_mut().last_mut()
                                     {
                                         *p = miter_pt;
                                     } else {
-                                        self.result.line_to(miter_pt);
+                                        self.output.line_to(miter_pt);
                                     }
                                     if is_line {
                                         return;
@@ -335,7 +416,7 @@ impl ExpandCtx {
                                     Arc::new(Point::ORIGIN, (1.0, 1.0), -angle, angle, 0.0);
                                 let tolerance = self.tolerance / einv.xx.abs().max(einv.yy.abs());
                                 arc.to_cubic_beziers(tolerance, |p1, p2, p3| {
-                                    self.result.curve_to(a * p1, a * p2, a * p3);
+                                    self.output.curve_to(a * p1, a * p2, a * p3);
                                 });
                                 return;
                             }
@@ -343,10 +424,10 @@ impl ExpandCtx {
                     }
                 }
                 // Bevel case
-                self.result.line_to(p);
+                self.output.line_to(p);
             }
         } else {
-            self.result.move_to(self.last_pt + n);
+            self.output.move_to(self.last_pt + n);
             self.first_n = Some(n);
             self.first_tan = tan;
         }
@@ -360,7 +441,7 @@ impl ExpandCtx {
                 self.do_line(first_pt);
             }
             self.do_join(first_n, self.first_tan, true);
-            self.result.close_path();
+            self.output.close_path();
         }
         self.last_n = None;
     }
@@ -431,8 +512,8 @@ mod tests {
     use std::f64::consts::PI;
 
     use crate::{
-        Affine, BezPath, Circle, Diagonal2, Join, ParamCurveMoments, PathEl, Point, Rect, Shape,
-        Size, Vec2, expand_path,
+        Affine, BezPath, Circle, Diagonal2, ExpandCtx, Join, ParamCurveMoments, PathEl, Point,
+        Rect, Shape, Size, Vec2, expand_path, expand_path_with,
     };
 
     #[test]
@@ -600,5 +681,23 @@ mod tests {
         let closed_expanded = expand_path(closed, expand, Join::Miter, 4.0, 1e-3);
 
         assert_eq!(open_expanded, closed_expanded);
+    }
+
+    #[test]
+    fn expand_path_with_reuses_ctx_without_leaking_state() {
+        let circle = Circle::new(Point::new(100.0, 100.0), 10.0);
+        let rect = Rect::from_center_size(Point::new(50.0, 50.0), Size::new(30.0, 20.0));
+        let expand = Diagonal2::new(2.0, 2.0);
+
+        let circle_expected = expand_path(circle, expand, Join::Round, 4.0, 1e-3);
+        let rect_expected = expand_path(rect, expand, Join::Miter, 4.0, 1e-3);
+
+        let mut ctx = ExpandCtx::default();
+
+        expand_path_with(circle, expand, Join::Round, 4.0, 1e-3, &mut ctx);
+        assert_eq!(ctx.output(), &circle_expected);
+
+        expand_path_with(rect, expand, Join::Miter, 4.0, 1e-3, &mut ctx);
+        assert_eq!(ctx.output(), &rect_expected);
     }
 }

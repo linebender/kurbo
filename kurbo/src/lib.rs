@@ -161,7 +161,10 @@ pub use crate::bezpath::{
 pub use crate::circle::{Circle, CirclePathIter, CircleSegment};
 pub use crate::cubicbez::{CubicBez, CubicBezIter, CuspType, cubics_to_quadratic_splines};
 pub use crate::ellipse::Ellipse;
-pub use crate::expand::{Diagonal2, expand_path, expand_path_signed};
+pub use crate::expand::{
+    Diagonal2, ExpandCtx, expand_path, expand_path_signed, expand_path_signed_with,
+    expand_path_with,
+};
 pub use crate::fit::{
     CurveFitSample, ParamCurveFit, fit_to_bezpath, fit_to_bezpath_opt, fit_to_cubic,
 };
