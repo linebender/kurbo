@@ -744,7 +744,7 @@ fn dash_iter<'a>(
     let mut dash_remaining = dashes[dash_ix] - dash_offset;
     let mut is_active = true;
     // Find place in dashes array for initial offset.
-    while dash_remaining <= DASH_ACCURACY {
+    while dash_remaining <= 0.0 {
         dash_ix = (dash_ix + 1) % dashes.len();
         dash_remaining += dashes[dash_ix];
         is_active = !is_active;
@@ -869,7 +869,7 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             self.dash_remaining -= self.seg_remaining;
 
             // If a dash transition coincides with a path vertex, advance the dash now
-            if self.is_active && self.dash_remaining <= DASH_ACCURACY {
+            if self.is_active && self.dash_remaining <= 0.0 {
                 self.is_active = false;
                 self.dash_ix += 1;
                 if self.dash_ix == self.dashes.len() {
