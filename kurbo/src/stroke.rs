@@ -1201,6 +1201,39 @@ mod tests {
     }
 
     #[test]
+    fn dash_preserves_small_initial_dash() {
+        let tiny_remainder = DASH_ACCURACY * 0.5;
+        let shape = Line::new((0.0, 0.0), (1.0, 0.0));
+        let dashes = [3.0, 1.0];
+        let dash_offset = 3.0 - tiny_remainder;
+        let expected_dash_end = dashes[0] - dash_offset;
+        let result = dash(shape.path_elements(0.0), dash_offset, &dashes).collect::<Vec<PathEl>>();
+        let expected = vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((expected_dash_end, 0.0).into()),
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dash_preserves_small_remainder_across_vertex() {
+        let tiny_remainder = DASH_ACCURACY * 0.5;
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((3.0, 0.0));
+        path.line_to((3.0, 1.0));
+        let dashes = [3.0 + tiny_remainder, 1.0];
+        let expected_dash_end = dashes[0] - 3.0;
+        let result = dash(path.iter(), 0.0, &dashes).collect::<Vec<PathEl>>();
+        let expected = vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 0.0).into()),
+            PathEl::LineTo((3.0, expected_dash_end).into()),
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn dash_negative_offset() {
         let shape = Line::new((0.0, 0.0), (28.0, 0.0));
         let dashes = [4., 2.];
