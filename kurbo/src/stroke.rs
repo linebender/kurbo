@@ -838,9 +838,12 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             let seg = self.current_seg.subsegment(self.t..1.0);
             let t1 = seg.inv_arclen(self.dash_remaining, DASH_ACCURACY);
             if self.is_active {
-                let subseg = seg.subsegment(0.0..t1);
-                result = Some(seg_to_el(&subseg));
-                self.state = DashState::Working;
+                // Skip a zero-length dash that ends exactly on a path vertex.
+                if t1 != 0.0 {
+                    let subseg = seg.subsegment(0.0..t1);
+                    result = Some(seg_to_el(&subseg));
+                    self.state = DashState::Working;
+                }
             } else {
                 let p = seg.eval(t1);
                 result = Some(PathEl::MoveTo(p));
@@ -905,6 +908,26 @@ mod tests {
         let stroke_style = Stroke::new(1.);
         let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
         assert!(stroked.is_finite());
+    }
+
+    #[test]
+    /// <https://github.com/linebender/kurbo/issues/577>
+    fn dash_transition_on_vertex() {
+        let path = BezPath::from_vec(vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 0.0).into()),
+            PathEl::LineTo((3.0, 3.0).into()),
+        ]);
+        let result: Vec<PathEl> = dash_iter(path.into_iter(), 0.0, &[3.0, 1.0], true).collect();
+        assert_eq!(
+            result,
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::LineTo((3.0, 0.0).into()),
+                PathEl::MoveTo((3.0, 1.0).into()),
+                PathEl::LineTo((3.0, 3.0).into()),
+            ]
+        );
     }
 
     #[test]

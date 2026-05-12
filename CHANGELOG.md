@@ -36,6 +36,7 @@ This release has an [MSRV][] of 1.85.
 
 - Improved numerical robustness of winding numbers for paths. ([#537][] by [@jneem][])
 - `Affine::pre_rotate_about` calculation. ([#567][] by [@dannymcgee][])
+- Dash iterator no longer emits a zero-length `LineTo` when a dash transition lands exactly on a path vertex. ([#584][] by [@SAY-5][])
 
 ## [0.13.0] (2025-11-27)
 
@@ -214,6 +215,7 @@ Note: A changelog was not kept for or before this release
 [@xorgy]: https://github.com/xorgy
 [@xStrom]: https://github.com/xStrom
 [@RobertBrewitz]: https://github.com/RobertBrewitz
+[@SAY-5]: https://github.com/SAY-5
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
@@ -303,6 +305,7 @@ Note: A changelog was not kept for or before this release
 [#567]: https://github.com/linebender/kurbo/pull/567
 [#569]: https://github.com/linebender/kurbo/pull/569
 [#575]: https://github.com/linebender/kurbo/pull/575
+[#584]: https://github.com/linebender/kurbo/pull/584
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
