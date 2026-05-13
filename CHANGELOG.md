@@ -37,6 +37,7 @@ This release has an [MSRV][] of 1.85.
 
 - `Affine::pre_rotate_about` calculation. ([#567][] by [@dannymcgee][])
 - Now closing subpaths when computing area for expansion. ([#580][] by [@raphlinus][])
+- Odd-length dash patterns no longer swap dashes and gaps when `dash_offset` increases. ([#585][] by [@Keavon][])
 
 ## [0.13.0] (2025-11-27)
 
@@ -54,7 +55,7 @@ This release has an [MSRV][] of 1.85.
 - `QuadBez::arclen` calculation has been made more numerically stable ([#503][] by [@jneem][]).
 - `SvgParseError` now implements `core::error:Error`.
   It previously implemented `std::error::Error` in `std`-enabled builds. ([#517][] by [@Bombaninha][])
-- The behavior of open versus closed shapes when using `BezPath::extend` (extending Bezier paths using an iterator over `PathEl`) has been clarified. [#523][] by [@DJMcNab][])
+- The behavior of open versus closed shapes when using `BezPath::extend` (extending Bezier paths using an iterator over `PathEl`) has been clarified. ([#523][] by [@DJMcNab][])
 - More methods are marked `inline`. ([#506][] by [@LaurenzV][], [#509][] by [@tomcur][])
 
 The following functions are now callable from `const` contexts. ([#510][], [#512][], [#521][], [#522][], [#524][], [#525][], [#526][] by [@tomcur][])
@@ -201,6 +202,7 @@ Note: A changelog was not kept for or before this release
 [@jneem]: https://github.com/jneem
 [@jrmoulton]: https://github.com/jrmoulton
 [@juliapaci]: https://github.com/juliapaci
+[@Keavon]: https://github.com/Keavon
 [@LaurenzV]: https://github.com/LaurenzV
 [@liferooter]: https://github.com/liferooter
 [@nils-mathieu]: https://github.com/nils-mathieu
@@ -208,6 +210,7 @@ Note: A changelog was not kept for or before this release
 [@platlas]: https://github.com/platlas
 [@PoignardAzur]: https://github.com/PoignardAzur
 [@raphlinus]: https://github.com/raphlinus
+[@RobertBrewitz]: https://github.com/RobertBrewitz
 [@rsheeter]: https://github.com/rsheeter
 [@sagudev]: https://github.com/sagudev
 [@simoncozens]: https://github.com/simoncozens
@@ -215,7 +218,6 @@ Note: A changelog was not kept for or before this release
 [@waywardmonkeys]: https://github.com/waywardmonkeys
 [@xorgy]: https://github.com/xorgy
 [@xStrom]: https://github.com/xStrom
-[@RobertBrewitz]: https://github.com/RobertBrewitz
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
@@ -305,6 +307,7 @@ Note: A changelog was not kept for or before this release
 [#567]: https://github.com/linebender/kurbo/pull/567
 [#569]: https://github.com/linebender/kurbo/pull/569
 [#575]: https://github.com/linebender/kurbo/pull/575
+[#585]: https://github.com/linebender/kurbo/pull/585
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0

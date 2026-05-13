@@ -728,8 +728,16 @@ fn dash_iter<'a>(
     dashes: &'a [f64],
     stable_dash_order: bool,
 ) -> DashIterator<'a, impl Iterator<Item = PathEl> + 'a> {
-    // ensure that offset is positive and minimal by normalization using period
+    // Ensure that offset is positive and minimal by normalization using period
     let period = dashes.iter().sum();
+    // The SVG spec requires odd-length dash arrays to be doubled to become even-length:
+    // <https://www.w3.org/TR/SVG2/painting.html#StrokeDasharrayProperty>
+    // This prevents gaps and dashes from swapping with one another as the offset increases.
+    let period = if dashes.len() % 2 == 1 {
+        2.0 * period
+    } else {
+        period
+    };
     let dash_offset = dash_offset.rem_euclid(period);
 
     let mut dash_ix = 0;
@@ -1098,6 +1106,34 @@ mod tests {
         let pos = segments(dash(shape.path_elements(0.), 60., &dashes)).collect::<Vec<PathSeg>>();
         let neg = segments(dash(shape.path_elements(0.), -60., &dashes)).collect::<Vec<PathSeg>>();
         assert_eq!(neg, pos);
+    }
+
+    #[test]
+    fn dash_odd_length_matches_doubled() {
+        let shape = Line::new((0.0, 0.0), (50.0, 0.0));
+        let odd = [10.];
+        let doubled = [10., 10.];
+        for offset in [0., 5., 9., 10., 11., 15., 20., 25., 100., -7.] {
+            let from_odd =
+                segments(dash(shape.path_elements(0.), offset, &odd)).collect::<Vec<PathSeg>>();
+            let from_doubled =
+                segments(dash(shape.path_elements(0.), offset, &doubled)).collect::<Vec<PathSeg>>();
+            assert_eq!(from_odd, from_doubled, "mismatch at offset {offset}");
+        }
+    }
+
+    #[test]
+    fn dash_three_element_matches_doubled() {
+        let shape = Line::new((0.0, 0.0), (200.0, 0.0));
+        let three = [20., 10., 3.];
+        let doubled = [20., 10., 3., 20., 10., 3.];
+        for offset in [0., 15., 32., 33., 34., 50., 66., 99.] {
+            let from_three =
+                segments(dash(shape.path_elements(0.), offset, &three)).collect::<Vec<PathSeg>>();
+            let from_doubled =
+                segments(dash(shape.path_elements(0.), offset, &doubled)).collect::<Vec<PathSeg>>();
+            assert_eq!(from_three, from_doubled, "mismatch at offset {offset}");
+        }
     }
 
     #[test]
