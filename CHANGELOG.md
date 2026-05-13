@@ -17,25 +17,26 @@ This release has an [MSRV][] of 1.85.
 
 ## Added
 
-- Add `Stroke::is_finite` and `Stroke::is_nan`. ([#545][] by [@waywardmonkeys][])
+- `Stroke::is_finite` and `Stroke::is_nan`. ([#545][] by [@waywardmonkeys][])
 - Component-wise `Insets::min/max` methods. ([#548][] by [@xStrom][])
 - Ability to add and subtract `Insets` from other `Insets`. ([#549][] by [@xStrom][])
 - `Arc` now implements `ParamCurve`. ([#378][] by [@waywardmonkeys][])
-- Add `Affine::{pre,then}_skew` and `Affine::{pre,then}_reflect` fluent composition helpers. ([#563][] by [@waywardmonkeys][])
-- Add three transform matrix norms: `Affine::{nuclear_norm_squared,frobenius_norm_squared,spectral_norm}`. ([#569][] by [@tomcur][])
-- Add `StrokeOpts::stable_dash_order` to keep dashes at fixed path-relative positions instead of merging the first/last dash across. ([#550][] by [@RobertBrewitz][])
-- Add `expand_path` anisotropic path expansion. ([#575][] by [@raphlinus][])
+- `Affine::{pre,then}_skew` and `Affine::{pre,then}_reflect` fluent composition helpers. ([#563][] by [@waywardmonkeys][])
+- Three transform matrix norms: `Affine::{nuclear_norm_squared,frobenius_norm_squared,spectral_norm}`. ([#569][] by [@tomcur][])
+- `StrokeOpts::stable_dash_order` to keep dashes at fixed path-relative positions instead of merging the first/last dash across. ([#550][] by [@RobertBrewitz][])
+- `expand_path` anisotropic path expansion. ([#575][] by [@raphlinus][])
 
 ## Changed
 
-- Improve performance of `RoundedRect::winding` and `RoundedRect::contains`. ([#534][] by [@tomcur][])
+- Improved performance of `RoundedRect::winding` and `RoundedRect::contains`. ([#534][] by [@tomcur][])
 - `Axis`, `Ellipse::from_affine`, `Insets`, `Line::reversed`, `Rect::min_x/max_x/min_y/max_y`, `RoundedRectRadii::abs/clamp/as_single_radius`, `RoundedRect::width/height/radii/rect/origin/center`, `Size::aspect_ratio`, `Stroke::new/with_join/with_miter_limit/with_start_cap/with_end_cap/with_caps` are all now `const`. ([#536][] by [@xStrom], [#539][] and [#561][] by [@tomcur][])
-- Improve performance of `Ellipse::area`. Note: for non-finite ellipses, this method may now return `f64::INFINITY` where it returned `f64::NAN` before. ([#559][] by [@tomcur][])
+- Improved performance of `Ellipse::area`. Note: for non-finite ellipses, this method may now return `f64::INFINITY` where it returned `f64::NAN` before. ([#559][] by [@tomcur][])
+- Improved numerical robustness of winding numbers for paths. ([#537][] by [@jneem][])
 
 ## Fixed
 
-- Improved numerical robustness of winding numbers for paths. ([#537][] by [@jneem][])
 - `Affine::pre_rotate_about` calculation. ([#567][] by [@dannymcgee][])
+- Now closing subpaths when computing area for expansion. ([#580][] by [@raphlinus][])
 
 ## [0.13.0] (2025-11-27)
 
@@ -43,15 +44,16 @@ This release has an [MSRV][] of 1.85.
 
 ## Added
 
-- The newly added `BezPath::into_elements` method allows getting all path elements as a `Vec` without allocating, consuming the original path. This is the counterpart of `BezPath::from_vec`. ([#504][] by [@cmyr][])
-- Add a derive `Hash` to the `Axis` type. ([#527][] by [@jrmoulton][])
+- `BezPath::into_elements` method which allows getting all path elements as a `Vec` without allocating, consuming the original path. This is the counterpart of `BezPath::from_vec`. ([#504][] by [@cmyr][])
+- A derive `Hash` to the `Axis` type. ([#527][] by [@jrmoulton][])
 
 ## Changed
 
-- Speed up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
-- The `Line::nearest` method to calculate the projection of a point onto a line segment has been made more performant. ([#505][] by [@tomcur][])
-- The `QuadBez::arclen` calculation has been made more numerically stable ([#503][] by [@jneem][]).
-- `SvgParseError` now implements `core::error:Error`. It previously implemented `std::error::Error` in `std`-enabled builds. ([#517][] by [@Bombaninha][])
+- Sped up methods like `Ellipse::radii` by reworking the singular value decomposition expression. ([#499][] by [@tomcur][])
+- `Line::nearest` method to calculate the projection of a point onto a line segment has been made more performant. ([#505][] by [@tomcur][])
+- `QuadBez::arclen` calculation has been made more numerically stable ([#503][] by [@jneem][]).
+- `SvgParseError` now implements `core::error:Error`.
+  It previously implemented `std::error::Error` in `std`-enabled builds. ([#517][] by [@Bombaninha][])
 - The behavior of open versus closed shapes when using `BezPath::extend` (extending Bezier paths using an iterator over `PathEl`) has been clarified. [#523][] by [@DJMcNab][])
 - More methods are marked `inline`. ([#506][] by [@LaurenzV][], [#509][] by [@tomcur][])
 
@@ -71,8 +73,8 @@ It was increased to support floating point math in const functions.
 ### Added
 
 - Newly public `StrokeCtx` allows for reusing allocations when stroking multiple paths. ([#475][] by [@LaurenzV][])
-- New `Axis` type. ([#476][] by [@PoignardAzur][])
-- Add `Ellipse::major_radius` and `Ellipse::minor_radius` methods. ([#497][] by [@tomcur][])
+- `Axis` type. ([#476][] by [@PoignardAzur][])
+- `Ellipse::major_radius` and `Ellipse::minor_radius` methods. ([#497][] by [@tomcur][])
 
 ### Changed
 
@@ -90,7 +92,7 @@ It was increased to support floating point math in const functions.
 ### Fixed
 
 - Improved cubic to quadratic conversion handling for degenerate cubic curves with 3-4 consecutive equal control points. The approximation now correctly handles edge cases where cubics degenerate to lines or single points, matching fonttools' cu2qu behavior. ([#485][] by [@anthrotype][])
-- Fix miter join in dashed strokes. ([#490][] by [@gemberg][])
+- Miter join in dashed strokes. ([#490][] by [@gemberg][])
 
 ### Removed
 
@@ -104,10 +106,10 @@ This release has an [MSRV][] of 1.65.
 
 ### Added
 
-- Add `current_position` method to `BezPath`. ([#462][] by [@sagudev][])
-- Add `From` conversions between `euclid` and `kurbo` types behind the `euclid` feature. ([#463][] by [@sagudev][])
-- Add Green's theorem moments. ([#452][] by [@simoncozens][])
-- Make `Vec2::splat` public. ([#469][] by [@xorgy][])
+- `current_position` method to `BezPath`. ([#462][] by [@sagudev][])
+- `From` conversions between `euclid` and `kurbo` types behind the `euclid` feature. ([#463][] by [@sagudev][])
+- Green's theorem moments. ([#452][] by [@simoncozens][])
+- Made `Vec2::splat` public. ([#469][] by [@xorgy][])
 
 ### Changed
 
@@ -121,8 +123,8 @@ This release has an [MSRV][] of 1.65.
 ### Fixed
 
 - Documentation of `RoundedRect` no longer incorrectly specifies the corner radii are equal. ([#447][] by [@tomcur][])
-- Fixed negative dash offset by normalization. ([#454][] by [@sagudev][])
-- Use exact endpoints for `PathSeg`. ([#465][] by [@jneem])
+- Negative dash offset by normalization. ([#454][] by [@sagudev][])
+- Now using exact endpoints for `PathSeg`. ([#465][] by [@jneem])
 
 ## [0.11.2][] (2025-04-28)
 
@@ -131,25 +133,25 @@ This release has an [MSRV][] of 1.65.
 ### Added
 
 - `Stroke` is now `PartialEq`, `StrokeOpts` is now `Clone`, `Copy`, `Debug`, `Eq`, `PartialEq`. ([#379][] by [@waywardmonkeys][])
-- Implement `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
-- Add triangle shape. ([#350][] by [@juliapaci][], [#387][] by [@tomcur][])
-- Implement `Div<f64>` and `Mul<f64>` for `Insets`. ([#384][] by [@liferooter][])
-- Add `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409][] by [@raphlinus][])
-- Add `min` and `max` methods to `Size`. ([#412][] by [@nils-mathieu][])
-- Add an `INFNITY` constant to `Size`. ([#413][] by [@nils-mathieu][])
-- Add `BezPath::with_capacity` method ([#418][] by [@LaurenzV][])
-- Add  `Affine::scale_about` and `Affine::then_scale_about`. ([#429][] by [@xorgy][])
+- Implemented `Sum` for `Vec2`. ([#399][] by [@Philipp-M][])
+- Triangle shape. ([#350][] by [@juliapaci][], [#387][] by [@tomcur][])
+- Implemented `Div<f64>` and `Mul<f64>` for `Insets`. ([#384][] by [@liferooter][])
+- `Vec2::turn_90` and `Vec2::rotate_scale` methods ([#409][] by [@raphlinus][])
+- `min` and `max` methods to `Size`. ([#412][] by [@nils-mathieu][])
+- `INFNITY` constant to `Size`. ([#413][] by [@nils-mathieu][])
+- `BezPath::with_capacity` method ([#418][] by [@LaurenzV][])
+- `Affine::scale_about` and `Affine::then_scale_about`. ([#429][] by [@xorgy][])
 
 ### Changed
 
-- Reduce number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
+- Reduced number of operations in `Triangle::circumscribed_circle`. ([#390][] by [@tomcur][])
 - Numerically approximate ellipse perimeter. ([#383][], [#407][] by [@tomcur][])
 - Always inline trivial casts, splats, and swizzles. ([#428][] by [@xorgy][])
 
 ### Fixed
 
-- Fix documentation of `Affine::svd`. ([#388][] by [@tomcur][])
-- Fix documentation of cross product. ([#409][] by [@raphlinus][])
+- Documentation of `Affine::svd`. ([#388][] by [@tomcur][])
+- Documentation of cross product. ([#409][] by [@raphlinus][])
 
 ## [0.11.1][] (2024-09-12)
 
@@ -157,20 +159,20 @@ This release has an [MSRV][] of 1.65.
 
 ### Added
 
-- Add `From (f32, f32)` for `Point`. ([#339][] by [@rsheeter][])
-- Add `Rect::overlaps` and `Rect::contains_rect`. ([#347][] by [@nils-mathieu][])
-- Add `CubicBez::tangents` ([#288][] by [@raphlinus][])
-- Add `Arc::reversed`. ([#367][] by [@waywardmonkeys][])
-- Add `CircleSegment::inner_arc` and `CircleSegment::outer_arc` ([#368][] by [@waywardmonkeys][])
-- Add `Rect::is_zero_area` and `Size::is_zero_area` and deprecate their `is_empty` methods. ([#370][] by [@waywardmonkeys][])
-- Add `Line::reversed` and `Line::midpoint`. ([#375][] by [@waywardmonkeys][])
-- Allow construction of `Line` from `(Point, Point)` and `(Point, Vec2)`. ([#376][] by [@waywardmonkeys][])
+- `From (f32, f32)` for `Point`. ([#339][] by [@rsheeter][])
+- `Rect::overlaps` and `Rect::contains_rect`. ([#347][] by [@nils-mathieu][])
+- `CubicBez::tangents` ([#288][] by [@raphlinus][])
+- `Arc::reversed`. ([#367][] by [@waywardmonkeys][])
+- `CircleSegment::inner_arc` and `CircleSegment::outer_arc` ([#368][] by [@waywardmonkeys][])
+- `Rect::is_zero_area` and `Size::is_zero_area` and deprecate their `is_empty` methods. ([#370][] by [@waywardmonkeys][])
+- `Line::reversed` and `Line::midpoint`. ([#375][] by [@waywardmonkeys][])
+- Allowing construction of `Line` from `(Point, Point)` and `(Point, Vec2)`. ([#376][] by [@waywardmonkeys][])
 
 ### Changed
 
-- Move `Self: Sized` bound from `Shape` to methods. ([#340][] by [@waywardmonkeys][])
-- Enable partial SVG path support in `no_std` builds. ([#356][] by [@waywardmonkeys][])
-- Deprecate `BezPath::flatten`, prefer `flatten`. ([#361][] by [@waywardmonkeys][])
+- Moved `Self: Sized` bound from `Shape` to methods. ([#340][] by [@waywardmonkeys][])
+- Enabled partial SVG path support in `no_std` builds. ([#356][] by [@waywardmonkeys][])
+- Deprecated `BezPath::flatten`, prefer `flatten`. ([#361][] by [@waywardmonkeys][])
 
 ### Fixed
 
