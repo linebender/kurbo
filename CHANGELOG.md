@@ -8,10 +8,14 @@ Subheadings to categorize changes are `added, changed, deprecated, removed, fixe
 
 # Changelog
 
-The latest published Kurbo release is [0.13.0](#0130-2025-11-27) which was released on 2025-11-27.
-You can find its changes [documented below](#0130-2025-11-27).
+The latest published Kurbo release is [0.13.1](#0131-2026-05-13) which was released on 2026-05-13.
+You can find its changes [documented below](#0131-2026-05-13).
 
-## [Unreleased]
+## [Unreleased][]
+
+This release has an [MSRV][] of 1.85.
+
+## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
 
@@ -39,7 +43,7 @@ This release has an [MSRV][] of 1.85.
 - Now closing subpaths when computing area for expansion. ([#580][] by [@raphlinus][])
 - Odd-length dash patterns no longer swap dashes and gaps when `dash_offset` increases. ([#585][] by [@Keavon][])
 
-## [0.13.0] (2025-11-27)
+## [0.13.0][] (2025-11-27)
 
 This release has an [MSRV][] of 1.85.
 
@@ -66,7 +70,7 @@ The following functions are now callable from `const` contexts. ([#510][], [#512
 - `Size::{max_side, min_side, area, is_zero_area, min, max, clamp, aspect_ratio_width}`
 - In addition, the `is_finite` and `is_nan` methods on the following types are now `const`: `Affine`, `Circle`, `ConstPoint`, `CubicBez`, `Ellipse`, `Insets`, `Line`, `Point`, `QuadBez`, `Rect`, `RoundedRect`, `RoundedRectRadii`, `Size`, `Triangle`, `Vec2`.
 
-## [0.12.0] (2025-09-04)
+## [0.12.0][] (2025-09-04)
 
 This release has an [MSRV][] of 1.82.
 It was increased to support floating point math in const functions.
@@ -307,9 +311,11 @@ Note: A changelog was not kept for or before this release
 [#567]: https://github.com/linebender/kurbo/pull/567
 [#569]: https://github.com/linebender/kurbo/pull/569
 [#575]: https://github.com/linebender/kurbo/pull/575
+[#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 
-[Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
 [0.13.0]: https://github.com/linebender/kurbo/releases/tag/v0.13.0
 [0.12.0]: https://github.com/linebender/kurbo/releases/tag/v0.12.0
 [0.11.3]: https://github.com/linebender/kurbo/releases/tag/v0.11.3
