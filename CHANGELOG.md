@@ -201,8 +201,8 @@ Note: A changelog was not kept for or before this release
 [@gemberg]: https://github.com/gemberg
 [@jneem]: https://github.com/jneem
 [@jrmoulton]: https://github.com/jrmoulton
-[@Keavon]: https://github.com/Keavon
 [@juliapaci]: https://github.com/juliapaci
+[@Keavon]: https://github.com/Keavon
 [@LaurenzV]: https://github.com/LaurenzV
 [@liferooter]: https://github.com/liferooter
 [@nils-mathieu]: https://github.com/nils-mathieu
@@ -210,6 +210,7 @@ Note: A changelog was not kept for or before this release
 [@platlas]: https://github.com/platlas
 [@PoignardAzur]: https://github.com/PoignardAzur
 [@raphlinus]: https://github.com/raphlinus
+[@RobertBrewitz]: https://github.com/RobertBrewitz
 [@rsheeter]: https://github.com/rsheeter
 [@sagudev]: https://github.com/sagudev
 [@simoncozens]: https://github.com/simoncozens
@@ -217,7 +218,6 @@ Note: A changelog was not kept for or before this release
 [@waywardmonkeys]: https://github.com/waywardmonkeys
 [@xorgy]: https://github.com/xorgy
 [@xStrom]: https://github.com/xStrom
-[@RobertBrewitz]: https://github.com/RobertBrewitz
 
 [#288]: https://github.com/linebender/kurbo/pull/288
 [#334]: https://github.com/linebender/kurbo/pull/334
