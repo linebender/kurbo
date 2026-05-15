@@ -15,6 +15,10 @@ You can find its changes [documented below](#0131-2026-05-13).
 
 This release has an [MSRV][] of 1.85.
 
+## Fixed
+
+- Dashed strokes now avoid zero-length output at exact dash boundaries, preserve tiny positive remainders, and keep separate dashes from merging across `ClosePath` seams. ([#578][] by [@RobertBrewitz][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -311,6 +315,7 @@ Note: A changelog was not kept for or before this release
 [#567]: https://github.com/linebender/kurbo/pull/567
 [#569]: https://github.com/linebender/kurbo/pull/569
 [#575]: https://github.com/linebender/kurbo/pull/575
+[#578]: https://github.com/linebender/kurbo/pull/578
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 
