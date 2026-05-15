@@ -1234,6 +1234,24 @@ mod tests {
     }
 
     #[test]
+    fn dash_ending_on_closepath_vertex_does_not_merge_across_seam() {
+        let shape = crate::Rect::from_points((0.0, 0.0), (3.0, 2.5));
+        let dashes = [3.0, 1.0];
+        let result = dash(shape.path_elements(0.0), 0.0, &dashes).collect::<Vec<PathEl>>();
+        let expected = vec![
+            PathEl::MoveTo((0.5, 2.5).into()),
+            PathEl::LineTo((0.0, 2.5).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 0.0).into()),
+            PathEl::MoveTo((3.0, 1.0).into()),
+            PathEl::LineTo((3.0, 2.5).into()),
+            PathEl::LineTo((1.5, 2.5).into()),
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn dash_negative_offset() {
         let shape = Line::new((0.0, 0.0), (28.0, 0.0));
         let dashes = [4., 2.];
