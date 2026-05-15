@@ -3,7 +3,7 @@
 
 //! An ellipse arc.
 
-use crate::{Affine, Ellipse, ParamCurve, PathEl, Point, Rect, Shape, Vec2};
+use crate::{Affine, Ellipse, ParamCurve, ParamCurveDeriv, PathEl, Point, Rect, Shape, Vec2};
 use core::{
     f64::consts::{FRAC_PI_2, PI},
     iter,
@@ -193,6 +193,55 @@ impl ParamCurve for Arc {
     }
 }
 
+impl ParamCurveDeriv for Arc {
+    type DerivResult = Arc;
+
+    fn deriv(&self) -> Arc {
+        // Given the axis-aligned parametric elliptical arc
+        //
+        // ```
+        // p(a) = center + (radii.x * cos(a), radii.y * sin(a))
+        // ```
+        //
+        // we have tangents
+        //
+        // ```
+        // p'(a) = (-radii.x sin(a), radii.y * cos(a)).
+        // ```
+        //
+        // Our parameterization is over `t` with `a = angle_at(t) = start_angle + sweep_angle * t`.
+        // Hence,
+        //
+        // ```
+        // p'(t) = sweep_angle * (-radii.x sin(angle_at(t)), radii.y * cos(angle_at(t)))
+        // ```
+        //
+        // or equivalently
+        //
+        // ```
+        // p'(t) = sweep_angle * (radii.x cos(angle_at(t) + pi/2), radii.y * sin(angle_at(t) + pi/2)).
+        // ```
+        //
+        // Instead of being axis-aligned, our ellipse is rotated by the 2x2 rotation matrix
+        // `R(x_rotation)`. This has the effect of rotating the tangents by the same amount. Hence,
+        // the derivative is given by
+        //
+        // ```
+        // sweep_angle * R(x_rotation) * (radii.x cos(angle_at(t) + pi/2), radii.y * sin(angle_at(t) + pi/2)).
+        // ```
+        //
+        // This is exactly another `Arc`. As this has the same form again, `Arc` is closed under
+        // repeated differentiation.
+        Arc {
+            center: Point::ZERO,
+            radii: self.radii * self.sweep_angle,
+            start_angle: self.start_angle + FRAC_PI_2,
+            sweep_angle: self.sweep_angle,
+            x_rotation: self.x_rotation,
+        }
+    }
+}
+
 impl Shape for Arc {
     type PathElementsIter<'iter> = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
@@ -337,5 +386,26 @@ mod tests {
     fn subsegment_tiny_sweep_matches_original() {
         let arc = Arc::new((0.0, 0.0), (2.0, 1.0), 1.0, 1e-9, FRAC_PI_4);
         assert_subsegment_matches(arc, 0.25..0.75);
+    }
+
+    #[test]
+    fn arc_first_and_second_derivatives() {
+        let arc = Arc::new((1.0, -2.0), (2.0, 1.0), 0.0, PI, FRAC_PI_2);
+        let d1 = arc.deriv();
+        let d2 = d1.deriv();
+
+        // Unrotated: (2 cos(pi t), sin(pi t))
+        // Rotated by pi/2: (-sin(pi t), 2 cos(pi t))
+        // So:
+        // p'(t)  = (-pi cos(pi t), -2 pi sin(pi t))
+        // p''(t) = (pi^2 sin(pi t), -2 pi^2 cos(pi t))
+
+        assert_point_near(d1.eval(0.0), Point::new(-PI, 0.0));
+        assert_point_near(d1.eval(0.5), Point::new(0.0, -2.0 * PI));
+        assert_point_near(d1.eval(1.0), Point::new(PI, 0.0));
+
+        assert_point_near(d2.eval(0.0), Point::new(0.0, -2.0 * PI * PI));
+        assert_point_near(d2.eval(0.5), Point::new(PI * PI, 0.0));
+        assert_point_near(d2.eval(1.0), Point::new(0.0, 2.0 * PI * PI));
     }
 }
