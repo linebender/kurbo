@@ -710,7 +710,8 @@ pub(crate) fn solve_itp_fallible<E>(
 ) -> Result<(f64, f64), E> {
     let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0) as usize;
     let nmax = n0 + n1_2;
-    let mut scaled_epsilon = epsilon * (1u64 << nmax) as f64;
+    let powi_nmax: i32 = nmax.min(i32::MAX as usize).try_into().unwrap_or(i32::MAX);
+    let mut scaled_epsilon = epsilon * 2.0_f64.powi(powi_nmax);
     while b - a > 2.0 * epsilon {
         let x1_2 = 0.5 * (a + b);
         let r = scaled_epsilon - 0.5 * (b - a);
@@ -1095,6 +1096,24 @@ mod tests {
         let f = |x: f64| x.powi(3) - x - 2.0;
         let x = solve_itp(f, 1., 2., 1e-12, 0, 0.2, f(1.), f(2.));
         assert!(f(x).abs() < 6e-12);
+    }
+
+    #[test]
+    fn test_solve_itp_large_nmax_does_not_overflow() {
+        let ya = -0.5;
+        let yb = 0.5;
+        let mut calls = 0usize;
+        let mut f = |x: f64| {
+            calls += 1;
+            assert!(
+                calls <= 10_000,
+                "solve_itp made too many function evaluations without converging"
+            );
+            x - 0.5
+        };
+        let x = solve_itp(&mut f, 0.0, 1.0, 1e-24, 0, 0.2, ya, yb);
+        assert!(x.is_finite());
+        assert!((x - 0.5).abs() <= 1e-12);
     }
 
     #[test]
