@@ -15,6 +15,10 @@ You can find its changes [documented below](#0131-2026-05-13).
 
 This release has an [MSRV][] of 1.85.
 
+## Added
+
+- `TransformClass` and methods for classifying `Affine` transform differences. ([#589][] by [@waywardmonkeys][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -311,8 +315,12 @@ Note: A changelog was not kept for or before this release
 [#567]: https://github.com/linebender/kurbo/pull/567
 [#569]: https://github.com/linebender/kurbo/pull/569
 [#575]: https://github.com/linebender/kurbo/pull/575
+<<<<<<< HEAD
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
+=======
+[#589]: https://github.com/linebender/kurbo/pull/589
+>>>>>>> e10cc9a (Add affine transform classification)
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1

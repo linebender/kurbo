@@ -5,7 +5,10 @@
 
 use core::ops::{Mul, MulAssign};
 
-use crate::{Point, Rect, Vec2};
+use crate::{
+    Point, Rect, Vec2,
+    transform_class::{DEFAULT_TRANSFORM_CLASS_EPSILON, TransformClass},
+};
 
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
@@ -435,6 +438,121 @@ impl Affine {
         ])
     }
 
+    /// Classify this transform relative to the identity transform.
+    ///
+    /// This returns the most restrictive [`TransformClass`] that contains this
+    /// transform, using [`DEFAULT_TRANSFORM_CLASS_EPSILON`] for numeric
+    /// comparisons. [`TransformClass::Exact`] is returned only when this
+    /// transform compares equal to [`Affine::IDENTITY`].
+    #[inline]
+    pub fn transform_class(self) -> TransformClass {
+        self.transform_class_with_epsilon(DEFAULT_TRANSFORM_CLASS_EPSILON)
+    }
+
+    /// Classify this transform relative to the identity transform, using
+    /// `epsilon` for numeric comparisons.
+    ///
+    /// Negative epsilon values are treated as their absolute value. Non-finite
+    /// epsilon values are treated as `0.0`.
+    #[inline]
+    pub fn transform_class_with_epsilon(self, epsilon: f64) -> TransformClass {
+        if self == Affine::IDENTITY {
+            return TransformClass::Exact;
+        }
+
+        if !self.is_finite() {
+            return TransformClass::Affine;
+        }
+
+        let epsilon = if epsilon.is_finite() {
+            epsilon.abs()
+        } else {
+            0.0
+        };
+        let [a, b, c, d, _, _] = self.0;
+
+        // Translation is the special case where the linear part is still identity;
+        // the final two coefficients may be anything.
+        if (a - 1.0).abs() <= epsilon
+            && b.abs() <= epsilon
+            && c.abs() <= epsilon
+            && (d - 1.0).abs() <= epsilon
+        {
+            TransformClass::TranslateOnly
+        } else {
+            let x_len_sq = a * a + b * b;
+            let y_len_sq = c * c + d * d;
+            let scale = x_len_sq.max(y_len_sq).max(1.0);
+
+            // Uniform-scale orthogonal transforms have perpendicular columns
+            // with equal length. This admits rotations, reflections, and
+            // uniform scale, but rejects shear and non-uniform scale.
+            if (a * c + b * d).abs() <= epsilon * scale
+                && (x_len_sq - y_len_sq).abs() <= epsilon * scale
+            {
+                TransformClass::Orthonormal
+            } else {
+                TransformClass::Affine
+            }
+        }
+    }
+
+    /// Classify how this transform differs from `other`.
+    ///
+    /// This is intended for cache/replay checks where `self` is the transform
+    /// an operation was recorded under and `other` is the current transform.
+    /// It uses [`DEFAULT_TRANSFORM_CLASS_EPSILON`] for numeric comparisons.
+    /// Finite transforms with the same linear part are classified as
+    /// [`TransformClass::TranslateOnly`] without computing an inverse.
+    ///
+    /// If `self` and `other` compare equal, this returns
+    /// [`TransformClass::Exact`] without computing an inverse, so singular
+    /// transforms can still exact-match.
+    #[inline]
+    pub fn transform_class_to(self, other: Affine) -> TransformClass {
+        self.transform_class_to_with_epsilon(other, DEFAULT_TRANSFORM_CLASS_EPSILON)
+    }
+
+    /// Classify how this transform differs from `other`, using `epsilon` for
+    /// numeric comparisons.
+    ///
+    /// See [`Affine::transform_class_to`] for the interpretation of `self`
+    /// and `other`.
+    #[inline]
+    pub fn transform_class_to_with_epsilon(self, other: Affine, epsilon: f64) -> TransformClass {
+        let original = self.0;
+        let current = other.0;
+        let epsilon = if epsilon.is_finite() {
+            epsilon.abs()
+        } else {
+            0.0
+        };
+        let finite = self.is_finite() && other.is_finite();
+        let mut exact_linear = true;
+        let mut same_linear = finite;
+
+        // Compare the linear part directly first. If it matches, the remaining
+        // difference can only be translation, and this also works for singular
+        // transforms where computing a relative delta would produce NaNs.
+        for i in 0..4 {
+            exact_linear &= original[i] == current[i];
+            if finite {
+                let scale = original[i].abs().max(current[i].abs()).max(1.0);
+                same_linear &= (original[i] - current[i]).abs() <= epsilon * scale;
+            }
+        }
+
+        if exact_linear && original[4] == current[4] && original[5] == current[5] {
+            TransformClass::Exact
+        } else if same_linear {
+            TransformClass::TranslateOnly
+        } else {
+            // Once the linear parts differ, classify the relative transform so
+            // rotation/reflection/uniform-scale deltas can still be recognized.
+            (other * self.inverse()).transform_class_with_epsilon(epsilon)
+        }
+    }
+
     /// Compute the bounding box of a transformed rectangle.
     ///
     /// Returns the minimal `Rect` that encloses the given `Rect` after affine transformation.
@@ -669,7 +787,7 @@ impl From<mint::ColumnMatrix2x3<f64>> for Affine {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Affine, Point, Vec2};
+    use crate::{Affine, Point, TransformClass, Vec2};
     use std::f64::consts::PI;
 
     fn assert_near(p0: Point, p1: Point) {
@@ -826,6 +944,94 @@ mod tests {
         assert!(
             (prod - det) < 1e-9,
             "The product of the singular values {s:?} ({prod}) should be equal to the absolute determinant {det}.",
+        );
+    }
+
+    #[test]
+    fn transform_class_basic() {
+        assert_eq!(Affine::IDENTITY.transform_class(), TransformClass::Exact);
+        assert_eq!(
+            Affine::translate((2., 3.)).transform_class(),
+            TransformClass::TranslateOnly
+        );
+        assert_eq!(
+            Affine::rotate(0.5).transform_class(),
+            TransformClass::Orthonormal
+        );
+        assert_eq!(
+            Affine::scale(2.).transform_class(),
+            TransformClass::Orthonormal
+        );
+        assert_eq!(
+            Affine::reflect(Point::ZERO, (1., 0.)).transform_class(),
+            TransformClass::Orthonormal
+        );
+        assert_eq!(
+            Affine::scale_non_uniform(2., 3.).transform_class(),
+            TransformClass::Affine
+        );
+        assert_eq!(
+            Affine::skew(0.5, 0.).transform_class(),
+            TransformClass::Affine
+        );
+    }
+
+    #[test]
+    fn transform_class_to_compares_delta() {
+        let recorded = Affine::translate((10., 20.))
+            .then_rotate(0.25)
+            .then_scale(3.);
+
+        assert_eq!(recorded.transform_class_to(recorded), TransformClass::Exact);
+        assert_eq!(
+            recorded.transform_class_to(recorded.then_translate(Vec2::new(4., -5.))),
+            TransformClass::TranslateOnly
+        );
+        assert_eq!(
+            recorded.transform_class_to(recorded.then_rotate(PI / 2.)),
+            TransformClass::Orthonormal
+        );
+        assert_eq!(
+            recorded.transform_class_to(recorded.then_scale_non_uniform(2., 3.)),
+            TransformClass::Affine
+        );
+    }
+
+    #[test]
+    fn transform_class_uses_epsilon_for_near_similarity() {
+        let almost_rotation = Affine::new([0., 1. + 2e-13, -1., 0., 0., 0.]);
+        assert_eq!(
+            almost_rotation.transform_class(),
+            TransformClass::Orthonormal
+        );
+        assert_eq!(
+            almost_rotation.transform_class_with_epsilon(1e-14),
+            TransformClass::Affine
+        );
+    }
+
+    #[test]
+    fn transform_class_to_uses_epsilon_for_near_same_linear_part() {
+        let original = Affine::scale(10.);
+        let current = Affine::new([10. + 5e-12, 0., 0., 10., 3., 4.]);
+
+        assert_eq!(
+            original.transform_class_to(current),
+            TransformClass::TranslateOnly
+        );
+        assert_eq!(
+            original.transform_class_to_with_epsilon(current, 1e-14),
+            TransformClass::Affine
+        );
+    }
+
+    #[test]
+    fn transform_class_to_exact_handles_singular_transform() {
+        let singular = Affine::new([0., 0., 0., 0., 5., 6.]);
+        assert_eq!(singular.transform_class_to(singular), TransformClass::Exact);
+        assert_eq!(
+            singular.transform_class_to(singular.then_translate(Vec2::new(1., 2.))),
+            TransformClass::TranslateOnly
         );
     }
 
