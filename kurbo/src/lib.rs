@@ -144,6 +144,7 @@ pub mod simplify;
 mod size;
 mod stroke;
 mod svg;
+mod transform_class;
 mod translate_scale;
 mod triangle;
 mod vec2;
@@ -184,6 +185,7 @@ pub use crate::stroke::{
     Cap, Dashes, Join, Stroke, StrokeCtx, StrokeOptLevel, StrokeOpts, dash, stroke, stroke_with,
 };
 pub use crate::svg::{SvgArc, SvgParseError};
+pub use crate::transform_class::{DEFAULT_TRANSFORM_CLASS_EPSILON, TransformClass};
 pub use crate::translate_scale::TranslateScale;
 pub use crate::triangle::{Triangle, TrianglePathIter};
 pub use crate::vec2::Vec2;
