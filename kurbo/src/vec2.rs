@@ -371,6 +371,25 @@ impl Vec2 {
             Axis::Vertical => self.y = value,
         }
     }
+
+    /// Return a new `Vec2` with the member matching the given axis set to
+    /// the given value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Vec2};
+    ///
+    /// let vec = Vec2::new(2.0, 3.0).with_coord(Axis::Horizontal, 5.0);
+    /// assert_eq!(vec, Vec2::new(5.0, 3.0));
+    /// ```
+    #[inline]
+    pub const fn with_coord(self, axis: Axis, value: f64) -> Vec2 {
+        match axis {
+            Axis::Horizontal => Vec2::new(value, self.y),
+            Axis::Vertical => Vec2::new(self.x, value),
+        }
+    }
 }
 
 impl From<(f64, f64)> for Vec2 {

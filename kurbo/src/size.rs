@@ -333,6 +333,25 @@ impl Size {
             Axis::Vertical => self.height = value,
         }
     }
+
+    /// Return a new `Size` with the member matching the given axis set to
+    /// the given value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Size};
+    ///
+    /// let size = Size::new(2.0, 3.0).with_coord(Axis::Vertical, 5.0);
+    /// assert_eq!(size, Size::new(2.0, 5.0));
+    /// ```
+    #[inline]
+    pub const fn with_coord(self, axis: Axis, value: f64) -> Size {
+        match axis {
+            Axis::Horizontal => Size::new(value, self.height),
+            Axis::Vertical => Size::new(self.width, value),
+        }
+    }
 }
 
 impl fmt::Debug for Size {
