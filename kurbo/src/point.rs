@@ -229,6 +229,25 @@ impl Point {
             Axis::Vertical => self.y = value,
         }
     }
+
+    /// Return a new `Point` with the member matching the given axis set to
+    /// the given value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Point};
+    ///
+    /// let point = Point::new(2.0, 3.0).with_coord(Axis::Vertical, 5.0);
+    /// assert_eq!(point, Point::new(2.0, 5.0));
+    /// ```
+    #[inline]
+    pub const fn with_coord(self, axis: Axis, value: f64) -> Point {
+        match axis {
+            Axis::Horizontal => Point::new(value, self.y),
+            Axis::Vertical => Point::new(self.x, value),
+        }
+    }
 }
 
 impl From<(f32, f32)> for Point {

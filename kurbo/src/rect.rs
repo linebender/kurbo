@@ -641,6 +641,93 @@ impl Rect {
         self.x0.is_nan() || self.y0.is_nan() || self.x1.is_nan() || self.y1.is_nan()
     }
 
+    /// Return the extent of this rectangle on the given axis.
+    ///
+    /// This is equivalent to [`Rect::width`] for [`Axis::Horizontal`] and
+    /// [`Rect::height`] for [`Axis::Vertical`].
+    ///
+    /// Note: nothing forbids negative width or height.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Rect};
+    ///
+    /// let rect = Rect::new(1.0, 2.0, 4.0, 7.0);
+    /// assert_eq!(rect.extent(Axis::Horizontal), 3.0);
+    /// assert_eq!(rect.extent(Axis::Vertical), 5.0);
+    /// ```
+    #[inline]
+    pub const fn extent(&self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => self.width(),
+            Axis::Vertical => self.height(),
+        }
+    }
+
+    /// Return the minimum coordinate on the given axis.
+    ///
+    /// This returns the lesser endpoint even if this rectangle has negative
+    /// width or height.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Rect};
+    ///
+    /// let rect = Rect::new(8.0, 2.0, 4.0, 7.0);
+    /// assert_eq!(rect.min_coord(Axis::Horizontal), 4.0);
+    /// assert_eq!(rect.min_coord(Axis::Vertical), 2.0);
+    /// ```
+    #[inline]
+    pub const fn min_coord(&self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => self.min_x(),
+            Axis::Vertical => self.min_y(),
+        }
+    }
+
+    /// Return the maximum coordinate on the given axis.
+    ///
+    /// This returns the greater endpoint even if this rectangle has negative
+    /// width or height.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Rect};
+    ///
+    /// let rect = Rect::new(8.0, 2.0, 4.0, 7.0);
+    /// assert_eq!(rect.max_coord(Axis::Horizontal), 8.0);
+    /// assert_eq!(rect.max_coord(Axis::Vertical), 7.0);
+    /// ```
+    #[inline]
+    pub const fn max_coord(&self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => self.max_x(),
+            Axis::Vertical => self.max_y(),
+        }
+    }
+
+    /// Return the center coordinate on the given axis.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Rect};
+    ///
+    /// let rect = Rect::new(1.0, 2.0, 4.0, 8.0);
+    /// assert_eq!(rect.center_coord(Axis::Horizontal), 2.5);
+    /// assert_eq!(rect.center_coord(Axis::Vertical), 5.0);
+    /// ```
+    #[inline]
+    pub const fn center_coord(&self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Horizontal => 0.5 * (self.x0 + self.x1),
+            Axis::Vertical => 0.5 * (self.y0 + self.y1),
+        }
+    }
+
     /// Get the members matching the given axis.
     #[inline]
     pub const fn get_coords(self, axis: Axis) -> (f64, f64) {
@@ -665,6 +752,32 @@ impl Rect {
         match axis {
             Axis::Horizontal => (self.x0, self.x1) = (v0, v1),
             Axis::Vertical => (self.y0, self.y1) = (v0, v1),
+        }
+    }
+
+    /// Return a new `Rect` with the members matching the given axis set to
+    /// the given values.
+    ///
+    /// This sets the raw endpoints for the axis and does not reorder or
+    /// normalize them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kurbo::{Axis, Rect};
+    ///
+    /// let rect = Rect::new(1.0, 2.0, 4.0, 7.0).with_coords(
+    ///     Axis::Horizontal,
+    ///     10.0,
+    ///     3.0,
+    /// );
+    /// assert_eq!(rect, Rect::new(10.0, 2.0, 3.0, 7.0));
+    /// ```
+    #[inline]
+    pub const fn with_coords(self, axis: Axis, v0: f64, v1: f64) -> Rect {
+        match axis {
+            Axis::Horizontal => Rect::new(v0, self.y0, v1, self.y1),
+            Axis::Vertical => Rect::new(self.x0, v0, self.x1, v1),
         }
     }
 }
