@@ -5,6 +5,8 @@ use crate::{Point, Size, Vec2};
 
 /// An axis in the plane.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Axis {
     /// The x axis.
     Horizontal,
