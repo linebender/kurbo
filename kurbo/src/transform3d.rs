@@ -52,7 +52,12 @@ impl Transform3d {
 
     /// Construct a transform from its four columns.
     ///
-    /// Each column is `[x, y, z, w]`.
+    /// Each column contains the contribution of one input coordinate to the
+    /// output `[x, y, z, w]`. When transforming a column vector
+    /// `[x, y, z, w]`, `col0` is multiplied by the input `x`, `col1` by the
+    /// input `y`, `col2` by the input `z`, and `col3` by the input `w`; the
+    /// scaled columns are then added. For points with `w == 1`, `col3` is the
+    /// translation column.
     #[inline]
     #[must_use]
     pub const fn from_cols(col0: [f64; 4], col1: [f64; 4], col2: [f64; 4], col3: [f64; 4]) -> Self {
@@ -104,7 +109,27 @@ impl Transform3d {
         self.0[i]
     }
 
-    /// Construct the 3D transform with the same effect as a 2D [`Affine`].
+    /// Return row `i` in conventional matrix notation.
+    ///
+    /// This gathers the `i`th coefficient from each stored column. Row 0 holds
+    /// the coefficients used to compute the output x coordinate, row 1 the
+    /// output y coordinate, and so on.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i >= 4`.
+    #[inline]
+    #[must_use]
+    pub const fn row(self, i: usize) -> [f64; 4] {
+        let c = self.0;
+        [c[0][i], c[1][i], c[2][i], c[3][i]]
+    }
+
+    /// Construct the 3D transform with the same effect as a 2D [`Affine`] in
+    /// the xy plane.
+    ///
+    /// Points are embedded as `[x, y, 0, 1]`; the resulting transform applies
+    /// the affine transform to x and y and leaves z unchanged.
     #[inline]
     #[must_use]
     pub const fn from_affine(affine: Affine) -> Self {
@@ -546,6 +571,8 @@ mod tests {
         assert_eq!(transform.as_coeffs(), coeffs);
         assert_eq!(transform.col(0), [1.0, 2.0, 3.0, 4.0]);
         assert_eq!(transform.col(3), [13.0, 14.0, 15.0, 16.0]);
+        assert_eq!(transform.row(0), [1.0, 5.0, 9.0, 13.0]);
+        assert_eq!(transform.row(3), [4.0, 8.0, 12.0, 16.0]);
     }
 
     #[test]
