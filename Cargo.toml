@@ -27,6 +27,8 @@ criterion = { version = "0.7.0", default-features = false }
 euclid = { version = "0.22", default-features = false }
 libm = "0.2.16"
 mint = "0.5.9"
+objc2-core-foundation = { version = "0.3.2", default-features = false }
+objc2-core-graphics = { version = "0.3.2", default-features = false }
 rand = "0.9.4"
 schemars = "0.8.22"
 serde = { version = "1.0.228", default-features = false }
