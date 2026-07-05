@@ -179,7 +179,11 @@ impl FloatExt<f32> for f32 {
 /// Find real roots of cubic equation.
 ///
 /// The implementation is not (yet) fully robust, but it does handle the case
-/// where `c3` is zero (in that case, solving the quadratic equation).
+/// where `c3` is zero or negligibly small relative to the other coefficients.
+/// In that case it returns the roots of the quadratic equation, ignoring the
+/// third root, which may be far out of representable range (this mirrors the
+/// behavior documented for [`solve_quadratic`] when the equation is nearly
+/// linear).
 ///
 /// See: <https://momentsingraphics.de/CubicRoots.html>
 ///
@@ -189,6 +193,15 @@ impl FloatExt<f32> for f32 {
 /// Return values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.
 pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
     let mut result = ArrayVec::new();
+    // The general branch below scales the other coefficients by 1/c3. If c3
+    // is tiny relative to them (e.g. cancellation noise in a coefficient
+    // that is mathematically zero), that scaling amplifies their
+    // floating-point error enough that the computed roots don't come close
+    // to solving the equation. Treat the equation as the quadratic it
+    // effectively is.
+    if c3.abs() <= 1e-12 * c0.abs().max(c1.abs()).max(c2.abs()) {
+        return solve_quadratic(c0, c1, c2).iter().copied().collect();
+    }
     let c3_recip = c3.recip();
     const ONETHIRD: f64 = 1. / 3.;
     let scaled_c2 = c2 * (ONETHIRD * c3_recip);
@@ -987,6 +1000,36 @@ mod tests {
             ],
         );
         verify(solve_cubic(2.0 + 1e-12, 5.0, 4.0, 1.0), &[-2.0]);
+    }
+
+    #[test]
+    fn test_solve_cubic_near_degenerate() {
+        // These coefficients come from a real `BezPath::winding` query:
+        // they are y(t) - y0 for a y-monotone piece of a circle built from
+        // four kappa cubics with on-curve points on the diagonals (a circle
+        // rotated 45°). By that symmetry the cubic term of y(t) cancels
+        // mathematically; rounding leaves |c3| ≈ 5e-16 of the other
+        // coefficients, so the equation is effectively the quadratic
+        // c0 + c1 x + c2 x². Their exact digits are not meaningful, only
+        // those relative magnitudes are.
+        let (c0, c1, c2, c3) = (
+            -44.444500000000005,
+            119.96895000000012,
+            -59.984475000000316,
+            -5.684341886080802e-14,
+        );
+        // The winding code consumes the root in [0, 1]. The correct value
+        // is the quadratic's root t = 0.4910141…, confirmed by bisection on
+        // the curve; scaling by 1/c3 in the general branch used to amplify
+        // the noise and return t = 0.5313…, which is not a root at all
+        // (residual 2.37).
+        let t = solve_cubic(c0, c1, c2, c3)
+            .into_iter()
+            .find(|t| (0.0..=1.0).contains(t))
+            .expect("no root in [0, 1]");
+        assert!((t - 0.491014129056183).abs() < 1e-9);
+        let residual = c3.mul_add(t, c2).mul_add(t, c1).mul_add(t, c0);
+        assert!(residual.abs() < 1e-9);
     }
 
     #[test]
