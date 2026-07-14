@@ -452,16 +452,28 @@ mod tests {
             }
             let roots = poly.roots_between(-2.0, 2.0, 1e-13);
 
-            assert!(roots.iter().all(|r| r.is_finite()));
+            assert!(
+                roots.iter().all(|r| r.is_finite()),
+                "found non-finite roots: {roots:?}"
+            );
 
             // Check that the roots are sorted.
-            assert!(roots.is_sorted());
-            assert!(roots.iter().all(|r| (-2.0..=2.0).contains(r)));
+            assert!(
+                roots.is_sorted(),
+                "roots are not sorted: {roots:?}"
+            );
+            assert!(
+                roots.iter().all(|r| (-2.0..=2.0).contains(r)),
+                "found roots out of range [-2.0, 2.0]: {roots:?}"
+            );
 
             // We can't expect great accuracy for huge coefficients, because the
             // evaluations during Newton iteration are subject to error.
             let error = poly.max_abs_coefficient().max(1.0) * 1e-12;
-            assert!(roots.iter().any(|r| (r - planted_root).abs() <= error));
+            assert!(
+                roots.iter().any(|r| (r - planted_root).abs() <= error),
+                "could not find something close to planted_root {planted_root} in found {roots:?} with allowed error {error} for poly {poly:?}"
+            );
             Ok(())
         })
         .budget_ms(5_000);

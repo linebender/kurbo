@@ -125,7 +125,10 @@ mod tests {
                 let r_magnitude = r.abs().max(1.0);
                 let threshold = r_magnitude * 1e-14 * r_magnitude * magnitude;
                 if y.is_finite() && threshold.is_finite() {
-                    assert!(y.abs() <= threshold);
+                    assert!(
+                        y.abs() <= threshold,
+                        "quadratic {q:?} had root {r} evaluate to {y:?}, but expected |y| <= {threshold:?}"
+                    );
                 }
             }
             Ok(())
