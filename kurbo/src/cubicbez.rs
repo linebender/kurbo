@@ -996,7 +996,7 @@ mod tests {
     fn degenerate_to_quads() {
         let c = CubicBez::new((0., 9.), (6., 6.), (12., 3.0), (18., 0.0));
         let quads = c.to_quads(1e-6).collect::<Vec<_>>();
-        assert_eq!(quads.len(), 1, "{:?}", &quads);
+        assert_eq!(quads.len(), 1, "{:?}", quads);
     }
 
     #[test]
