@@ -18,6 +18,10 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+
+- Improved the numerical accuracy of `common::solve_cubic` when the cubic coefficient is negligible relative to the other coefficients. Previously, `Shape::winding` and `Shape::contains` could misclassify points near such curves. ([#593][] by [@signalwerk][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -220,6 +224,7 @@ Note: A changelog was not kept for or before this release
 [@RobertBrewitz]: https://github.com/RobertBrewitz
 [@rsheeter]: https://github.com/rsheeter
 [@sagudev]: https://github.com/sagudev
+[@signalwerk]: https://github.com/signalwerk
 [@simoncozens]: https://github.com/simoncozens
 [@tomcur]: https://github.com/tomcur
 [@waywardmonkeys]: https://github.com/waywardmonkeys
@@ -317,6 +322,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#593]: https://github.com/linebender/kurbo/pull/593
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
