@@ -122,6 +122,7 @@ define_float_funcs! {
     fn ceil(self) -> Self => ceil/ceilf;
     fn cos(self) -> Self => cos/cosf;
     fn copysign(self, sign: Self) -> Self => copysign/copysignf;
+    fn exp2(self) -> Self => exp2/exp2f;
     fn floor(self) -> Self => floor/floorf;
     fn hypot(self, other: Self) -> Self => hypot/hypotf;
     fn ln(self) -> Self => log/logf;
@@ -642,10 +643,8 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
 /// It is assumed that `ya < 0.0` and `yb > 0.0`, otherwise unexpected
 /// results may occur.
 ///
-/// The value of `epsilon` must be larger than 2^-63 times `b - a`,
-/// otherwise integer overflow may occur. The `a` and `b` parameters
-/// represent the lower and upper bounds of the bracket searched for a
-/// solution.
+/// The `a` and `b` parameters represent the lower and upper bounds of
+/// the bracket searched for a solution.
 ///
 /// The ITP method has tuning parameters. This implementation hardwires
 /// k2 to 2, both because it avoids an expensive floating point
@@ -669,6 +668,12 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
 /// When the function is monotonic, the returned result is guaranteed to
 /// be within `epsilon` of the zero crossing. For more detailed analysis,
 /// again see the paper.
+///
+/// The floats bound that guarantee. A bracket can never be narrower than
+/// the spacing between the `f64` values inside it, which near a crossing
+/// at `x` is about `f64::EPSILON * x.abs()`. A smaller `epsilon` than
+/// that is not an error: the search stops at the tightest bracket there
+/// is and returns its midpoint.
 ///
 /// [ITP method]: https://en.wikipedia.org/wiki/ITP_Method
 /// [An Enhancement of the Bisection Method Average Performance Preserving Minmax Optimality]: https://dl.acm.org/doi/10.1145/3423597
@@ -697,6 +702,9 @@ pub fn solve_itp(
 ///
 /// Another difference: it returns the bracket that contains the root,
 /// which may be important if the function has a discontinuity.
+///
+/// The returned bracket is narrower than `2 * epsilon`, or, where the
+/// floats there cannot manage that, two adjacent values.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_itp_fallible<E>(
     mut f: impl FnMut(f64) -> Result<f64, E>,
@@ -708,12 +716,19 @@ pub(crate) fn solve_itp_fallible<E>(
     mut ya: f64,
     mut yb: f64,
 ) -> Result<(f64, f64), E> {
-    let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0) as usize;
-    let nmax = n0 + n1_2;
-    let mut scaled_epsilon = epsilon * (1u64 << nmax) as f64;
+    // `nmax` comes out of `log2` and is used as `2^nmax`, so it stays a float. As a `usize` it
+    // overflowed twice: the shift for any `epsilon` below `(b - a) * 2^-63`, which
+    // `ParamCurveArclen::inv_arclen` asks for on a long curve, and the addition for
+    // `epsilon == 0.0`, where `inf as usize` saturates to `usize::MAX`.
+    let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0);
+    let nmax = n0 as f64 + n1_2;
+    let mut scaled_epsilon = epsilon * nmax.exp2();
     while b - a > 2.0 * epsilon {
         let x1_2 = 0.5 * (a + b);
-        let r = scaled_epsilon - 0.5 * (b - a);
+        // A distance in the paper, so never negative there. Unclamped it goes negative once the
+        // bracket stops halving within the `nmax` budget, and the step below then moves away
+        // from the root.
+        let r = (scaled_epsilon - 0.5 * (b - a)).max(0.0);
         let xf = (yb * a - ya * b) / (yb - ya);
         let sigma = x1_2 - xf;
         // This has k2 = 2 hardwired for efficiency.
@@ -728,6 +743,15 @@ pub(crate) fn solve_itp_fallible<E>(
         } else {
             x1_2 - r.copysign(sigma)
         };
+        // `xitp` can round onto an endpoint while values still sit strictly inside the bracket.
+        // Bisect rather than give up on a bracket that can still be narrowed.
+        let xitp = if a < xitp && xitp < b { xitp } else { x1_2 };
+        // Once nothing is representable strictly between `a` and `b`, even the midpoint rounds
+        // onto an endpoint and every later pass repeats this one. This is the tightest bracket
+        // there is.
+        if !(a < xitp && xitp < b) {
+            return Ok((a, b));
+        }
         let yitp = f(xitp)?;
         if yitp > 0.0 {
             b = xitp;
@@ -1095,6 +1119,122 @@ mod tests {
         let f = |x: f64| x.powi(3) - x - 2.0;
         let x = solve_itp(f, 1., 2., 1e-12, 0, 0.2, f(1.), f(2.));
         assert!(f(x).abs() < 6e-12);
+    }
+
+    // The sign changes between two adjacent floats and `epsilon` is far below their spacing, so
+    // the bracket can never reach `2 * epsilon`. This ran forever before the fix, which
+    // `ParamCurveArclen::inv_arclen` reaches on a long curve. The call budget uses the error
+    // channel, so a regression fails instead of hanging.
+    #[test]
+    fn solve_itp_terminates_when_epsilon_is_below_float_resolution() {
+        // A quantity from quadrature never lands on exactly zero, which keeps the
+        // `yitp == 0.0` exit shut.
+        const Q: f64 = 9.313225746154785e-10;
+        const ROOT_BELOW: f64 = 0.1251866955333938;
+
+        #[derive(Debug)]
+        struct BudgetExhausted;
+
+        let root_above = f64::from_bits(ROOT_BELOW.to_bits() + 1);
+        let calls = core::cell::Cell::new(0_u32);
+        let f = |x: f64| {
+            calls.set(calls.get() + 1);
+            match calls.get() {
+                0..=200 => Ok(if x <= ROOT_BELOW { -Q } else { Q }),
+                _ => Err(BudgetExhausted),
+            }
+        };
+
+        let bracket = solve_itp_fallible(f, 0.0, 1.0, 1e-17, 1, 0.2, -Q, Q)
+            .expect("the loop must exit on its own, not by exhausting the call budget");
+        assert_eq!(bracket, (ROOT_BELOW, root_above));
+    }
+
+    // An `epsilon` below `(b - a) * 2^-63` pushes `nmax` past 63, which the old `1u64 << nmax`
+    // wrapped to `nmax % 64` in release. That leaves `scaled_epsilon` a factor of 2^64 too
+    // small, so `r` clamps to zero every pass and `xitp` never leaves the midpoint. The first
+    // queried point therefore separates the two with no tolerance needed.
+    #[test]
+    fn solve_itp_uses_its_schedule_when_nmax_exceeds_the_shift_budget() {
+        // In `[2^-64, 2^-63)`, so `nmax` is 64 for `n0 = 1` over a unit bracket, one past what
+        // the shift could express.
+        const EPSILON: f64 = 1e-19;
+        // Far enough from the midpoint to survive the `k1 (b - a)^2` truncation. A root near 0.5
+        // would put `xt` back on the midpoint for honest reasons.
+        const ROOT: f64 = 0.9;
+
+        #[derive(Debug)]
+        struct BudgetExhausted;
+
+        let first_query = core::cell::Cell::new(None);
+        let calls = core::cell::Cell::new(0_u32);
+        let f = |x: f64| {
+            calls.set(calls.get() + 1);
+            if first_query.get().is_none() {
+                first_query.set(Some(x));
+            }
+            // Generous on purpose. The assertions below carry the claim; this only stops a
+            // regression from running CI out of time.
+            match calls.get() {
+                0..=200 => Ok(x * x - ROOT * ROOT),
+                _ => Err(BudgetExhausted),
+            }
+        };
+
+        let (lo, hi) = solve_itp_fallible(
+            f,
+            0.0,
+            1.0,
+            EPSILON,
+            1,
+            0.2,
+            -ROOT * ROOT,
+            1.0 - ROOT * ROOT,
+        )
+        .expect("the loop must exit on its own, not by exhausting the call budget");
+
+        assert_ne!(
+            first_query.get(),
+            Some(0.5),
+            "the first query was the midpoint, so `r` was zero: `scaled_epsilon` came from a \
+             shift that wrapped"
+        );
+        assert!(
+            lo <= ROOT && ROOT <= hi,
+            "the returned bracket {lo}..{hi} does not contain the root"
+        );
+        assert!(hi - lo < 1e-15, "the bracket {lo}..{hi} did not converge");
+    }
+
+    // `epsilon = 0.0` used to overflow the addition above the shift, since `(b - a) / 0.0` is
+    // infinite and `inf as usize` saturates to `usize::MAX`. In floating point `nmax` is
+    // infinite, `scaled_epsilon` is `NaN`, `r` clamps to zero, and the search bisects. Only a
+    // debug build tells the two apart; with checks off the addition wrapped to `n0 - 1`.
+    #[test]
+    fn solve_itp_accepts_a_zero_epsilon() {
+        const ROOT: f64 = 0.9;
+
+        #[derive(Debug)]
+        struct BudgetExhausted;
+
+        let calls = core::cell::Cell::new(0_u32);
+        let f = |x: f64| {
+            calls.set(calls.get() + 1);
+            match calls.get() {
+                0..=200 => Ok(x * x - ROOT * ROOT),
+                _ => Err(BudgetExhausted),
+            }
+        };
+
+        let (lo, hi) =
+            solve_itp_fallible(f, 0.0, 1.0, 0.0, 1, 0.2, -ROOT * ROOT, 1.0 - ROOT * ROOT)
+                .expect("the loop must exit on its own, not by exhausting the call budget");
+
+        assert!(
+            lo <= ROOT && ROOT <= hi,
+            "the returned bracket {lo}..{hi} does not contain the root"
+        );
+        assert!(hi - lo < 1e-15, "the bracket {lo}..{hi} did not converge");
     }
 
     #[test]

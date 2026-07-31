@@ -921,6 +921,45 @@ mod tests {
         }
     }
 
+    // `inv_arclen` derives its tolerance as `accuracy / total_arclen`, so a long enough curve
+    // asks for a bracket finer than the floats in `[0, 1]` can express. Arc lengths closer
+    // together than about `total * 2^-53` then share a parameter, which is documented. What must
+    // not happen is that the call goes unanswered. The two tests above use curves about 1 and
+    // 100 long, so neither gets here.
+    #[test]
+    fn cubicbez_inv_arclen_below_float_resolution() {
+        // About 1e10 long, at an accuracy of 1e-9: the tolerance this derives is 9.9e-20, and one
+        // f64 step just below t = 1 is 1.1e-16.
+        let s = 1.0e10;
+        let c = CubicBez::new(
+            (0.0, 0.0),
+            (0.5 * s, 0.0),
+            (0.5 * s, 0.1 * s),
+            (1.0 * s, 0.1 * s),
+        );
+        let accuracy = 1.0e-9;
+        let total_arclen = c.arclen(accuracy);
+        // The finest arc length a parameter can resolve, from the doc comment on `inv_arclen`.
+        // The slack covers quadrature error here and in the solve; the worst of these eight
+        // positions leaves 1.71 steps.
+        let finest = total_arclen * (-53.0f64).exp2();
+
+        for percent in [1, 10, 25, 37, 50, 75, 90, 99] {
+            let arc = total_arclen * (percent as f64) * 0.01;
+            let t = c.inv_arclen(arc, accuracy);
+            assert!(
+                0.0 < t && t < 1.0,
+                "at {percent}% of the arc length, inv_arclen returned {t}, which is not inside the curve"
+            );
+            let residual = (c.subsegment(0.0..t).arclen(accuracy) - arc).abs();
+            assert!(
+                residual <= 4.0 * finest,
+                "at {percent}% of the arc length, inv_arclen left {residual:e} of arc length, \
+                 more than the {finest:e} that one f64 step of the parameter is worth"
+            );
+        }
+    }
+
     #[test]
     #[allow(clippy::float_cmp)]
     fn cubicbez_signed_area_linear() {
