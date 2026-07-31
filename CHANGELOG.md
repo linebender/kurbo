@@ -18,6 +18,12 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+
+- `common::solve_itp` no longer loops forever when `epsilon` is finer than the spacing of the floats near the zero crossing, which `ParamCurveArclen::inv_arclen` asks for on a long curve. ([#600][] by [@kooshi][])
+- `common::solve_itp` no longer overflows when `epsilon` is below `(b - a)` times 2^-63. Its step schedule is built in floating point rather than through a `u64` shift, so the documented lower bound on `epsilon` is gone and `0.0` is accepted. ([#600][] by [@kooshi][])
+- `ParamCurveArclen::inv_arclen` now documents that `accuracy` is in arc length, and the resolution limit that bounds it. ([#600][] by [@kooshi][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -210,6 +216,7 @@ Note: A changelog was not kept for or before this release
 [@jrmoulton]: https://github.com/jrmoulton
 [@juliapaci]: https://github.com/juliapaci
 [@Keavon]: https://github.com/Keavon
+[@kooshi]: https://github.com/kooshi
 [@LaurenzV]: https://github.com/LaurenzV
 [@liferooter]: https://github.com/liferooter
 [@nils-mathieu]: https://github.com/nils-mathieu
@@ -317,6 +324,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#600]: https://github.com/linebender/kurbo/pull/600
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1

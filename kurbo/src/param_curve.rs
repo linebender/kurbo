@@ -89,6 +89,16 @@ pub trait ParamCurveArclen: ParamCurve {
 
     /// Solve for the parameter that has the given arc length from the start.
     ///
+    /// `accuracy` is in the same units as `arclen`: the arc length from
+    /// the start of the curve to the returned parameter is within
+    /// `accuracy` of `arclen`, where that is achievable.
+    ///
+    /// It is not always achievable. Adjacent `f64` parameters near 1
+    /// differ by 2^-53, so on a curve of arc length `L`, arc lengths
+    /// closer together than about `L * 2^-53` share a parameter. That is
+    /// around 1e-6 on a curve 1e10 long. Asking for less is not an error
+    /// and is not reported.
+    ///
     /// This implementation uses the IPT method, as provided by
     /// [`common::solve_itp`]. This is as robust as bisection but
     /// typically converges faster. In addition, the method takes
