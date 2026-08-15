@@ -207,7 +207,12 @@ impl ParamCurveFit for SimplifyBezPath {
         }
         let c = self.0[i].c;
         let p = c.eval(t0);
-        let tangent = c.deriv().eval(t0).to_vec2();
+        let mut tangent = c.deriv().eval(t0).to_vec2();
+        if tangent.hypot2() == 0.0 {
+            // Non-regular cubic (e.g. a line converted by `to_cubic`, whose
+            // derivative vanishes at its endpoints): fall back to the chord.
+            tangent = c.p3 - c.p0;
+        }
         CurveFitSample { p, tangent }
     }
 
@@ -378,9 +383,9 @@ impl SimplifyOptions {
 
 #[cfg(test)]
 mod tests {
-    use crate::BezPath;
+    use crate::{BezPath, PathSeg};
 
-    use super::{SimplifyOptions, simplify_bezpath};
+    use super::{SimplifyOptLevel, SimplifyOptions, simplify_bezpath};
 
     #[test]
     fn simplify_lines_corner() {
@@ -392,5 +397,32 @@ mod tests {
         let options = SimplifyOptions::default();
         let simplified = simplify_bezpath(path.clone(), 1.0, &options);
         assert_eq!(path, simplified);
+    }
+
+    #[test]
+    fn simplify_optimize_end_tangent() {
+        // Quarter circle of radius 100, sampled at 32 chords: from (100, 0) to
+        // (0, 100). The polyline arrives at its last point travelling (-1, 0).
+        let mut path = BezPath::new();
+        path.move_to((100., 0.));
+        for i in 1..=32 {
+            let th = (i as f64) * core::f64::consts::FRAC_PI_2 / 32.0;
+            path.line_to((100. * th.cos(), 100. * th.sin()));
+        }
+        let options = SimplifyOptions::default()
+            .angle_thresh(0.25)
+            .opt_level(SimplifyOptLevel::Optimize);
+        let simplified = simplify_bezpath(path, 1.0, &options);
+        let Some(PathSeg::Cubic(c)) = simplified.segments().last() else {
+            panic!("expected simplification to produce a cubic");
+        };
+        let arrival = c.p3 - c.p2;
+        assert!(
+            arrival.x < 0.,
+            "end tangent reversed: fit arrives travelling ({:+.3}, {:+.3}), \
+             the polyline arrives travelling (-1, 0)",
+            arrival.x,
+            arrival.y,
+        );
     }
 }
