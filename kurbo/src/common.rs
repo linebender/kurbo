@@ -642,10 +642,8 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
 /// It is assumed that `ya < 0.0` and `yb > 0.0`, otherwise unexpected
 /// results may occur.
 ///
-/// The value of `epsilon` must be larger than 2^-63 times `b - a`,
-/// otherwise integer overflow may occur. The `a` and `b` parameters
-/// represent the lower and upper bounds of the bracket searched for a
-/// solution.
+/// The `a` and `b` parameters represent the lower and upper bounds of
+/// the bracket searched for a solution.
 ///
 /// The ITP method has tuning parameters. This implementation hardwires
 /// k2 to 2, both because it avoids an expensive floating point
@@ -659,7 +657,8 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
 /// function is smooth, a value of 1 gives the secant method more of a
 /// chance to engage, so the average number of iterations is likely
 /// lower, though there can be one more iteration than bisection in the
-/// worst case.
+/// worst case. Its maximum value is 10 for numerical reasons, and this
+/// is checked in debug builds.
 ///
 /// The `k1` parameter is harder to characterize, and interested users
 /// are referred to the paper, as well as encouraged to do empirical
@@ -667,8 +666,9 @@ fn depressed_cubic_dominant(g: f64, h: f64) -> f64 {
 /// suggested, and this is confirmed to give good results.
 ///
 /// When the function is monotonic, the returned result is guaranteed to
-/// be within `epsilon` of the zero crossing. For more detailed analysis,
-/// again see the paper.
+/// be within `epsilon` of the zero crossing, or within `f64::EPSILON`
+/// times the larger endpoint magnitude if `epsilon` is smaller than that.
+/// For more detailed analysis, again see the paper.
 ///
 /// [ITP method]: https://en.wikipedia.org/wiki/ITP_Method
 /// [An Enhancement of the Bisection Method Average Performance Preserving Minmax Optimality]: https://dl.acm.org/doi/10.1145/3423597
@@ -695,8 +695,9 @@ pub fn solve_itp(
 
 /// A variant ITP solver that allows fallible functions.
 ///
-/// Another difference: it returns the bracket that contains the root,
-/// which may be important if the function has a discontinuity.
+/// Another difference: it returns the bracket that contains the root, which
+/// may be important if the function has a discontinuity. The midpoint of the
+/// bracket meets the guarantee stated in [`solve_itp`].
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_itp_fallible<E>(
     mut f: impl FnMut(f64) -> Result<f64, E>,
@@ -708,12 +709,18 @@ pub(crate) fn solve_itp_fallible<E>(
     mut ya: f64,
     mut yb: f64,
 ) -> Result<(f64, f64), E> {
+    // Protect against unreasonably small (unattainable) epsilon values.
+    let magnitude = a.abs().max(b.abs());
+    let epsilon = epsilon.max(f64::EPSILON * magnitude).max(f64::MIN_POSITIVE);
     let n1_2 = (((b - a) / epsilon).log2().ceil() - 1.0).max(0.0) as usize;
+    debug_assert!(n0 <= 10, "n0 has a maximum value of 10");
     let nmax = n0 + n1_2;
     let mut scaled_epsilon = epsilon * (1u64 << nmax) as f64;
     while b - a > 2.0 * epsilon {
         let x1_2 = 0.5 * (a + b);
-        let r = scaled_epsilon - 0.5 * (b - a);
+        // Not covered by the original paper: r could become negative because of
+        // floating point precision issues.
+        let r = (scaled_epsilon - 0.5 * (b - a)).max(0.0);
         let xf = (yb * a - ya * b) / (yb - ya);
         let sigma = x1_2 - xf;
         // This has k2 = 2 hardwired for efficiency.
@@ -1095,6 +1102,23 @@ mod tests {
         let f = |x: f64| x.powi(3) - x - 2.0;
         let x = solve_itp(f, 1., 2., 1e-12, 0, 0.2, f(1.), f(2.));
         assert!(f(x).abs() < 6e-12);
+    }
+
+    // Regression test for #602: epsilon was unreasonably small.
+    #[test]
+    fn test_solve_itp_tiny_epsilon() {
+        let calls = core::cell::Cell::new(0);
+        let f = |x: f64| x.powi(3) - x - 2.0;
+        let f_counted = |x: f64| {
+            calls.set(calls.get() + 1);
+            assert!(calls.get() < 200, "solve_itp did not converge");
+            f(x)
+        };
+        for epsilon in [1e-24, 0.0, -1.0, f64::NAN] {
+            calls.set(0);
+            let x = solve_itp(f_counted, 1., 2., epsilon, 1, 0.2, f(1.), f(2.));
+            assert!(f(x).abs() < 1e-14);
+        }
     }
 
     #[test]
