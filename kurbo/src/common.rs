@@ -383,27 +383,29 @@ pub fn factor_quartic_inner(
     let b_prime = b + 3. * s * (a + 2. * s);
     let c_prime = c + s * (2. * b + s * (3. * a + 4. * s));
     let d_prime = d + s * (c + s * (b + s * (a + s)));
-    let g_prime;
-    let h_prime;
+
     const K_C: f64 = 3.49e102;
-    if rescale {
+    let (g_prime, h_prime) = if rescale {
         let a_prime_s = a_prime / K_C;
         let b_prime_s = b_prime / K_C;
         let c_prime_s = c_prime / K_C;
         let d_prime_s = d_prime / K_C;
-        g_prime = a_prime_s * c_prime_s - (4. / K_C) * d_prime_s - (1. / 3.) * b_prime_s.powi(2);
-        h_prime = (a_prime_s * c_prime_s + (8. / K_C) * d_prime_s - (2. / 9.) * b_prime_s.powi(2))
-            * (1. / 3.)
-            * b_prime_s
-            - c_prime_s * (c_prime_s / K_C)
-            - a_prime_s.powi(2) * d_prime_s;
+        (
+            a_prime_s * c_prime_s - (4. / K_C) * d_prime_s - (1. / 3.) * b_prime_s.powi(2),
+            (a_prime_s * c_prime_s + (8. / K_C) * d_prime_s - (2. / 9.) * b_prime_s.powi(2))
+                * (1. / 3.)
+                * b_prime_s
+                - c_prime_s * (c_prime_s / K_C)
+                - a_prime_s.powi(2) * d_prime_s,
+        )
     } else {
-        g_prime = a_prime * c_prime - 4. * d_prime - (1. / 3.) * b_prime.powi(2);
-        h_prime =
+        (
+            a_prime * c_prime - 4. * d_prime - (1. / 3.) * b_prime.powi(2),
             (a_prime * c_prime + 8. * d_prime - (2. / 9.) * b_prime.powi(2)) * (1. / 3.) * b_prime
                 - c_prime.powi(2)
-                - a_prime.powi(2) * d_prime;
-    }
+                - a_prime.powi(2) * d_prime,
+        )
+    };
     if !(g_prime.is_finite() && h_prime.is_finite()) {
         return None;
     }
