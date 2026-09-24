@@ -981,6 +981,22 @@ mod tests {
     }
 
     #[test]
+    fn degenerate_cubic_stroke_is_finite() {
+        let path = BezPath::from_svg(
+            "M47.5884,316.827 C47.5884,316.827 47.4321,317.6239 47.4321,317.6239 C46.7915,317.7801 46.7915,317.2176 46.7915,317.2176 Z",
+        )
+        .unwrap();
+        let stroke_style = Stroke {
+            width: 10.0,
+            ..Stroke::default()
+        };
+
+        let expanded = stroke(path, &stroke_style, &StrokeOpts::default(), 0.25);
+
+        assert!(expanded.is_finite(), "stroke expansion produced non-finite geometry");
+    }
+
+    #[test]
     fn dash_sequence() {
         let shape = Line::new((0.0, 0.0), (21.0, 0.0));
         let dashes = [1., 5., 2., 5.];
