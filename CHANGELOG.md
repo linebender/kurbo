@@ -20,7 +20,7 @@ This release has an [MSRV][] of 1.85.
 
 ## Fixed
 
-- Improved the numerical accuracy of `common::solve_cubic` when the cubic coefficient is negligible relative to the other coefficients. Previously, `Shape::winding` and `Shape::contains` could misclassify points near such curves. ([#593][] by [@signalwerk][])
+- Improved the numerical accuracy of `common::solve_cubic` when the cubic coefficient is negligible relative to the quadratic coefficient. Previously, `Shape::winding` and `Shape::contains` could misclassify points near such curves, and `PathSeg::intersect_line` could report wrong intersections with them. ([#593][] by [@signalwerk][])
 
 ## [0.13.1][] (2026-05-13)
 

@@ -179,11 +179,11 @@ impl FloatExt<f32> for f32 {
 /// Find real roots of cubic equation.
 ///
 /// The implementation is not (yet) fully robust, but it does handle the case
-/// where `c3` is zero or negligibly small relative to the other coefficients.
-/// In that case it returns the roots of the quadratic equation, ignoring the
-/// third root, which may be far out of representable range (this mirrors the
-/// behavior documented for [`solve_quadratic`] when the equation is nearly
-/// linear).
+/// where `c3` is zero or negligibly small relative to `c2`. In that case it
+/// returns the roots of the quadratic equation, ignoring the third root, which
+/// is approximately `-c2 / c3` and so has a magnitude of at least about 1e12,
+/// possibly out of representable range (this mirrors the behavior documented
+/// for [`solve_quadratic`] when the equation is nearly linear).
 ///
 /// See: <https://momentsingraphics.de/CubicRoots.html>
 ///
@@ -194,12 +194,13 @@ impl FloatExt<f32> for f32 {
 pub fn solve_cubic(c0: f64, c1: f64, c2: f64, c3: f64) -> ArrayVec<f64, 3> {
     let mut result = ArrayVec::new();
     // The general branch below scales the other coefficients by 1/c3. If c3
-    // is tiny relative to them (e.g. cancellation noise in a coefficient
-    // that is mathematically zero), that scaling amplifies their
-    // floating-point error enough that the computed roots don't come close
-    // to solving the equation. Treat the equation as the quadratic it
-    // effectively is.
-    if c3.abs() <= 1e-12 * c0.abs().max(c1.abs()).max(c2.abs()) {
+    // is tiny relative to c2 (e.g. cancellation noise in a coefficient that
+    // is mathematically zero), that scaling amplifies floating-point error
+    // enough that the computed roots don't come close to solving the
+    // equation. The cubic then has one huge root, about -c2/c3, and two close
+    // to the quadratic's, so solve the quadratic instead. Comparing against
+    // c2 alone keeps the large roots of well-conditioned cubics like x³ = 1e12.
+    if c3.abs() <= 1e-12 * c2.abs() {
         return solve_quadratic(c0, c1, c2).iter().copied().collect();
     }
     let c3_recip = c3.recip();
@@ -1030,6 +1031,22 @@ mod tests {
         assert!((t - 0.491014129056183).abs() < 1e-9);
         let residual = c3.mul_add(t, c2).mul_add(t, c1).mul_add(t, c0);
         assert!(residual.abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_solve_cubic_keeps_large_roots() {
+        // A small c3 alone doesn't make a cubic degenerate: these are
+        // well-conditioned, and their only real root must be returned.
+        for (c0, c1, c2, c3, root, tol) in [
+            (-1e12, 0.0, 0.0, 1.0, 1e4, 1e-12),
+            (-1.0, 0.0, 0.0, 1e-12, 1e4, 1e-12),
+            // Root 10000.0000333…; the general branch is good to ~3e-9 here.
+            (-1e12, -1.0, 0.0, 1.0, 10000.000033333333, 1e-8),
+        ] {
+            let roots = solve_cubic(c0, c1, c2, c3);
+            assert_eq!(roots.len(), 1, "{roots:?}");
+            assert!((roots[0] - root).abs() <= tol * root, "{roots:?}");
+        }
     }
 
     #[test]
