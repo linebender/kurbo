@@ -3,8 +3,6 @@
 
 //! Utilities for fuzz and/or property testing using `arbitrary`.
 
-use core::f64;
-
 use arbitrary::Unstructured;
 
 use crate::{Cubic, Poly, Quadratic};
