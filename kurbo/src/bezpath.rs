@@ -1721,6 +1721,34 @@ mod tests {
     }
 
     #[test]
+    fn intersect_line_cubic_with_noise_cubic_coefficient() {
+        // #411: the signed-distance polynomial's cubic coefficient is noise.
+        let c = CubicBez::new(
+            (452.0, 240.0),
+            (462.667, 78.667),
+            (480.667, -146.333),
+            (506.0, -435.0),
+        );
+        let line = Line::new((385.0, 146.0), (438.0, 243.0));
+        assert!(PathSeg::Cubic(c).intersect_line(line).is_empty());
+
+        // All coordinates positive; one real crossing at t = 0.2531748598….
+        let c = CubicBez::new(
+            (5.2490234375, 5.51953125),
+            (2.9720758679916175, 3.125241452258348),
+            (1.682833972885671, 1.769558625999965),
+            (1.3812977521821606, 1.4524827712248505),
+        );
+        let line = Line::new((22.78125, 8.0), (-13.5615234375, 0.1884765625));
+        let hits = PathSeg::Cubic(c).intersect_line(line);
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert!(
+            (hits[0].segment_t - 0.25317485984251703).abs() < 1e-9,
+            "{hits:?}"
+        );
+    }
+
+    #[test]
     fn test_contains() {
         let mut path = BezPath::new();
         path.move_to((0.0, 0.0));
@@ -2249,6 +2277,20 @@ mod tests {
         assert!(bez.contains((100.0, 300.1).into()));
         assert!(bez.contains((100.0, 299.9).into()));
         assert!(bez.contains((100.0, 300.0).into()));
+    }
+
+    #[test]
+    fn winding_cubic_with_noise_cubic_coefficient() {
+        // #611: y(t) of the cubic is a quadratic, so its y-monotone pieces
+        // get a rounding-noise cubic coefficient.
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((30.0, 30.0));
+        path.curve_to((40.0, 80.0), (40.0, 70.0), (10.0, 0.0));
+        path.close_path();
+        assert_eq!(path.winding(Point::new(13.0, 13.6)), 0);
+        assert_ne!(path.winding(Point::new(15.6, 13.6)), 0);
+        assert_eq!(path.winding(Point::new(16.0, 13.6)), 0);
     }
 
     #[test]
