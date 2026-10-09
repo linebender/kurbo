@@ -396,7 +396,17 @@ pub fn fit_to_cubic(
     let acc2 = accuracy * accuracy;
     if chord2 <= acc2 {
         // Special case very short chords; try to fit a line.
-        return try_fit_line(source, accuracy, range, start.p, end.p);
+        if let Some(line) = try_fit_line(source, accuracy, range.clone(), start.p, end.p) {
+            return Some(line);
+        }
+        if chord2 == 0.0 {
+            // The cubic fit below is scaled by the chord, so it can't do
+            // anything with a zero-length one.
+            return None;
+        }
+        // A short chord doesn't imply a short curve: the source can double back
+        // on itself, in which case a line is a poor fit but a cubic may not be.
+        // Fall through to the general fit rather than giving up here.
     }
     let th = d.atan2();
     fn mod_2pi(th: f64) -> f64 {
@@ -643,7 +653,24 @@ fn fit_to_bezpath_opt_inner(
         } else {
             range.end
         };
-        let (c, _) = fit_to_cubic(source, t0..t1, accuracy).unwrap();
+        let c = match fit_to_cubic(source, t0..t1, accuracy) {
+            Some((c, _)) => c,
+            None => {
+                // The segment search concluded this range fits, but the error
+                // metric is not monotonic in accuracy, so the fit can still fail
+                // here. Report a subdivision point as if it were a cusp, so the
+                // range is retried in smaller pieces.
+                let t = 0.5 * (t0 + t1);
+                if t > t0 && t < t1 {
+                    path.truncate(path_len);
+                    return Some(t);
+                }
+                // The range can no longer be subdivided, so just draw a line.
+                let p0 = source.sample_pt_tangent(t0, 1.0).p;
+                let p3 = source.sample_pt_tangent(t1, -1.0).p;
+                CubicBez::new(p0, p0.lerp(p3, 1.0 / 3.0), p3.lerp(p0, 1.0 / 3.0), p3)
+            }
+        };
         if i == 0 && range.start == 0.0 {
             path.move_to(c.p0);
         }
