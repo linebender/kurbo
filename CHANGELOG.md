@@ -18,6 +18,9 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+- `common::solve_itp` no longer overflows or loops forever when the requested `epsilon` is below floating point resolution. Fixes hangs in `fit_to_bezpath_opt` and `ParamCurveArclen::inv_arclen` on some inputs. ([#609][] by [@raphlinus][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -317,6 +320,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#609]: https://github.com/linebender/kurbo/pull/609
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1

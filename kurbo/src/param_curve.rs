@@ -105,7 +105,7 @@ pub trait ParamCurveArclen: ParamCurve {
         }
         let mut t_last = 0.0;
         let mut arclen_last = 0.0;
-        let epsilon = accuracy / total_arclen;
+        let epsilon = (accuracy / total_arclen).max(f64::EPSILON);
         let n = 1.0 - epsilon.log2().ceil().min(0.0);
         let inner_accuracy = accuracy / n;
         let f = |t: f64| {

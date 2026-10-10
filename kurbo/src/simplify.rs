@@ -380,7 +380,7 @@ impl SimplifyOptions {
 mod tests {
     use crate::BezPath;
 
-    use super::{SimplifyOptions, simplify_bezpath};
+    use super::{SimplifyBezPath, SimplifyOptions, simplify_bezpath};
 
     #[test]
     fn simplify_lines_corner() {
@@ -392,5 +392,37 @@ mod tests {
         let options = SimplifyOptions::default();
         let simplified = simplify_bezpath(path.clone(), 1.0, &options);
         assert_eq!(path, simplified);
+    }
+
+    // Regression test for #602: input path has a sharp corner, which caused numerical
+    // robustness failures in evaluation of cubic candidates.
+    #[test]
+    fn fit_opt_simplify_corner() {
+        let mut path = BezPath::new();
+        path.move_to((10., 2.));
+        path.line_to((20., 0.));
+        path.line_to((0., 0.));
+        let fit = crate::fit_to_bezpath_opt(&SimplifyBezPath::new(&path), 2.0);
+        assert!(!fit.is_empty());
+    }
+
+    // Regression test for #602, the original report. This used to hang.
+    #[test]
+    fn fit_opt_five_points() {
+        const PTS: &[(f64, f64)] = &[
+            (412.0, 183.9),
+            (407.0, 185.0),
+            (419.0, 184.89),
+            (418.8, 184.89),
+            (417.0, 184.0),
+        ];
+        let mut path = BezPath::new();
+        path.move_to(PTS[0]);
+        for &p in &PTS[1..] {
+            path.line_to(p);
+        }
+        path.close_path();
+        let fit = crate::fit_to_bezpath_opt(&SimplifyBezPath::new(&path), 2.0);
+        assert!(!fit.is_empty());
     }
 }
