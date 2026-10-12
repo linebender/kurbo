@@ -18,6 +18,10 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+
+- Stroke expansion no longer emits NaN geometry for degenerate cubic Bézier segments. ([#519][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -293,6 +297,7 @@ Note: A changelog was not kept for or before this release
 [#510]: https://github.com/linebender/kurbo/pull/510
 [#512]: https://github.com/linebender/kurbo/pull/512
 [#517]: https://github.com/linebender/kurbo/pull/517
+[#519]: https://github.com/linebender/kurbo/issues/519
 [#521]: https://github.com/linebender/kurbo/pull/521
 [#522]: https://github.com/linebender/kurbo/pull/522
 [#523]: https://github.com/linebender/kurbo/pull/523
