@@ -442,9 +442,15 @@ mod tests {
     fn planted_root_deg5() {
         arbtest::arbtest(|u| {
             let planted_root = crate::arbitrary::float_in_unit_interval(u)?;
-            let poly: Poly<6> = crate::arbitrary::poly_with_planted_root(u, planted_root, 1e-6)?;
+            // If there are repeated roots near the planted root, the polynomial could be numerically
+            // zero in the interval between them: consider
+            // (x - x_0) (x - x_0 - eps)^4,
+            // which is of the order eps^5 on the interval between x_0 and x_0 + eps. So we should
+            // choose the separation eps large enough that eps^5 is bigger than the floating point error.
+            let root_separation = 1e-3;
+            let poly: Poly<6> = crate::arbitrary::poly_with_planted_root(u, planted_root, root_separation)?;
 
-            // Bear in mind that Yuksel's algorithm needs iterated derivatives to be
+            // Bearing in mind that Yuksel's algorithm needs iterated derivatives to be
             // finite (and that we aren't doing any preconditioning or normalization yet),
             // ensure that the polynomial isn't too big.
             if (poly.max_abs_coefficient() * 1024.0).is_infinite() {
@@ -469,10 +475,15 @@ mod tests {
 
             // We can't expect great accuracy for huge coefficients, because the
             // evaluations during Newton iteration are subject to error.
-            let error = poly.max_abs_coefficient().max(1.0) * 1e-12;
+            let magnitude = poly.max_abs_coefficient().max(1.0);
+            let is_planted_root = |&r: &f64| {
+                let very_close_to_planted = (r - planted_root).abs() <= magnitude * 1e-12;
+                let close_to_planted_and_small_value = (r - planted_root).abs() <= magnitude * 1e-6 && poly.eval(r).abs() <= magnitude * 1e-13;
+                very_close_to_planted || close_to_planted_and_small_value
+            };
             assert!(
-                roots.iter().any(|r| (r - planted_root).abs() <= error),
-                "could not find something close to planted_root {planted_root} in found {roots:?} with allowed error {error} for poly {poly:?}"
+                roots.iter().any(is_planted_root),
+                "could not find something close to planted_root {planted_root} in found {roots:?} for poly {poly:?}"
             );
             Ok(())
         })
