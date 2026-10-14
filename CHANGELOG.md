@@ -16,6 +16,9 @@ You can find its changes [documented below](#0131-2026-05-13).
 This release has an [MSRV][] of 1.85.
 
 ## Added
+
+- `Transform3d`, a column-major 4 by 4 homogeneous transform for CSS and layer
+  compositor interop. ([#590][] by [@waywardmonkeys][])
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
 ## [0.13.1][] (2026-05-13)
@@ -316,7 +319,11 @@ Note: A changelog was not kept for or before this release
 [#575]: https://github.com/linebender/kurbo/pull/575
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
+<<<<<<< HEAD
 [#591]: https://github.com/linebender/kurbo/pull/591
+=======
+[#590]: https://github.com/linebender/kurbo/pull/590
+>>>>>>> 343a8fd (Add Transform3d for homogeneous layer transforms)
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
