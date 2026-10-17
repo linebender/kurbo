@@ -78,7 +78,7 @@ impl Ellipse {
     #[inline]
     #[must_use]
     pub fn with_radii(self, new_radii: Vec2) -> Ellipse {
-        let rotation = self.inner.svd().1;
+        let rotation = self.inner.svd_post_scale_rotation();
         let translation = self.inner.translation();
         Ellipse::private_new(translation, new_radii.x, new_radii.y, rotation)
     }
@@ -91,7 +91,7 @@ impl Ellipse {
     #[inline]
     #[must_use]
     pub fn with_rotation(self, rotation: f64) -> Ellipse {
-        let scale = self.inner.svd().0;
+        let scale = self.inner.svd_singular_values();
         let translation = self.inner.translation();
         Ellipse::private_new(translation, scale.x, scale.y, rotation)
     }
@@ -125,7 +125,7 @@ impl Ellipse {
     /// consider using [`Ellipse::major_radius`] or [`Ellipse::minor_radius`] instead.
     #[inline]
     pub fn radii(&self) -> Vec2 {
-        self.inner.svd().0
+        self.inner.svd_singular_values()
     }
 
     /// Returns the major radius of this ellipse.
@@ -133,7 +133,7 @@ impl Ellipse {
     /// This metric is also known as the semi-major axis.
     #[inline]
     pub fn major_radius(&self) -> f64 {
-        self.inner.svd().0.x
+        self.inner.svd_singular_values().x
     }
 
     /// Returns the minor radius of this ellipse.
@@ -141,7 +141,7 @@ impl Ellipse {
     /// This metric is also known as the semi-minor axis.
     #[inline]
     pub fn minor_radius(&self) -> f64 {
-        self.inner.svd().0.y
+        self.inner.svd_singular_values().y
     }
 
     /// The ellipse's rotation, in radians.
@@ -150,7 +150,7 @@ impl Ellipse {
     /// an ellipse with the two radii on the x and y axes.
     #[inline]
     pub fn rotation(&self) -> f64 {
-        self.inner.svd().1
+        self.inner.svd_post_scale_rotation()
     }
 
     /// Returns the radii and the rotation of this ellipse.
@@ -158,7 +158,10 @@ impl Ellipse {
     /// Equivalent to `(self.radii(), self.rotation())` but more efficient.
     #[inline]
     pub fn radii_and_rotation(&self) -> (Vec2, f64) {
-        self.inner.svd()
+        (
+            self.inner.svd_singular_values(),
+            self.inner.svd_post_scale_rotation(),
+        )
     }
 
     /// Is this ellipse [finite]?
@@ -224,7 +227,8 @@ impl Shape for Ellipse {
     type PathElementsIter<'iter> = iter::Chain<iter::Once<PathEl>, ArcAppendIter>;
 
     fn path_elements(&self, tolerance: f64) -> Self::PathElementsIter<'_> {
-        let (radii, x_rotation) = self.inner.svd();
+        let radii = self.inner.svd_singular_values();
+        let x_rotation = self.inner.svd_post_scale_rotation();
         Arc {
             center: self.center(),
             radii,
