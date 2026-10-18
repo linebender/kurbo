@@ -845,6 +845,28 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             // next transition is a dash transition
             let seg = self.current_seg.subsegment(self.t..1.0);
             let t1 = seg.inv_arclen(self.dash_remaining, DASH_ACCURACY);
+            if t1 == 0.0 && self.is_active {
+                // A dash that ends exactly at the current point (which
+                // happens when a dash ends exactly on a path vertex) has no
+                // final piece to emit. Emitting the zero-length remainder
+                // would add a degenerate element to the output: a
+                // zero-length `LineTo` at an ordinary vertex, or even a line
+                // joining two subpaths when the vertex is a subpath start
+                // (see <https://github.com/linebender/kurbo/issues/577>).
+                // Consume the transition here without producing an element
+                // and let the next step emit the following gap's `MoveTo`.
+                // Advancing the state to `Working` here (rather than leaving
+                // it in `ToStash`) keeps the stashing behavior, and therefore
+                // the dash order, unchanged.
+                self.is_active = false;
+                self.state = DashState::Working;
+                self.dash_ix += 1;
+                if self.dash_ix == self.dashes.len() {
+                    self.dash_ix = 0;
+                }
+                self.dash_remaining = self.dashes[self.dash_ix];
+                return None;
+            }
             if self.is_active {
                 let subseg = seg.subsegment(0.0..t1);
                 result = Some(seg_to_el(&subseg));
@@ -1040,6 +1062,72 @@ mod tests {
             PathEl::LineTo((0.0, 0.0).into()),
         ];
         let iter = dash_iter(shape.path_elements(0.), 0., &dashes, true);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
+    }
+
+    #[test]
+    fn dash_transition_on_path_vertex() {
+        // A dash that ends exactly on a path vertex must not produce a
+        // zero-length element at the corner.
+        // <https://github.com/linebender/kurbo/issues/577>
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.line_to((3., 3.));
+        let dashes = [3., 1.];
+        let expansion = [
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((3., 0.).into()),
+            PathEl::MoveTo((3., 1.).into()),
+            PathEl::LineTo((3., 3.).into()),
+        ];
+        let iter = dash_iter(path.into_iter(), 0., &dashes, true);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
+    }
+
+    #[test]
+    fn dash_transition_on_path_vertex_unstable_order() {
+        // Same as above, but with the non-stable dash order: the degenerate
+        // element must not appear there either, and the stashing behavior
+        // must be unchanged.
+        // <https://github.com/linebender/kurbo/issues/577>
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.line_to((3., 3.));
+        let dashes = [3., 1.];
+        let expansion = [
+            PathEl::MoveTo((3., 1.).into()),
+            PathEl::LineTo((3., 3.).into()),
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::LineTo((3., 0.).into()),
+        ];
+        let iter = dash_iter(path.into_iter(), 0., &dashes, false);
+        assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
+    }
+
+    #[test]
+    fn dash_transition_on_subpath_start() {
+        // The dash phase resets at every subpath start. When it resets to
+        // exactly zero remaining, the transition must not emit a line
+        // joining the previous subpath to the new one.
+        // <https://github.com/linebender/kurbo/issues/577>
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.line_to((3., 0.));
+        path.move_to((10., 0.));
+        path.line_to((13., 0.));
+        let dashes = [3., 1.];
+        let expansion = [
+            PathEl::MoveTo((0., 0.).into()),
+            PathEl::MoveTo((1., 0.).into()),
+            PathEl::LineTo((3., 0.).into()),
+            PathEl::MoveTo((11., 0.).into()),
+            PathEl::LineTo((13., 0.).into()),
+        ];
+        // An offset equal to the first dash makes every subpath start
+        // exactly at a dash boundary.
+        let iter = dash_iter(path.into_iter(), 3., &dashes, true);
         assert_eq!(iter.collect::<Vec<PathEl>>(), expansion);
     }
 
