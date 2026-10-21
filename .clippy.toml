@@ -10,4 +10,4 @@ trivial-copy-size-limit = 16
 # END LINEBENDER LINT SET
 
 # Don't warn about these identifiers when using clippy::doc_markdown.
-doc-valid-idents = ["Direct2D", "PostScript", ".."]
+doc-valid-idents = ["AppKit", "Direct2D", "PostScript", ".."]

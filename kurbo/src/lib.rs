@@ -69,6 +69,9 @@
 //! - `euclid`: Enable `From`/`Into` conversion of Kurbo and [euclid][] types.
 //!   Note that if you're using both Kurbo and euclid at the same time, you *must*
 //!   also enable one of euclid's `std` or `libm` features.
+//! - `objc2`: Enable conversion between Kurbo types and Apple Core Graphics
+//!   geometry and stroke types on 64-bit Apple targets, using
+//!   `objc2-core-foundation` and `objc2-core-graphics`.
 //! - `serde`: Implement `serde::Deserialize` and `serde::Serialize` on various types.
 //! - `schemars`: Add best-effort support for using Kurbo types in JSON schemas using [schemars][].
 //!
@@ -150,6 +153,13 @@ mod vec2;
 
 #[cfg(feature = "euclid")]
 mod interop_euclid;
+
+#[cfg(all(
+    feature = "objc2",
+    target_vendor = "apple",
+    target_pointer_width = "64"
+))]
+mod interop_objc2;
 
 pub use crate::affine::Affine;
 pub use crate::arc::{Arc, ArcAppendIter};
