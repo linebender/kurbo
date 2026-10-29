@@ -20,7 +20,12 @@ pub struct Diagonal2 {
     pub yy: f64,
 }
 
-/// Reusable context for [`expand_path_with`] and [`expand_path_signed_with`].
+/// Reusable context for expanding paths.
+///
+/// Use [`ExpandCtx::expand_path`] or [`ExpandCtx::expand_path_signed`] to expand paths
+/// while reusing the same allocations.
+///
+/// The result of the most recent expansion is available from [`ExpandCtx::output`].
 #[derive(Debug)]
 pub struct ExpandCtx {
     expand: Diagonal2,
@@ -53,13 +58,59 @@ impl Default for ExpandCtx {
 }
 
 impl ExpandCtx {
-    /// Get the output path.
+    /// The same as [`expand_path`] excepts writes results into a reuseable [`Self::output`]
+    /// allocation.
+    pub fn expand_path(
+        &mut self,
+        path: impl Shape,
+        mut expand: Diagonal2,
+        join: Join,
+        miter_limit: f64,
+        tolerance: f64,
+    ) {
+        if segments(close_subpaths(path.path_elements(tolerance))).area() >= 0.0 {
+            expand = -expand;
+        }
+        self.expand_path_signed(path, expand, join, miter_limit, tolerance);
+    }
+
+    /// The same as [`expand_path_signed`] excepts writes results into a reuseable [`Self::output`]
+    /// allocation.
+    pub fn expand_path_signed(
+        &mut self,
+        path: impl Shape,
+        expand: Diagonal2,
+        join: Join,
+        miter_limit: f64,
+        tolerance: f64,
+    ) {
+        self.reset(expand, join, miter_limit, tolerance);
+
+        let mut first_pt = Point::default();
+        for el in path.path_elements(tolerance) {
+            match el {
+                PathEl::MoveTo(point) => {
+                    self.do_close_path(first_pt);
+                    first_pt = point;
+                    self.last_pt = point;
+                }
+                PathEl::LineTo(p1) => self.do_line(p1),
+                PathEl::QuadTo(p1, p2) => self.do_quad(p1, p2),
+                PathEl::CurveTo(p1, p2, p3) => self.do_cubic(p1, p2, p3),
+                PathEl::ClosePath => self.do_close_path(first_pt),
+            }
+        }
+        // Treat all subpaths as closed; close if left open in input.
+        self.do_close_path(first_pt);
+    }
+
+    /// Get the result of the most recent expansion.
     #[inline(always)]
     pub fn output(&self) -> &BezPath {
         &self.output
     }
 
-    /// Create a new `ExpandCtx` with the given output path.
+    /// Create a new `ExpandCtx` that writes its output into the given path.
     #[inline(always)]
     pub fn with_output(output: BezPath) -> Self {
         Self {
@@ -181,6 +232,8 @@ impl core::ops::Mul<Point> for Diagonal2 {
 /// subdivision. Rather, each Bézier segment in the input generally results in one
 /// cubic Bézier in the output. Thus, it is not expected to work well when the
 /// expansion factor is large compared with the radius of curvature on the input.
+///
+/// To expand paths while reusing allocations, see [`ExpandCtx::expand_path`].
 pub fn expand_path(
     path: impl Shape,
     expand: Diagonal2,
@@ -189,24 +242,8 @@ pub fn expand_path(
     tolerance: f64,
 ) -> BezPath {
     let mut ctx = ExpandCtx::default();
-    expand_path_with(path, expand, join, miter_limit, tolerance, &mut ctx);
+    ctx.expand_path(path, expand, join, miter_limit, tolerance);
     ctx.output
-}
-
-/// The same as [`expand_path`], but using a caller-provided [`ExpandCtx`] to enable
-/// allocation re-use.
-pub fn expand_path_with(
-    path: impl Shape,
-    mut expand: Diagonal2,
-    join: Join,
-    miter_limit: f64,
-    tolerance: f64,
-    ctx: &mut ExpandCtx,
-) {
-    if segments(close_subpaths(path.path_elements(tolerance))).area() >= 0.0 {
-        expand = -expand;
-    }
-    expand_path_signed_with(path, expand, join, miter_limit, tolerance, ctx);
 }
 
 /// Expand a path when the sign is known.
@@ -215,6 +252,8 @@ pub fn expand_path_with(
 /// with positive `expand` values on subpaths with negative area, or vice versa. This
 /// is backwards from the intuitive sign convention, but results from the choice of
 /// convention for the offset primitives.
+///
+/// To expand paths while reusing allocations, see [`ExpandCtx::expand_path_signed`].
 pub fn expand_path_signed(
     path: impl Shape,
     expand: Diagonal2,
@@ -223,38 +262,8 @@ pub fn expand_path_signed(
     tolerance: f64,
 ) -> BezPath {
     let mut ctx = ExpandCtx::default();
-    expand_path_signed_with(path, expand, join, miter_limit, tolerance, &mut ctx);
+    ctx.expand_path_signed(path, expand, join, miter_limit, tolerance);
     ctx.output
-}
-
-/// The same as [`expand_path_signed`], but using a caller-provided [`ExpandCtx`] to enable
-/// allocation re-use.
-pub fn expand_path_signed_with(
-    path: impl Shape,
-    expand: Diagonal2,
-    join: Join,
-    miter_limit: f64,
-    tolerance: f64,
-    ctx: &mut ExpandCtx,
-) {
-    ctx.reset(expand, join, miter_limit, tolerance);
-
-    let mut first_pt = Point::default();
-    for el in path.path_elements(tolerance) {
-        match el {
-            PathEl::MoveTo(point) => {
-                ctx.do_close_path(first_pt);
-                first_pt = point;
-                ctx.last_pt = point;
-            }
-            PathEl::LineTo(p1) => ctx.do_line(p1),
-            PathEl::QuadTo(p1, p2) => ctx.do_quad(p1, p2),
-            PathEl::CurveTo(p1, p2, p3) => ctx.do_cubic(p1, p2, p3),
-            PathEl::ClosePath => ctx.do_close_path(first_pt),
-        }
-    }
-    // Treat all subpaths as closed; close if left open in input.
-    ctx.do_close_path(first_pt);
 }
 
 impl ExpandCtx {
@@ -507,7 +516,7 @@ mod tests {
 
     use crate::{
         Affine, BezPath, Circle, Diagonal2, ExpandCtx, Join, ParamCurveMoments, PathEl, Point,
-        Rect, Shape, Size, Vec2, expand_path, expand_path_with,
+        Rect, Shape, Size, Vec2, expand_path, expand_path_signed,
     };
 
     #[test]
@@ -678,20 +687,28 @@ mod tests {
     }
 
     #[test]
-    fn expand_path_with_reuses_ctx_without_leaking_state() {
+    fn expand_ctx_reuse_does_not_leak_state() {
         let circle = Circle::new(Point::new(100.0, 100.0), 10.0);
         let rect = Rect::from_center_size(Point::new(50.0, 50.0), Size::new(30.0, 20.0));
         let expand = Diagonal2::new(2.0, 2.0);
 
         let circle_expected = expand_path(circle, expand, Join::Round, 4.0, 1e-3);
         let rect_expected = expand_path(rect, expand, Join::Miter, 4.0, 1e-3);
+        let rect_signed_expected = expand_path_signed(rect, -expand, Join::Bevel, 4.0, 1e-3);
 
-        let mut ctx = ExpandCtx::default();
+        // Start from a non-empty path to check that its contents are cleared.
+        let mut ctx = ExpandCtx::with_output(rect_expected.clone());
 
-        expand_path_with(circle, expand, Join::Round, 4.0, 1e-3, &mut ctx);
+        ctx.expand_path(circle, expand, Join::Round, 4.0, 1e-3);
         assert_eq!(ctx.output(), &circle_expected);
 
-        expand_path_with(rect, expand, Join::Miter, 4.0, 1e-3, &mut ctx);
+        ctx.expand_path(rect, expand, Join::Miter, 4.0, 1e-3);
         assert_eq!(ctx.output(), &rect_expected);
+
+        let taken = ctx.replace_output(circle_expected.clone());
+        assert_eq!(taken, rect_expected);
+
+        ctx.expand_path_signed(rect, -expand, Join::Bevel, 4.0, 1e-3);
+        assert_eq!(ctx.output(), &rect_signed_expected);
     }
 }
