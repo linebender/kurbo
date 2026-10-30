@@ -17,6 +17,7 @@ This release has an [MSRV][] of 1.85.
 
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
+- `ExpandCtx`, which reuses allocations across path expansions with `ExpandCtx::expand_path` and `ExpandCtx::expand_path_signed`. ([#582][] by [@taj-p][])
 
 ## [0.13.1][] (2026-05-13)
 
@@ -221,6 +222,7 @@ Note: A changelog was not kept for or before this release
 [@rsheeter]: https://github.com/rsheeter
 [@sagudev]: https://github.com/sagudev
 [@simoncozens]: https://github.com/simoncozens
+[@taj-p]: https://github.com/taj-p
 [@tomcur]: https://github.com/tomcur
 [@waywardmonkeys]: https://github.com/waywardmonkeys
 [@xorgy]: https://github.com/xorgy
@@ -315,6 +317,7 @@ Note: A changelog was not kept for or before this release
 [#569]: https://github.com/linebender/kurbo/pull/569
 [#575]: https://github.com/linebender/kurbo/pull/575
 [#580]: https://github.com/linebender/kurbo/pull/580
+[#582]: https://github.com/linebender/kurbo/pull/582
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
 
