@@ -117,6 +117,7 @@ impl Arc {
 }
 
 #[doc(hidden)]
+#[derive(Clone, Debug)]
 pub struct ArcAppendIter {
     idx: usize,
 
