@@ -921,6 +921,25 @@ mod tests {
         }
     }
 
+    // Regression test for #602: large curve causes tiny epsilon value, which made
+    // ITP solver fail.
+    #[test]
+    fn cubicbez_inv_arclen_large_curve() {
+        let c = CubicBez::new((0., 0.), (5e9, 0.), (5e9, 1e9), (1e10, 1e9));
+        let accuracy = 1e-9;
+        let total = c.arclen(accuracy);
+        for frac in [0.01, 0.171, 0.3137, 0.5, 0.79, 0.99] {
+            let target = total * frac;
+            let t = c.inv_arclen(target, accuracy);
+            assert!(t > 0. && t < 1.);
+            let err = c.subsegment(0.0..t).arclen(accuracy) - target;
+            assert!(
+                err.abs() < 1e-9 * total,
+                "error exceeds accuracy bound, err={err:e}"
+            );
+        }
+    }
+
     #[test]
     #[allow(clippy::float_cmp)]
     fn cubicbez_signed_area_linear() {

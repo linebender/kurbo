@@ -279,13 +279,14 @@ impl CurveDist {
     }
 
     /// Evaluate distance based on arc length parametrization
-    fn eval_arc(&self, c: CubicBez, acc2: f64) -> Option<f64> {
-        // TODO: this could perhaps be tuned.
-        const EPS: f64 = 1e-9;
-        let c_arclen = c.arclen(EPS);
+    fn eval_arc(&self, c: CubicBez, accuracy: f64) -> Option<f64> {
+        // This value is empirically determined to provide sufficient accuracy.
+        let arc_accuracy = 1e-3 * accuracy;
+        let c_arclen = c.arclen(arc_accuracy);
         let mut max_err2 = 0.0;
+        let acc2 = accuracy * accuracy;
         for (sample, s) in self.samples.iter().zip(&self.arcparams) {
-            let t = c.inv_arclen(c_arclen * s, EPS);
+            let t = c.inv_arclen(c_arclen * s, arc_accuracy);
             let err = sample.p.distance_squared(c.eval(t));
             max_err2 = err.max(max_err2);
             if max_err2 > acc2 {
@@ -318,16 +319,21 @@ impl CurveDist {
         Some(max_err2)
     }
 
-    fn eval_dist(&mut self, source: &impl ParamCurveFit, c: CubicBez, acc2: f64) -> Option<f64> {
+    fn eval_dist(
+        &mut self,
+        source: &impl ParamCurveFit,
+        c: CubicBez,
+        accuracy: f64,
+    ) -> Option<f64> {
         // Always compute cheaper distance, hoping for early-out.
-        let ray_dist = self.eval_ray(c, acc2)?;
+        let ray_dist = self.eval_ray(c, accuracy * accuracy)?;
         if !self.spicy {
             return Some(ray_dist);
         }
         if self.arcparams.is_empty() {
             self.compute_arc_params(source);
         }
-        self.eval_arc(c, acc2)
+        self.eval_arc(c, accuracy)
     }
 }
 
@@ -439,7 +445,7 @@ pub fn fit_to_cubic(
     let mut best_err2 = None;
     for (cand, d0, d1) in cubic_fit(th0, th1, unit_area, mx) {
         let c = aff * cand;
-        if let Some(err2) = curve_dist.eval_dist(source, c, acc2) {
+        if let Some(err2) = curve_dist.eval_dist(source, c, accuracy) {
             fn scale_f(d: f64) -> f64 {
                 1.0 + (d - D_PENALTY_ELBOW).max(0.0) * D_PENALTY_SLOPE
             }
