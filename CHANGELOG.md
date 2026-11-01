@@ -18,6 +18,11 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+
+- `stroke` now emits cap geometry for zero-length subpaths when round or square caps are selected. ([#597][] by [@waywardmonkeys][])
+- `dash` no longer emits spurious zero-length segments at exact dash boundaries and preserves intentional zero-length dashes. ([#597][] by [@waywardmonkeys][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -317,6 +322,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#597]: https://github.com/linebender/kurbo/pull/597
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1

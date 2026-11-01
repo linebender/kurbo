@@ -214,6 +214,12 @@ pub struct StrokeCtx {
     start_tan: Vec2,
     last_pt: Point,
     last_tan: Vec2,
+    // True when the current subpath has drawing commands but no nonzero-length
+    // segment yet, so finishing it should emit cap-only geometry.
+    degenerate_subpath: bool,
+    // Tangent used to orient cap-only geometry. Explicit degenerate subpaths use
+    // the SVG fallback direction; zero-length dashes can provide a path tangent.
+    degenerate_tangent: Vec2,
     // Precomputation of the join threshold, to optimize per-join logic.
     // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
@@ -236,6 +242,7 @@ impl StrokeCtx {
         self.start_tan = Vec2::default();
         self.last_pt = Point::default();
         self.last_tan = Vec2::default();
+        self.degenerate_subpath = false;
         self.join_thresh = 0.0;
     }
 }
@@ -255,6 +262,13 @@ impl StrokeCtx {
 /// is based on computing parallel curves and adding joins and caps, rather than
 /// computing the rigorously correct parallel sweep (which requires evolutes in
 /// the general case). See [Nehab 2020] for more discussion.
+///
+/// Zero-length subpaths are stroked according to their caps, matching
+/// [SVG 1.1 stroke properties]: butt caps produce no output, while round and
+/// square caps produce paintable geometry. When a zero-length subpath has no
+/// other direction, it is treated as pointing along the positive x-axis.
+///
+/// [SVG 1.1 stroke properties]: https://www.w3.org/TR/SVG11/painting.html#StrokeProperties
 ///
 /// [Nehab 2020]: https://dl.acm.org/doi/10.1145/3386569.3392392
 pub fn stroke(
@@ -286,9 +300,14 @@ pub fn stroke_with(
     ctx: &mut StrokeCtx,
 ) {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance, ctx);
+        stroke_undashed(
+            path.into_iter().map(StrokePathEl::Path),
+            style,
+            tolerance,
+            ctx,
+        );
     } else {
-        let dashed = dash_iter(
+        let dashed = dash_stroke_iter(
             path.into_iter(),
             style.dash_offset,
             &style.dash_pattern,
@@ -298,9 +317,24 @@ pub fn stroke_with(
     }
 }
 
+#[derive(Clone, Copy)]
+enum StrokePathEl {
+    Path(PathEl),
+    Degenerate { point: Point, tangent: Vec2 },
+}
+
+impl StrokePathEl {
+    fn into_path_el(self) -> PathEl {
+        match self {
+            StrokePathEl::Path(el) => el,
+            StrokePathEl::Degenerate { point, .. } => PathEl::LineTo(point),
+        }
+    }
+}
+
 /// Version of stroke expansion for styles with no dashes.
 fn stroke_undashed(
-    path: impl IntoIterator<Item = PathEl>,
+    path: impl IntoIterator<Item = StrokePathEl>,
     style: &Stroke,
     tolerance: f64,
     ctx: &mut StrokeCtx,
@@ -311,45 +345,57 @@ fn stroke_undashed(
     for el in path {
         let p0 = ctx.last_pt;
         match el {
-            PathEl::MoveTo(p) => {
+            StrokePathEl::Path(PathEl::MoveTo(p)) => {
                 ctx.finish(style);
                 ctx.start_pt = p;
                 ctx.last_pt = p;
             }
-            PathEl::LineTo(p1) => {
+            StrokePathEl::Path(PathEl::LineTo(p1)) => {
                 if p1 != p0 {
                     let tangent = p1 - p0;
                     ctx.do_join(style, tangent);
                     ctx.last_tan = tangent;
                     ctx.do_line(style, tangent, p1);
+                } else {
+                    ctx.mark_degenerate();
                 }
             }
-            PathEl::QuadTo(p1, p2) => {
+            StrokePathEl::Path(PathEl::QuadTo(p1, p2)) => {
                 if p1 != p0 || p2 != p0 {
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
                     ctx.do_cubic(style, q.raise(), tolerance);
                     ctx.last_tan = tan1;
+                } else {
+                    ctx.mark_degenerate();
                 }
             }
-            PathEl::CurveTo(p1, p2, p3) => {
+            StrokePathEl::Path(PathEl::CurveTo(p1, p2, p3)) => {
                 if p1 != p0 || p2 != p0 || p3 != p0 {
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
                     ctx.do_cubic(style, c, tolerance);
                     ctx.last_tan = tan1;
+                } else {
+                    ctx.mark_degenerate();
                 }
             }
-            PathEl::ClosePath => {
+            StrokePathEl::Path(PathEl::ClosePath) => {
                 if p0 != ctx.start_pt {
                     let tangent = ctx.start_pt - p0;
                     ctx.do_join(style, tangent);
                     ctx.last_tan = tangent;
                     ctx.do_line(style, tangent, ctx.start_pt);
+                } else {
+                    ctx.mark_degenerate();
                 }
                 ctx.finish_closed(style);
+            }
+            StrokePathEl::Degenerate { point, tangent } => {
+                ctx.last_pt = point;
+                ctx.mark_degenerate_with(tangent);
             }
         }
     }
@@ -401,6 +447,7 @@ impl StrokeCtx {
         // TODO: scale
         let tolerance = 1e-3;
         if self.forward_path.is_empty() {
+            self.finish_degenerate(style, tolerance);
             return;
         }
         self.output.extend(&self.forward_path);
@@ -421,11 +468,15 @@ impl StrokeCtx {
 
         self.forward_path.truncate(0);
         self.backward_path.truncate(0);
+        self.degenerate_subpath = false;
     }
 
     /// Finish a closed path
     fn finish_closed(&mut self, style: &Stroke) {
+        // TODO: scale
+        let tolerance = 1e-3;
         if self.forward_path.is_empty() {
+            self.finish_degenerate(style, tolerance);
             return;
         }
         self.do_join(style, self.start_tan);
@@ -438,6 +489,47 @@ impl StrokeCtx {
         self.output.close_path();
         self.forward_path.truncate(0);
         self.backward_path.truncate(0);
+        self.degenerate_subpath = false;
+    }
+
+    fn mark_degenerate(&mut self) {
+        self.mark_degenerate_with(Vec2::new(1.0, 0.0));
+    }
+
+    fn mark_degenerate_with(&mut self, tangent: Vec2) {
+        if self.forward_path.is_empty() {
+            self.degenerate_subpath = true;
+            self.degenerate_tangent = if tangent.hypot2() > 0.0 {
+                tangent
+            } else {
+                Vec2::new(1.0, 0.0)
+            };
+        }
+    }
+
+    fn finish_degenerate(&mut self, style: &Stroke, tolerance: f64) {
+        if !self.degenerate_subpath {
+            return;
+        }
+        self.degenerate_subpath = false;
+
+        if style.start_cap == Cap::Butt && style.end_cap == Cap::Butt {
+            return;
+        }
+
+        let scale = 0.5 * style.width / self.degenerate_tangent.hypot();
+        let norm = scale * Vec2::new(-self.degenerate_tangent.y, self.degenerate_tangent.x);
+        self.output.move_to(self.last_pt - norm);
+        match style.end_cap {
+            Cap::Butt => self.output.line_to(self.last_pt + norm),
+            Cap::Round => round_cap(&mut self.output, tolerance, self.last_pt, -norm),
+            Cap::Square => square_cap(&mut self.output, false, self.last_pt, -norm),
+        }
+        match style.start_cap {
+            Cap::Butt => self.output.close_path(),
+            Cap::Round => round_cap(&mut self.output, tolerance, self.last_pt, norm),
+            Cap::Square => square_cap(&mut self.output, true, self.last_pt, norm),
+        }
     }
 
     fn do_join(&mut self, style: &Stroke, tan0: Vec2) {
@@ -610,6 +702,7 @@ impl StrokeCtx {
 /// An implementation of dashing as an iterator-to-iterator transformation.
 struct DashIterator<'a, T> {
     inner: T,
+    pass_through: bool,
     input_done: bool,
     closepath_pending: bool,
     dashes: &'a [f64],
@@ -625,7 +718,9 @@ struct DashIterator<'a, T> {
     seg_remaining: f64,
     start_pt: Point,
     last_pt: Point,
-    stash: Vec<PathEl>,
+    subpath_has_drawing: bool,
+    subpath_has_nonzero_segment: bool,
+    stash: Vec<StrokePathEl>,
     stash_ix: usize,
     stable_dash_order: bool,
     needs_moveto: bool,
@@ -643,6 +738,28 @@ impl<T: Iterator<Item = PathEl>> Iterator for DashIterator<'_, T> {
     type Item = PathEl;
 
     fn next(&mut self) -> Option<PathEl> {
+        self.next_stroke_el().map(StrokePathEl::into_path_el)
+    }
+}
+
+struct DashStrokeIterator<'a, T> {
+    inner: DashIterator<'a, T>,
+}
+
+impl<T: Iterator<Item = PathEl>> Iterator for DashStrokeIterator<'_, T> {
+    type Item = StrokePathEl;
+
+    fn next(&mut self) -> Option<StrokePathEl> {
+        self.inner.next_stroke_el()
+    }
+}
+
+impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
+    fn next_stroke_el(&mut self) -> Option<StrokePathEl> {
+        if self.pass_through {
+            return self.inner.next().map(StrokePathEl::Path);
+        }
+
         loop {
             match self.state {
                 DashState::NeedInput => {
@@ -712,6 +829,10 @@ const DASH_ACCURACY: f64 = 1e-6;
 /// the input sequentially and produces consistent output with correct joins,
 /// it requires internal state and may allocate.
 ///
+/// Zero-length dashes are emitted as `MoveTo(p)` followed by `LineTo(p)` so
+/// downstream strokers can apply caps. Patterns whose total length is zero are
+/// treated as undashed.
+///
 /// Accuracy is currently hard-coded to 1e-6. This is better than generally
 /// expected, and care is taken to get cusps correct, among other things.
 pub fn dash<'a>(
@@ -729,28 +850,34 @@ fn dash_iter<'a>(
     stable_dash_order: bool,
 ) -> DashIterator<'a, impl Iterator<Item = PathEl> + 'a> {
     // Ensure that offset is positive and minimal by normalization using period
-    let period = dashes.iter().sum();
+    let period: f64 = dashes.iter().sum();
     // The SVG spec requires odd-length dash arrays to be doubled to become even-length:
-    // <https://www.w3.org/TR/SVG2/painting.html#StrokeDasharrayProperty>
+    // <https://www.w3.org/TR/SVG11/painting.html#StrokeDasharrayProperty>
     // This prevents gaps and dashes from swapping with one another as the offset increases.
     let period = if dashes.len() % 2 == 1 {
         2.0 * period
     } else {
         period
     };
-    let dash_offset = dash_offset.rem_euclid(period);
-
-    let mut dash_ix = 0;
-    let mut dash_remaining = dashes[dash_ix] - dash_offset;
-    let mut is_active = true;
-    // Find place in dashes array for initial offset.
-    while dash_remaining < 0.0 {
-        dash_ix = (dash_ix + 1) % dashes.len();
-        dash_remaining += dashes[dash_ix];
-        is_active = !is_active;
-    }
+    let pass_through = period == 0.0 || !period.is_finite() || !dash_offset.is_finite();
+    let (dash_ix, dash_remaining, is_active) = if pass_through {
+        (0, 0.0, true)
+    } else {
+        let dash_offset = dash_offset.rem_euclid(period);
+        let mut dash_ix = 0;
+        let mut dash_remaining = dashes[dash_ix] - dash_offset;
+        let mut is_active = true;
+        // Find place in dashes array for initial offset.
+        while dash_remaining < 0.0 || (dash_remaining == 0.0 && dashes[dash_ix] != 0.0) {
+            dash_ix = (dash_ix + 1) % dashes.len();
+            dash_remaining += dashes[dash_ix];
+            is_active = !is_active;
+        }
+        (dash_ix, dash_remaining, is_active)
+    };
     DashIterator {
         inner,
+        pass_through,
         input_done: false,
         closepath_pending: false,
         dashes,
@@ -766,6 +893,8 @@ fn dash_iter<'a>(
         seg_remaining: 0.0,
         start_pt: Point::ORIGIN,
         last_pt: Point::ORIGIN,
+        subpath_has_drawing: false,
+        subpath_has_nonzero_segment: false,
         stash: Vec::new(),
         stash_ix: 0,
         stable_dash_order,
@@ -773,7 +902,32 @@ fn dash_iter<'a>(
     }
 }
 
+fn dash_stroke_iter<'a>(
+    inner: impl Iterator<Item = PathEl> + 'a,
+    dash_offset: f64,
+    dashes: &'a [f64],
+    stable_dash_order: bool,
+) -> DashStrokeIterator<'a, impl Iterator<Item = PathEl> + 'a> {
+    DashStrokeIterator {
+        inner: dash_iter(inner, dash_offset, dashes, stable_dash_order),
+    }
+}
+
 impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
+    fn advance_dash_phase(&mut self) {
+        self.is_active = !self.is_active;
+        self.dash_ix += 1;
+        if self.dash_ix == self.dashes.len() {
+            self.dash_ix = 0;
+        }
+        self.dash_remaining = self.dashes[self.dash_ix];
+    }
+
+    fn reset_subpath_tracking(&mut self) {
+        self.subpath_has_drawing = false;
+        self.subpath_has_nonzero_segment = false;
+    }
+
     fn get_input(&mut self) {
         loop {
             if self.closepath_pending {
@@ -793,6 +947,7 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
                     }
                     self.start_pt = p;
                     self.last_pt = p;
+                    self.reset_subpath_tracking();
                     self.reset_phase();
                     continue;
                 }
@@ -801,28 +956,54 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
                     self.seg_remaining = l.arclen(DASH_ACCURACY);
                     self.current_seg = PathSeg::Line(l);
                     self.last_pt = p1;
+                    self.subpath_has_drawing = true;
+                    if p1 != p0 {
+                        self.subpath_has_nonzero_segment = true;
+                    }
                 }
                 PathEl::QuadTo(p1, p2) => {
                     let q = QuadBez::new(p0, p1, p2);
                     self.seg_remaining = q.arclen(DASH_ACCURACY);
                     self.current_seg = PathSeg::Quad(q);
                     self.last_pt = p2;
+                    self.subpath_has_drawing = true;
+                    if p1 != p0 || p2 != p0 {
+                        self.subpath_has_nonzero_segment = true;
+                    }
                 }
                 PathEl::CurveTo(p1, p2, p3) => {
                     let c = CubicBez::new(p0, p1, p2, p3);
                     self.seg_remaining = c.arclen(DASH_ACCURACY);
                     self.current_seg = PathSeg::Cubic(c);
                     self.last_pt = p3;
+                    self.subpath_has_drawing = true;
+                    if p1 != p0 || p2 != p0 || p3 != p0 {
+                        self.subpath_has_nonzero_segment = true;
+                    }
                 }
                 PathEl::ClosePath => {
-                    self.closepath_pending = true;
                     if p0 != self.start_pt {
                         let l = Line::new(p0, self.start_pt);
                         self.seg_remaining = l.arclen(DASH_ACCURACY);
                         self.current_seg = PathSeg::Line(l);
                         self.last_pt = self.start_pt;
-                    } else {
+                        self.subpath_has_drawing = true;
+                        self.subpath_has_nonzero_segment = true;
+                        self.closepath_pending = true;
+                    } else if self.subpath_has_nonzero_segment {
+                        self.closepath_pending = true;
                         self.handle_closepath();
+                    } else if self.subpath_has_drawing {
+                        // The existing zero-length drawing command already
+                        // represents this degenerate closed subpath.
+                        continue;
+                    } else {
+                        // ClosePath itself makes this a zero-length subpath.
+                        let l = Line::new(p0, self.start_pt);
+                        self.seg_remaining = 0.0;
+                        self.current_seg = PathSeg::Line(l);
+                        self.last_pt = self.start_pt;
+                        self.subpath_has_drawing = true;
                     }
                 }
             }
@@ -832,12 +1013,12 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
     }
 
     /// Move arc length forward to next event.
-    fn step(&mut self) -> Option<PathEl> {
+    fn step(&mut self) -> Option<StrokePathEl> {
         let mut result = None;
         if self.state == DashState::ToStash && self.needs_moveto {
             self.needs_moveto = false;
             if self.is_active {
-                result = Some(PathEl::MoveTo(self.current_seg.start()));
+                result = Some(StrokePathEl::Path(PathEl::MoveTo(self.current_seg.start())));
             } else {
                 self.state = DashState::Working;
             }
@@ -847,40 +1028,49 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             let t1 = seg.inv_arclen(self.dash_remaining, DASH_ACCURACY);
             if self.is_active {
                 let subseg = seg.subsegment(0.0..t1);
-                result = Some(seg_to_el(&subseg));
+                result = if self.dash_remaining == 0.0 {
+                    Some(StrokePathEl::Degenerate {
+                        point: subseg.start(),
+                        tangent: seg.tangents().0,
+                    })
+                } else {
+                    Some(StrokePathEl::Path(seg_to_el(&subseg)))
+                };
                 self.state = DashState::Working;
             } else {
                 let p = seg.eval(t1);
-                result = Some(PathEl::MoveTo(p));
+                result = Some(StrokePathEl::Path(PathEl::MoveTo(p)));
             }
-            self.is_active = !self.is_active;
             self.t += t1 * (1.0 - self.t);
             self.seg_remaining -= self.dash_remaining;
-            self.dash_ix += 1;
-            if self.dash_ix == self.dashes.len() {
-                self.dash_ix = 0;
-            }
-            self.dash_remaining = self.dashes[self.dash_ix];
+            self.advance_dash_phase();
         } else {
+            let was_active = self.is_active;
             if self.is_active {
                 let seg = self.current_seg.subsegment(self.t..1.0);
-                result = Some(seg_to_el(&seg));
+                result = Some(StrokePathEl::Path(seg_to_el(&seg)));
             }
             self.dash_remaining -= self.seg_remaining;
+            if was_active && self.dash_remaining <= 0.0 {
+                self.advance_dash_phase();
+            }
             self.get_input();
         }
         result
     }
 
     fn handle_closepath(&mut self) {
+        let first_dash_is_degenerate =
+            matches!(self.stash.get(1), Some(StrokePathEl::Degenerate { .. }));
         if self.state == DashState::ToStash {
             // Have looped back without breaking a dash, just play it back
-            self.stash.push(PathEl::ClosePath);
-        } else if self.is_active && !self.stable_dash_order {
+            self.stash.push(StrokePathEl::Path(PathEl::ClosePath));
+        } else if self.is_active && !self.stable_dash_order && !first_dash_is_degenerate {
             // connect with path in stash, skip MoveTo.
             self.stash_ix = 1;
         }
         self.state = DashState::FromStash;
+        self.reset_subpath_tracking();
         self.reset_phase();
     }
 
@@ -894,10 +1084,13 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::dash_iter;
+    use super::{DASH_ACCURACY, dash_iter};
     use crate::{
-        BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg, Shape, Stroke,
-        StrokeOpts, dash, segments, stroke,
+        BezPath,
+        Cap::{Butt, Round, Square},
+        CubicBez,
+        Join::Miter,
+        Line, PathEl, PathSeg, Point, Rect, Shape, Stroke, StrokeOpts, dash, segments, stroke,
     };
 
     // A degenerate stroke with a cusp at the endpoint.
@@ -980,6 +1173,494 @@ mod tests {
         }
     }
 
+    fn assert_rect_approx(actual: Rect, expected: Rect) {
+        const EPSILON: f64 = 1e-9;
+        assert!(
+            (actual.x0 - expected.x0).abs() < EPSILON
+                && (actual.y0 - expected.y0).abs() < EPSILON
+                && (actual.x1 - expected.x1).abs() < EPSILON
+                && (actual.y1 - expected.y1).abs() < EPSILON,
+            "actual: {actual:?}, expected: {expected:?}",
+        );
+    }
+
+    // SVG 1.1 requires zero-length subpaths to be stroked according to their caps:
+    // <https://www.w3.org/TR/SVG11/painting.html#StrokeProperties>
+    #[test]
+    fn zero_length_subpath_round_caps_stroke_as_circle() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.line_to((10.0, 20.0));
+
+        let stroke_style = Stroke::new(6.0).with_caps(Round);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+
+        assert_rect_approx(stroked.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+        assert_eq!(stroked.winding((10.0, 20.0).into()), 1);
+    }
+
+    #[test]
+    fn zero_length_subpath_square_caps_stroke_as_square() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.line_to((10.0, 20.0));
+
+        let stroke_style = Stroke::new(6.0).with_caps(Square);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+
+        assert_rect_approx(stroked.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+        assert_eq!(stroked.winding((10.0, 20.0).into()), 1);
+    }
+
+    #[test]
+    fn zero_length_subpath_butt_caps_do_not_stroke() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.line_to((10.0, 20.0));
+
+        let stroke_style = Stroke::new(6.0).with_caps(Butt);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+
+        assert!(stroked.is_empty());
+    }
+
+    #[test]
+    fn move_only_subpath_does_not_stroke() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+
+        let stroke_style = Stroke::new(6.0).with_caps(Round);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+
+        assert!(stroked.is_empty());
+    }
+
+    #[test]
+    fn zero_length_closed_subpath_strokes() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.close_path();
+
+        let stroke_style = Stroke::new(6.0).with_caps(Round);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+
+        assert_rect_approx(stroked.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+        assert_eq!(stroked.winding((10.0, 20.0).into()), 1);
+    }
+
+    #[test]
+    fn zero_length_closed_subpath_respects_nonround_caps() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.close_path();
+
+        let square = stroke(
+            path.iter(),
+            &Stroke::new(6.0).with_caps(Square),
+            &StrokeOpts::default(),
+            0.001,
+        );
+        assert_rect_approx(square.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+        assert_eq!(square.winding((10.0, 20.0).into()), 1);
+
+        let butt = stroke(
+            path,
+            &Stroke::new(6.0).with_caps(Butt),
+            &StrokeOpts::default(),
+            0.001,
+        );
+        assert!(butt.is_empty());
+    }
+
+    #[test]
+    fn zero_length_curve_subpaths_respect_caps() {
+        let point = Point::new(10.0, 20.0);
+        let paths = [
+            BezPath::from_vec(vec![PathEl::MoveTo(point), PathEl::QuadTo(point, point)]),
+            BezPath::from_vec(vec![
+                PathEl::MoveTo(point),
+                PathEl::CurveTo(point, point, point),
+            ]),
+        ];
+
+        for path in paths {
+            for cap in [Round, Square] {
+                let stroked = stroke(
+                    path.iter(),
+                    &Stroke::new(6.0).with_caps(cap),
+                    &StrokeOpts::default(),
+                    0.001,
+                );
+                assert_rect_approx(stroked.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+                assert_eq!(stroked.winding(point), 1);
+            }
+
+            let butt = stroke(
+                path,
+                &Stroke::new(6.0).with_caps(Butt),
+                &StrokeOpts::default(),
+                0.001,
+            );
+            assert!(butt.is_empty());
+        }
+    }
+
+    #[test]
+    fn zero_length_subpath_respects_mixed_caps() {
+        let point = Point::new(10.0, 20.0);
+        let mut path = BezPath::new();
+        path.move_to(point);
+        path.line_to(point);
+
+        // With the fallback +x tangent, an end cap extends right and a start
+        // cap extends left. A butt cap closes the other half at the point.
+        let round_end = stroke(
+            path.iter(),
+            &Stroke::new(6.0).with_start_cap(Butt).with_end_cap(Round),
+            &StrokeOpts::default(),
+            0.001,
+        );
+        assert_rect_approx(round_end.bounding_box(), Rect::new(10.0, 17.0, 13.0, 23.0));
+        assert_eq!(round_end.winding((11.0, 20.0).into()), 1);
+        assert_eq!(round_end.winding((9.0, 20.0).into()), 0);
+
+        let round_start = stroke(
+            path,
+            &Stroke::new(6.0).with_start_cap(Round).with_end_cap(Butt),
+            &StrokeOpts::default(),
+            0.001,
+        );
+        assert_rect_approx(round_start.bounding_box(), Rect::new(7.0, 17.0, 10.0, 23.0));
+        assert_eq!(round_start.winding((9.0, 20.0).into()), 1);
+        assert_eq!(round_start.winding((11.0, 20.0).into()), 0);
+    }
+
+    #[test]
+    fn dashed_zero_length_closed_subpath_strokes_at_subpath_point() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.close_path();
+
+        // ClosePath supplies the drawing command for this otherwise empty
+        // subpath; the active dash must preserve it at the MoveTo point.
+        let stroke_style = Stroke::new(6.0)
+            .with_caps(Round)
+            .with_dashes(0.0, [1.0, 1.0]);
+        for stable_dash_order in [false, true] {
+            let opts = StrokeOpts::default().stable_dash_order(stable_dash_order);
+            let stroked = stroke(path.iter(), &stroke_style, &opts, 0.001);
+
+            assert_rect_approx(stroked.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+            assert_eq!(stroked.winding((10.0, 20.0).into()), 1);
+            assert_eq!(stroked.winding((0.0, 0.0).into()), 0);
+        }
+    }
+
+    #[test]
+    fn dashed_zero_length_closed_subpath_respects_inactive_phase() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.close_path();
+
+        let stroke_style = Stroke::new(6.0)
+            .with_caps(Round)
+            .with_dashes(1.5, [1.0, 1.0]);
+        for stable_dash_order in [false, true] {
+            let opts = StrokeOpts::default().stable_dash_order(stable_dash_order);
+            let stroked = stroke(path.iter(), &stroke_style, &opts, 0.001);
+
+            assert!(stroked.is_empty());
+        }
+    }
+
+    #[test]
+    fn dashed_explicit_zero_length_segment_then_close_strokes_once() {
+        let mut path = BezPath::new();
+        path.move_to((10.0, 20.0));
+        path.line_to((10.0, 20.0));
+        path.close_path();
+
+        // The explicit LineTo already represents the degenerate subpath, so
+        // ClosePath must not synthesize a second cap at the same point.
+        let stroke_style = Stroke::new(6.0)
+            .with_caps(Round)
+            .with_dashes(0.0, [1.0, 1.0]);
+        for stable_dash_order in [false, true] {
+            let opts = StrokeOpts::default().stable_dash_order(stable_dash_order);
+            let stroked = stroke(path.iter(), &stroke_style, &opts, 0.001);
+
+            assert_rect_approx(stroked.bounding_box(), Rect::new(7.0, 17.0, 13.0, 23.0));
+            assert_eq!(stroked.winding((10.0, 20.0).into()), 1);
+        }
+    }
+
+    #[test]
+    fn zero_length_dash_round_caps_stroke_as_dots() {
+        let line = Line::new((0.0, 0.0), (21.0, 0.0));
+        let stroke_style = Stroke::new(4.0)
+            .with_caps(Round)
+            .with_dashes(0.0, [0.0, 10.0]);
+        let stroked = stroke(
+            line.path_elements(0.001),
+            &stroke_style,
+            &StrokeOpts::default(),
+            0.001,
+        );
+
+        assert_rect_approx(stroked.bounding_box(), Rect::new(-2.0, -2.0, 22.0, 2.0));
+        for x in [0.0, 10.0, 20.0] {
+            assert_ne!(stroked.winding((x, 0.0).into()), 0);
+        }
+        for x in [5.0, 15.0] {
+            assert_eq!(stroked.winding((x, 0.0).into()), 0);
+        }
+    }
+
+    #[test]
+    fn zero_length_dash_at_open_endpoint_is_excluded() {
+        let stroke_style = Stroke::new(4.0)
+            .with_caps(Round)
+            .with_dashes(0.0, [0.0, 10.0]);
+        // Dash starts use the half-open range [0, path_length): a dot exactly
+        // at 20 is excluded, but appears as soon as the path extends past it.
+        for (length, endpoint_is_stroked) in [(19.999, false), (20.0, false), (20.001, true)] {
+            let line = Line::new((0.0, 0.0), (length, 0.0));
+            let stroked = stroke(
+                line.path_elements(0.001),
+                &stroke_style,
+                &StrokeOpts::default(),
+                0.001,
+            );
+
+            for x in [0.0, 10.0] {
+                assert_ne!(stroked.winding((x, 0.0).into()), 0);
+            }
+            assert_eq!(
+                stroked.winding((20.0, 0.0).into()) != 0,
+                endpoint_is_stroked
+            );
+        }
+    }
+
+    #[test]
+    fn zero_length_dash_at_each_open_subpath_endpoint_is_excluded() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((20.0, 0.0));
+        path.move_to((100.0, 0.0));
+        path.line_to((120.0, 0.0));
+        let stroke_style = Stroke::new(4.0)
+            .with_caps(Round)
+            .with_dashes(0.0, [0.0, 10.0]);
+        let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
+
+        for x in [0.0, 10.0, 100.0, 110.0] {
+            assert_ne!(stroked.winding((x, 0.0).into()), 0);
+        }
+        for x in [20.0, 120.0] {
+            assert_eq!(stroked.winding((x, 0.0).into()), 0);
+        }
+    }
+
+    #[test]
+    fn zero_length_dash_square_caps_follow_line_tangent() {
+        let line = Line::new((0.0, 0.0), (21.0, 21.0));
+        let gap = 10.0 * 2.0_f64.sqrt();
+        let extent = 2.0 * 2.0_f64.sqrt();
+        let stroke_style = Stroke::new(4.0)
+            .with_caps(Square)
+            .with_dashes(0.0, [0.0, gap]);
+        let stroked = stroke(
+            line.path_elements(0.001),
+            &stroke_style,
+            &StrokeOpts::default(),
+            0.001,
+        );
+
+        assert_rect_approx(
+            stroked.bounding_box(),
+            Rect::new(-extent, -extent, 20.0 + extent, 20.0 + extent),
+        );
+        for point in [(0.0, 2.5), (10.0, 12.5), (20.0, 22.5)] {
+            assert_ne!(stroked.winding(point.into()), 0);
+        }
+    }
+
+    // Regression coverage for <https://github.com/linebender/kurbo/pull/578>:
+    // exact dash boundaries should not create accidental zero-length output.
+    #[test]
+    fn dash_transition_on_vertex_does_not_emit_zero_length_line() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((3.0, 0.0));
+        path.line_to((3.0, 3.0));
+        let dashes = [3.0, 1.0];
+        let expected = [
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 0.0).into()),
+            PathEl::MoveTo((3.0, 1.0).into()),
+            PathEl::LineTo((3.0, 3.0).into()),
+        ];
+
+        let result = dash_iter(path.into_iter(), 0.0, &dashes, false).collect::<Vec<PathEl>>();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dash_preserves_small_initial_dash() {
+        let tiny_remainder = DASH_ACCURACY * 0.5;
+        let shape = Line::new((0.0, 0.0), (1.0, 0.0));
+        let dashes = [3.0, 1.0];
+        let dash_offset = 3.0 - tiny_remainder;
+        let expected_dash_end = dashes[0] - dash_offset;
+        let expected = [
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((expected_dash_end, 0.0).into()),
+        ];
+
+        let result = dash(shape.path_elements(0.0), dash_offset, &dashes).collect::<Vec<PathEl>>();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dash_preserves_small_remainder_across_vertex() {
+        let tiny_remainder = DASH_ACCURACY * 0.5;
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((3.0, 0.0));
+        path.line_to((3.0, 1.0));
+        let dashes = [3.0 + tiny_remainder, 1.0];
+        let expected_dash_end = dashes[0] - 3.0;
+        let expected = [
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 0.0).into()),
+            PathEl::LineTo((3.0, expected_dash_end).into()),
+        ];
+
+        let result = dash(path.iter(), 0.0, &dashes).collect::<Vec<PathEl>>();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn dash_preserves_explicit_zero_length_on_dash() {
+        let shape = Line::new((0.0, 0.0), (21.0, 0.0));
+        let dashes = [0.0, 10.0];
+        let result =
+            dash_iter(shape.path_elements(0.0), 0.0, &dashes, true).collect::<Vec<PathEl>>();
+        let expected = [
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::MoveTo((10.0, 0.0).into()),
+            PathEl::LineTo((10.0, 0.0).into()),
+            PathEl::MoveTo((20.0, 0.0).into()),
+            PathEl::LineTo((20.0, 0.0).into()),
+        ];
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn degenerate_dash_patterns_pass_through_undashed() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((10.0, 0.0));
+        path.move_to((20.0, 0.0));
+        path.quad_to((25.0, 5.0), (30.0, 0.0));
+        // These inputs previously became solid only because normalization
+        // produced NaN. Pin the intentional pass-through behavior instead.
+        let patterns: &[(f64, &[f64])] = &[
+            (0.0, &[0.0, 0.0]),
+            (0.0, &[1.0, -1.0]),
+            (f64::NAN, &[1.0, 1.0]),
+            (0.0, &[1.0, f64::NAN]),
+        ];
+
+        for &(offset, pattern) in patterns {
+            let actual = dash(path.iter(), offset, pattern).collect::<Vec<_>>();
+            assert_eq!(actual, path.elements());
+        }
+    }
+
+    #[test]
+    fn all_zero_dash_pattern_strokes_as_solid() {
+        let line = Line::new((0.0, 0.0), (20.0, 0.0));
+        let solid_style = Stroke::new(4.0).with_caps(Square);
+        // stroke() consumes the internal dash iterator rather than public
+        // PathEl output, so verify its fallback matches the direct path too.
+        let expected = stroke(
+            line.path_elements(0.001),
+            &solid_style,
+            &StrokeOpts::default(),
+            0.001,
+        );
+        let actual = stroke(
+            line.path_elements(0.001),
+            &solid_style.with_dashes(0.0, [0.0, 0.0]),
+            &StrokeOpts::default(),
+            0.001,
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn dash_keeps_zero_length_first_dash_separate_at_closed_seam() {
+        let shape = Rect::from_points((0.0, 0.0), (10.0, 10.0));
+        let dashes = [0.0, 30.0, 20.0, 5.0];
+        // The final dash reaches the seam, but the initial zero-length dash
+        // still needs its own MoveTo so downstream strokers apply its caps.
+        let expected = [
+            PathEl::MoveTo((0.0, 10.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+        ];
+
+        let actual = dash(shape.path_elements(0.0), 0.0, &dashes).collect::<Vec<_>>();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn stroke_keeps_zero_length_first_dash_caps_at_closed_seam() {
+        let shape = Rect::from_points((0.0, 0.0), (10.0, 10.0));
+        let style = Stroke::new(4.0)
+            .with_start_cap(Round)
+            .with_end_cap(Butt)
+            .with_dashes(0.0, [0.0, 30.0, 20.0, 5.0]);
+        // The round start cap of the zero-length dash covers this point below
+        // the seam; the final dash ends there with a butt cap and does not.
+        for stable_dash_order in [false, true] {
+            let opts = StrokeOpts::default().stable_dash_order(stable_dash_order);
+            let stroked = stroke(shape.path_elements(0.001), &style, &opts, 0.001);
+
+            assert_eq!(stroked.winding((-1.0, -1.0).into()), 1);
+        }
+    }
+
+    #[test]
+    fn dash_ending_on_closepath_vertex_does_not_merge_across_seam() {
+        let shape = Rect::from_points((0.0, 0.0), (3.0, 2.5));
+        let dashes = [3.0, 1.0];
+        let expected = [
+            PathEl::MoveTo((0.5, 2.5).into()),
+            PathEl::LineTo((0.0, 2.5).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 0.0).into()),
+            PathEl::MoveTo((3.0, 1.0).into()),
+            PathEl::LineTo((3.0, 2.5).into()),
+            PathEl::LineTo((1.5, 2.5).into()),
+        ];
+
+        let result = dash(shape.path_elements(0.0), 0.0, &dashes).collect::<Vec<PathEl>>();
+
+        assert_eq!(result, expected);
+    }
+
     #[test]
     fn dash_sequence() {
         let shape = Line::new((0.0, 0.0), (21.0, 0.0));
@@ -996,7 +1677,7 @@ mod tests {
 
     #[test]
     fn dash_sequence_closed_path() {
-        let shape = crate::Rect::from_points((0.0, 0.0), (4.0, 4.0));
+        let shape = Rect::from_points((0.0, 0.0), (4.0, 4.0));
         let dashes = [5., 1.];
         let expansion = [
             PathEl::MoveTo((4.0, 2.0).into()),
@@ -1027,7 +1708,7 @@ mod tests {
 
     #[test]
     fn dash_sequence_closed_path_stable_order() {
-        let shape = crate::Rect::from_points((0.0, 0.0), (4.0, 4.0));
+        let shape = Rect::from_points((0.0, 0.0), (4.0, 4.0));
         let dashes = [5., 1.];
         let expansion = [
             PathEl::MoveTo((0.0, 0.0).into()),
