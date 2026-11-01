@@ -459,6 +459,13 @@ impl StrokeCtx {
             let hypot = cross.hypot(dot);
             // possible TODO: a minor speedup could be squaring both sides
             if dot <= 0.0 || cross.abs() >= hypot * self.join_thresh {
+                // Take the inner side through the pivot, so that its contour stays
+                // within the stroke when the offsets cross.
+                if cross > 0.0 {
+                    self.backward_path.line_to(p0);
+                } else if cross < 0.0 {
+                    self.forward_path.line_to(p0);
+                }
                 match style.join {
                     Join::Bevel => {
                         self.forward_path.line_to(p0 - norm);
@@ -475,14 +482,12 @@ impl StrokeCtx {
                                 let h = ab.cross(fp_this - fp_last) / cross;
                                 let miter_pt = fp_this - cd * h;
                                 self.forward_path.line_to(miter_pt);
-                                self.backward_path.line_to(p0);
                             } else if cross < 0.0 {
                                 let fp_last = p0 + last_norm;
                                 let fp_this = p0 + norm;
                                 let h = ab.cross(fp_this - fp_last) / cross;
                                 let miter_pt = fp_this - cd * h;
                                 self.backward_path.line_to(miter_pt);
-                                self.forward_path.line_to(p0);
                             }
                         }
                         self.forward_path.line_to(p0 - norm);
@@ -896,8 +901,11 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
 mod tests {
     use super::dash_iter;
     use crate::{
-        BezPath, Cap::Butt, CubicBez, Join::Miter, Line, PathEl, PathSeg, Shape, Stroke,
-        StrokeOpts, dash, segments, stroke,
+        BezPath,
+        Cap::Butt,
+        CubicBez,
+        Join::{Bevel, Miter, Round},
+        Line, PathEl, PathSeg, Shape, Stroke, StrokeOpts, dash, segments, stroke,
     };
 
     // A degenerate stroke with a cusp at the endpoint.
@@ -977,6 +985,20 @@ mod tests {
             let path = CubicBez::new(cubic[0], cubic[1], cubic[2], cubic[3]).into_path(0.1);
             let stroked = stroke(path, &stroke_style, &StrokeOpts::default(), 0.001);
             assert!(stroked.is_finite());
+        }
+    }
+
+    // A closed subpath within the stroke's width has inner offsets that cross
+    // the outer contour. The stroke must still cover its center.
+    #[test]
+    fn inner_join_covers_center_of_small_subpath() {
+        let dot = BezPath::from_svg("M12 12.75h.008v.008H12v-.008Z").unwrap();
+        for (join, miter_limit) in [(Bevel, 4.0), (Round, 4.0), (Miter, 4.0), (Miter, 1.0)] {
+            let style = Stroke::new(1.5)
+                .with_join(join)
+                .with_miter_limit(miter_limit);
+            let stroked = stroke(dot.iter(), &style, &StrokeOpts::default(), 0.01);
+            assert_ne!(stroked.winding((12.004, 12.754).into()), 0);
         }
     }
 
