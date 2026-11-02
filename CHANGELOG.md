@@ -18,6 +18,10 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+
+- Zero-length subpaths and dashes draw their round or square caps when stroked. ([#619][] by [@BenjaminHalko][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -198,6 +202,7 @@ Note: A changelog was not kept for or before this release
 
 [@anthrotype]: https://github.com/anthrotype
 [@beholdnec]: https://github.com/beholdnec
+[@BenjaminHalko]: https://github.com/BenjaminHalko
 [@Bombaninha]: https://github.com/Bombaninha
 [@cmyr]: https://github.com/cmyr
 [@dannymcgee]: https://github.com/dannymcgee
@@ -317,6 +322,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#619]: https://github.com/linebender/kurbo/pull/619
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
