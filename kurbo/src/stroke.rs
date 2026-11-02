@@ -1,7 +1,7 @@
 // Copyright 2023 the Kurbo Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-use core::{borrow::Borrow, f64::consts::PI};
+use core::{borrow::Borrow, cell::Cell, f64::consts::PI};
 
 use alloc::vec::Vec;
 
@@ -11,8 +11,8 @@ use smallvec::SmallVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathEl, PathSeg, Point,
-    QuadBez, Vec2, common::solve_quadratic,
+    Affine, Arc, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, ParamCurveDeriv, PathEl,
+    PathSeg, Point, QuadBez, Vec2, common::solve_quadratic,
 };
 
 /// Defines the connection between two segments of a stroke.
@@ -214,6 +214,9 @@ pub struct StrokeCtx {
     start_tan: Vec2,
     last_pt: Point,
     last_tan: Vec2,
+    // The current subpath has segments, all zero-length so far: the direction
+    // its caps take if it stays that way (the x axis when it has none).
+    zero_length: Option<Vec2>,
     // Precomputation of the join threshold, to optimize per-join logic.
     // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
@@ -236,6 +239,7 @@ impl StrokeCtx {
         self.start_tan = Vec2::default();
         self.last_pt = Point::default();
         self.last_tan = Vec2::default();
+        self.zero_length = None;
         self.join_thresh = 0.0;
     }
 }
@@ -286,15 +290,19 @@ pub fn stroke_with(
     ctx: &mut StrokeCtx,
 ) {
     if style.dash_pattern.is_empty() {
-        stroke_undashed(path, style, tolerance, ctx);
+        stroke_undashed(path, style, tolerance, ctx, None);
     } else {
-        let dashed = dash_iter(
+        // The dasher says which way the path runs where a dash is zero-length,
+        // so that its caps turn with the path.
+        let direction = Cell::new(None);
+        let mut dashed = dash_iter(
             path.into_iter(),
             style.dash_offset,
             &style.dash_pattern,
             opts.stable_dash_order,
         );
-        stroke_undashed(dashed, style, tolerance, ctx);
+        dashed.zero_length_direction = Some(&direction);
+        stroke_undashed(dashed, style, tolerance, ctx, Some(&direction));
     }
 }
 
@@ -304,10 +312,19 @@ fn stroke_undashed(
     style: &Stroke,
     tolerance: f64,
     ctx: &mut StrokeCtx,
+    direction: Option<&Cell<Option<Vec2>>>,
 ) {
     ctx.reset();
     ctx.join_thresh = 2.0 * tolerance / style.width;
 
+    // A zero-length segment: its subpath's caps are drawn if it has nothing
+    // else (SVG's rule), along the dasher's direction for it, if any.
+    let zero_length = |ctx: &mut StrokeCtx| {
+        let dir = direction.and_then(Cell::take);
+        if ctx.zero_length.is_none() {
+            ctx.zero_length = Some(dir.unwrap_or(Vec2::new(1.0, 0.0)));
+        }
+    };
     for el in path {
         let p0 = ctx.last_pt;
         match el {
@@ -322,6 +339,8 @@ fn stroke_undashed(
                     ctx.do_join(style, tangent);
                     ctx.last_tan = tangent;
                     ctx.do_line(style, tangent, p1);
+                } else {
+                    zero_length(ctx);
                 }
             }
             PathEl::QuadTo(p1, p2) => {
@@ -331,6 +350,8 @@ fn stroke_undashed(
                     ctx.do_join(style, tan0);
                     ctx.do_cubic(style, q.raise(), tolerance);
                     ctx.last_tan = tan1;
+                } else {
+                    zero_length(ctx);
                 }
             }
             PathEl::CurveTo(p1, p2, p3) => {
@@ -340,6 +361,8 @@ fn stroke_undashed(
                     ctx.do_join(style, tan0);
                     ctx.do_cubic(style, c, tolerance);
                     ctx.last_tan = tan1;
+                } else {
+                    zero_length(ctx);
                 }
             }
             PathEl::ClosePath => {
@@ -349,7 +372,14 @@ fn stroke_undashed(
                     ctx.last_tan = tangent;
                     ctx.do_line(style, tangent, ctx.start_pt);
                 }
-                ctx.finish_closed(style);
+                if ctx.forward_path.is_empty() {
+                    // `M p Z`, or a closed subpath of zero length: a dot.
+                    zero_length(ctx);
+                    ctx.finish(style);
+                } else {
+                    ctx.zero_length = None;
+                    ctx.finish_closed(style);
+                }
             }
         }
     }
@@ -400,8 +430,23 @@ impl StrokeCtx {
     fn finish(&mut self, style: &Stroke) {
         // TODO: scale
         let tolerance = 1e-3;
+        let zero_length = self.zero_length.take();
         if self.forward_path.is_empty() {
-            return;
+            match zero_length {
+                Some(tangent) if style.start_cap != Cap::Butt || style.end_cap != Cap::Butt => {
+                    // Only zero-length segments: the caps of a zero-length
+                    // line along `tangent`, at the point.
+                    let norm =
+                        (0.5 * style.width / tangent.hypot()) * Vec2::new(-tangent.y, tangent.x);
+                    self.forward_path.truncate(0);
+                    self.backward_path.truncate(0);
+                    self.forward_path.move_to(self.last_pt - norm);
+                    self.backward_path.move_to(self.last_pt + norm);
+                    self.start_pt = self.last_pt;
+                    self.start_norm = norm;
+                }
+                _ => return,
+            }
         }
         self.output.extend(&self.forward_path);
         let back_els = self.backward_path.elements();
@@ -629,6 +674,10 @@ struct DashIterator<'a, T> {
     stash_ix: usize,
     stable_dash_order: bool,
     needs_moveto: bool,
+    // The end of the last element emitted.
+    pen: Point,
+    // Where the stroker reads which way the path runs at a zero-length dash.
+    zero_length_direction: Option<&'a Cell<Option<Vec2>>>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -770,6 +819,8 @@ fn dash_iter<'a>(
         stash_ix: 0,
         stable_dash_order,
         needs_moveto: true,
+        pen: Point::ORIGIN,
+        zero_length_direction: None,
     }
 }
 
@@ -837,7 +888,8 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         if self.state == DashState::ToStash && self.needs_moveto {
             self.needs_moveto = false;
             if self.is_active {
-                result = Some(PathEl::MoveTo(self.current_seg.start()));
+                self.pen = self.current_seg.start();
+                result = Some(PathEl::MoveTo(self.pen));
             } else {
                 self.state = DashState::Working;
             }
@@ -846,12 +898,17 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             let seg = self.current_seg.subsegment(self.t..1.0);
             let t1 = seg.inv_arclen(self.dash_remaining, DASH_ACCURACY);
             if self.is_active {
-                let subseg = seg.subsegment(0.0..t1);
-                result = Some(seg_to_el(&subseg));
+                result = Some(if self.dash_remaining < DASH_ACCURACY {
+                    self.zero_length(&seg, 0.0)
+                } else {
+                    let subseg = seg.subsegment(0.0..t1);
+                    self.pen = subseg.end();
+                    seg_to_el(&subseg)
+                });
                 self.state = DashState::Working;
             } else {
-                let p = seg.eval(t1);
-                result = Some(PathEl::MoveTo(p));
+                self.pen = seg.eval(t1);
+                result = Some(PathEl::MoveTo(self.pen));
             }
             self.is_active = !self.is_active;
             self.t += t1 * (1.0 - self.t);
@@ -863,8 +920,13 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
             self.dash_remaining = self.dashes[self.dash_ix];
         } else {
             if self.is_active {
-                let seg = self.current_seg.subsegment(self.t..1.0);
-                result = Some(seg_to_el(&seg));
+                result = Some(if self.seg_remaining < DASH_ACCURACY {
+                    self.zero_length(&self.current_seg, self.t)
+                } else {
+                    let seg = self.current_seg.subsegment(self.t..1.0);
+                    self.pen = seg.end();
+                    seg_to_el(&seg)
+                });
             }
             self.dash_remaining -= self.seg_remaining;
             self.get_input();
@@ -882,6 +944,32 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
         }
         self.state = DashState::FromStash;
         self.reset_phase();
+    }
+
+    /// A dash piece too short to measure (a zero-length dash): an exact
+    /// zero-length line at the pen, and the direction `seg` runs at `t` for
+    /// the stroker's caps.
+    fn zero_length(&self, seg: &PathSeg, t: f64) -> PathEl {
+        if let Some(cell) = self.zero_length_direction {
+            let d = match *seg {
+                PathSeg::Line(l) => l.p1 - l.p0,
+                PathSeg::Quad(q) => q.deriv().eval(t).to_vec2(),
+                PathSeg::Cubic(c) => c.deriv().eval(t).to_vec2(),
+            };
+            // Where the derivative vanishes (a handle on its end point, a
+            // cusp), the segment's own direction.
+            let d = if d.hypot2() > 0.0 {
+                d
+            } else if t < 0.5 {
+                seg.tangents().0
+            } else {
+                seg.tangents().1
+            };
+            if d.hypot2() > 0.0 && d.is_finite() {
+                cell.set(Some(d));
+            }
+        }
+        PathEl::LineTo(self.pen)
     }
 
     fn reset_phase(&mut self) {
@@ -1177,5 +1265,164 @@ mod tests {
 
         let infinite_width = Stroke::new(f64::INFINITY);
         assert!(!infinite_width.is_nan());
+    }
+
+    fn stroked_area(path: &BezPath, style: &Stroke) -> (usize, f64) {
+        let out = stroke(path, style, &StrokeOpts::default(), 1e-3);
+        let subpaths = out
+            .elements()
+            .iter()
+            .filter(|e| matches!(e, PathEl::MoveTo(_)))
+            .count();
+        (subpaths, out.area().abs())
+    }
+
+    /// A subpath of zero length draws its caps (SVG): a disc for round caps,
+    /// an axis-aligned square for square ones, nothing for butt ones.
+    #[test]
+    fn zero_length_subpath_caps() {
+        use crate::Cap;
+        let mut line = BezPath::new();
+        line.move_to((100.0, 70.0));
+        line.line_to((100.0, 70.0));
+        let mut closed = BezPath::new();
+        closed.move_to((100.0, 70.0));
+        closed.close_path();
+        let mut lone = BezPath::new();
+        lone.move_to((100.0, 70.0));
+        for path in [&line, &closed] {
+            let (n, a) = stroked_area(path, &Stroke::new(20.0).with_caps(Cap::Round));
+            assert_eq!(n, 1);
+            assert!(
+                (a - core::f64::consts::PI * 100.0).abs() < 0.5,
+                "round: {a}"
+            );
+            let (n, a) = stroked_area(path, &Stroke::new(20.0).with_caps(Cap::Square));
+            assert_eq!(n, 1);
+            assert!((a - 400.0).abs() < 1e-6, "square: {a}");
+            let out = stroke(
+                path,
+                &Stroke::new(20.0).with_caps(Cap::Square),
+                &StrokeOpts::default(),
+                1e-3,
+            );
+            let b = out.bounding_box();
+            assert!(
+                (b.x0 - 90.0).abs() < 1e-9 && (b.y1 - 80.0).abs() < 1e-9,
+                "square along x: {b:?}"
+            );
+            assert_eq!(
+                stroked_area(path, &Stroke::new(20.0).with_caps(Butt)).0,
+                0,
+                "butt caps draw nothing"
+            );
+        }
+        assert_eq!(
+            stroked_area(&lone, &Stroke::new(20.0).with_caps(Cap::Round)).0,
+            0,
+            "a lone move draws nothing"
+        );
+    }
+
+    /// Every zero-length dash draws its caps, a square one turned with the
+    /// path.
+    #[test]
+    fn zero_length_dashes() {
+        use crate::{Cap, Rect, Shape};
+        let rect = Rect::new(40.0, 40.0, 160.0, 160.0).to_path(1e-3);
+        let dots = Stroke::new(20.0)
+            .with_caps(Cap::Round)
+            .with_dashes(0.0, [0.0, 40.0]);
+        let (n, a) = stroked_area(&rect, &dots);
+        assert_eq!(n, 12);
+        assert!(
+            (a - 12.0 * core::f64::consts::PI * 100.0).abs() < 5.0,
+            "round: {a}"
+        );
+        let squares = Stroke::new(20.0)
+            .with_caps(Cap::Square)
+            .with_dashes(0.0, [0.0, 40.0]);
+        let (n, a) = stroked_area(&rect, &squares);
+        assert_eq!(n, 12);
+        assert!((a - 12.0 * 400.0).abs() < 1e-3, "square: {a}");
+        // On a diagonal line the squares turn with it: their corners reach
+        // 10 * sqrt(2) from the centre along the axes.
+        let mut diagonal = BezPath::new();
+        diagonal.move_to((0.0, 0.0));
+        diagonal.line_to((100.0, 100.0));
+        let out = stroke(
+            &diagonal,
+            &squares.clone().with_dashes(0.0, [0.0, 1000.0]),
+            &StrokeOpts::default(),
+            1e-3,
+        );
+        let b = out.bounding_box();
+        assert!(
+            (b.x0 + 10.0 * core::f64::consts::SQRT_2).abs() < 1e-9,
+            "turned square: {b:?}"
+        );
+        // Butt caps still draw nothing.
+        let butt = Stroke::new(20.0)
+            .with_caps(Butt)
+            .with_dashes(0.0, [0.0, 40.0]);
+        assert!(stroked_area(&rect, &butt).1 < 1e-9);
+    }
+
+    /// Zero-length dashes on curves whose handles sit on their end points
+    /// (where rounding leaves dash pieces of about 1e-12): every square
+    /// keeps the path's direction.
+    #[test]
+    fn zero_length_dashes_on_cubic_edges() {
+        use crate::{Cap, Shape};
+        let corners = [(40.0, 40.0), (160.0, 40.0), (160.0, 160.0), (40.0, 160.0)];
+        let mut path = BezPath::new();
+        path.move_to(corners[0]);
+        for i in 0..4 {
+            let (a, b) = (corners[i], corners[(i + 1) % 4]);
+            path.curve_to(a, b, b);
+        }
+        path.close_path();
+        let squares = Stroke::new(20.0)
+            .with_caps(Cap::Square)
+            .with_dashes(0.0, [0.0, 40.0]);
+        let out = stroke(&path, &squares, &StrokeOpts::default(), 1e-3);
+        let mut pieces = Vec::new();
+        for el in out.elements() {
+            if let PathEl::MoveTo(_) = el {
+                pieces.push(BezPath::new());
+            }
+            pieces.last_mut().unwrap().push(*el);
+        }
+        assert_eq!(pieces.len(), 12);
+        for piece in &pieces {
+            let b = piece.bounding_box();
+            assert!((b.area() - 400.0).abs() < 1e-6, "a turned square: {b:?}");
+        }
+    }
+
+    /// A zero-length segment inside an outline that has others draws
+    /// nothing of its own, closed or open, and leaves nothing for the next
+    /// subpath.
+    #[test]
+    fn zero_length_segment_inside_an_outline() {
+        let mut with = BezPath::new();
+        with.move_to((0.0, 0.0));
+        with.line_to((0.0, 0.0));
+        with.line_to((50.0, 0.0));
+        with.line_to((50.0, 50.0));
+        with.close_path();
+        with.move_to((100.0, 0.0));
+        with.line_to((150.0, 0.0));
+        let mut without = BezPath::new();
+        without.move_to((0.0, 0.0));
+        without.line_to((50.0, 0.0));
+        without.line_to((50.0, 50.0));
+        without.close_path();
+        without.move_to((100.0, 0.0));
+        without.line_to((150.0, 0.0));
+        let style = Stroke::new(4.0);
+        let a = stroke(&with, &style, &StrokeOpts::default(), 1e-3);
+        let b = stroke(&without, &style, &StrokeOpts::default(), 1e-3);
+        assert_eq!(a.elements(), b.elements());
     }
 }
