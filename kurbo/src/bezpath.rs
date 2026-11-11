@@ -1153,7 +1153,16 @@ impl PathSeg {
     fn winding(&self, p: Point) -> i32 {
         self.extrema_ranges()
             .into_iter()
-            .map(|range| self.subsegment(range).winding_inner(p))
+            .map(|range| {
+                // Preserve shared endpoints for an already monotonic segment.
+                // Re-evaluating 0..1 can shift a vertex by one ulp and break the
+                // half-open y interval used by winding_inner.
+                if range.start == 0.0 && range.end == 1.0 {
+                    self.winding_inner(p)
+                } else {
+                    self.subsegment(range).winding_inner(p)
+                }
+            })
             .sum()
     }
 
@@ -2219,6 +2228,33 @@ mod tests {
     // to be consistent about how we treat it. In particular, in #531 we noticed
     // that the point was within the y range of a monotonic segment, but because
     // of rounding errors the cubic solver disagreed.
+    #[test]
+    fn winding_keeps_shared_line_endpoints() {
+        // The two vertical sides share a fractional y coordinate. Re-evaluating a
+        // line at t=1 can move that endpoint by one ulp, which breaks the
+        // half-open interval shared by consecutive segments.
+        let low = 172.92000915527345;
+        let high = 657.9600367736816;
+        for width in [1.0, 2.0, 8.0] {
+            let mut path = BezPath::new();
+            path.move_to((0.0, low));
+            path.line_to((width, low));
+            path.line_to((width, high));
+            path.line_to((0.0, high));
+            path.close_path();
+            for transform in [Affine::IDENTITY, Affine::scale_non_uniform(-1.0, 1.0)] {
+                let p = transform * &path;
+                let at = |x: f64, y: f64| p.winding(transform * Point::new(x, y));
+                assert_eq!(at(width + 10.0, low.next_down()), 0);
+                assert_eq!(at(width / 2.0, low.next_down()), 0);
+                assert_eq!(at(width + 10.0, low), 0);
+                assert_ne!(at(width / 2.0, low), 0);
+                assert_eq!(at(-10.0, low), 0);
+                assert_ne!(at(width / 2.0, low + 1.0), 0);
+            }
+        }
+    }
+
     #[test]
     fn winding_endpoints() {
         let bez = BezPath::from_vec(vec![
