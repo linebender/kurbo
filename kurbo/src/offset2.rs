@@ -71,7 +71,7 @@ use crate::common::FloatFuncs;
 
 use crate::{
     BezPath, CubicBez, ParamCurve, ParamCurveDeriv, PathSeg, QuadBez, Vec2,
-    common::{solve_cubic, solve_itp, solve_quadratic},
+    common::{solve_cubic, solve_quadratic},
 };
 
 /// Maximum recursion depth.
@@ -234,6 +234,62 @@ impl CubicOffset {
         ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt()) + 1.0
     }
 
+    /// The cusp value times `|c'|^3`, and its derivative with respect to `t`.
+    ///
+    /// This has the sign of the cusp value, and unlike it has no pole where
+    /// the derivative of the source vanishes, which suits Newton's method.
+    fn scaled_cusp_and_deriv(&self, t: f64) -> (f64, f64) {
+        let q = self.q.eval(t).to_vec2();
+        let q_deriv = self.q.deriv().eval(t).to_vec2();
+        let m = q.hypot2();
+        let m_deriv = 2.0 * q.dot(q_deriv);
+        let n = (self.c2 * t + self.c1) * t + self.c0;
+        let n_deriv = 2.0 * self.c2 * t + self.c1;
+        let speed = m.sqrt();
+        (n + m * speed, n_deriv + 1.5 * speed * m_deriv)
+    }
+
+    /// Find a zero of the cusp value in `[a, b]`, where `s` times it is
+    /// negative at `a` and positive at `b`.
+    ///
+    /// This is Newton's method on [`Self::scaled_cusp_and_deriv`],
+    /// safeguarded by bisection, to an accuracy of about `1e-12` in `t`. It
+    /// takes 6 to 8 evaluations where the ITP solver in `crate::offset`
+    /// takes about 22.
+    fn find_cusp(&self, mut a: f64, mut b: f64, s: f64) -> f64 {
+        const EPS: f64 = 1e-12;
+        let mut t = 0.5 * (a + b);
+        let mut step_old = b - a;
+        for _ in 0..100 {
+            let (y, dy) = self.scaled_cusp_and_deriv(t);
+            let (y, dy) = (s * y, s * dy);
+            if y > 0.0 {
+                b = t;
+            } else if y < 0.0 {
+                a = t;
+            } else {
+                return t;
+            }
+            if b - a <= 2.0 * EPS {
+                break;
+            }
+            let newton = t - y / dy;
+            // Bisect if Newton leaves the bracket, or is not converging
+            // faster than bisection would.
+            if newton > a && newton < b && (2.0 * y).abs() <= (step_old * dy).abs() {
+                step_old = (newton - t).abs();
+                t = newton;
+                if step_old < EPS {
+                    return t;
+                }
+            } else {
+                step_old = 0.5 * (b - a);
+                t = 0.5 * (a + b);
+            }
+        }
+        0.5 * (a + b)
+    }
+
     /// Compute the cusp value at an endpoint, robustly.
     fn endpoint_cusp(&self, tan: Vec2, y: f64) -> f64 {
         const TAN_DIST_EPSILON: f64 = 1e-12;
@@ -245,15 +301,13 @@ impl CubicOffset {
     /// Primary entry point for recursive subdivision.
     fn offset_rec(&self, rec: &OffsetRec, result: &mut BezPath) {
         // If the cusp value changes sign, there is a cusp inside. Find it
-        // and subdivide there. This is unchanged from `crate::offset`.
+        // and subdivide there. This is as in `crate::offset`, except for
+        // the solver.
         if rec.cusp0 * rec.cusp1 < 0.0 {
             let a = rec.t0;
             let b = rec.t1;
             let s = rec.cusp1.signum();
-            let f = |t| s * self.cusp_sign(t);
-            let k1 = 0.2 / (b - a);
-            const ITP_EPS: f64 = 1e-12;
-            let t = solve_itp(f, a, b, ITP_EPS, 1, k1, s * rec.cusp0, s * rec.cusp1);
+            let t = self.find_cusp(a, b, s);
             // The derivative can vanish at an end of the piece, and the
             // solver can land there. Use the end tangent in that case.
             const UTAN_EPSILON: f64 = 1e-12;
@@ -420,7 +474,7 @@ impl CubicOffset {
         // Where the foot point is ill defined at a sample, which happens
         // if the piece hides a pair of cusps, estimate the distance at
         // equal parameter instead. That overestimates, but it is defined.
-        let estimate = sampled_estimate(taylor, rec, d)
+        let estimate = sampled_estimate(taylor, rec, d, self.tolerance / ESTIMATE_SAFETY)
             .unwrap_or_else(|| sampled_equal_parameter_distance(taylor, d));
         ESTIMATE_SAFETY * estimate <= self.tolerance
     }
@@ -766,6 +820,25 @@ fn dot<const M: usize, const N: usize, const K: usize>(a: &[Vec2; M], b: &[Vec2;
     result
 }
 
+/// Take the dot product of a vector polynomial in Bernstein form with
+/// itself, using the symmetry to halve the work.
+///
+/// The output length `K` must be `2 M - 1`.
+fn dot_self<const M: usize, const K: usize>(a: &[Vec2; M]) -> [f64; K] {
+    debug_assert_eq!(K, 2 * M - 1);
+    let mut result = [0.0; K];
+    for i in 0..M {
+        result[2 * i] += BINOM[M - 1][i] * BINOM[M - 1][i] * a[i].hypot2();
+        for j in 0..i {
+            result[i + j] += 2.0 * BINOM[M - 1][i] * BINOM[M - 1][j] * a[i].dot(a[j]);
+        }
+    }
+    for k in 0..K {
+        result[k] *= BINOM_RECIP[K - 1][k];
+    }
+    result
+}
+
 /// Convert a polynomial from Bernstein form to the power basis.
 fn to_power<const N: usize>(bern: &[f64; N]) -> [f64; N] {
     // The k-th power coefficient is binom(n, k) times the k-th forward
@@ -884,13 +957,13 @@ impl Taylor {
             c1[2] + 3.0 * (delta[3] - delta[2]),
         ];
 
-        let delta_dot_delta: [f64; 7] = dot(delta, delta);
+        let delta_dot_delta: [f64; 7] = dot_self(delta);
         let mut p = delta_dot_delta;
         for coeff in &mut p {
             *coeff -= d * d;
         }
         let q: [f64; 6] = dot(delta, &c1);
-        let c1_dot_c1: [f64; 5] = dot(&c1, &c1);
+        let c1_dot_c1: [f64; 5] = dot_self(&c1);
         let delta_dot_c2: [f64; 5] = dot(delta, &c2);
         let mut beta = [0.0; 5];
         for i in 0..5 {
@@ -970,8 +1043,9 @@ impl Certificate {
 
         // The derivative bounds must hold for s within `margin` of [0, 1],
         // and the foot must lie within that margin. Grow the margin until
-        // it does.
-        let mut margin = 0.0;
+        // it does. The foot is never nearer than 2 Q / beta, so start a
+        // little beyond that.
+        let mut margin = 1.25 * 2.0 * q_max / beta_min;
         for _ in 0..8 {
             let c2_wide = c2_norm + margin * c3_norm;
             let c1_wide = c1_norm + margin * c2_wide;
@@ -1524,6 +1598,10 @@ const ESTIMATE_SAFETY: f64 = 1.25;
 /// The number of samples the estimate takes.
 const N_SAMPLES: usize = 7;
 
+/// The order in which the samples are taken: the quarter points, the
+/// midpoint, then the rest.
+const SAMPLE_ORDER: [usize; N_SAMPLES] = [1, 5, 3, 0, 6, 2, 4];
+
 /// The number of interior points of the grid on which the estimate
 /// searches for the extrema of its model.
 const N_GRID: usize = 15;
@@ -1571,13 +1649,27 @@ const fn sample_table() -> [[f64; N_SAMPLES]; N_GRID] {
 /// second step. It then fits the model described at [`SAMPLE_TABLE`] and
 /// takes its extrema.
 ///
+/// As soon as one sample shows that the estimate exceeds `limit`, this
+/// returns what that sample gives, which is over `limit`. Pass infinity to
+/// get the full estimate.
+///
 /// Returns `None` if the foot point is ill defined at a sample, as it is
 /// at a cusp of the offset.
-fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64) -> Option<f64> {
+fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Option<f64> {
     // The sign `beta` should have: negative past a cusp.
     let sign = if rec.cusp0 > 0.0 { 1.0 } else { -1.0 };
+    // The values of V beyond which the distance is over `limit`.
+    let d_abs = d.abs();
+    let v_too_far = limit * (2.0 * d_abs + limit);
+    let v_too_near = if limit < d_abs {
+        limit * (limit - 2.0 * d_abs)
+    } else {
+        f64::NEG_INFINITY
+    };
     let mut v = [0.0; N_SAMPLES];
-    for (i, value) in v.iter_mut().enumerate() {
+    // Take the samples where the error tends to be largest first, so that
+    // a piece that is clearly over the limit is rejected sooner.
+    for i in SAMPLE_ORDER {
         let t = (i + 1) as f64 / (N_SAMPLES + 1) as f64;
         let mt = 1.0 - t;
         // Evaluate D, C' and C'' at t.
@@ -1605,7 +1697,14 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64) -> Option<f64> {
         if !(sign * f_ss > 0.0) {
             return None;
         }
-        *value = f - f_s * f_s / (2.0 * f_ss);
+        let value = f - f_s * f_s / (2.0 * f_ss);
+        // The grid below contains the sample points, and the model takes
+        // the sampled values there exactly, so the estimate is at least
+        // what any one sample gives. If that is over `limit`, stop.
+        if value > v_too_far || value < v_too_near {
+            return distance_bound(value.max(0.0), (-value).max(0.0), d);
+        }
+        v[i] = value;
     }
 
     // Evaluate the model on the grid. It is zero at both ends.
@@ -2090,7 +2189,7 @@ mod tests {
             if Certificate::new(&taylor).is_none() {
                 return;
             }
-            let Some(estimate) = sampled_estimate(&taylor, &rec, d) else {
+            let Some(estimate) = sampled_estimate(&taylor, &rec, d, f64::INFINITY) else {
                 return;
             };
             let error = measured_error(&piece, &fit.approx, d);
