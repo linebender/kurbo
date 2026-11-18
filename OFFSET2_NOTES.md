@@ -1195,6 +1195,18 @@ end survey the exact one-sided measure is unchanged; the oracle reports
 two new cases at `d = 30`, 1.13 and 1.26 times, within the looseness
 measured above.
 
+`smooths_stub`, which runs at every root end where the derivative
+vanishes (about 550 times per tiger), was 4.4% of the tiger's time at
+1/32: it was marked cold, out of line, and divided twice. Comparing by
+cross-multiplication, inline, takes whole tiger strokes to 54.8, 87.0 and
+142.8 µs, with the same output.
+
+Pieces on the reversed stretch between two cusps (both cusp values
+negative) were also measured: the estimate errs high there (error over
+estimate median 0.77, p99 1.11, maximum 1.30). Letting it decide them
+saved 2% on the tiger at 1/2048 and nothing elsewhere, and cost 0.6% more
+segments on wild curves, so it was not adopted.
+
 This more than pays back the vanishing end fix: whole tiger strokes are now
 faster than at `46f031b` (56.3, 89.2 and 154.3 µs).
 

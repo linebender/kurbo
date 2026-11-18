@@ -532,21 +532,22 @@ impl CubicOffset {
     /// keeps a handle pointing back along the stub rather than clamping it:
     /// clamped, it fell back to arc drawing, which missed by four times the
     /// tolerance on a stub far below it.
-    #[cold]
-    #[inline(never)]
+    ///
+    /// The derivative is known to vanish at that end.
     fn smooths_stub(&self, at_end: bool) -> bool {
-        let tan = if at_end { self.q.p2 } else { self.q.p0 }.to_vec2();
-        const TAN_DIST_EPSILON: f64 = 1e-12;
-        if self.strict || tan.hypot() >= TAN_DIST_EPSILON || !(self.c2 < 0.0) {
+        if self.strict || !(self.c2 < 0.0) {
             return false;
         }
         let q1 = self.q.p1.to_vec2();
         let other = if at_end { self.q.p0 } else { self.q.p2 }.to_vec2();
-        let len = q1.hypot();
-        let dk = self.d * q1.cross(other) / (2.0 * len * len);
-        let u_cusp = (dk / (2.0 * len)).abs();
-        let extent = dk * dk / (4.0 * len);
-        u_cusp <= STUB_MAX_PARAM && extent <= STUB_MAX_EXTENT * self.tolerance
+        // With `m = |d (q1 x q_other)|`, the cusp is at `m / (4 |q1|^3)` and
+        // the extent `m^2 / (16 |q1|^5)`; compared without dividing.
+        let len2 = q1.hypot2();
+        let len = len2.sqrt();
+        let m = (self.d * q1.cross(other)).abs();
+        len2 > 0.0
+            && m <= 4.0 * STUB_MAX_PARAM * len2 * len
+            && m * m <= 16.0 * STUB_MAX_EXTENT * self.tolerance * len2 * len2 * len
     }
 
     /// Primary entry point for recursive subdivision.
