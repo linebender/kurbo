@@ -77,24 +77,31 @@ fn result_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
     for seg in result.segments() {
         for i in 0..=10 {
             let p = seg.eval(i as f64 / 10.0);
-            let mut best = 0;
+            // Refine around every local minimum of the sampled distance, not
+            // only the smallest. Where the offset comes back near itself,
+            // the nearest sample can be on the wrong strand.
+            let dist: Vec<f64> = samples.iter().map(|s| p.distance_squared(*s)).collect();
+            let mut nearest = f64::INFINITY;
             for j in 0..=N {
-                if p.distance_squared(samples[j]) < p.distance_squared(samples[best]) {
-                    best = j;
+                let left = j == 0 || dist[j] <= dist[j - 1];
+                let right = j == N || dist[j] <= dist[j + 1];
+                if !(left && right) {
+                    continue;
                 }
-            }
-            let mut lo = best.saturating_sub(1) as f64 / N as f64;
-            let mut hi = (best + 1).min(N) as f64 / N as f64;
-            for _ in 0..50 {
-                let s1 = lo + (hi - lo) / 3.0;
-                let s2 = hi - (hi - lo) / 3.0;
-                if p.distance_squared(offset_at(s1)) < p.distance_squared(offset_at(s2)) {
-                    hi = s2;
-                } else {
-                    lo = s1;
+                let mut lo = j.saturating_sub(1) as f64 / N as f64;
+                let mut hi = (j + 1).min(N) as f64 / N as f64;
+                for _ in 0..50 {
+                    let s1 = lo + (hi - lo) / 3.0;
+                    let s2 = hi - (hi - lo) / 3.0;
+                    if p.distance_squared(offset_at(s1)) < p.distance_squared(offset_at(s2)) {
+                        hi = s2;
+                    } else {
+                        lo = s1;
+                    }
                 }
+                nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
             }
-            worst = worst.max(p.distance(offset_at(0.5 * (lo + hi))));
+            worst = worst.max(nearest);
         }
     }
     worst

@@ -378,6 +378,63 @@ Roughly in the order I would take them:
    sections, which need their own fit and bound.
 9. Performance. Nothing here is tuned.
 
+## The original certificate, compared (18 November 2026)
+
+The original code is now available in the `slop1` branch of
+github.com/raphlinus/fast-stroke, in `bezfit/bezfit/src/bound/cheap.rs`.
+Its `certify` was ported exactly into the ignored test `certificate_rates`
+and run on the same pieces as offset2's (random cubics in 2 to 16 pieces,
+`|d|` of 0.3, 3 and 30):
+
+| Certificate succeeds | One-point (6208 pieces) | Two-point (607) |
+|---|---|---|
+| offset2 as committed | 80.7% | 60.1% |
+| offset2 with the two bounds below | 83.9% | 61.4% |
+| Original, whole piece | 80.8% | 60.1% |
+| Original, split in halves | 82.9% | 64.7% |
+| `beta` positive on the piece or both halves (upper limit) | 89.7% | 91.8% |
+
+So the reconstruction was not weaker. The 89 to 94% in the original notes
+counts pieces where the whole bound succeeds, on its own test set, mostly at
+n = 2 and above. On whole curves (n = 1) it was 45 to 81% there.
+
+Two things from the original are now in `Certificate::new`:
+
+- `C'.C''` in `K` is bounded by its own Bernstein coefficients, as half the
+  derivative of `|C'|^2`, not by `|C'| |C''|`.
+- `|Q|` is bounded with its known zeros factored out (`q_bound`):
+  `Q = Q_end + u S` exactly, and for the one-point fit also
+  `S = (t - 1/2) S2 + s_misfit u`. Both are exact for any `Q`, so the
+  smallest of the three bounds is valid for every fit. The original's
+  residual for the one-point form, `|s_misfit| / 12`, is valid but looser
+  than `/16`.
+
+Effect: strict mode makes 2 to 8% fewer segments on wild curves and the
+tiger; the default mode is unchanged in segments. Each call costs about 3%
+more (geometric mean 176 to 181 ns; strict 197 to 201 ns).
+
+Splitting into halves would add another 2 to 5 points of certification.
+The remainders would then have to be computed per half (see "Bugs found").
+
+### The error oracle was wrong where the offset nears itself
+
+The tighter certificate made `strict_result_is_within_tolerance` fail, at
+7.8 times the tolerance. The bound was right; the oracle was not.
+`result_error` took the nearest of 2000 samples of the offset and refined
+only between its neighbours. Where the offset comes back near itself, the
+nearest sample can be on the other strand, and the refinement then finds a
+distance to the wrong strand. It now refines around every local minimum of
+the sampled distance, in the tests, `offset_compare` and `offset_tiger`.
+
+That changes the over-tolerance rates reported on wild curves a lot. At
+tolerance 1e-4, d = 2: `offset.rs` 30% to 13%, offset2 23% to 5%, strict
+24% to 5%. At d = 10: 52% to 17%, 48% to 8%, 52% to 8%. Earlier tables in
+these notes used the old oracle.
+
+The oracle is still not a Fréchet distance: it is one sided (it does not
+see parts of the offset that the result skips), ignores order, and samples.
+bezfit's `frechet.rs` and `min_frechet.rs` could replace it.
+
 ## Where this departs from the original notes
 
 The bounds were reconstructed from "Cheap Offset Error Bounds", not ported

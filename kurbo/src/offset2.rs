@@ -1079,7 +1079,18 @@ impl Certificate {
             beta_min = beta_min.min(sign * taylor.beta[i]);
             a1_dot_c1_min = a1_dot_c1_min.min(sign * taylor.a1_dot_c1[i]);
         }
-        let q_max = max_abs_coeff(&taylor.q);
+        let q_max = q_bound(&taylor.q);
+        // C'.C'' is half the derivative of |C'|^2. Bounding it by its own
+        // coefficients, rather than by |C'| |C''|, matters where the speed
+        // is nearly uniform and C'.C'' is small.
+        let k = &taylor.c1_dot_c1;
+        let c1_dot_c2 = [
+            2.0 * (k[1] - k[0]),
+            2.0 * (k[2] - k[1]),
+            2.0 * (k[3] - k[2]),
+            2.0 * (k[4] - k[3]),
+        ];
+        let c1_dot_c2_max = max_abs_coeff(&c1_dot_c2);
         let delta_norm = max_norm(&taylor.delta);
         let c1_norm = max_norm(&taylor.c1);
         let c2_norm = max_norm(&taylor.c2);
@@ -1097,7 +1108,9 @@ impl Certificate {
             let delta_wide = delta_norm + margin * c1_wide;
 
             // F_sss = 6 C'.C'' - 2 (A(t) - C(s)).C'''
-            let k3 = 6.0 * c1_wide * c2_wide + 2.0 * delta_wide * c3_norm;
+            // (C'.C'')' = |C''|^2 + C'.C'''.
+            let c1_dot_c2_wide = c1_dot_c2_max + (c2_wide * c2_wide + c1_wide * c3_norm) * margin;
+            let k3 = 6.0 * c1_dot_c2_wide + 2.0 * delta_wide * c3_norm;
 
             // delta is the smaller root of k3 delta^2 - beta_min delta + 2 q = 0.
             let discriminant = beta_min * beta_min - 8.0 * k3 * q_max;
@@ -1148,6 +1161,35 @@ impl Certificate {
         }
         None
     }
+}
+
+/// An upper bound on `|Q|` over [0, 1], from its Bernstein coefficients.
+///
+/// The fits make `Q` vanish at both ends, and the one-point fit also at
+/// `t = 1/2`. Factoring those zeros out first gives a much better bound than
+/// the coefficients of `Q` do. The factorizations are exact for any `Q`,
+/// with what does not vanish carried as a residual, so the smallest of the
+/// three bounds is valid whatever the fit.
+///
+/// `Q = Q_end + u S` exactly, with `u = t (1 - t)`, `Q_end` the end terms and
+/// `S` a cubic. Then `S = (t - 1/2) S2 + s_misfit u` with `S2` quadratic,
+/// as in [`one_point_bound`].
+fn q_bound(q: &[f64; 6]) -> f64 {
+    /// The maximum of `|t (1 - t) (t - 1/2)|` on [0, 1], `1 / (12 sqrt 3)`,
+    /// rounded up.
+    const V_MAX: f64 = 0.048_112_522_432_469;
+    let q_residual = q[0].abs().max(q[5].abs());
+    let s = [5.0 * q[1], 10.0 / 3.0 * q[2], 10.0 / 3.0 * q[3], 5.0 * q[4]];
+    let s2 = [
+        -2.0 * s[0],
+        0.5 * ((-s[0] - 3.0 * s[1]) + (3.0 * s[2] + s[3])),
+        2.0 * s[3],
+    ];
+    let s_misfit = 0.5 * (s[0] + 3.0 * s[1] + 3.0 * s[2] + s[3]);
+    let plain = max_abs_coeff(q);
+    let factored = 0.25 * max_abs_coeff(&s) + q_residual;
+    let one_point = V_MAX * max_abs_coeff(&s2) + s_misfit.abs() / 16.0 + q_residual;
+    plain.min(factored).min(one_point)
 }
 
 /// Convert bounds on `V = rho^2 - d^2` into a bound on `|rho - |d||`.
@@ -2174,24 +2216,31 @@ mod tests {
         for seg in result.segments() {
             for i in 0..=20 {
                 let p = seg.eval(i as f64 / 20.0);
-                let mut best = 0;
+                // Refine around every local minimum of the sampled distance,
+                // not only the smallest. Where the offset comes back near
+                // itself, the nearest sample can be on the wrong strand.
+                let dist: Vec<f64> = samples.iter().map(|s| p.distance(*s)).collect();
+                let mut nearest = f64::INFINITY;
                 for j in 0..=N {
-                    if p.distance(samples[j]) < p.distance(samples[best]) {
-                        best = j;
+                    let left = j == 0 || dist[j] <= dist[j - 1];
+                    let right = j == N || dist[j] <= dist[j + 1];
+                    if !(left && right) {
+                        continue;
                     }
-                }
-                let mut lo = best.saturating_sub(1) as f64 / N as f64;
-                let mut hi = (best + 1).min(N) as f64 / N as f64;
-                for _ in 0..60 {
-                    let s1 = lo + (hi - lo) / 3.0;
-                    let s2 = hi - (hi - lo) / 3.0;
-                    if p.distance(offset_at(s1)) < p.distance(offset_at(s2)) {
-                        hi = s2;
-                    } else {
-                        lo = s1;
+                    let mut lo = j.saturating_sub(1) as f64 / N as f64;
+                    let mut hi = (j + 1).min(N) as f64 / N as f64;
+                    for _ in 0..60 {
+                        let s1 = lo + (hi - lo) / 3.0;
+                        let s2 = hi - (hi - lo) / 3.0;
+                        if p.distance(offset_at(s1)) < p.distance(offset_at(s2)) {
+                            hi = s2;
+                        } else {
+                            lo = s1;
+                        }
                     }
+                    nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
                 }
-                worst = worst.max(p.distance(offset_at(0.5 * (lo + hi))));
+                worst = worst.max(nearest);
             }
         }
         worst
@@ -2288,6 +2337,160 @@ mod tests {
             }
         }
         assert!(n_checked > 100, "{n_checked}");
+    }
+
+    /// The Bernstein coefficients of the two halves of a polynomial.
+    fn halves<const N: usize>(c: &[f64; N]) -> ([f64; N], [f64; N]) {
+        let mut left = [0.0; N];
+        let mut right = [0.0; N];
+        let mut work = *c;
+        for i in 0..N {
+            left[i] = work[0];
+            right[N - 1 - i] = work[N - 1 - i];
+            for j in 0..N - 1 - i {
+                work[j] = 0.5 * (work[j] + work[j + 1]);
+            }
+        }
+        (left, right)
+    }
+
+    /// The original `certify` from bezfit's `bound/cheap.rs`, ported as is.
+    /// It does not handle negative beta.
+    fn original_certify(
+        taylor: &Taylor,
+        beta: &[f64; 5],
+        ac: &[f64; 5],
+        cc: &[f64; 4],
+        width: f64,
+        q: f64,
+    ) -> bool {
+        let bmin = min_coeff(beta);
+        if bmin.is_nan() || bmin <= 0.0 {
+            return false;
+        }
+        let cc = max_abs_coeff(cc);
+        let ac = min_coeff(ac);
+        let c1 = max_norm(&taylor.c1);
+        let c2 = max_norm(&taylor.c2);
+        let c3 = taylor.c3.hypot();
+        let dmax = max_norm(&taylor.delta);
+        let a1 = max_norm(&taylor.a1);
+        let mut mu = 0.125 * width;
+        for _ in 0..4 {
+            let c2m = c2 + c3 * mu;
+            let c1m = c1 + c2m * mu;
+            let ccm = cc + (c2m * c2m + c1m * c3) * mu;
+            let k = 6.0 * ccm + 2.0 * (dmax + c1m * mu) * c3;
+            let disc = bmin * bmin - 8.0 * k * q;
+            if disc.is_nan() || disc <= 0.0 {
+                return false;
+            }
+            let delta = 4.0 * q / (bmin + disc.sqrt());
+            if delta > mu {
+                mu = 1.5 * delta;
+                continue;
+            }
+            return ac > a1 * c2m * delta;
+        }
+        false
+    }
+
+    /// Compare the certificate with the original from bezfit's
+    /// `bound/cheap.rs`, on the same pieces. Run with `--ignored
+    /// --nocapture`. See the notes for the results.
+    #[test]
+    #[ignore = "measurement, prints rates"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print rates")]
+    fn certificate_rates() {
+        // [ours, original whole, original split, beta positive], for
+        // [one-point, two-point].
+        let mut counts = [[0usize; 4]; 2];
+        let mut totals = [0usize; 2];
+        for_each_piece(|piece, d| {
+            let (co, rec) = setup(piece, d);
+            let has_inflection = (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0;
+            let fit = if has_inflection {
+                two_point(&piece, &rec)
+            } else {
+                one_point(&piece, &rec)
+            };
+            let Some((a, b)) = fit else { return };
+            let fit = co.apply(&piece, &rec, a, b);
+            if fit.clamped {
+                return;
+            }
+            let taylor = Taylor::new(&piece, &fit.delta, d);
+            let k = usize::from(has_inflection);
+            totals[k] += 1;
+            if Certificate::new(&taylor).is_some() {
+                counts[k][0] += 1;
+            }
+            let kk = &taylor.c1_dot_c1;
+            let cc = [
+                2.0 * (kk[1] - kk[0]),
+                2.0 * (kk[2] - kk[1]),
+                2.0 * (kk[3] - kk[2]),
+                2.0 * (kk[4] - kk[3]),
+            ];
+            let q = &taylor.q;
+            let q_residual = q[0].abs().max(q[5].abs());
+            if original_certify(
+                &taylor,
+                &taylor.beta,
+                &taylor.a1_dot_c1,
+                &cc,
+                1.0,
+                q_bound(q),
+            ) {
+                counts[k][1] += 1;
+            }
+            // Split into halves, each with its own bound on Q.
+            let sg = [5.0 * q[1], 10.0 / 3.0 * q[2], 10.0 / 3.0 * q[3], 5.0 * q[4]];
+            let (bl, br) = halves(&taylor.beta);
+            let (al, ar) = halves(&taylor.a1_dot_c1);
+            let (cl, cr) = halves(&cc);
+            let (ql, qr) = if has_inflection {
+                let (sl, sr) = halves(&sg);
+                (
+                    0.25 * max_abs_coeff(&sl) + q_residual,
+                    0.25 * max_abs_coeff(&sr) + q_residual,
+                )
+            } else {
+                // max |t (1 - t) (t - 1/2)| is the same on each half.
+                let s2 = [
+                    -2.0 * sg[0],
+                    0.5 * ((-sg[0] - 3.0 * sg[1]) + (3.0 * sg[2] + sg[3])),
+                    2.0 * sg[3],
+                ];
+                let misfit = 0.5 * (sg[0] + 3.0 * sg[1] + 3.0 * sg[2] + sg[3]).abs() / 16.0;
+                let (sl, sr) = halves(&s2);
+                (
+                    0.048_112_522_432_469 * max_abs_coeff(&sl) + misfit + q_residual,
+                    0.048_112_522_432_469 * max_abs_coeff(&sr) + misfit + q_residual,
+                )
+            };
+            if original_certify(&taylor, &bl, &al, &cl, 0.5, ql)
+                && original_certify(&taylor, &br, &ar, &cr, 0.5, qr)
+            {
+                counts[k][2] += 1;
+            }
+            // Positive beta, on the piece or on both halves, is the most
+            // that any of these can certify.
+            if min_coeff(&taylor.beta) > 0.0 || (min_coeff(&bl) > 0.0 && min_coeff(&br) > 0.0) {
+                counts[k][3] += 1;
+            }
+        });
+        for (k, name) in ["one-point", "two-point"].into_iter().enumerate() {
+            let pct = |n: usize| 100.0 * n as f64 / totals[k] as f64;
+            std::println!(
+                "{name}: {} pieces; ours {:.1}%, original {:.1}%, original split {:.1}%, beta positive {:.1}%",
+                totals[k],
+                pct(counts[k][0]),
+                pct(counts[k][1]),
+                pct(counts[k][2]),
+                pct(counts[k][3])
+            );
+        }
     }
 
     #[test]
