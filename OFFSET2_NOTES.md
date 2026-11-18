@@ -48,9 +48,13 @@ Large, or open questions:
     evolute sections, which need their own fit and bound. Hidden pairs
     of cusps are now found where a sample of the osculating estimate
     lands between them ("Where the time goes").
-10. **Vanishing end derivatives**: the cusp value at such an end, the
-    clamped fit on one side and the failed certificate ("Where the time
-    goes", "What is left"). The tiger is full of them.
+10. **Vanishing end derivatives**: the cusp value and the clamped fit are
+    fixed in the default mode ("Vanishing end derivatives"). Left: strict
+    mode never certifies a piece touching such an end (`beta(0) = 0`; item
+    7), and `PathSeg::tangents` uses an absolute threshold for a zero
+    handle, kurbo-wide.
+11. **Hidden pairs of cusps in strict mode**, which has no samples to find
+    them; see the end of "Vanishing end derivatives".
 
 Done or dropped: the slip guard on two-point fits only, and hidden
 cusp pairs found at the samples (both adopted), the osculating circle and
@@ -1039,6 +1043,123 @@ one-sided Newton convergence; not done.
   for the cusp; it needs its own treatment.
 - 100 decisions per side at 1/32 still fail the guard on the cusp values
   at the ends.
+
+## Vanishing end derivatives (19 November 2026)
+
+A control point on an end point (`p1 = p0` or `p2 = p3`) makes the
+derivative vanish there. The tiger is full of them (261 of 336 cubics).
+
+**How such pieces were decided.** In the default mode, after the slip
+change, almost all go through the osculating estimate. Strict mode never
+certifies a piece touching such an end (`beta(0) = 0`) and subdivides
+toward it: at 1/2048 on the tiger, over 2,000 rejections at those ends
+alone, which is why it makes 2.5 times the default mode's segments there.
+
+**A survey with wide strokes** (ignored test
+`vanishing_end_derivative_survey`: 100 random cubics with a zero-length
+handle, `d` of 0.3, 3 and 30 both ways, three tolerances) showed the
+default mode badly wrong on the inside of the curve: up to 9.5 times the
+tolerance by an exact measure, and 62 times at `8b8ab63`.
+
+**The cause.** With `c'(t_end) = 0`, the cusp value's numerator
+`c0 + c1 t + c2 t^2` is exactly `c2 (t - t_end)^2`, so the cusp value
+tends to infinity with the sign of `c2`. `endpoint_cusp` computed it as
+`0 * (1 / 1e-12)^3 + 1 = 1`. Where `c2 < 0` (the inside), the offset has a
+cusp next to the end and runs backward from it to the end: a stub. The
+sign test never found that cusp. Worse, the end value 1 told `apply` the
+offset leaves the end forward, so the fit's handle there, which points
+back along the stub, was clamped, and the fallback to arc drawing, with
+the slip guard now off for arcs, gave fits several times over that the
+estimate, whose samples stop short of the end, accepted.
+
+**Two measurement problems found on the way.**
+
+- The oracle built end tangents with `PathSeg::tangents`, which treats a
+  handle shorter than about `1e-6` (`hypot2 < 1e-12`, absolute) as zero
+  and falls back to the chord. On a short piece next to such an end, that
+  turned the end tangent by `7.5e-5` and reported a 2.2 times miss where
+  the piece was within `7e-8`. The oracle now uses a threshold relative to
+  the curve's size. `PathSeg::tangents` has the same absolute threshold
+  everywhere in kurbo; the stroker and offset2's root use it.
+- The oracle recovers each piece's stretch of the source from its end
+  points, taking the first match. Next to a cusp the stub runs back along
+  the forward branch, the match lands on the wrong one, and it reported
+  misses of hundreds or thousands of times where there were none. The
+  survey therefore also uses `offset_to_result`: the largest distance from
+  the offset, sampled densely, to the result, each candidate refined to an
+  exact nearest point. It is a lower bound on the Fréchet distance, needs
+  no matching, and agrees with the oracle wherever the oracle is sound.
+  (A first version sampled the result instead of refining, and its
+  resolution, about 0.01 on long segments, looked like misses at tolerance
+  0.01; a two-way version was also fooled at sharp turns of the source,
+  where uniform samples skip most of the offset's arc of radius `d`.)
+
+By that measure strict mode was correct at `46f031b`: with the end value 1
+the pieces holding a stub are accepted only by bounds that measure against
+the offset, stub included, or subdivided. Its oracle misses were the
+matching problem.
+
+**Changes, in the default mode only:**
+
+- `end_cusp` (replacing `endpoint_cusp`) gives the true sign at a
+  vanishing end: -1 on the inside, so that the cusp is found and the stub
+  fitted.
+- Unless the stub is small. To leading order, with `q1` the middle control
+  point of the derivative, the offset near the end moves along the end
+  tangent by `|q1| u^2 - d k u`, `k = (q1 x q_other) / (2 |q1|^2)` the
+  rate the tangent turns: back to the cusp at `u = d k / (2 |q1|)`, a
+  distance `(d k)^2 / (4 |q1|)`. Where that is within `tol / 8` and
+  `u <= 0.05`, the end keeps the value 1 (the stub is smoothed over), but
+  `apply` does not clamp the handle at that end, which is left pointing
+  back along the stub. On the tiger at 1/32 the stubs are about `2e-4`
+  long against a tolerance of 0.031, and nearly all are smoothed.
+- A cusp that `find_cusp` puts at an end of a piece (within
+  `SPLIT_MARGIN`) means that end's sign was wrong; the end takes the other
+  end's sign instead of a split that leaves a piece of zero length. In
+  strict mode this replaces such splits next to vanishing ends.
+- The sample check for hidden pairs of cusps no longer excludes pieces
+  touching a vanishing end, since the end's sign is now right.
+
+Survey, worst error over tolerance by the exact one-sided measure, default
+mode (strict was and is within tolerance throughout):
+
+| d | Tolerance | `46f031b` | Now |
+|---|---|---|---|
+| 0.3 | 0.25 | 4.51 | 1.16 |
+| 3 | 0.001 | 4.46 | 0.96 |
+| 30 | 0.01 | 4.18 | 0.96 |
+| 30 | 0.001 | 9.53 | 0.99 |
+
+The few left over 1 (1.16 to 1.44, on 4 of 1,800 calls) are pieces away
+from the ends, the estimate's own looseness. The tiger's one call over
+tolerance (1.013 times, at 1/32) is gone. `default_result_with_vanishing_end_derivative`
+keeps two of the cases; it fails at `46f031b`.
+
+Cost, against `46f031b`: whole tiger strokes with the pair 4% slower at
+1/32, 6% at 1/256 and 0.5% at 1/2048 (segments 1681, 2272, 3047 against
+1683, 2268, 3118). Random families give identical output, within 1 to 2%
+in time. About 2% of it is code layout (the extra state in `apply`); the
+rest is the fitting of the inner sides with their real handles and the
+stubs now fitted at fine tolerance.
+
+Tried and dropped:
+
+- The true sign everywhere, with no smoothing: correct, but whole tiger
+  strokes took 131 µs at 1/32 against 56: every inner side became a cusp,
+  a stub piece and a piece ending at the cusp, each decided by the slow
+  path.
+- Smoothing small stubs with the end value 1 and the handle clamped as
+  before: the 4.5 times miss came back, on a stub `5e-7` long. The stub was
+  never the problem there; the clamped fit was.
+- Deciding the stubs in `CubicOffset::new`: 3% slower on the random
+  families, which have none. It is done in `end_cusp` at the root.
+- A table of the osculating samples' Bernstein weights instead of
+  computing them in the loop: 3% slower.
+
+Still open: strict mode, with no estimate to check samples, can miss a
+pair of cusps hidden at a sharp turn of the source until subdivision lands
+between them, and runs out of depth on one survey curve (by the oracle;
+the exact measure does not reach its tolerance of 1e-4).
 
 ## Where this departs from the original notes
 

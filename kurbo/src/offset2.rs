@@ -110,6 +110,16 @@ const MAX_DEPTH: usize = 12;
 /// We never let cusp values have an absolute value smaller than this.
 const CUSP_EPSILON: f64 = 1e-12;
 
+/// The largest parameter distance from an end, to the cusp next to it where
+/// the derivative vanishes, for which the leading-order estimate of the stub
+/// is used. See [`CubicOffset::end_cusp`].
+const STUB_MAX_PARAM: f64 = 0.05;
+
+/// The largest estimated extent of a stub, as a fraction of the tolerance,
+/// that the default mode smooths over. The estimate is to leading order, so
+/// this leaves room for the terms after it.
+const STUB_MAX_EXTENT: f64 = 1.0 / 8.0;
+
 /// The smallest determinant for which a linear fit is attempted.
 ///
 /// The one-point fit has determinant `sin(theta)`, where `theta` is the
@@ -199,21 +209,23 @@ fn offset_cubic_pair_impl(
     // As in `offset_cubic_impl`.
     const DIM_TUNE: f64 = 0.25;
     let c_regularized = c.regularize_cusp(tolerance * DIM_TUNE);
-    let pos = CubicOffset::new(c_regularized, d, tolerance, strict);
-    let neg = CubicOffset::new(c_regularized, -d, tolerance, strict);
+    let mut pos = CubicOffset::new(c_regularized, d, tolerance, strict);
+    let mut neg = CubicOffset::new(c_regularized, -d, tolerance, strict);
     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
     let utan0 = tan0.normalize();
     let utan1 = tan1.normalize();
-    let root = |co: &CubicOffset| OffsetRec {
+    let root = |co: &mut CubicOffset| OffsetRec {
         t0: 0.0,
         t1: 1.0,
         utan0,
         utan1,
-        cusp0: co.endpoint_cusp(co.q.p0.to_vec2(), co.c0),
-        cusp1: co.endpoint_cusp(co.q.p2.to_vec2(), co.c0 + co.c1 + co.c2),
+        cusp0: co.end_cusp(false),
+        cusp1: co.end_cusp(true),
         depth: 0,
     };
-    offset_rec_pair(&pos, &neg, &root(&pos), &root(&neg), positive, negative);
+    let rec_pos = root(&mut pos);
+    let rec_neg = root(&mut neg);
+    offset_rec_pair(&pos, &neg, &rec_pos, &rec_neg, positive, negative);
 }
 
 /// The recursion of [`CubicOffset::offset_rec`], for both sides at once.
@@ -263,12 +275,12 @@ fn offset_cubic_impl(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath, 
     // See `crate::offset` for the reasoning behind regularization.
     const DIM_TUNE: f64 = 0.25;
     let c_regularized = c.regularize_cusp(tolerance * DIM_TUNE);
-    let co = CubicOffset::new(c_regularized, d, tolerance, strict);
+    let mut co = CubicOffset::new(c_regularized, d, tolerance, strict);
     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
     let utan0 = tan0.normalize();
     let utan1 = tan1.normalize();
-    let cusp0 = co.endpoint_cusp(co.q.p0.to_vec2(), co.c0);
-    let cusp1 = co.endpoint_cusp(co.q.p2.to_vec2(), co.c0 + co.c1 + co.c2);
+    let cusp0 = co.end_cusp(false);
+    let cusp1 = co.end_cusp(true);
     result.move_to(c.p0 + d * utan0.turn_90());
     let rec = OffsetRec {
         t0: 0.0,
@@ -299,6 +311,10 @@ struct CubicOffset {
     tolerance: f64,
     /// Whether to accept pieces on strict bounds only.
     strict: bool,
+    /// Whether the offset has a stub at the start and at the end of the
+    /// curve that is smoothed over rather than fitted. See
+    /// [`CubicOffset::end_cusp`].
+    smoothed_stub: [bool; 2],
 }
 
 /// State local to a subdivision.
@@ -390,6 +406,7 @@ impl CubicOffset {
             c2: d2 * (p2xp1 - p2xp0 + p1xp0),
             tolerance,
             strict,
+            smoothed_stub: [false; 2],
         }
     }
 
@@ -460,12 +477,76 @@ impl CubicOffset {
         0.5 * (a + b)
     }
 
-    /// Compute the cusp value at an endpoint, robustly.
-    fn endpoint_cusp(&self, tan: Vec2, y: f64) -> f64 {
+    /// The cusp value at the start of the curve (`t = 0`) or at its end.
+    ///
+    /// Where the derivative vanishes at that end, the curvature there is
+    /// infinite, and so is the cusp value. Its numerator `c0 + c1 t + c2 t^2`
+    /// is then exactly `c2 (t - t_end)^2`, so the cusp value tends to
+    /// infinity with the sign of `c2`. Where that is negative, the offset has
+    /// a cusp next to the end, on the inside of the curve, and between the
+    /// cusp and the end it runs backward: a stub. Only the sign matters to
+    /// the recursion; the magnitude is taken as 1.
+    ///
+    /// The default mode reports the stub (a negative value), so that the
+    /// cusp is found and the stub fitted, unless it is too small to matter:
+    /// its estimates do not see it otherwise, and missed by up to ten times
+    /// the tolerance. Strict mode does not: no certified bound accepts a
+    /// piece containing the stub, and the bounds that do accept one measure
+    /// against the offset with the stub in it. Resolving the cusp there only
+    /// costs segments.
+    ///
+    /// This also records whether the stub at that end is smoothed over, for
+    /// [`Self::apply`], so it is called once for each end, at the root.
+    fn end_cusp(&mut self, at_end: bool) -> f64 {
+        let (tan, y) = if at_end {
+            (self.q.p2.to_vec2(), self.c0 + self.c1 + self.c2)
+        } else {
+            (self.q.p0.to_vec2(), self.c0)
+        };
         const TAN_DIST_EPSILON: f64 = 1e-12;
-        let tan_dist = tan.hypot().max(TAN_DIST_EPSILON);
-        let rsqrt = 1.0 / tan_dist;
-        y * (rsqrt * rsqrt * rsqrt) + 1.0
+        let tan_dist = tan.hypot();
+        if tan_dist >= TAN_DIST_EPSILON {
+            let rsqrt = 1.0 / tan_dist;
+            return y * (rsqrt * rsqrt * rsqrt) + 1.0;
+        }
+        let smoothed = self.smooths_stub(at_end);
+        self.smoothed_stub[usize::from(at_end)] = smoothed;
+        if self.strict || !(self.c2 < 0.0) || smoothed {
+            1.0
+        } else {
+            -1.0
+        }
+    }
+
+    /// Whether the derivative vanishes at the start (or the end), the offset
+    /// has a stub there, and the stub is small enough to smooth over.
+    ///
+    /// To leading order, with the derivative's control points `q` and `q1`
+    /// the middle one, the offset near the end moves along the end tangent
+    /// by `|q1| u^2 - d k u`, with `u` the parameter distance from the end and
+    /// `k = (q1 x q_other) / (2 |q1|^2)` the rate at which the tangent turns.
+    /// It turns back at the cusp, `u = d k / (2 |q1|)`, having gone
+    /// `(d k)^2 / (4 |q1|)`.
+    ///
+    /// A smoothed stub keeps the cusp value 1 at that end, but the fit there
+    /// keeps a handle pointing back along the stub rather than clamping it:
+    /// clamped, it fell back to arc drawing, which missed by four times the
+    /// tolerance on a stub far below it.
+    #[cold]
+    #[inline(never)]
+    fn smooths_stub(&self, at_end: bool) -> bool {
+        let tan = if at_end { self.q.p2 } else { self.q.p0 }.to_vec2();
+        const TAN_DIST_EPSILON: f64 = 1e-12;
+        if self.strict || tan.hypot() >= TAN_DIST_EPSILON || !(self.c2 < 0.0) {
+            return false;
+        }
+        let q1 = self.q.p1.to_vec2();
+        let other = if at_end { self.q.p0 } else { self.q.p2 }.to_vec2();
+        let len = q1.hypot();
+        let dk = self.d * q1.cross(other) / (2.0 * len * len);
+        let u_cusp = (dk / (2.0 * len)).abs();
+        let extent = dk * dk / (4.0 * len);
+        u_cusp <= STUB_MAX_PARAM && extent <= STUB_MAX_EXTENT * self.tolerance
     }
 
     /// Primary entry point for recursive subdivision.
@@ -478,6 +559,16 @@ impl CubicOffset {
             let b = rec.t1;
             let s = rec.cusp1.signum();
             let t = self.find_cusp(a, b, s);
+            // A root at an end of the piece is that end's sign being wrong,
+            // as at an end where the derivative vanishes whose stub was
+            // smoothed over: the region between is in fact past the cusp.
+            // Give that end the other's sign instead of splitting off a
+            // piece of zero length.
+            let margin = SPLIT_MARGIN * (b - a);
+            if t <= a + margin || t >= b - margin {
+                self.offset_rec_without_cusp(rec, t <= a + margin, result);
+                return;
+            }
             // The derivative can vanish at an end of the piece, and the
             // solver can land there. Use the end tangent in that case.
             const UTAN_EPSILON: f64 = 1e-12;
@@ -498,6 +589,20 @@ impl CubicOffset {
         let seg = self.piece(rec);
         let (accepted, best_effort, split) = self.approximate(&seg, rec, &mut Unshared);
         self.emit_or_subdivide(rec, accepted, best_effort, split, result);
+    }
+
+    /// [`Self::offset_rec`] for a piece whose cusp lies at one of its ends,
+    /// with that end given the other's sign.
+    #[cold]
+    #[inline(never)]
+    fn offset_rec_without_cusp(&self, rec: &OffsetRec, at_start: bool, result: &mut BezPath) {
+        let mut rec = OffsetRec { ..*rec };
+        if at_start {
+            rec.cusp0 = CUSP_EPSILON.copysign(rec.cusp1);
+        } else {
+            rec.cusp1 = CUSP_EPSILON.copysign(rec.cusp0);
+        }
+        self.offset_rec(&rec, result);
     }
 
     /// Approximate the offset of one piece.
@@ -605,13 +710,11 @@ impl CubicOffset {
                 }
                 // The cusp value is negative at a sample, and positive at
                 // both ends: there are at least two cusps in the piece.
-                // Split there, so that both halves see a cusp. Not at an end
-                // where the derivative vanishes, whose cusp value is not
-                // its limit.
-                Osculating::Cusp(t) if !self.touches_vanishing_derivative(rec) => {
+                // Split there, so that both halves see a cusp.
+                Osculating::Cusp(t) => {
                     return (None, fit.approx, Some(rec.t0 + t * (rec.t1 - rec.t0)));
                 }
-                Osculating::Cusp(_) | Osculating::Untrusted => {}
+                Osculating::Untrusted => {}
             }
         }
         if let Some((a, b)) = linear_fit {
@@ -673,14 +776,6 @@ impl CubicOffset {
             return (Some(arc.approx), arc.approx, None);
         }
         (None, arc.approx, None)
-    }
-
-    /// Whether the piece ends where the derivative of the source vanishes.
-    #[inline(always)]
-    fn touches_vanishing_derivative(&self, rec: &OffsetRec) -> bool {
-        const EPSILON: f64 = 1e-12;
-        (rec.t0 == 0.0 && self.q.p0.to_vec2().hypot2() < EPSILON)
-            || (rec.t1 == 1.0 && self.q.p2.to_vec2().hypot2() < EPSILON)
     }
 
     /// Whether a strict `bound` on the error of `approx` shows it to be
@@ -840,14 +935,18 @@ impl CubicOffset {
         let mut clamped = false;
         let mut p1 = p0 + l0 * rec.utan0;
         let mut delta1 = d * (n0 + a * rec.utan0);
-        if l0 * rec.cusp0 <= 0.0 {
+        // At a smoothed stub the offset arrives moving backward, whatever
+        // the cusp value says.
+        let flip0 = rec.t0 == 0.0 && self.smoothed_stub[0];
+        let flip1 = rec.t1 == 1.0 && self.smoothed_stub[1];
+        if l0 * rec.cusp0 * if flip0 { -1.0 } else { 1.0 } <= 0.0 {
             p1 = p0;
             delta1 = p1 - seg.p1;
             clamped = true;
         }
         let mut p2 = p3 - l1 * rec.utan1;
         let mut delta2 = d * (n1 + b * rec.utan1);
-        if l1 * rec.cusp1 <= 0.0 {
+        if l1 * rec.cusp1 * if flip1 { -1.0 } else { 1.0 } <= 0.0 {
             p2 = p3;
             delta2 = p2 - seg.p2;
             clamped = true;
@@ -2659,15 +2758,15 @@ mod tests {
 
     /// The setup for one piece, as `offset_rec` would see it.
     fn setup(c: CubicBez, d: f64) -> (CubicOffset, OffsetRec) {
-        let co = CubicOffset::new(c, d, 0.0, true);
+        let mut co = CubicOffset::new(c, d, 0.0, true);
         let (tan0, tan1) = PathSeg::Cubic(c).tangents();
         let rec = OffsetRec {
             t0: 0.0,
             t1: 1.0,
             utan0: tan0.normalize(),
             utan1: tan1.normalize(),
-            cusp0: co.endpoint_cusp(co.q.p0.to_vec2(), co.c0),
-            cusp1: co.endpoint_cusp(co.q.p2.to_vec2(), co.c0 + co.c1 + co.c2),
+            cusp0: co.end_cusp(false),
+            cusp1: co.end_cusp(true),
             depth: 0,
         };
         (co, rec)
@@ -3235,6 +3334,187 @@ mod tests {
                 *hist.entry(r.1.min(60) / 5 * 5).or_insert(0) += 1;
             }
             std::println!("  Newton evaluations, by 5: {hist:?}");
+        }
+    }
+
+    /// The largest distance from the offset of `c` by `d`, sampled densely,
+    /// to `result`, and the parameter where it is.
+    ///
+    /// This is a lower bound on the Fréchet distance that, unlike the oracle,
+    /// does not need to match pieces to stretches of the source, which is
+    /// ambiguous next to a cusp. Each candidate is refined to the exact
+    /// nearest point on a segment of the result.
+    fn offset_to_result(c: CubicBez, d: f64, result: &BezPath, n_off: usize) -> (f64, f64) {
+        use crate::ParamCurveNearest;
+        let q = c.deriv();
+        let (limit0, limit1) = PathSeg::Cubic(c).tangents();
+        let segs: Vec<PathSeg> = result.segments().collect();
+        let res: Vec<(Point, usize)> = segs
+            .iter()
+            .enumerate()
+            .flat_map(|(k, seg)| (0..=400).map(move |j| (seg.eval(j as f64 / 400.0), k)))
+            .collect();
+        let cell = 0.05;
+        let mut grid = std::collections::HashMap::<(i64, i64), Vec<(Point, usize)>>::new();
+        for (p, k) in &res {
+            grid.entry(((p.x / cell).floor() as i64, (p.y / cell).floor() as i64))
+                .or_default()
+                .push((*p, *k));
+        }
+        let mut worst = (0.0_f64, 0.0);
+        for i in 0..=n_off {
+            let s = i as f64 / n_off as f64;
+            let v = q.eval(s).to_vec2();
+            let v = if v.hypot2() > 1e-300 {
+                v
+            } else if s < 0.5 {
+                limit0
+            } else {
+                limit1
+            };
+            let p = c.eval(s) + d * v.normalize().turn_90();
+            let (gx, gy) = ((p.x / cell).floor() as i64, (p.y / cell).floor() as i64);
+            // Candidate segments: those with a sample within the first rings
+            // that hold anything, plus one more ring.
+            let mut cands: Vec<usize> = Vec::new();
+            let mut found_ring = None;
+            for r in 0_i64..4000 {
+                for dx in -r..=r {
+                    for dy in -r..=r {
+                        if dx.abs() != r && dy.abs() != r {
+                            continue;
+                        }
+                        if let Some(v) = grid.get(&(gx + dx, gy + dy)) {
+                            cands.extend(v.iter().map(|x| x.1));
+                        }
+                    }
+                }
+                if !cands.is_empty() && found_ring.is_none() {
+                    found_ring = Some(r);
+                }
+                if let Some(f) = found_ring {
+                    if r >= f + 2 {
+                        break;
+                    }
+                }
+            }
+            cands.sort_unstable();
+            cands.dedup();
+            let mut best = f64::INFINITY;
+            for k in cands {
+                let near = k.saturating_sub(1)..=(k + 1).min(segs.len() - 1);
+                for seg in &segs[near] {
+                    let PathSeg::Cubic(cb) = *seg else {
+                        continue;
+                    };
+                    best = best.min(cb.nearest(p, 1e-12).distance_sq.sqrt());
+                }
+            }
+            if best > worst.0 {
+                worst = (best, s);
+            }
+        }
+        worst
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    #[ignore = "measurement, prints errors"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print errors")]
+    fn vanishing_end_derivative_survey() {
+        // Random cubics with a control point on an end point, at widths up
+        // to a good fraction of their size. On the inner side the offset has
+        // a cusp next to that end. Errors by the oracle, and by the one-sided
+        // distance, as multiples of the tolerance.
+        let mut rng = Rng(4243);
+        let curves: Vec<CubicBez> = (0..100)
+            .map(|i| {
+                let c = rng.cubic();
+                if i % 2 == 0 {
+                    CubicBez::new(c.p0, c.p0, c.p2, c.p3)
+                } else {
+                    CubicBez::new(c.p0, c.p1, c.p3, c.p3)
+                }
+            })
+            .collect();
+        for strict in [false, true] {
+            for d in [0.3, 3.0, 30.0] {
+                for tolerance in [0.25, 0.01, 1e-3] {
+                    let mut segments = 0;
+                    let (mut over, mut worst) = ([0; 2], [0.0_f64; 2]);
+                    for c in &curves {
+                        for d in [d, -d] {
+                            let mut result = BezPath::new();
+                            if strict {
+                                offset_cubic_strict(*c, d, tolerance, &mut result);
+                            } else {
+                                offset_cubic(*c, d, tolerance, &mut result);
+                            }
+                            segments += result.segments().count();
+                            let regularized = c.regularize_cusp(tolerance * 0.25);
+                            let errors = [
+                                whole_result_error(*c, d, tolerance, &result),
+                                offset_to_result(regularized, d, &result, 100_000).0,
+                            ];
+                            for i in 0..2 {
+                                let ratio = errors[i] / tolerance;
+                                over[i] += usize::from(ratio > 1.001);
+                                worst[i] = worst[i].max(ratio);
+                            }
+                        }
+                    }
+                    std::println!(
+                        "strict={strict:5} d={d:4} tol={tolerance:6}: segments {segments:5}; oracle over {:3} worst {:9.3}; one-sided over {:3} worst {:7.3}",
+                        over[0],
+                        worst[0],
+                        over[1],
+                        worst[1]
+                    );
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn default_result_with_vanishing_end_derivative() {
+        // Where the derivative vanishes at an end, the cusp value there was
+        // taken as 1, and the cusp next to that end on the inside was never
+        // found. The default mode then fitted across it, and the osculating
+        // estimate, whose samples miss the end, accepted fits several times
+        // over the tolerance (4.5 and 4.2 times for these). Measured by the
+        // one-sided distance, since the oracle cannot follow a piece that
+        // turns back next to a cusp.
+        let cases = [
+            (
+                CubicBez::new(
+                    (71.988_963_612_376_5, 58.039_513_772_261_74),
+                    (28.277_259_840_239_01, 75.409_677_717_394_56),
+                    (76.641_865_945_822_9, 47.690_545_505_945_88),
+                    (76.641_865_945_822_9, 47.690_545_505_945_88),
+                ),
+                0.3,
+                0.25,
+            ),
+            (
+                CubicBez::new(
+                    (20.284_875_574_871_297, 73.667_977_655_445_3),
+                    (20.284_875_574_871_297, 73.667_977_655_445_3),
+                    (60.096_863_426_480_81, 22.650_499_256_665_98),
+                    (45.303_963_035_391_234, 80.413_901_500_895_16),
+                ),
+                30.0,
+                0.01,
+            ),
+        ];
+        for (c, d, tolerance) in cases {
+            let mut result = BezPath::new();
+            offset_cubic(c, d, tolerance, &mut result);
+            let (error, s) = offset_to_result(c, d, &result, 20_000);
+            assert!(
+                error <= 1.25 * tolerance,
+                "error {error} at s = {s}, tolerance {tolerance}, for {c:?}, d = {d}"
+            );
         }
     }
 

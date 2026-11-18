@@ -42,7 +42,7 @@ impl SourceOffset {
     fn new(c: CubicBez, d: f64) -> Self {
         let q = c.deriv();
         let qq = q.deriv();
-        let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+        let (tan0, tan1) = end_tangents(&c);
         Self {
             c,
             q,
@@ -86,6 +86,26 @@ impl SourceOffset {
     fn deriv(&self, s: f64) -> Vec2 {
         (1.0 - self.curvature(s) * self.d) * self.q.eval(s).to_vec2()
     }
+}
+
+/// The end tangents of `c`, as `PathSeg::tangents` gives them, but with a
+/// handle counted as zero only when it is zero to within rounding of the
+/// curve's size.
+///
+/// `PathSeg::tangents` treats a handle shorter than about `1e-6` as zero,
+/// whatever the size of the curve. On a short piece next to an end where
+/// the derivative vanishes, that falls back to the chord, whose direction
+/// is not the end tangent, and the end points of the offset come out wrong.
+fn end_tangents(c: &CubicBez) -> (Vec2, Vec2) {
+    let size = [c.p1 - c.p0, c.p2 - c.p0, c.p3 - c.p0]
+        .iter()
+        .fold(0.0_f64, |m, v| m.max(v.hypot2()));
+    let eps = 1e-28 * size;
+    let first = |vs: [Vec2; 3]| *vs.iter().find(|v| v.hypot2() > eps).unwrap_or(&vs[2]);
+    (
+        first([c.p1 - c.p0, c.p2 - c.p0, c.p3 - c.p0]),
+        first([c.p3 - c.p2, c.p3 - c.p1, c.p3 - c.p0]),
+    )
 }
 
 #[derive(Clone, Copy, Debug, Default)]
