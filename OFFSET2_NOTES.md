@@ -20,9 +20,9 @@ Small:
    `offset-split-at-end` branch, so that benchmarks compare bounds and
    fits, not solvers and depth limits.
 2. **Midpoint subdivision** in place of the angle and curvature split,
-   which would remove about 110 more lines and is 4 to 5% faster, but
-   needs a guard on the osculating estimate that looks inside the piece
-   ("Trimming").
+   which would remove about 110 more lines and is 4 to 6% faster, but
+   needs a guard on the osculating estimate that looks inside the piece,
+   and makes hairpins much worse ("Trimming", "Near cusps").
 
 Medium:
 
@@ -56,6 +56,11 @@ Large, or open questions:
     handle, kurbo-wide.
 11. **Hidden pairs of cusps in strict mode**, which has no samples to find
     them; see the end of "Vanishing end derivatives".
+12. **Near cusps at tight tolerances run out of depth**, in both modes,
+    with the angle split: every call at a gap of 1e-6 and tolerance 1e-6,
+    and thousands of pieces at 1e-4. Not checked: whether the pieces
+    emitted there are within tolerance. Midpoint splitting converges far
+    better there and far worse on hairpins ("Near cusps").
 
 Done or dropped: the midpoint G1 retry and the G1 bound (removed, see
 "Trimming"), the slip guard on two-point fits only, and hidden
@@ -1295,7 +1300,7 @@ over the 27 rows, worst error by the Fréchet oracle), in both modes.
 | Midpoint G1 retry (off by default) | 0 | 0 | removed |
 | Certified bound on arc drawing (never decided a piece) | 0 | 0 | removed |
 | Sharing Taylor and certificate between the sides | 0 | 0 | removed |
-| `small_piece_bound` | 0 | +0.8%, +0.6% segments | removed |
+| `small_piece_bound` | 0 | +0.8%, +0.6% segments | removed, then restored: see "Near cusps" |
 | `g1_bound` (two-point fits take the crude bound) | 0 | +3.6%, +3% segments | removed |
 | `one_point_bound` (crude bound instead) | +1% | +8%, +11% segments | kept |
 | Sharing the linear fit as well (no `Sharing` trait) | +2 to 3% | +5 to 7% | kept |
@@ -1314,9 +1319,10 @@ angle split happens to put an end near the peak. A guard that looks at
 the cusp value at the samples, or the curvature inside the piece, would
 be needed before midpoint subdivision is safe.
 
-Adopted together: non-test code 1736 to 1291 lines, comments 847 to 685,
-the whole file 4347 to 3534 (3 tests and an ignored survey of what was
-removed go with it). Measured interleaved with the previous version, four
+Adopted together (`1fd3fe4`): non-test code 1736 to 1291 lines, comments
+847 to 685, the whole file 4347 to 3534 (3 tests and an ignored survey of
+what was removed go with it). With `small_piece_bound` restored, non-test
+code is 1327 lines. Measured interleaved with the previous version, four
 runs: tiger strokes one side at a time 1.9 to 2.7% faster, with the pair
 unchanged (within 0.4%); random families 3.8% faster in the default mode
 and 1.3% slower in strict mode. Default segments are unchanged on the
@@ -1332,4 +1338,33 @@ Larger cuts, measured but left for a decision:
   and about 500 lines of tests.
 - Dropping the pair: about 160 lines of the module and a little of
   `stroke.rs`, for 9 to 13% on whole tiger strokes.
+
+### Near cusps (19 November 2026)
+
+The trim above was measured on the tiger and the random families, which
+hardly contain near cusps, and removing `small_piece_bound` looked free.
+On hairpins and on cusps made inexact by a gap between the middle control
+points (ignored test `near_cusp_depth_survey`) it was not: strict mode at
+a gap of 1e-6 and tolerance 1e-4 went from 31,329 segments and 2,946
+pieces at the maximum depth to 127,666 and 93,103, and at 1e-6 from
+199,488 to 628,646 segments. It is restored. The tip of a near cusp is
+where its arc acceptance is needed, and no other bound takes that piece.
+
+The survey also shows a problem from before the trim: near cusps at tight
+tolerances run out of depth with the angle split. At a gap of 1e-6 and
+tolerance 1e-6 every call does, emitting 86,232 pieces at the maximum
+depth in the default mode (800 calls, 147,873 segments). Splits tried on
+the survey, the tiger and the random families, with the bound restored:
+
+| Split | Tiger and random, time | Random, worst | Hairpins | Near cusps, tight tolerance |
+|---|---|---|---|---|
+| Angle and curvature (current) | | 1.005 | | runs out of depth |
+| Midpoint everywhere | 2 to 6% faster | 1.495 | 40 to 2,416 pieces at the maximum depth where the current split has 0 to 213 | 33,082 segments and 1,619 at the maximum depth at gap 1e-6, tolerance 1e-6 |
+| Midpoint where there is an inflection | same | 1.005 | 16 to 20% more segments at 0.25 and 1e-2 | same as current |
+| The inflection nearest the middle | same | 1.005 | slightly better | somewhat worse |
+
+So the curvature integral in the inflection branch earns its keep on
+hairpins, and neither split converges well everywhere. A split that
+finds the tip of a near cusp directly (the minimum of `|C'|`) may be what
+is missing.
 

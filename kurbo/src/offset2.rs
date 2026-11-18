@@ -628,6 +628,19 @@ impl CubicOffset {
             }
         }
 
+        // A piece that is itself smaller than the tolerance is the tip of a
+        // near cusp of the source, or close to one. Its offset is nearly an
+        // arc of a circle about the tip, however badly parametrized, and
+        // arc drawing with a purely geometric bound deals with it.
+        if (seg.p3 - seg.p0).hypot2() <= tolerance * tolerance {
+            let arc = self.draw_arc(seg, rec);
+            if let Some(bound) = small_piece_bound(seg, rec, &arc, d) {
+                if self.accepts(bound, seg, &arc.approx) {
+                    return (Some(arc.approx), arc.approx, None);
+                }
+            }
+        }
+
         // An inflection is a sign change of the curvature, and the cusp
         // value is the curvature times `d`, plus one. With an inflection the
         // end tangents can be parallel, which defeats the one-point fit, so
@@ -1785,6 +1798,64 @@ fn hairline_bound(delta: &[Vec2; 4], d: f64) -> f64 {
     max_norm(delta) + d.abs()
 }
 
+/// Bound the error of arc drawing on a piece that is small.
+///
+/// Suppose the direction of the source tangent turns one way only over the
+/// piece. Then the source normal sweeps the arc of the unit circle from one
+/// end normal to the other, once. Arc drawing makes `D / d` the standard
+/// cubic approximation of that arc, whose direction sweeps the same arc
+/// once and whose length is within `epsilon` of one. Pair each point of the
+/// approximation with the point of the offset whose normal has the same
+/// direction. The two differ by the distance between two points of the
+/// source piece, plus `|d| epsilon`.
+///
+/// So the Fréchet distance is at most the diameter of the source piece plus
+/// `|d| epsilon`. Parametrization plays no part in this, which is the point:
+/// near a cusp of the source the tangent turns very unevenly, and every
+/// bound that compares the curves at related parameters fails.
+///
+/// Returns `None` if the tangent might not turn one way only, if it turns
+/// through more than about a right angle, or if the approximation is not
+/// plain arc drawing.
+#[inline(always)]
+fn small_piece_bound(seg: &CubicBez, rec: &OffsetRec, arc: &Fit, d: f64) -> Option<f64> {
+    if arc.clamped {
+        return None;
+    }
+    // The tangent turns one way only if the control points of the
+    // hodograph are in angular order. The end ones may vanish, so use the
+    // end tangents for their directions.
+    let middle = seg.p2 - seg.p1;
+    let turn_0 = rec.utan0.cross(middle);
+    let turn_1 = middle.cross(rec.utan1);
+    let turn = rec.utan0.cross(rec.utan1);
+    let all_one_way = (turn_0 >= 0.0 && turn_1 >= 0.0 && turn >= 0.0)
+        || (turn_0 <= 0.0 && turn_1 <= 0.0 && turn <= 0.0);
+    // Keep to turns for which the angular order is unambiguous.
+    let cos_th = rec.utan0.dot(rec.utan1);
+    if !all_one_way || !(cos_th > 0.0) || !(rec.utan0.dot(middle) >= 0.0) {
+        return None;
+    }
+
+    // The diameter of the piece is at most the largest distance between
+    // two of its control points.
+    let points = [seg.p0, seg.p1, seg.p2, seg.p3];
+    let mut diameter_squared = 0.0_f64;
+    for i in 0..4 {
+        for j in 0..i {
+            diameter_squared = diameter_squared.max((points[i] - points[j]).hypot2());
+        }
+    }
+
+    // The largest radial error of the standard approximation of an arc of
+    // angle theta is 4/27 sin^6(theta / 4) / cos^2(theta / 4).
+    let cos_half = (0.5 * (1.0 + cos_th)).sqrt();
+    let cos_quarter_squared = 0.5 * (1.0 + cos_half);
+    let sin_quarter_squared = 0.5 * (1.0 - cos_half);
+    let epsilon = (4.0 / 27.0) * sin_quarter_squared.powi(3) / cos_quarter_squared;
+    Some(diameter_squared.sqrt() + d.abs() * epsilon)
+}
+
 // ---------------------------------------------------------------------------
 // The sampled estimate
 
@@ -2411,6 +2482,125 @@ mod tests {
     }
 
     #[test]
+    fn small_piece_bound_is_strict() {
+        // Pieces around the slowest point of curves with a near cusp.
+        let mut rng = Rng(4242);
+        let mut n_checked = 0;
+        for _ in 0..200 {
+            // A hairpin: the middle control points lie beyond the ends.
+            let p0 = Point::new(rng.next() * 10.0, rng.next() * 10.0);
+            let p3 = p0 + Vec2::new(rng.next() * 2.0 - 1.0, rng.next() * 2.0 - 1.0);
+            let far = Vec2::new(40.0 + rng.next() * 40.0, rng.next() * 20.0);
+            let spread = Vec2::new(rng.next() - 0.5, rng.next() - 0.5) * 0.2;
+            let c = CubicBez::new(p0, p3 + far + spread, p0 + far - spread, p3);
+            let q = c.deriv();
+            let mut t_slow = 0.5;
+            for i in 0..=1000 {
+                let t = i as f64 / 1000.0;
+                if q.eval(t).to_vec2().hypot2() < q.eval(t_slow).to_vec2().hypot2() {
+                    t_slow = t;
+                }
+            }
+            for width in [1e-2, 3e-3, 1e-3] {
+                let t0 = (t_slow - width * rng.next()).max(0.0);
+                let t1 = (t0 + width).min(1.0);
+                let piece = c.subsegment(t0..t1);
+                for d in [1.0, -1.0, 5.0, -5.0] {
+                    let (co, rec) = setup(piece, d);
+                    let (a, b) = draw_arc(rec.utan0, rec.utan1);
+                    let fit = co.apply(&piece, &rec, a, b);
+                    let Some(bound) = small_piece_bound(&piece, &rec, &fit, d) else {
+                        continue;
+                    };
+                    let mut result = BezPath::new();
+                    result.move_to(fit.approx.p0);
+                    result.curve_to(fit.approx.p1, fit.approx.p2, fit.approx.p3);
+                    let error =
+                        piece_frechet(&piece, &fit.approx, d, || result_error(&piece, d, &result));
+                    assert!(
+                        bound >= error - slack(d),
+                        "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
+                    );
+                    n_checked += 1;
+                }
+            }
+        }
+        assert!(n_checked > 200, "{n_checked}");
+    }
+
+    /// Segments, and pieces emitted at the maximum depth, for families with
+    /// sharp turns: random cubics, hairpins, and cusps made inexact by a
+    /// given gap between the middle control points. These are what the
+    /// small-piece bound is for, and what the random families and the
+    /// tiger hardly contain. Run with `--ignored --nocapture`.
+    #[cfg(feature = "std")]
+    #[test]
+    #[ignore = "measurement, prints counts"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print counts")]
+    fn near_cusp_depth_survey() {
+        let mut rng = Rng(77);
+        let mut families: Vec<(String, Vec<CubicBez>)> = Vec::new();
+        families.push(("random".into(), (0..200).map(|_| rng.cubic()).collect()));
+        let hairpins = (0..200)
+            .map(|_| {
+                let p0 = Point::new(rng.next() * 10.0, rng.next() * 10.0);
+                let p3 = p0 + Vec2::new(rng.next() * 2.0 - 1.0, rng.next() * 2.0 - 1.0);
+                let far = Vec2::new(40.0 + rng.next() * 40.0, rng.next() * 20.0);
+                let spread = Vec2::new(rng.next() - 0.5, rng.next() - 0.5) * 0.2;
+                CubicBez::new(p0, p3 + far + spread, p0 + far - spread, p3)
+            })
+            .collect();
+        families.push(("hairpin".into(), hairpins));
+        for gap in [1e-2, 1e-4, 1e-6, 0.0] {
+            // The middle control points crossed over the chord give an
+            // exact cusp at t = 1/2; moving them apart makes it a near one.
+            let cusps = (0..200)
+                .map(|_| {
+                    let p0 = Point::new(rng.next() * 100.0, rng.next() * 100.0);
+                    let p3 = Point::new(rng.next() * 100.0, rng.next() * 100.0);
+                    let m = p0.midpoint(p3)
+                        + Vec2::new(rng.next() * 60.0 - 30.0, rng.next() * 60.0 - 30.0);
+                    let half_chord = (p3 - p0) * 0.5;
+                    let dir = Vec2::new(rng.next() - 0.5, rng.next() - 0.5).normalize();
+                    CubicBez::new(
+                        p0,
+                        m + half_chord + gap * dir,
+                        m - half_chord - gap * dir,
+                        p3,
+                    )
+                })
+                .collect();
+            families.push((std::format!("cusp, gap {gap:e}"), cusps));
+        }
+        std::println!(
+            "family, tolerance: segments and pieces at the maximum depth, default | strict"
+        );
+        for (name, curves) in &families {
+            for tolerance in [0.25, 1e-2, 1e-4, 1e-6] {
+                let mut cells = Vec::new();
+                for strict in [false, true] {
+                    let (mut n_segments, mut n_out_of_depth) = (0, 0);
+                    for c in curves {
+                        for d in [1.0, -1.0, 5.0, -5.0] {
+                            OUT_OF_DEPTH.with(|count| count.set(0));
+                            let mut result = BezPath::new();
+                            if strict {
+                                offset_cubic_strict(*c, d, tolerance, &mut result);
+                            } else {
+                                offset_cubic(*c, d, tolerance, &mut result);
+                            }
+                            n_out_of_depth += OUT_OF_DEPTH.with(|count| count.get());
+                            n_segments += result.segments().count();
+                        }
+                    }
+                    cells.push(std::format!("{n_segments:>7} {n_out_of_depth:>6}"));
+                }
+                std::println!("{name:>16}, {tolerance:e}: {} | {}", cells[0], cells[1]);
+            }
+        }
+    }
+
+    #[test]
     fn draw_arc_matches_offset() {
         // The vector form here should agree with the trigonometric form in
         // `crate::offset`.
@@ -2424,6 +2614,56 @@ mod tests {
             assert!((a - expected).abs() < 1e-12, "{a} {expected}");
             assert_eq!(b, -a);
         }
+    }
+
+    /// The largest distance from a point of the result to the true offset
+    /// of `c`.
+    ///
+    /// The offset is sampled densely, and the nearest sample to each point
+    /// is refined by a ternary search between its neighbors.
+    fn result_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
+        const N: usize = 2000;
+        // Keep just inside the ends, where the derivative may vanish and
+        // the normal is defined only as a limit.
+        const END_EPSILON: f64 = 1e-9;
+        let c1 = c.deriv();
+        let offset_at = |s: f64| {
+            let s = s.clamp(END_EPSILON, 1.0 - END_EPSILON);
+            c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90()
+        };
+        let samples: Vec<Point> = (0..=N).map(|j| offset_at(j as f64 / N as f64)).collect();
+        let mut worst = 0.0_f64;
+        for seg in result.segments() {
+            for i in 0..=20 {
+                let p = seg.eval(i as f64 / 20.0);
+                // Refine around every local minimum of the sampled distance,
+                // not only the smallest. Where the offset comes back near
+                // itself, the nearest sample can be on the wrong strand.
+                let dist: Vec<f64> = samples.iter().map(|s| p.distance(*s)).collect();
+                let mut nearest = f64::INFINITY;
+                for j in 0..=N {
+                    let left = j == 0 || dist[j] <= dist[j - 1];
+                    let right = j == N || dist[j] <= dist[j + 1];
+                    if !(left && right) {
+                        continue;
+                    }
+                    let mut lo = j.saturating_sub(1) as f64 / N as f64;
+                    let mut hi = (j + 1).min(N) as f64 / N as f64;
+                    for _ in 0..60 {
+                        let s1 = lo + (hi - lo) / 3.0;
+                        let s2 = hi - (hi - lo) / 3.0;
+                        if p.distance(offset_at(s1)) < p.distance(offset_at(s2)) {
+                            hi = s2;
+                        } else {
+                            lo = s1;
+                        }
+                    }
+                    nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
+                }
+                worst = worst.max(nearest);
+            }
+        }
+        worst
     }
 
     #[test]
