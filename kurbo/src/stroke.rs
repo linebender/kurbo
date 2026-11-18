@@ -325,8 +325,13 @@ fn stroke_undashed(
             ctx.zero_length = Some(dir.unwrap_or(Vec2::new(1.0, 0.0)));
         }
     };
+    // A segment within a millionth of the tolerance of where it starts draws nothing but its
+    // caps: a zero-length one, the pen moved to its end (offsetting a curve that small makes
+    // points that aren't finite).
+    let tiny = tolerance * 1e-6;
     for el in path {
         let p0 = ctx.last_pt;
+        let near = |p: Point| (p - p0).hypot() <= tiny;
         match el {
             PathEl::MoveTo(p) => {
                 ctx.finish(style);
@@ -334,17 +339,18 @@ fn stroke_undashed(
                 ctx.last_pt = p;
             }
             PathEl::LineTo(p1) => {
-                if p1 != p0 {
+                if !near(p1) {
                     let tangent = p1 - p0;
                     ctx.do_join(style, tangent);
                     ctx.last_tan = tangent;
                     ctx.do_line(style, tangent, p1);
                 } else {
                     zero_length(ctx);
+                    ctx.last_pt = p1;
                 }
             }
             PathEl::QuadTo(p1, p2) => {
-                if p1 != p0 || p2 != p0 {
+                if !near(p1) || !near(p2) {
                     let q = QuadBez::new(p0, p1, p2);
                     let (tan0, tan1) = PathSeg::Quad(q).tangents();
                     ctx.do_join(style, tan0);
@@ -352,10 +358,11 @@ fn stroke_undashed(
                     ctx.last_tan = tan1;
                 } else {
                     zero_length(ctx);
+                    ctx.last_pt = p2;
                 }
             }
             PathEl::CurveTo(p1, p2, p3) => {
-                if p1 != p0 || p2 != p0 || p3 != p0 {
+                if !near(p1) || !near(p2) || !near(p3) {
                     let c = CubicBez::new(p0, p1, p2, p3);
                     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
                     ctx.do_join(style, tan0);
@@ -363,6 +370,7 @@ fn stroke_undashed(
                     ctx.last_tan = tan1;
                 } else {
                     zero_length(ctx);
+                    ctx.last_pt = p3;
                 }
             }
             PathEl::ClosePath => {
@@ -1275,6 +1283,31 @@ mod tests {
             .filter(|e| matches!(e, PathEl::MoveTo(_)))
             .count();
         (subpaths, out.area().abs())
+    }
+
+    /// A cubic far shorter than the tolerance (an animation's path caught
+    /// as it shrinks to a point) strokes as a zero-length one: its caps, every
+    /// point finite. Offsetting it gave points that weren't.
+    #[test]
+    fn tiny_segment_strokes_as_zero_length() {
+        use crate::Cap;
+        let mut tiny = BezPath::new();
+        tiny.move_to((-86.9999999994665, 4.895));
+        tiny.curve_to((-86.99999999982217, 4.895), (-87.0, 4.895), (-87.0, 4.895));
+        let style = Stroke::new(6.0)
+            .with_caps(Cap::Round)
+            .with_join(crate::Join::Round);
+        let out = stroke(&tiny, &style, &StrokeOpts::default(), 0.05);
+        assert!(
+            out.elements()
+                .iter()
+                .flat_map(|e| e.end_point())
+                .all(|p| p.x.is_finite() && p.y.is_finite()),
+            "{out:?}"
+        );
+        let (n, a) = stroked_area(&tiny, &style);
+        assert_eq!(n, 1);
+        assert!((a - core::f64::consts::PI * 9.0).abs() < 0.1, "round: {a}");
     }
 
     /// A subpath of zero length draws its caps (SVG): a disc for round caps,
