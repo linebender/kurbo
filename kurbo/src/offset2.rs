@@ -70,27 +70,12 @@ use arrayvec::ArrayVec;
 use crate::common::FloatFuncs;
 
 use crate::{
-    BezPath, CubicBez, ParamCurve, ParamCurveDeriv, PathSeg, QuadBez, Vec2,
-    common::{solve_cubic, solve_quadratic},
+    BezPath, CubicBez, ParamCurve, ParamCurveDeriv, PathSeg, QuadBez, Vec2, common::solve_quadratic,
 };
 
 /// The smallest distance from a subdivision point to an end of the piece,
 /// as a fraction of its parameter length.
 const SPLIT_MARGIN: f64 = 1e-6;
-
-/// Temporary: try the midpoint G1 fit when the one-point bound is within
-/// this factor of the tolerance. Zero turns it off.
-#[allow(missing_docs)]
-pub mod g1_retry {
-    use core::sync::atomic::{AtomicU64, Ordering};
-    static FACTOR: AtomicU64 = AtomicU64::new(0);
-    pub fn set(factor: f64) {
-        FACTOR.store(factor.to_bits(), Ordering::Relaxed);
-    }
-    pub fn get() -> f64 {
-        f64::from_bits(FACTOR.load(Ordering::Relaxed))
-    }
-}
 
 /// The rounding allowance added to every strict bound, in units in the
 /// last place of the largest coordinate; see [`CubicOffset::accepts`].
@@ -141,9 +126,6 @@ const DET_EPSILON: f64 = 1e-9;
 /// when a sampled estimate of its error, with a safety factor, is. Use
 /// [`offset_cubic_strict`] to accept on strict bounds only, and
 /// [`offset_cubic_pair`] for both sides of the source at once.
-///
-/// Not handled yet: a higher order fit (`midpoint_g1`) exists, but is not
-/// used unless a temporary switch turns it on.
 pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     offset_cubic_impl(c, d, tolerance, result, false);
 }
@@ -646,19 +628,6 @@ impl CubicOffset {
             }
         }
 
-        // A piece that is itself smaller than the tolerance is the tip of a
-        // near cusp of the source, or close to one. Its offset is nearly an
-        // arc of a circle about the tip, however badly parametrized, and
-        // arc drawing with a purely geometric bound deals with it.
-        if (seg.p3 - seg.p0).hypot2() <= tolerance * tolerance {
-            let arc = self.draw_arc(seg, rec);
-            if let Some(bound) = small_piece_bound(seg, rec, &arc, d) {
-                if self.accepts(bound, seg, &arc.approx) {
-                    return (Some(arc.approx), arc.approx, None);
-                }
-            }
-        }
-
         // An inflection is a sign change of the curvature, and the cusp
         // value is the curvature times `d`, plus one. With an inflection the
         // end tangents can be parallel, which defeats the one-point fit, so
@@ -726,16 +695,14 @@ impl CubicOffset {
             // The linear fits assume their handles are used as computed.
             let fit = self.apply(seg, rec, a, b);
             if !fit.clamped {
-                let taylor = sharing.taylor(seg, &fit.delta, d);
-                let certified = match sharing.certificate(&taylor) {
+                let taylor = Taylor::new(seg, &fit.delta, d);
+                let certified = match Certificate::new(&taylor) {
+                    // The two-point fit has no bound of its own. Where the
+                    // general one does not accept it, try the bounds that
+                    // need no certificate, and the estimate.
                     Some(certificate) if has_inflection => {
-                        // The G1 bound is tight but costs ten times what
-                        // the general bound does. On an easy piece the
-                        // general bound is enough, so try it first.
-                        match crude_certified_bound(&taylor, &certificate, d) {
-                            Some(bound) if self.accepts(bound, seg, &fit.approx) => Some(bound),
-                            _ => g1_bound(&taylor, &certificate, d),
-                        }
+                        crude_certified_bound(&taylor, &certificate, d)
+                            .filter(|&bound| self.accepts(bound, seg, &fit.approx))
                     }
                     Some(certificate) => one_point_bound(&taylor, &certificate, d),
                     None => None,
@@ -744,13 +711,6 @@ impl CubicOffset {
                     // The certified bounds are tight, so take their word.
                     if self.accepts(bound, seg, &fit.approx) {
                         return (Some(fit.approx), fit.approx, None);
-                    }
-                    // Close enough that the higher order fit may succeed.
-                    let retry = g1_retry::get();
-                    if !has_inflection && bound <= retry * tolerance {
-                        if let Some(approx) = self.try_midpoint_g1(seg, rec) {
-                            return (Some(approx), approx, None);
-                        }
                     }
                     return (None, fit.approx, None);
                 }
@@ -766,17 +726,9 @@ impl CubicOffset {
         // No linear fit: the end tangents are parallel, the derivative
         // vanishes in the middle, or a handle would point the wrong way.
         // Arc drawing is always defined. It has no bound of its own, so use
-        // the general ones, from the tightest to the most widely
-        // applicable.
+        // the ones that need no certificate, and the estimate.
         let arc = self.draw_arc(seg, rec);
-        let taylor = sharing.taylor(seg, &arc.delta, d);
-        if let Some(certificate) = sharing.certificate(&taylor) {
-            if let Some(bound) = crude_certified_bound(&taylor, &certificate, d) {
-                if self.accepts(bound, seg, &arc.approx) {
-                    return (Some(arc.approx), arc.approx, None);
-                }
-            }
-        }
+        let taylor = Taylor::new(seg, &arc.delta, d);
         if self.accept_uncertified(seg, rec, &arc, &taylor) {
             return (Some(arc.approx), arc.approx, None);
         }
@@ -801,23 +753,6 @@ impl CubicOffset {
             largest = largest.max(p.x.abs()).max(p.y.abs());
         }
         bound + ROUND_ULPS * f64::EPSILON * largest <= self.tolerance
-    }
-
-    /// Fit with [`midpoint_g1`] and accept on the G1 bound, if both succeed.
-    fn try_midpoint_g1(&self, seg: &CubicBez, rec: &OffsetRec) -> Option<CubicBez> {
-        let d = self.d;
-        let (a, b) = midpoint_g1(seg, rec, d)?;
-        let fit = self.apply(seg, rec, a, b);
-        if fit.clamped {
-            return None;
-        }
-        let taylor = Taylor::new(seg, &fit.delta, d);
-        let certificate = Certificate::new(&taylor)?;
-        let bound = match crude_certified_bound(&taylor, &certificate, d) {
-            Some(bound) if self.accepts(bound, seg, &fit.approx) => bound,
-            _ => g1_bound(&taylor, &certificate, d)?,
-        };
-        self.accepts(bound, seg, &fit.approx).then_some(fit.approx)
     }
 
     /// Decide whether to accept a piece without the foot-point certificate.
@@ -1198,116 +1133,6 @@ fn two_point(seg: &CubicBez, rec: &OffsetRec) -> Option<(f64, f64)> {
     Some((a, b))
 }
 
-/// The midpoint G1 fit.
-///
-/// The approximation passes through the offset at some source parameter
-/// `s`, at `t = 1/2`, with the tangent of the offset there. With G1 at the
-/// ends, the error has double zeros at both ends and at the midpoint, and it
-/// is sixth order in the length of the piece. The conditions are nonlinear in
-/// `s`: three equations in `(a, b)`, solvable when the determinant of the
-/// augmented system vanishes. That is solved by Newton's method from
-/// `s = 1/2`, near where the one-point fit puts the midpoint.
-///
-/// Reconstructed from `min_frechet.rs` in bezfit, which finds every
-/// solution by scanning; here only the one nearest `s = 1/2` is sought.
-///
-/// Returns `None` if Newton's method does not converge, or if the solution
-/// would point a handle or the midpoint tangent the wrong way.
-fn midpoint_g1(seg: &CubicBez, rec: &OffsetRec, d: f64) -> Option<(f64, f64)> {
-    let u0 = rec.utan0;
-    let u1 = rec.utan1;
-    let start = seg.p0 + d * u0.turn_90();
-    let end = seg.p3 + d * u1.turn_90();
-    let mid = start.midpoint(end);
-    let chord = end - start;
-    let q = seg.deriv();
-    // In the absolute handle lengths (h0, h1), with p1 = p0 + h0 u0 and
-    // p2 = p3 + h1 u1, the approximation at t = 1/2 is
-    // mid + 3/8 (h0 u0 + h1 u1), with derivative 3/2 chord + 3/4 (h1 u1 - h0 u0).
-    // The rows: position equal to the offset at s, and the derivative
-    // parallel to the source tangent at s.
-    let system = |s: f64| -> Option<([[f64; 2]; 3], [f64; 3])> {
-        let tan = q.eval(s).to_vec2();
-        let len = tan.hypot();
-        if !(len > 1e-12) {
-            return None;
-        }
-        let u = tan / len;
-        let z = seg.eval(s) + d * u.turn_90() - mid;
-        Some((
-            [
-                [0.375 * u0.x, 0.375 * u1.x],
-                [0.375 * u0.y, 0.375 * u1.y],
-                [-0.75 * u0.cross(u), 0.75 * u1.cross(u)],
-            ],
-            [z.x, z.y, -1.5 * chord.cross(u)],
-        ))
-    };
-    // The determinant of the augmented system, zero where it is solvable.
-    let det = |s: f64| -> Option<f64> {
-        let (k, r) = system(s)?;
-        let minor = |i: usize, j: usize| k[i][0] * k[j][1] - k[i][1] * k[j][0];
-        Some(r[0] * minor(1, 2) - r[1] * minor(0, 2) + r[2] * minor(0, 1))
-    };
-    let mut s = 0.5;
-    let mut converged = false;
-    for _ in 0..12 {
-        const H: f64 = 1e-6;
-        let f = det(s)?;
-        let slope = (det(s + H)? - det(s - H)?) / (2.0 * H);
-        let step = f / slope;
-        if !step.is_finite() {
-            return None;
-        }
-        s -= step;
-        if !(s > 0.0 && s < 1.0) {
-            return None;
-        }
-        // Rounding in the determinant limits how far this converges on a
-        // small piece. An error of 1e-9 in `s` does not show in the fit.
-        if step.abs() < 1e-9 {
-            converged = true;
-            break;
-        }
-    }
-    if !converged {
-        return None;
-    }
-    // At the root the three equations agree; solve them by least squares.
-    let (k, r) = system(s)?;
-    let mut ktk = [[0.0; 2]; 2];
-    let mut ktr = [0.0; 2];
-    for i in 0..3 {
-        for j in 0..2 {
-            ktr[j] += k[i][j] * r[i];
-            for l in 0..2 {
-                ktk[j][l] += k[i][j] * k[i][l];
-            }
-        }
-    }
-    let det2 = ktk[0][0] * ktk[1][1] - ktk[0][1] * ktk[1][0];
-    if !(det2.abs() > 1e-12 * (ktk[0][0] + ktk[1][1]).powi(2)) {
-        return None;
-    }
-    let h0 = (ktr[0] * ktk[1][1] - ktk[0][1] * ktr[1]) / det2;
-    let h1 = (ktk[0][0] * ktr[1] - ktk[1][0] * ktr[0]) / det2;
-    // The handles point along the offset, as `apply` requires, and so does
-    // the tangent at the midpoint.
-    let l0 = h0;
-    let l1 = -h1;
-    let tangent = 1.5 * chord + 0.75 * (h1 * u1 - h0 * u0);
-    let u = q.eval(s).to_vec2();
-    let cusp_sign = rec.cusp0.signum();
-    if !(l0 * rec.cusp0 > 0.0 && l1 * rec.cusp1 > 0.0 && tangent.dot(u) * cusp_sign > 0.0) {
-        return None;
-    }
-    // Convert to the parameters of `apply`: l0 = source_l0 + a d and
-    // l1 = source_l1 - b d.
-    let source_l0 = (seg.p1 - seg.p0).dot(u0);
-    let source_l1 = (seg.p3 - seg.p2).dot(u1);
-    Some(((l0 - source_l0) / d, (source_l1 - l1) / d))
-}
-
 /// The unit normal of a cubic at `t`, or `None` if its derivative vanishes.
 fn unit_normal(c: &CubicBez, t: f64) -> Option<Vec2> {
     const TAN_EPSILON: f64 = 1e-12;
@@ -1322,9 +1147,8 @@ fn unit_normal(c: &CubicBez, t: f64) -> Option<Vec2> {
 // ---------------------------------------------------------------------------
 // Polynomial helpers
 //
-// Polynomials in Bernstein form on [0, 1] are arrays named `*_bern` where
-// the basis is not clear from context; those in the power basis are named
-// `*_pow`. An array of length `n` holds a polynomial of degree `n - 1`.
+// Polynomials are in Bernstein form on [0, 1]. An array of length `n` holds
+// a polynomial of degree `n - 1`.
 
 /// Binomial coefficients, `BINOM[n][k]` for `n` up to 6.
 const BINOM: [[f64; 7]; 7] = [
@@ -1386,44 +1210,6 @@ fn dot_self<const M: usize, const K: usize>(a: &[Vec2; M]) -> [f64; K] {
     }
     for k in 0..K {
         result[k] *= BINOM_RECIP[K - 1][k];
-    }
-    result
-}
-
-/// Convert a polynomial from Bernstein form to the power basis.
-fn to_power<const N: usize>(bern: &[f64; N]) -> [f64; N] {
-    // The k-th power coefficient is binom(n, k) times the k-th forward
-    // difference of the Bernstein coefficients at index 0.
-    let mut diffs = *bern;
-    let mut pow = [0.0; N];
-    for k in 0..N {
-        pow[k] = BINOM[N - 1][k] * diffs[0];
-        for i in 0..N - 1 - k {
-            diffs[i] = diffs[i + 1] - diffs[i];
-        }
-    }
-    pow
-}
-
-/// Multiply two polynomials in the power basis.
-///
-/// The output length `K` must be `M + N - 1`.
-fn mul_pow<const M: usize, const N: usize, const K: usize>(a: &[f64; M], b: &[f64; N]) -> [f64; K] {
-    debug_assert_eq!(K, M + N - 1);
-    let mut result = [0.0; K];
-    for i in 0..M {
-        for j in 0..N {
-            result[i + j] += a[i] * b[j];
-        }
-    }
-    result
-}
-
-/// Evaluate a polynomial in the power basis.
-fn eval_pow(pow: &[f64], t: f64) -> f64 {
-    let mut result = 0.0;
-    for &coeff in pow.iter().rev() {
-        result = result * t + coeff;
     }
     result
 }
@@ -1540,61 +1326,21 @@ impl Taylor {
             c1_dot_c1,
         }
     }
-
-    /// The coefficients for `-D` in place of `D`: the other side of the
-    /// source, for a fit that does not depend on the side.
-    ///
-    /// `P` is even in `D`, `Q` is odd, and `|C'|^2` does not depend on it,
-    /// so only `A'`, `D.C''`, `beta` and `A'.C'` are computed again. The
-    /// result is the same, bit for bit, as [`Taylor::new`] with `-D`.
-    fn mirrored(&self) -> Self {
-        let c1 = self.c1;
-        let delta = self.delta.map(|v| -v);
-        let a1 = [
-            c1[0] + 3.0 * (delta[1] - delta[0]),
-            c1[1] + 3.0 * (delta[2] - delta[1]),
-            c1[2] + 3.0 * (delta[3] - delta[2]),
-        ];
-        let q = self.q.map(|x| -x);
-        // Each product is negated exactly, so this is exactly the negation
-        // of the other side's, as `Taylor::new` would compute it.
-        let delta_dot_c2: [f64; 5] = dot(&delta, &self.c2);
-        let mut beta = [0.0; 5];
-        for i in 0..5 {
-            beta[i] = 2.0 * (self.c1_dot_c1[i] - delta_dot_c2[i]);
-        }
-        let mut a1_dot_c1 = [0.0; 5];
-        for i in 0..5 {
-            a1_dot_c1[i] = 0.5 * beta[i] + 5.0 * (q[i + 1] - q[i]);
-        }
-        Taylor {
-            delta,
-            a1,
-            q,
-            beta,
-            a1_dot_c1,
-            ..*self
-        }
-    }
 }
 
-/// How [`CubicOffset::approximate`] gets the work that does not depend on
-/// the side of the source: the linear fit, the Taylor coefficients, and the
-/// parts of the certificate in [`SharedBounds`].
-///
-/// For one side, [`Unshared`] computes each directly. For both sides,
-/// [`Shared`] keeps what the first side computed for the second.
+/// How [`CubicOffset::approximate`] gets the linear fit, which does not
+/// depend on the side of the source. For one side, [`Unshared`] computes it.
+/// For both sides, [`Shared`] keeps what the first side computed for the
+/// second.
 trait Sharing {
     fn linear_fit(
         &mut self,
         two_point_chosen: bool,
         fit: impl FnOnce() -> Option<(f64, f64)>,
     ) -> Option<(f64, f64)>;
-    fn taylor(&mut self, seg: &CubicBez, delta: &[Vec2; 4], d: f64) -> Taylor;
-    fn certificate(&mut self, taylor: &Taylor) -> Option<Certificate>;
 }
 
-/// Compute everything directly, for one side.
+/// Compute the linear fit directly, for one side.
 struct Unshared;
 
 impl Sharing for Unshared {
@@ -1606,26 +1352,16 @@ impl Sharing for Unshared {
     ) -> Option<(f64, f64)> {
         fit()
     }
-
-    #[inline(always)]
-    fn taylor(&mut self, seg: &CubicBez, delta: &[Vec2; 4], d: f64) -> Taylor {
-        Taylor::new(seg, delta, d)
-    }
-
-    #[inline(always)]
-    fn certificate(&mut self, taylor: &Taylor) -> Option<Certificate> {
-        Certificate::new(taylor)
-    }
 }
 
-/// Keep work on a piece for the other side, in [`offset_cubic_pair`].
+/// Keep the linear fit on a piece for the other side, in
+/// [`offset_cubic_pair`]. Sharing the Taylor coefficients and the parts of
+/// the certificate that do not depend on the side as well saved nothing
+/// measurable.
 #[derive(Default)]
 struct Shared {
     /// Whether the two-point fit was chosen, and the linear fit's result.
     linear_fit: Option<(bool, Option<(f64, f64)>)>,
-    /// The last Taylor coefficients computed, and the shared bounds for
-    /// them if a certificate has been attempted.
-    taylor: Option<(Taylor, Option<SharedBounds>)>,
 }
 
 impl Sharing for Shared {
@@ -1643,45 +1379,6 @@ impl Sharing for Shared {
             }
         }
     }
-
-    fn taylor(&mut self, seg: &CubicBez, delta: &[Vec2; 4], d: f64) -> Taylor {
-        if let Some((other, _)) = &self.taylor {
-            if is_negation(&other.delta, delta) {
-                return other.mirrored();
-            }
-        }
-        let taylor = Taylor::new(seg, delta, d);
-        self.taylor = Some((taylor.clone(), None));
-        taylor
-    }
-
-    fn certificate(&mut self, taylor: &Taylor) -> Option<Certificate> {
-        let reuse = match &self.taylor {
-            Some((other, Some(shared))) if is_negation(&other.delta, &taylor.delta) => {
-                Some(*shared)
-            }
-            _ => None,
-        };
-        let mut computed = None;
-        let certificate = Certificate::with_shared(taylor, || {
-            reuse.unwrap_or_else(|| {
-                let shared = SharedBounds::new(taylor);
-                computed = Some(shared);
-                shared
-            })
-        });
-        if let (Some(shared), Some((own, slot))) = (computed, &mut self.taylor) {
-            if own.delta == taylor.delta {
-                *slot = Some(shared);
-            }
-        }
-        certificate
-    }
-}
-
-/// Whether `b` is exactly `-a`.
-fn is_negation(a: &[Vec2; 4], b: &[Vec2; 4]) -> bool {
-    (0..4).all(|i| a[i] == -b[i])
 }
 
 /// The result of a successful foot-point certificate.
@@ -1706,60 +1403,10 @@ struct Certificate {
     /// is the stationary value of the quadratic model of `F`, attained at
     /// `sigma_0 = 2 Q / beta`.
     newton_remainder: f64,
-    /// A bound on the fourth-order Taylor remainder of `F` at `sigma_0`.
-    fourth_order: f64,
-    /// A bound on `|F(sigma_0) - V|`.
-    foot_shortfall: f64,
-}
-
-/// Bounds used by [`Certificate::new`] that do not change when `D` is
-/// negated, so that the other side of the source can reuse them.
-#[derive(Clone, Copy)]
-struct SharedBounds {
-    /// A bound on `|Q|`; see [`q_bound`].
-    q_max: f64,
-    /// A bound on `|C'.C''|`.
-    c1_dot_c2_max: f64,
-    /// Bounds on `|D|`, `|C'|`, `|C''|` and `|C'''|`.
-    delta_norm: f64,
-    c1_norm: f64,
-    c2_norm: f64,
-    c3_norm: f64,
-}
-
-impl SharedBounds {
-    #[inline(always)]
-    fn new(taylor: &Taylor) -> Self {
-        // C'.C'' is half the derivative of |C'|^2. Bounding it by its own
-        // coefficients, rather than by |C'| |C''|, matters where the speed
-        // is nearly uniform and C'.C'' is small.
-        let k = &taylor.c1_dot_c1;
-        let c1_dot_c2 = [
-            2.0 * (k[1] - k[0]),
-            2.0 * (k[2] - k[1]),
-            2.0 * (k[3] - k[2]),
-            2.0 * (k[4] - k[3]),
-        ];
-        SharedBounds {
-            q_max: q_bound(&taylor.q),
-            c1_dot_c2_max: max_abs_coeff(&c1_dot_c2),
-            delta_norm: max_norm(&taylor.delta),
-            c1_norm: max_norm(&taylor.c1),
-            c2_norm: max_norm(&taylor.c2),
-            c3_norm: taylor.c3.hypot(),
-        }
-    }
 }
 
 impl Certificate {
     fn new(taylor: &Taylor) -> Option<Self> {
-        Self::with_shared(taylor, || SharedBounds::new(taylor))
-    }
-
-    /// As [`Certificate::new`], with the bounds that do not depend on the
-    /// side from `shared`, which is called only once `beta` keeps one sign.
-    #[inline(always)]
-    fn with_shared(taylor: &Taylor, shared: impl FnOnce() -> SharedBounds) -> Option<Self> {
         // beta must keep one sign over the piece.
         let sign = if min_coeff(&taylor.beta) > 0.0 {
             1.0
@@ -1774,14 +1421,22 @@ impl Certificate {
             beta_min = beta_min.min(sign * taylor.beta[i]);
             a1_dot_c1_min = a1_dot_c1_min.min(sign * taylor.a1_dot_c1[i]);
         }
-        let SharedBounds {
-            q_max,
-            c1_dot_c2_max,
-            delta_norm,
-            c1_norm,
-            c2_norm,
-            c3_norm,
-        } = shared();
+        let q_max = q_bound(&taylor.q);
+        // C'.C'' is half the derivative of |C'|^2. Bounding it by its own
+        // coefficients, rather than by |C'| |C''|, matters where the speed
+        // is nearly uniform and C'.C'' is small.
+        let k = &taylor.c1_dot_c1;
+        let c1_dot_c2 = [
+            2.0 * (k[1] - k[0]),
+            2.0 * (k[2] - k[1]),
+            2.0 * (k[3] - k[2]),
+            2.0 * (k[4] - k[3]),
+        ];
+        let c1_dot_c2_max = max_abs_coeff(&c1_dot_c2);
+        let delta_norm = max_norm(&taylor.delta);
+        let c1_norm = max_norm(&taylor.c1);
+        let c2_norm = max_norm(&taylor.c2);
+        let c3_norm = taylor.c3.hypot();
         let a1_norm = max_norm(&taylor.a1);
 
         // The derivative bounds must hold for s within `margin` of [0, 1],
@@ -1815,33 +1470,11 @@ impl Certificate {
                     return None;
                 }
                 let newton_remainder = k3 * delta.powi(3) / 6.0;
-
-                // F_ssss = 6 |C''|^2 + 8 C'.C'''
-                let k4 = 6.0 * c2_wide * c2_wide + 8.0 * c1_wide * c3_norm;
-                let sigma_max = 2.0 * q_max / beta_min;
-                let fourth_order = k4 * sigma_max.powi(4) / 24.0;
-
-                // The true foot is at sigma_0 + e. At sigma_0, |F_s| <= b
-                // with b = k3 sigma_0^2 / 2, and |F_ss| >= 2a with
-                // 2a = beta_min - k3 delta, so F(sigma_0) differs from the
-                // stationary value by at most b^2 / (4a). The choice of
-                // delta makes 2a = 2 q / delta, which is positive unless Q
-                // vanishes identically.
-                let b = 0.5 * k3 * sigma_max * sigma_max;
-                let two_a = beta_min - k3 * delta;
-                let foot_shortfall = if two_a > 0.0 {
-                    b * b / (2.0 * two_a)
-                } else {
-                    0.0
-                };
-
                 return Some(Certificate {
                     sign,
                     beta_min,
                     q_max,
                     newton_remainder,
-                    fourth_order,
-                    foot_shortfall,
                 });
             }
             margin = 1.25 * delta;
@@ -2020,172 +1653,6 @@ fn one_point_bound(taylor: &Taylor, certificate: &Certificate, d: f64) -> Option
 }
 
 // ---------------------------------------------------------------------------
-// The G1 bound
-
-/// The nodes at which the slip term is interpolated.
-const NODES: [f64; 3] = [0.25, 0.5, 0.75];
-
-/// The maximum over [0, 1] of `u^2 |(t - 1/4)(t - 1/2)(t - 3/4)|`.
-const NODE_WEIGHT_MAX: f64 = 3.5230e-4;
-
-/// Bound the error of any G1 approximation, on an ordinary piece.
-///
-/// With only the end zeros divided out, the Newton value is
-/// `H = u^2 (R - Gamma)` with `R` a quadratic and `Gamma = 2 S^2 / beta`.
-/// `Gamma` is replaced by the quadratic that interpolates it at three
-/// nodes. The extrema of the result are found exactly, and what the
-/// replacement leaves out is bounded as a polynomial interpolation error.
-///
-/// The cubic Taylor term is kept, as a multiple `kappa` of the slip term
-/// with `kappa` bounded by a constant, which leaves only a fourth-order
-/// remainder.
-///
-/// Returns `None` past a cusp, where `beta` is negative.
-fn g1_bound(taylor: &Taylor, certificate: &Certificate, d: f64) -> Option<f64> {
-    if certificate.sign < 0.0 {
-        return None;
-    }
-    let p = &taylor.p;
-    let q = &taylor.q;
-    let beta_min = certificate.beta_min;
-    let q_max = certificate.q_max;
-
-    // P = u^2 R and Q = u S, as in the one-point bound.
-    let p_residual = max_abs_coeff(&[p[0], p[1], p[5], p[6]]);
-    let q_residual = max_abs_coeff(&[q[0], q[5]]);
-    let r = [15.0 * p[2], 10.0 * p[3], 15.0 * p[4]];
-    let s = [5.0 * q[1], 10.0 / 3.0 * q[2], 10.0 / 3.0 * q[3], 5.0 * q[4]];
-    let q_squared_error = q_residual * (2.0 * q_max + q_residual);
-    let slip_residual = 2.0 * q_squared_error / beta_min;
-
-    // Evaluate F at the Newton point sigma_0 = 2 Q / beta, keeping the
-    // cubic term:
-    //
-    // F(sigma_0) = P - (1 - kappa) 2 Q^2 / beta + (fourth order)
-    //
-    // with kappa = 2/3 F_sss Q / beta^2.
-    let c1_dot_c2: [f64; 4] = dot(&taylor.c1, &taylor.c2);
-    let delta_dot_c3: [f64; 4] = dot(&taylor.delta, &[taylor.c3]);
-    let mut f_sss = [0.0; 4];
-    for i in 0..4 {
-        f_sss[i] = 6.0 * c1_dot_c2[i] - 2.0 * delta_dot_c3[i];
-    }
-    // The range of F_sss Q, as a product of two intervals.
-    let f_lo = min_coeff(&f_sss);
-    let f_hi = max_coeff(&f_sss);
-    let q_lo = min_coeff(q);
-    let q_hi = max_coeff(q);
-    let products = [f_lo * q_lo, f_lo * q_hi, f_hi * q_lo, f_hi * q_hi];
-    // Dividing by the smallest beta^2 gives the widest range. Include zero
-    // so that this stays valid whatever the signs.
-    let kappa_scale = 2.0 / (3.0 * beta_min * beta_min);
-    let kappa_hi = kappa_scale * max_coeff(&products).max(0.0);
-    let kappa_lo = kappa_scale * min_coeff(&products).min(0.0);
-    let kappa_abs = kappa_hi.max(-kappa_lo);
-
-    // V is the minimum of F, so V <= F(sigma_0), and
-    // V >= F(sigma_0) - foot_shortfall. The slip term is nonnegative, so
-    // the largest V goes with the largest kappa.
-    let scale_for_max = 1.0 - kappa_hi;
-    let scale_for_min = 1.0 - kappa_lo;
-    let shared = certificate.fourth_order + p_residual + (1.0 + kappa_abs) * slip_residual;
-    let remainder_above = shared;
-    let remainder_below = shared + certificate.foot_shortfall;
-
-    let r_pow = to_power(&r);
-    let s_pow = to_power(&s);
-    let beta_pow = to_power(&taylor.beta);
-
-    // Gamma at the nodes, and the quadratic through those values, by
-    // divided differences.
-    let mut gamma = [0.0; 3];
-    for i in 0..3 {
-        let s_at_node = eval_pow(&s_pow, NODES[i]);
-        let beta_at_node = eval_pow(&beta_pow, NODES[i]);
-        gamma[i] = 2.0 * s_at_node * s_at_node / beta_at_node;
-    }
-    let slope_01 = (gamma[1] - gamma[0]) / (NODES[1] - NODES[0]);
-    let slope_12 = (gamma[2] - gamma[1]) / (NODES[2] - NODES[1]);
-    let curve = (slope_12 - slope_01) / (NODES[2] - NODES[0]);
-    let gamma_fit_pow = [
-        gamma[0] - NODES[0] * slope_01 + NODES[0] * NODES[1] * curve,
-        slope_01 - (NODES[0] + NODES[1]) * curve,
-        curve,
-    ];
-
-    // The interpolation error. N = 2 S^2 - gamma_fit beta has degree 6 and
-    // vanishes at the nodes, so N = omega M with M a cubic, and
-    // Gamma - gamma_fit = omega M / beta.
-    let s_squared_pow: [f64; 7] = mul_pow(&s_pow, &s_pow);
-    let fit_beta_pow: [f64; 7] = mul_pow(&gamma_fit_pow, &beta_pow);
-    let mut n_pow = [0.0; 7];
-    for i in 0..7 {
-        n_pow[i] = 2.0 * s_squared_pow[i] - fit_beta_pow[i];
-    }
-    // omega = t^3 + omega_2 t^2 + omega_1 t + omega_0.
-    let omega_2 = -(NODES[0] + NODES[1] + NODES[2]);
-    let omega_1 = NODES[0] * NODES[1] + NODES[0] * NODES[2] + NODES[1] * NODES[2];
-    let omega_0 = -NODES[0] * NODES[1] * NODES[2];
-    // Divide N by omega. The quotient is M, and the remainder is left in
-    // the low three coefficients of `n_pow`. It would be zero in exact
-    // arithmetic.
-    let mut m_pow = [0.0; 4];
-    for k in (3..7).rev() {
-        let quotient = n_pow[k];
-        m_pow[k - 3] = quotient;
-        n_pow[k - 1] -= quotient * omega_2;
-        n_pow[k - 2] -= quotient * omega_1;
-        n_pow[k - 3] -= quotient * omega_0;
-    }
-    let division_remainder = n_pow[0].abs() + n_pow[1].abs() + n_pow[2].abs();
-    // Bound |M| on [0, 1] by its Bernstein coefficients.
-    let m_bern = [
-        m_pow[0],
-        m_pow[0] + m_pow[1] / 3.0,
-        m_pow[0] + m_pow[1] * (2.0 / 3.0) + m_pow[2] / 3.0,
-        m_pow[0] + m_pow[1] + m_pow[2] + m_pow[3],
-    ];
-    let m_max = max_abs_coeff(&m_bern);
-    // u^2 |Gamma - gamma_fit| <= this, using u^2 <= 1/16 for the remainder.
-    let interpolation_error = (NODE_WEIGHT_MAX * m_max + division_remainder / 16.0) / beta_min;
-
-    let (profile_max, _) = profile_extrema(&r_pow, &gamma_fit_pow, scale_for_max);
-    let (_, profile_min) = profile_extrema(&r_pow, &gamma_fit_pow, scale_for_min);
-    let v_above =
-        (profile_max + scale_for_max.abs() * interpolation_error).max(0.0) + remainder_above;
-    let v_below =
-        (scale_for_min.abs() * interpolation_error - profile_min).max(0.0) + remainder_below;
-    distance_bound(v_above, v_below, d)
-}
-
-/// The largest and smallest values of `u^2 X` on [0, 1], where
-/// `X = R - scale gamma_fit` is a quadratic.
-fn profile_extrema(r_pow: &[f64; 3], gamma_fit_pow: &[f64; 3], scale: f64) -> (f64, f64) {
-    let x0 = r_pow[0] - scale * gamma_fit_pow[0];
-    let x1 = r_pow[1] - scale * gamma_fit_pow[1];
-    let x2 = r_pow[2] - scale * gamma_fit_pow[2];
-    // The value is zero at both ends.
-    let mut max = 0.0_f64;
-    let mut min = 0.0_f64;
-    // (u^2 X)' = u (2 u' X + u X'), and the second factor is this cubic.
-    let roots = solve_cubic(
-        2.0 * x0,
-        3.0 * x1 - 4.0 * x0,
-        4.0 * x2 - 5.0 * x1,
-        -6.0 * x2,
-    );
-    for t in roots {
-        if t > 0.0 && t < 1.0 {
-            let u = t * (1.0 - t);
-            let value = u * u * (x0 + t * (x1 + t * x2));
-            max = max.max(value);
-            min = min.min(value);
-        }
-    }
-    (max, min)
-}
-
-// ---------------------------------------------------------------------------
 // Bounds that need no certificate
 
 /// Bound the distance between the approximation and the offset at equal
@@ -2316,64 +1783,6 @@ fn hull_bound(seg: &CubicBez, rec: &OffsetRec, delta: &[Vec2; 4], d: f64) -> Opt
 #[inline(always)]
 fn hairline_bound(delta: &[Vec2; 4], d: f64) -> f64 {
     max_norm(delta) + d.abs()
-}
-
-/// Bound the error of arc drawing on a piece that is small.
-///
-/// Suppose the direction of the source tangent turns one way only over the
-/// piece. Then the source normal sweeps the arc of the unit circle from one
-/// end normal to the other, once. Arc drawing makes `D / d` the standard
-/// cubic approximation of that arc, whose direction sweeps the same arc
-/// once and whose length is within `epsilon` of one. Pair each point of the
-/// approximation with the point of the offset whose normal has the same
-/// direction. The two differ by the distance between two points of the
-/// source piece, plus `|d| epsilon`.
-///
-/// So the Fréchet distance is at most the diameter of the source piece plus
-/// `|d| epsilon`. Parametrization plays no part in this, which is the point:
-/// near a cusp of the source the tangent turns very unevenly, and every
-/// bound that compares the curves at related parameters fails.
-///
-/// Returns `None` if the tangent might not turn one way only, if it turns
-/// through more than about a right angle, or if the approximation is not
-/// plain arc drawing.
-#[inline(always)]
-fn small_piece_bound(seg: &CubicBez, rec: &OffsetRec, arc: &Fit, d: f64) -> Option<f64> {
-    if arc.clamped {
-        return None;
-    }
-    // The tangent turns one way only if the control points of the
-    // hodograph are in angular order. The end ones may vanish, so use the
-    // end tangents for their directions.
-    let middle = seg.p2 - seg.p1;
-    let turn_0 = rec.utan0.cross(middle);
-    let turn_1 = middle.cross(rec.utan1);
-    let turn = rec.utan0.cross(rec.utan1);
-    let all_one_way = (turn_0 >= 0.0 && turn_1 >= 0.0 && turn >= 0.0)
-        || (turn_0 <= 0.0 && turn_1 <= 0.0 && turn <= 0.0);
-    // Keep to turns for which the angular order is unambiguous.
-    let cos_th = rec.utan0.dot(rec.utan1);
-    if !all_one_way || !(cos_th > 0.0) || !(rec.utan0.dot(middle) >= 0.0) {
-        return None;
-    }
-
-    // The diameter of the piece is at most the largest distance between
-    // two of its control points.
-    let points = [seg.p0, seg.p1, seg.p2, seg.p3];
-    let mut diameter_squared = 0.0_f64;
-    for i in 0..4 {
-        for j in 0..i {
-            diameter_squared = diameter_squared.max((points[i] - points[j]).hypot2());
-        }
-    }
-
-    // The largest radial error of the standard approximation of an arc of
-    // angle theta is 4/27 sin^6(theta / 4) / cos^2(theta / 4).
-    let cos_half = (0.5 * (1.0 + cos_th)).sqrt();
-    let cos_quarter_squared = 0.5 * (1.0 + cos_half);
-    let sin_quarter_squared = 0.5 * (1.0 - cos_half);
-    let epsilon = (4.0 / 27.0) * sin_quarter_squared.powi(3) / cos_quarter_squared;
-    Some(diameter_squared.sqrt() + d.abs() * epsilon)
 }
 
 // ---------------------------------------------------------------------------
@@ -2576,7 +1985,8 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 
 /// Decide a piece by the osculating parabola estimate.
 ///
-/// This is [`osculating_estimate`] at [`OSCULATING_SAMPLES`], rearranged to
+/// This is the estimate of `tests::osculating_estimate` at
+/// [`OSCULATING_SAMPLES`], rearranged to
 /// need one square root per sample and no division, and to stop at the
 /// first sample that decides. With `A = c'^ . D`, `B = c' . D`,
 /// `K = c'' x c'`, `s = |c'|` and `E = s^3 + K d` (`s^3` times the cusp
@@ -2655,58 +2065,6 @@ enum Osculating {
     Cusp(f64),
 }
 
-/// Estimate the error by the osculating parabola, at `n` samples.
-///
-/// From the `failed_k4` branch of fast-stroke (`est_arc_error_dot`). At each
-/// sample, with `W = D / d` split into `dot` and `cross` along the normal and
-/// tangent of the source, the error in units of `d` is
-/// `(dot - 1) + kappa_off d cross^2 / 2`: the radial error, and how far the
-/// offset, of curvature `kappa_off = kappa / (1 + kappa d)`, bends away from
-/// its tangent over the slip `d cross`. This is the leading term of the
-/// Newton value `H / d^2`. It is not a bound: there is no remainder, and
-/// nothing between the samples, which are at the midpoints of `n` equal
-/// intervals.
-///
-/// Returns the estimate, and the largest `|cross|`, the slip in units of
-/// `d`, beyond which the estimate is not to be trusted. Only the tests use
-/// this form; [`osculating_decision`] is the one in use.
-#[cfg(test)]
-fn osculating_estimate(seg: &CubicBez, delta: &[Vec2; 4], d: f64, n: usize) -> (f64, f64) {
-    let c1 = [
-        3.0 * (seg.p1 - seg.p0),
-        3.0 * (seg.p2 - seg.p1),
-        3.0 * (seg.p3 - seg.p2),
-    ];
-    let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
-    let inv_d = 1.0 / d;
-    let mut worst = 0.0_f64;
-    let mut slip = 0.0_f64;
-    for i in 0..n {
-        let t = (i as f64 + 0.5) / n as f64;
-        let mt = 1.0 - t;
-        let d_t = delta[0] * (mt * mt * mt)
-            + delta[1] * (3.0 * mt * mt * t)
-            + delta[2] * (3.0 * mt * t * t)
-            + delta[3] * (t * t * t);
-        let q = c1[0] * (mt * mt) + c1[1] * (2.0 * mt * t) + c1[2] * (t * t);
-        let qq = c2[0] * mt + c2[1] * t;
-        let speed2 = q.hypot2();
-        let speed = speed2.sqrt();
-        let normal = q.turn_90() / speed;
-        let w = d_t * inv_d;
-        let dot = normal.dot(w);
-        let cross = normal.cross(w);
-        // kurbo's curvature, c'' x c' / |c'|^3, so that 1 + kappa d is the
-        // cusp value.
-        let kappa = qq.cross(q) / (speed2 * speed);
-        let kappa_off = kappa / (1.0 + kappa * d);
-        let error = (dot - 1.0) + 0.5 * kappa_off * d * cross * cross;
-        worst = worst.max(error.abs());
-        slip = slip.max(cross.abs());
-    }
-    (worst * d.abs(), slip)
-}
-
 /// Estimate the largest distance between the approximation and the offset
 /// at equal parameter.
 ///
@@ -2737,6 +2095,57 @@ fn sampled_equal_parameter_distance(taylor: &Taylor, d: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::{PathEl, Point};
+
+    /// Estimate the error by the osculating parabola, at `n` samples.
+    ///
+    /// From the `failed_k4` branch of fast-stroke (`est_arc_error_dot`). At each
+    /// sample, with `W = D / d` split into `dot` and `cross` along the normal and
+    /// tangent of the source, the error in units of `d` is
+    /// `(dot - 1) + kappa_off d cross^2 / 2`: the radial error, and how far the
+    /// offset, of curvature `kappa_off = kappa / (1 + kappa d)`, bends away from
+    /// its tangent over the slip `d cross`. This is the leading term of the
+    /// Newton value `H / d^2`. It is not a bound: there is no remainder, and
+    /// nothing between the samples, which are at the midpoints of `n` equal
+    /// intervals.
+    ///
+    /// Returns the estimate, and the largest `|cross|`, the slip in units of
+    /// `d`, beyond which the estimate is not to be trusted. Only the tests use
+    /// this form; [`osculating_decision`] is the one in use.
+    fn osculating_estimate(seg: &CubicBez, delta: &[Vec2; 4], d: f64, n: usize) -> (f64, f64) {
+        let c1 = [
+            3.0 * (seg.p1 - seg.p0),
+            3.0 * (seg.p2 - seg.p1),
+            3.0 * (seg.p3 - seg.p2),
+        ];
+        let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
+        let inv_d = 1.0 / d;
+        let mut worst = 0.0_f64;
+        let mut slip = 0.0_f64;
+        for i in 0..n {
+            let t = (i as f64 + 0.5) / n as f64;
+            let mt = 1.0 - t;
+            let d_t = delta[0] * (mt * mt * mt)
+                + delta[1] * (3.0 * mt * mt * t)
+                + delta[2] * (3.0 * mt * t * t)
+                + delta[3] * (t * t * t);
+            let q = c1[0] * (mt * mt) + c1[1] * (2.0 * mt * t) + c1[2] * (t * t);
+            let qq = c2[0] * mt + c2[1] * t;
+            let speed2 = q.hypot2();
+            let speed = speed2.sqrt();
+            let normal = q.turn_90() / speed;
+            let w = d_t * inv_d;
+            let dot = normal.dot(w);
+            let cross = normal.cross(w);
+            // kurbo's curvature, c'' x c' / |c'|^3, so that 1 + kappa d is the
+            // cusp value.
+            let kappa = qq.cross(q) / (speed2 * speed);
+            let kappa_off = kappa / (1.0 + kappa * d);
+            let error = (dot - 1.0) + 0.5 * kappa_off * d * cross * cross;
+            worst = worst.max(error.abs());
+            slip = slip.max(cross.abs());
+        }
+        (worst * d.abs(), slip)
+    }
 
     thread_local! {
         /// The number of pieces emitted at the maximum depth without a bound.
@@ -2932,41 +2341,6 @@ mod tests {
     }
 
     #[test]
-    fn g1_bound_is_strict() {
-        let mut n_checked = 0;
-        for_each_piece(|piece, d| {
-            let (co, rec) = setup(piece, d);
-            let (cusp_min, _) = cusp_range(&co);
-            if cusp_min < 0.2 {
-                return;
-            }
-            let Some((a, b)) = two_point(&piece, &rec) else {
-                return;
-            };
-            let fit = co.apply(&piece, &rec, a, b);
-            if fit.clamped {
-                return;
-            }
-            let taylor = Taylor::new(&piece, &fit.delta, d);
-            let Some(certificate) = Certificate::new(&taylor) else {
-                return;
-            };
-            let Some(bound) = g1_bound(&taylor, &certificate, d) else {
-                return;
-            };
-            let error = piece_frechet(&piece, &fit.approx, d, || {
-                measured_error(&piece, &fit.approx, d)
-            });
-            assert!(
-                bound >= error - slack(d),
-                "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
-            );
-            n_checked += 1;
-        });
-        assert!(n_checked > 1000, "{n_checked}");
-    }
-
-    #[test]
     fn crude_certified_bound_is_strict() {
         let mut n_checked = 0;
         for_each_piece(|piece, d| {
@@ -3037,53 +2411,6 @@ mod tests {
     }
 
     #[test]
-    fn small_piece_bound_is_strict() {
-        // Pieces around the slowest point of curves with a near cusp.
-        let mut rng = Rng(4242);
-        let mut n_checked = 0;
-        for _ in 0..200 {
-            // A hairpin: the middle control points lie beyond the ends.
-            let p0 = Point::new(rng.next() * 10.0, rng.next() * 10.0);
-            let p3 = p0 + Vec2::new(rng.next() * 2.0 - 1.0, rng.next() * 2.0 - 1.0);
-            let far = Vec2::new(40.0 + rng.next() * 40.0, rng.next() * 20.0);
-            let spread = Vec2::new(rng.next() - 0.5, rng.next() - 0.5) * 0.2;
-            let c = CubicBez::new(p0, p3 + far + spread, p0 + far - spread, p3);
-            let q = c.deriv();
-            let mut t_slow = 0.5;
-            for i in 0..=1000 {
-                let t = i as f64 / 1000.0;
-                if q.eval(t).to_vec2().hypot2() < q.eval(t_slow).to_vec2().hypot2() {
-                    t_slow = t;
-                }
-            }
-            for width in [1e-2, 3e-3, 1e-3] {
-                let t0 = (t_slow - width * rng.next()).max(0.0);
-                let t1 = (t0 + width).min(1.0);
-                let piece = c.subsegment(t0..t1);
-                for d in [1.0, -1.0, 5.0, -5.0] {
-                    let (co, rec) = setup(piece, d);
-                    let (a, b) = draw_arc(rec.utan0, rec.utan1);
-                    let fit = co.apply(&piece, &rec, a, b);
-                    let Some(bound) = small_piece_bound(&piece, &rec, &fit, d) else {
-                        continue;
-                    };
-                    let mut result = BezPath::new();
-                    result.move_to(fit.approx.p0);
-                    result.curve_to(fit.approx.p1, fit.approx.p2, fit.approx.p3);
-                    let error =
-                        piece_frechet(&piece, &fit.approx, d, || result_error(&piece, d, &result));
-                    assert!(
-                        bound >= error - slack(d),
-                        "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
-                    );
-                    n_checked += 1;
-                }
-            }
-        }
-        assert!(n_checked > 200, "{n_checked}");
-    }
-
-    #[test]
     fn draw_arc_matches_offset() {
         // The vector form here should agree with the trigonometric form in
         // `crate::offset`.
@@ -3097,56 +2424,6 @@ mod tests {
             assert!((a - expected).abs() < 1e-12, "{a} {expected}");
             assert_eq!(b, -a);
         }
-    }
-
-    /// The largest distance from a point of the result to the true offset
-    /// of `c`.
-    ///
-    /// The offset is sampled densely, and the nearest sample to each point
-    /// is refined by a ternary search between its neighbors.
-    fn result_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
-        const N: usize = 2000;
-        // Keep just inside the ends, where the derivative may vanish and
-        // the normal is defined only as a limit.
-        const END_EPSILON: f64 = 1e-9;
-        let c1 = c.deriv();
-        let offset_at = |s: f64| {
-            let s = s.clamp(END_EPSILON, 1.0 - END_EPSILON);
-            c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90()
-        };
-        let samples: Vec<Point> = (0..=N).map(|j| offset_at(j as f64 / N as f64)).collect();
-        let mut worst = 0.0_f64;
-        for seg in result.segments() {
-            for i in 0..=20 {
-                let p = seg.eval(i as f64 / 20.0);
-                // Refine around every local minimum of the sampled distance,
-                // not only the smallest. Where the offset comes back near
-                // itself, the nearest sample can be on the wrong strand.
-                let dist: Vec<f64> = samples.iter().map(|s| p.distance(*s)).collect();
-                let mut nearest = f64::INFINITY;
-                for j in 0..=N {
-                    let left = j == 0 || dist[j] <= dist[j - 1];
-                    let right = j == N || dist[j] <= dist[j + 1];
-                    if !(left && right) {
-                        continue;
-                    }
-                    let mut lo = j.saturating_sub(1) as f64 / N as f64;
-                    let mut hi = (j + 1).min(N) as f64 / N as f64;
-                    for _ in 0..60 {
-                        let s1 = lo + (hi - lo) / 3.0;
-                        let s2 = hi - (hi - lo) / 3.0;
-                        if p.distance(offset_at(s1)) < p.distance(offset_at(s2)) {
-                            hi = s2;
-                        } else {
-                            lo = s1;
-                        }
-                    }
-                    nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
-                }
-                worst = worst.max(nearest);
-            }
-        }
-        worst
     }
 
     #[test]
@@ -3938,96 +3215,6 @@ mod tests {
                 pct(counts[k][1]),
                 pct(counts[k][2]),
                 pct(counts[k][3])
-            );
-        }
-    }
-
-    /// Compare the midpoint G1 fit with one-point, by the Fréchet oracle,
-    /// and see how tight the G1 bound is on it. Run with `--ignored
-    /// --nocapture`.
-    #[cfg(feature = "std")]
-    #[test]
-    #[ignore = "measurement, prints rates"]
-    #[allow(clippy::print_stdout, reason = "this test exists to print rates")]
-    fn midpoint_g1_rates() {
-        use crate::offset_oracle::piece_error;
-        let mut rng = Rng(0x1234_5678);
-        let curves: Vec<CubicBez> = (0..200).map(|_| rng.cubic()).collect();
-        for n in [1, 2, 4, 8, 16, 32] {
-            let mut log_ratio = 0.0;
-            let mut n_ratio = 0;
-            let mut n_pieces = 0;
-            let mut n_solved = 0;
-            let mut n_bounded = 0;
-            let mut n_bounded_one = 0;
-            let mut tightness: Vec<f64> = Vec::new();
-            let mut gains: Vec<f64> = Vec::new();
-            for c in &curves {
-                for i in 0..n {
-                    let piece = c.subsegment(i as f64 / n as f64..(i + 1) as f64 / n as f64);
-                    for d in [0.3, -0.3, 3.0, -3.0] {
-                        let (co, rec) = setup(piece, d);
-                        // Ordinary pieces only: no cusp, no inflection.
-                        let (cusp_min, _) = cusp_range(&co);
-                        if cusp_min < 0.2 || (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0 {
-                            continue;
-                        }
-                        let Some((a1, b1)) = one_point(&piece, &rec) else {
-                            continue;
-                        };
-                        n_pieces += 1;
-                        let one = co.apply(&piece, &rec, a1, b1);
-                        let Some(e1) = piece_error(piece, d, one.approx) else {
-                            continue;
-                        };
-                        let taylor1 = Taylor::new(&piece, &one.delta, d);
-                        if Certificate::new(&taylor1).is_some() {
-                            n_bounded_one += 1;
-                        }
-                        let Some((a2, b2)) = midpoint_g1(&piece, &rec, d) else {
-                            continue;
-                        };
-                        n_solved += 1;
-                        let g1 = co.apply(&piece, &rec, a2, b2);
-                        let Some(e2) = piece_error(piece, d, g1.approx) else {
-                            continue;
-                        };
-                        if e1 > 1e-12 * d.abs() && e2 > 1e-14 * d.abs() {
-                            log_ratio += (e1 / e2).ln();
-                            n_ratio += 1;
-                            gains.push(e1 / e2);
-                        }
-                        let taylor = Taylor::new(&piece, &g1.delta, d);
-                        if let Some(cert) = Certificate::new(&taylor) {
-                            if let Some(bound) = g1_bound(&taylor, &cert, d) {
-                                n_bounded += 1;
-                                if e2 > 1e-12 * d.abs() {
-                                    tightness.push(bound / e2);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            tightness.sort_by(f64::total_cmp);
-            gains.sort_by(f64::total_cmp);
-            let q = |v: &Vec<f64>, p: f64| {
-                if v.is_empty() {
-                    f64::NAN
-                } else {
-                    v[((v.len() - 1) as f64 * p) as usize]
-                }
-            };
-            std::println!(
-                "n={n:>2}: {n_pieces} pieces, solved {:.1}%, error one-point / midpoint G1: geomean {:.1}, p10 {:.2}, median {:.1}; certified {:.1}% (one-point {:.1}%); G1 bound / error median {:.2}, p90 {:.2}",
-                100.0 * n_solved as f64 / n_pieces as f64,
-                (log_ratio / n_ratio as f64).exp(),
-                q(&gains, 0.1),
-                q(&gains, 0.5),
-                100.0 * n_bounded as f64 / n_pieces as f64,
-                100.0 * n_bounded_one as f64 / n_pieces as f64,
-                q(&tightness, 0.5),
-                q(&tightness, 0.9),
             );
         }
     }

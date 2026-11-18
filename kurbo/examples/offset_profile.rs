@@ -102,10 +102,6 @@ fn main() {
         fingerprint();
         return;
     }
-    if args.get(1).map(|s| s.as_str()) == Some("g1") {
-        g1_sweep();
-        return;
-    }
     if args.get(1).map(|s| s.as_str()) == Some("pair") {
         pair_bench();
         return;
@@ -347,58 +343,6 @@ fn oracle_check() {
                     worst_lower.0, worst_lower.1
                 );
             }
-        }
-    }
-}
-
-/// Sweep the factor within which the midpoint G1 fit is tried: segments,
-/// calls over tolerance by the Fréchet oracle, and time.
-fn g1_sweep() {
-    println!(
-        "{:<8} | {:>16} | {:>16} | {:>16} | geomean ns",
-        "factor", "nearly segs/over", "gentle segs/over", "wild segs/over"
-    );
-    for factor in [0.0, 2.0, 4.0, 8.0, 16.0, 64.0] {
-        kurbo::offset2::g1_retry::set(factor);
-        for (name, f) in [
-            (
-                "new",
-                kurbo::offset2::offset_cubic as fn(CubicBez, f64, f64, &mut BezPath),
-            ),
-            ("strict", kurbo::offset2::offset_cubic_strict),
-        ] {
-            let mut rng = Rng(0x2545_f491_4f6c_dd1d);
-            let mut cells = Vec::new();
-            let mut log_time = 0.0;
-            for family in ["nearly", "gentle", "wild"] {
-                let curves: Vec<CubicBez> = (0..100).map(|_| make(family, &mut rng)).collect();
-                let (mut segs, mut over) = (0, 0);
-                let mut path = BezPath::new();
-                for d in [0.5, 2.0, 10.0] {
-                    for tol in [0.25, 0.01, 0.0001] {
-                        for c in &curves {
-                            for dd in [d, -d] {
-                                f(*c, dd, tol, &mut path);
-                                segs += path.segments().count();
-                                let r = kurbo::offset_oracle::result_error(*c, dd, tol, &path);
-                                if r.error.max(r.unmeasured_lower) > tol * 1.001 {
-                                    over += 1;
-                                }
-                            }
-                        }
-                        log_time += time_one(f, &curves, d, tol).ln();
-                    }
-                }
-                cells.push(format!("{segs:>6} / {over:>3}"));
-            }
-            println!(
-                "{:<8} | {:>16} | {:>16} | {:>16} | {:.0} {name}",
-                factor,
-                cells[0],
-                cells[1],
-                cells[2],
-                (log_time / 27.0).exp()
-            );
         }
     }
 }

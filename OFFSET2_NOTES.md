@@ -19,22 +19,23 @@ Small:
 1. **Newton cusp solve and depth 12 in `offset.rs`**, on the
    `offset-split-at-end` branch, so that benchmarks compare bounds and
    fits, not solvers and depth limits.
-2. **The midpoint G1 retry**: decide whether to adopt it, and speed up its
-   solve ("The midpoint G1 fit").
+2. **Midpoint subdivision** in place of the angle and curvature split,
+   which would remove about 110 more lines and is 4 to 5% faster, but
+   needs a guard on the osculating estimate that looks inside the piece
+   ("Trimming").
 
 Medium:
 
 3. **Certifying each half separately**: 2 to 5 more points of
    certification; port from the original's `split` option, with
    remainders per half ("The original certificate, compared").
-4. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
-   and FootWeighted). The G1 bound is loose in the tail on the midpoint G1
-   fit (p90 of bound over error 25 to 34 times).
+4. **Whether to keep strict mode**, and whether to keep the pair: both
+   are measured in "Trimming".
 5. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
-   calls exactly but saves only 7% against them; the stroker can use it
-   (`OffsetMethod::Offset2Pair`). Sharing the sampled estimate's
-   evaluations was tried and made it slower. What is left to share
-   depends on `beta` ("Both sides at once").
+   calls exactly; whole tiger strokes are 9 to 13% slower without it.
+   Sharing the sampled estimate's evaluations was tried and made it
+   slower, and sharing the Taylor coefficients and certificate saved
+   nothing measurable ("Both sides at once", "Trimming").
 6. **Another corpus**, with ordinary end handles, to see how much of the
    tiger's behaviour is the tiger's, and to check the guards on the
    osculating estimate ("The osculating parabola estimate").
@@ -43,7 +44,7 @@ Large, or open questions:
 
 7. A certificate that allows `beta` to vanish at an end, for zero end
    derivatives. Possibly not worth a special case.
-8. The mirrored certificate for the G1 bound.
+8. (Dropped with the G1 bound: the mirrored certificate for it.)
 9. Strong correctness: locate every cusp, report reversals, and add
     evolute sections, which need their own fit and bound. Hidden pairs
     of cusps are now found where a sample of the osculating estimate
@@ -56,7 +57,8 @@ Large, or open questions:
 11. **Hidden pairs of cusps in strict mode**, which has no samples to find
     them; see the end of "Vanishing end derivatives".
 
-Done or dropped: the slip guard on two-point fits only, and hidden
+Done or dropped: the midpoint G1 retry and the G1 bound (removed, see
+"Trimming"), the slip guard on two-point fits only, and hidden
 cusp pairs found at the samples (both adopted), the osculating circle and
 deciding both sides in one pass (dropped), Newton against ITP for the
 cusp (measured, kept), the rounding allowance (added), a cheap estimate for the
@@ -1280,3 +1282,54 @@ Written in the same session and tested there, but kept out to limit size:
 the HalfFit, FootWeighted and split variants of the G1 bound
 (`g1_cheap_bound.rs`), and a standalone sampler with three kernels
 (`offset_error_estimate.rs`).
+
+## Trimming (19 November 2026)
+
+Asked how small the module can be for at most a 5% slowdown. Each part
+was removed alone and measured: whole tiger strokes one side at a time
+and with the pair, and the random families (best of five, geometric mean
+over the 27 rows, worst error by the Fréchet oracle), in both modes.
+
+| Removed | Default mode | Strict mode | Kept? |
+|---|---|---|---|
+| Midpoint G1 retry (off by default) | 0 | 0 | removed |
+| Certified bound on arc drawing (never decided a piece) | 0 | 0 | removed |
+| Sharing Taylor and certificate between the sides | 0 | 0 | removed |
+| `small_piece_bound` | 0 | +0.8%, +0.6% segments | removed |
+| `g1_bound` (two-point fits take the crude bound) | 0 | +3.6%, +3% segments | removed |
+| `one_point_bound` (crude bound instead) | +1% | +8%, +11% segments | kept |
+| Sharing the linear fit as well (no `Sharing` trait) | +2 to 3% | +5 to 7% | kept |
+| Hairline bound | +2.7% at 1/32 | | kept |
+| Root hull bound | +1% | +6% | kept |
+| `equal_parameter_bound`, or the uncertified hull bound | 0 | misses at the maximum depth | kept |
+| Sampled estimate as plain maximum of samples (no grid) | -1% | 0 | not adopted: 1.16 times on one wild curve |
+| Midpoint subdivision | -4% | -5% | not adopted: 1.5 times on one wild curve |
+| No certified bounds at all in the default mode | 0 | | (strict mode needs them) |
+
+The two misses are the same curve (wild, `d = 0.5`, tolerance 0.25). It
+turns sharply near its end, and with a midpoint split a piece keeps the
+turn inside. The cusp values at its ends are both about 1, so the ratio
+guard passes, and the curvature peaks between the osculating samples. The
+angle split happens to put an end near the peak. A guard that looks at
+the cusp value at the samples, or the curvature inside the piece, would
+be needed before midpoint subdivision is safe.
+
+Adopted together: non-test code 1736 to 1291 lines, comments 847 to 685,
+the whole file 4347 to 3534 (3 tests and an ignored survey of what was
+removed go with it). Measured interleaved with the previous version, four
+runs: tiger strokes one side at a time 1.9 to 2.7% faster, with the pair
+unchanged (within 0.4%); random families 3.8% faster in the default mode
+and 1.3% slower in strict mode. Default segments are unchanged on the
+tiger; strict ones rise from 3155 to 3185 and from 4677 to 4759 at 1/256
+and 1/2048. No accuracy change in either mode.
+
+Larger cuts, measured but left for a decision:
+
+- Dropping strict mode. Without certified bounds the default mode makes
+  the same segments at the same speed, so the certificate, the one-point,
+  crude and equal-parameter bounds, the Bernstein products and most of
+  `Taylor` exist only for strict mode: about 550 to 600 non-test lines,
+  and about 500 lines of tests.
+- Dropping the pair: about 160 lines of the module and a little of
+  `stroke.rs`, for 9 to 13% on whole tiger strokes.
+
