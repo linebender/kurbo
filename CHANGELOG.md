@@ -21,6 +21,7 @@ This release has an [MSRV][] of 1.85.
 ## Fixed
 
 - Zero-length subpaths and dashes draw their round or square caps when stroked. ([#619][] by [@BenjaminHalko][])
+- A segment far shorter than the tolerance strokes as a zero-length one, instead of making points that aren't finite. ([#622][] by [@BenjaminHalko][])
 
 ## [0.13.1][] (2026-05-13)
 
@@ -323,6 +324,7 @@ Note: A changelog was not kept for or before this release
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
 [#619]: https://github.com/linebender/kurbo/pull/619
+[#622]: https://github.com/linebender/kurbo/pull/622
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
