@@ -243,6 +243,60 @@ accepted, because the error tends to sit in one spot and a single
 subdivision isolates it. Strict mode gains nothing, since it has no
 estimate where the certificate fails.
 
+## The Ghostscript tiger (18 November 2026)
+
+`cargo run --release --example offset_tiger -- path/to/Ghostscript_Tiger.svg`
+offsets every curve of every stroked path in the 200 by 200 tiger from
+Vello's assets, by half the stroke width, on both sides. That is 336
+cubics, 672 calls. The tiger is usually rendered at 8x, so a quarter pixel
+is a tolerance of 1/32 in source coordinates. Half widths run from 0.0075
+to 0.196, mostly below that tolerance, so two tighter tolerances are
+included as well.
+
+261 of the 336 cubics (78%) have a control point on an end point, so the
+derivative vanishes there. `regularize_cusp` changes none of them: it only
+deals with cusps in the interior.
+
+That exposed a bug shared with `offset.rs`. When `c'(0) = 0`, `t = 0`
+solves `tan x c'(t) = 0` for every direction `tan`, so
+`subdivide_for_tangent` could choose the end of the piece as the
+subdivision point. Its forced fallback also picks the end where `|c'|` is
+smallest, which is the same end. The result is pieces of zero length, with
+cusp values `0 / 0` and arbitrary end tangents. Arc drawing turns each one
+into an arc fanned about the end point. The small-piece bound accepts each
+arc correctly on its own terms, but together they miss the offset. Strict
+mode was up to 2.5 times over tolerance.
+
+The fix ignores roots within `SPLIT_MARGIN` (1e-6 of the parameter range)
+of either end, and replaces a subdivision point at an end with the
+midpoint. The output on the random families is unchanged, bit for bit.
+`strict_result_with_vanishing_end_derivative` covers it. `offset.rs` still
+has the bug.
+
+Results (segments, ns per call best of five, calls over tolerance):
+
+| Tolerance | `offset.rs` | offset2 | strict | `offset.rs` ns | offset2 ns | strict ns | over: `offset.rs` | offset2 | strict |
+|---|---|---|---|---|---|---|---|---|---|
+| 1/32 | 838 | 922 | 1775 | 175 | 140 | 238 | 3 | 0 | 0 |
+| 1/256 | 1959 | 1197 | 3307 | 758 | 234 | 545 | 11 | 0 | 0 |
+| 1/2048 | 5215 | 1925 | 4847 | 2401 | 389 | 826 | 41 | 0 | 0 |
+
+Before the fix, offset2 was over tolerance on 0, 10 and 33 calls, and
+strict on 6, 23 and 35.
+
+At 1/32 the default mode is 20% faster than `offset.rs` with 10% more
+segments. Strict mode makes about twice the segments: with `c'` vanishing
+at an end, `beta = 2 |C'|^2` vanishes there too, so the certificate fails
+on every piece that touches such an end, and the uncertified bounds
+subdivide toward it. Handling that end better, for instance by fitting
+the end piece differently or with a bound that allows `beta` to vanish at
+the end, is the obvious next step for this corpus.
+
+The error measure in `offset_compare`, and in the tests, used the normal
+of the source at exactly `t = 0`, which is NaN there. The nearest-sample
+search then stuck at index 0. The tests and `offset_tiger` now keep the
+parameter 1e-9 inside the ends.
+
 ## Not done
 
 Roughly in the order I would take them:

@@ -74,6 +74,10 @@ use crate::{
     common::{solve_cubic, solve_quadratic},
 };
 
+/// The smallest distance from a subdivision point to an end of the piece,
+/// as a fraction of its parameter length.
+const SPLIT_MARGIN: f64 = 1e-6;
+
 /// Maximum recursion depth.
 ///
 /// As in [`crate::offset`], this is a robustness guard. A piece at this depth
@@ -565,9 +569,10 @@ impl CubicOffset {
 
     /// Decide where to subdivide when a piece is not accepted.
     ///
-    /// This is unchanged from `crate::offset`: bisect the angle between the
-    /// end tangents when there is no inflection, and otherwise subdivide by
-    /// the integral of absolute curvature.
+    /// This is as in `crate::offset`: bisect the angle between the end
+    /// tangents when there is no inflection, and otherwise subdivide by the
+    /// integral of absolute curvature. Unlike there, a point at an end of
+    /// the piece is never chosen; see [`Self::keep_inside`].
     fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
         let t = 0.5 * (rec.t0 + rec.t1);
         let q_t = self.q.eval(t).to_vec2();
@@ -585,7 +590,7 @@ impl CubicOffset {
             if let Some(subdivision) =
                 self.subdivide_for_tangent(rec.utan0, rec.t0, rec.t1, tan, false)
             {
-                return subdivision;
+                return self.keep_inside(rec, subdivision);
             }
         }
         // Curve definitely has an inflection point. Try to subdivide based
@@ -621,13 +626,40 @@ impl CubicOffset {
         let base = tangents[i];
         let tan = base.rotate_scale(rotation);
         let utan0 = if i == 0 { rec.utan0 } else { base.normalize() };
-        self.subdivide_for_tangent(utan0, ts[i], ts[i + 1], tan, true)
-            .unwrap()
+        let subdivision = self
+            .subdivide_for_tangent(utan0, ts[i], ts[i + 1], tan, true)
+            .unwrap();
+        self.keep_inside(rec, subdivision)
+    }
+
+    /// Replace a subdivision point at an end of the piece with the midpoint.
+    ///
+    /// Splitting at an end leaves a piece of zero length, whose end tangents
+    /// are arbitrary and whose cusp value can be `0 / 0`. Its approximation
+    /// is then an arc fanned about the end point, which the bounds, looking
+    /// at one piece at a time, cannot see is wrong. This happens where the
+    /// derivative of the source vanishes at an end: `t = 0` then solves
+    /// `tan x c'(t) = 0` for every direction `tan`.
+    fn keep_inside(&self, rec: &OffsetRec, subdivision: SubdivisionPoint) -> SubdivisionPoint {
+        let margin = SPLIT_MARGIN * (rec.t1 - rec.t0);
+        if subdivision.t > rec.t0 + margin && subdivision.t < rec.t1 - margin {
+            return subdivision;
+        }
+        let t = 0.5 * (rec.t0 + rec.t1);
+        const UTAN_EPSILON: f64 = 1e-12;
+        let q_t = self.q.eval(t).to_vec2();
+        let utan = if q_t.length_squared() >= UTAN_EPSILON {
+            q_t.normalize()
+        } else {
+            subdivision.utan
+        };
+        SubdivisionPoint { t, utan }
     }
 
     /// Find a subdivision point, given a tangent vector.
     ///
-    /// This is unchanged from `crate::offset`.
+    /// This is as in `crate::offset`, except that roots at the ends of
+    /// `[t0, t1]` are ignored.
     fn subdivide_for_tangent(
         &self,
         utan0: Vec2,
@@ -644,8 +676,11 @@ impl CubicOffset {
         let c0 = z0;
         let c1 = 2.0 * (z1 - z0);
         let c2 = (z2 - z1) - (z1 - z0);
+        // Roots at the ends are not useful, and where the derivative
+        // vanishes at an end, that end is a root for every `tan`.
+        let margin = SPLIT_MARGIN * (t1 - t0);
         for root in solve_quadratic(c0, c1, c2) {
-            if root >= t0 && root <= t1 {
+            if root > t0 + margin && root < t1 - margin {
                 t = root;
                 n_soln += 1;
             }
@@ -2098,8 +2133,14 @@ mod tests {
     /// is refined by a ternary search between its neighbors.
     fn result_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
         const N: usize = 2000;
+        // Keep just inside the ends, where the derivative may vanish and
+        // the normal is defined only as a limit.
+        const END_EPSILON: f64 = 1e-9;
         let c1 = c.deriv();
-        let offset_at = |s: f64| c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90();
+        let offset_at = |s: f64| {
+            let s = s.clamp(END_EPSILON, 1.0 - END_EPSILON);
+            c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90()
+        };
         let samples: Vec<Point> = (0..=N).map(|j| offset_at(j as f64 / N as f64)).collect();
         let mut worst = 0.0_f64;
         for seg in result.segments() {
@@ -2164,6 +2205,61 @@ mod tests {
             }
         }
         assert!(n_checked > 50, "{n_checked}");
+    }
+
+    #[test]
+    fn strict_result_with_vanishing_end_derivative() {
+        // A control point on an end point makes the derivative vanish
+        // there, and then that end solves `tan x c'(t) = 0` for every `tan`.
+        // Subdividing there used to leave pieces of zero length, whose arcs
+        // fanned about the end point and missed the offset. This is common
+        // in hand-drawn art; the Ghostscript tiger is full of it.
+        let mut curves = vec![
+            // From the tiger, where the error had reached 2.5 times the
+            // tolerance.
+            CubicBez::new(
+                (169.56, 167.519),
+                (169.56, 167.519),
+                (170.188, 164.537),
+                (169.874, 164.067),
+            ),
+            CubicBez::new(
+                (121.692, 181.331),
+                (121.692, 181.331),
+                (117.768, 169.874),
+                (116.042, 168.775),
+            ),
+        ];
+        let mut rng = Rng(4242);
+        for i in 0..20 {
+            let c = rng.cubic();
+            curves.push(if i % 2 == 0 {
+                CubicBez::new(c.p0, c.p0, c.p2, c.p3)
+            } else {
+                CubicBez::new(c.p0, c.p1, c.p3, c.p3)
+            });
+        }
+        let mut n_checked = 0;
+        for c in curves {
+            for d in [0.2, -0.2, 1.0, -1.0] {
+                for tolerance in [1.0 / 32.0, 1.0 / 256.0] {
+                    let mut result = BezPath::new();
+                    OUT_OF_DEPTH.with(|count| count.set(0));
+                    offset_cubic_strict(c, d, tolerance, &mut result);
+                    if OUT_OF_DEPTH.with(|count| count.get()) > 0 {
+                        continue;
+                    }
+                    let regularized = c.regularize_cusp(tolerance * 0.25);
+                    let error = result_error(&regularized, d, &result);
+                    assert!(
+                        error <= tolerance * (1.0 + 1e-6) + 1e-9,
+                        "error {error:e} over tolerance {tolerance:e} for {c:?}, d = {d}"
+                    );
+                    n_checked += 1;
+                }
+            }
+        }
+        assert!(n_checked > 100, "{n_checked}");
     }
 
     #[test]
