@@ -843,6 +843,38 @@ Safety factors of 1.3 and 1.4 gave no fewer misses and up to 3% more
 segments. The guards were tuned on the three random families and the
 tiger; another corpus should check them.
 
+### A cheaper form of it
+
+With 42% of the default mode's time on gentle curves (35% nearly
+straight, 20% wild) in the estimate, `osculating_decision` computes the
+same thing without divisions and stops early. With `A = c'^ . D`,
+`B = c' . D`, `K = c'' x c'`, `s = |c'|` and `E = s^3 + K d`, the error in
+units of `d` is `A / (s d) - 1 + K B^2 / (2 d s^2 E)`, so it is within the
+limit when `|A s E - d s^2 E + K B^2 / 2| <= limit |d s^2 E|`, and the
+slip is within bounds when `B^2 <= 0.25 d^2 s^2`: one square root per
+sample, no division. The samples are taken where the one-point fit's
+error tends to peak first (0.3125 and 0.6875), and the first one over the
+limit rejects.
+
+Output is the same, bit for bit, on nearly straight and gentle curves and
+in strict mode. On wild curves the default mode makes 9 more segments in
+42,850: a sample over the limit now rejects before a later sample's slip
+would have sent the piece to the strict path. Calls over tolerance are
+unchanged.
+
+Time against the previous commit: the default mode's geometric mean 132
+to 129 ns; gentle and wild curves at tight tolerance 5 to 10% faster; the
+tiger the same at 1/32 and 4 and 7% faster at 1/256 and 1/2048; whole
+tiger strokes with the pair 4 to 8% faster (0.53, 0.18 and 0.09 of
+`offset.rs`). Strict mode, whose path did not change, measured 3 to 6%
+slower, also with every function aligned to 64 bytes; profiled, the
+difference is spread over `offset_rec`, the certificate and the
+subdivision, and keeping the new function out of line did not help.
+
+So a cheaper estimator gains only a little more: what is left per sample
+is evaluating `D`, `C'` and `C''` and one square root, and the rest of the
+default mode's time is fitting, splitting and recursion.
+
 ## Where this departs from the original notes
 
 The bounds were reconstructed from "Cheap Offset Error Bounds", not ported

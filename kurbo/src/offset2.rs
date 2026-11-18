@@ -577,9 +577,8 @@ impl CubicOffset {
                 }
                 None => self.draw_arc(seg, rec),
             };
-            let (estimate, slip) = osculating_estimate(seg, &fit.delta, d, OSCULATING_SAMPLES);
-            if slip <= OSCULATING_MAX_SLIP {
-                let accepted = OSCULATING_SAFETY * estimate <= tolerance;
+            let limit = tolerance / (OSCULATING_SAFETY * d.abs());
+            if let Some(accepted) = osculating_decision(seg, &fit.delta, d, limit) {
                 return (accepted.then_some(fit.approx), fit.approx);
             }
         }
@@ -2206,10 +2205,14 @@ fn small_piece_bound(seg: &CubicBez, rec: &OffsetRec, arc: &Fit, d: f64) -> Opti
 // ---------------------------------------------------------------------------
 // The sampled estimate
 
-/// The number of samples of the osculating parabola estimate.
+/// The samples of the osculating parabola estimate, at the midpoints of 8
+/// equal intervals, in the order [`osculating_decision`] takes them: where
+/// the error of the one-point fit tends to peak, near 0.28 and 0.72, first.
 ///
-/// With fewer, its misses went up sharply in tests.
-const OSCULATING_SAMPLES: usize = 8;
+/// With fewer samples, its misses went up sharply in tests.
+const OSCULATING_SAMPLES: [f64; 8] = [
+    0.3125, 0.6875, 0.1875, 0.8125, 0.4375, 0.5625, 0.0625, 0.9375,
+];
 
 /// The factor applied to the osculating parabola estimate before comparing
 /// it with the tolerance.
@@ -2391,6 +2394,60 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
     distance_bound(v_max, -v_min, d)
 }
 
+/// Decide a piece by the osculating parabola estimate.
+///
+/// This is [`osculating_estimate`] at [`OSCULATING_SAMPLES`], rearranged to
+/// need one square root per sample and no division, and to stop at the
+/// first sample that decides. With `A = c'^ . D`, `B = c' . D`,
+/// `K = c'' x c'`, `s = |c'|` and `E = s^3 + K d` (`s^3` times the cusp
+/// value), the error in units of `d` is
+///
+/// ```text
+/// A / (s d) - 1 + K B^2 / (2 d s^2 E)
+/// ```
+///
+/// and it is within `limit` when `|A s E - d s^2 E + K B^2 / 2|` is within
+/// `limit |d s^2 E|`. The slip is within [`OSCULATING_MAX_SLIP`] when
+/// `B^2 <= OSCULATING_MAX_SLIP^2 d^2 s^2`.
+///
+/// Returns `None` if the slip is too large at a sample before any sample
+/// is over the limit, in which case the estimate is not to be trusted;
+/// otherwise whether every sample is within `limit`.
+fn osculating_decision(seg: &CubicBez, delta: &[Vec2; 4], d: f64, limit: f64) -> Option<bool> {
+    let c1 = [
+        3.0 * (seg.p1 - seg.p0),
+        3.0 * (seg.p2 - seg.p1),
+        3.0 * (seg.p3 - seg.p2),
+    ];
+    let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
+    let slip_scale = OSCULATING_MAX_SLIP * OSCULATING_MAX_SLIP * d * d;
+    for t in OSCULATING_SAMPLES {
+        let mt = 1.0 - t;
+        let d_t = delta[0] * (mt * mt * mt)
+            + delta[1] * (3.0 * mt * mt * t)
+            + delta[2] * (3.0 * mt * t * t)
+            + delta[3] * (t * t * t);
+        let q = c1[0] * (mt * mt) + c1[1] * (2.0 * mt * t) + c1[2] * (t * t);
+        let qq = c2[0] * mt + c2[1] * t;
+        let s2 = q.hypot2();
+        let b = q.dot(d_t);
+        if b * b > slip_scale * s2 {
+            return None;
+        }
+        let s = s2.sqrt();
+        let a = q.turn_90().dot(d_t);
+        let k = qq.cross(q);
+        let e = s2 * s + k * d;
+        let numerator = a * s * e - d * s2 * e + 0.5 * k * b * b;
+        let denominator = d * s2 * e;
+        // Written so that a NaN rejects.
+        if !(numerator.abs() <= limit * denominator.abs()) {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
 /// Estimate the error by the osculating parabola, at `n` samples.
 ///
 /// From the `failed_k4` branch of fast-stroke (`est_arc_error_dot`). At each
@@ -2404,7 +2461,9 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 /// intervals.
 ///
 /// Returns the estimate, and the largest `|cross|`, the slip in units of
-/// `d`, beyond which the estimate is not to be trusted.
+/// `d`, beyond which the estimate is not to be trusted. Only the tests use
+/// this form; [`osculating_decision`] is the one in use.
+#[cfg(test)]
 fn osculating_estimate(seg: &CubicBez, delta: &[Vec2; 4], d: f64, n: usize) -> (f64, f64) {
     let c1 = [
         3.0 * (seg.p1 - seg.p0),
