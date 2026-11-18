@@ -336,6 +336,25 @@ A vanishing end derivative might not deserve a special case. The tiger
 may be unusual in having so many, so another corpus would show whether
 this matters in general.
 
+### Whole strokes
+
+`StrokeOpts::offset2(true)`, a hidden switch, makes the stroker use
+offset2. `cargo run --release --example stroke_tiger -- path/to/tiger.svg`
+expands every stroked path with the SVG defaults (miter joins, limit 4,
+butt caps), so it includes lines, joins, caps and the stroker's own check
+for nearly straight cubics. Time is per whole tiger, best of five:
+
+| Tolerance | Segments, `offset.rs` | offset2 | µs, `offset.rs` | offset2 | Ratio |
+|---|---|---|---|---|---|
+| 1/32 | 1629 | 1713 | 127 | 98 | 0.77 |
+| 1/256 | 3046 | 2284 | 523 | 168 | 0.32 |
+| 1/2048 | 6454 | 3164 | 1634 | 277 | 0.17 |
+
+The cubic offsets are almost all of the time: 672 calls at the per-call
+figures above add up to about 118 of the 127 µs at 1/32. The whole-stroke
+result therefore follows the per-call one. The full test suite passes with
+the stroker defaulting to offset2.
+
 The error measure in `offset_compare`, and in the tests, used the normal
 of the source at exactly `t = 0`, which is NaN there. The nearest-sample
 search then stuck at index 0. The tests and `offset_tiger` now keep the

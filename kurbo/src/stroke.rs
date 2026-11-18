@@ -68,6 +68,9 @@ pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
     /// When `true`, dashes are emitted in the order they appear along the path. The default `false` delays a subpath's first dash so it can be merged with a dash that wraps through `ClosePath`; this option disables both the reorder and the wraparound merge, so a dash spanning the seam is truncated there.
     stable_dash_order: bool,
+    /// Whether to offset cubics with `crate::offset2` instead of
+    /// `crate::offset`. Experimental.
+    offset2: bool,
 }
 
 /// Optimization level for computing stroke outlines.
@@ -91,6 +94,7 @@ impl Default for StrokeOpts {
         StrokeOpts {
             opt_level,
             stable_dash_order: false,
+            offset2: false,
         }
     }
 }
@@ -192,6 +196,15 @@ impl StrokeOpts {
         self.stable_dash_order = stable;
         self
     }
+
+    /// Offset cubics with the experimental [`crate::offset2`] instead of
+    /// [`crate::offset`]. This exists for comparing the two, and will go
+    /// away.
+    #[doc(hidden)]
+    pub fn offset2(mut self, enable: bool) -> Self {
+        self.offset2 = enable;
+        self
+    }
 }
 
 /// Collection of values representing lengths in a dash pattern.
@@ -217,6 +230,8 @@ pub struct StrokeCtx {
     // Precomputation of the join threshold, to optimize per-join logic.
     // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
+    // Whether to offset cubics with `crate::offset2`.
+    use_offset2: bool,
 }
 
 impl StrokeCtx {
@@ -285,6 +300,7 @@ pub fn stroke_with(
     tolerance: f64,
     ctx: &mut StrokeCtx,
 ) {
+    ctx.use_offset2 = opts.offset2;
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, ctx);
     } else {
@@ -556,9 +572,14 @@ impl StrokeCtx {
             }
         }
 
-        crate::offset::offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
+        let offset_cubic = if self.use_offset2 {
+            crate::offset2::offset_cubic
+        } else {
+            crate::offset::offset_cubic
+        };
+        offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
         self.forward_path.extend(self.result_path.iter().skip(1));
-        crate::offset::offset_cubic(c, 0.5 * style.width, tolerance, &mut self.result_path);
+        offset_cubic(c, 0.5 * style.width, tolerance, &mut self.result_path);
         self.backward_path.extend(self.result_path.iter().skip(1));
         self.last_pt = c.p3;
     }
