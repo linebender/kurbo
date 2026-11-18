@@ -236,9 +236,15 @@ fn offset_rec_pair(
     }
     let seg = pos.piece(rec_pos);
     let mut shared = Shared::default();
-    let (accepted_pos, best_pos) = pos.approximate(&seg, rec_pos, &mut shared);
-    let (accepted_neg, best_neg) = neg.approximate(&seg, rec_neg, &mut shared);
-    if accepted_pos.is_none() && accepted_neg.is_none() && rec_pos.depth < MAX_DEPTH {
+    let (accepted_pos, best_pos, split_pos) = pos.approximate(&seg, rec_pos, &mut shared);
+    let (accepted_neg, best_neg, split_neg) = neg.approximate(&seg, rec_neg, &mut shared);
+    // A side that found a pair of cusps splits where it found them, alone.
+    if accepted_pos.is_none()
+        && accepted_neg.is_none()
+        && split_pos.is_none()
+        && split_neg.is_none()
+        && rec_pos.depth < MAX_DEPTH
+    {
         let SubdivisionPoint { t, utan } = pos.find_subdivision_point(rec_pos);
         let cusp_pos = pos.cusp_sign(t);
         let cusp_neg = neg.cusp_sign(t);
@@ -247,8 +253,8 @@ fn offset_rec_pair(
         offset_rec_pair(pos, neg, &pos0, &neg0, out_pos, out_neg);
         offset_rec_pair(pos, neg, &pos1, &neg1, out_pos, out_neg);
     } else {
-        pos.emit_or_subdivide(rec_pos, accepted_pos, best_pos, out_pos);
-        neg.emit_or_subdivide(rec_neg, accepted_neg, best_neg, out_neg);
+        pos.emit_or_subdivide(rec_pos, accepted_pos, best_pos, split_pos, out_pos);
+        neg.emit_or_subdivide(rec_neg, accepted_neg, best_neg, split_neg, out_neg);
     }
 }
 
@@ -423,6 +429,8 @@ impl CubicOffset {
         let mut t = 0.5 * (a + b);
         let mut step_old = b - a;
         for _ in 0..100 {
+            #[cfg(test)]
+            tests::CUSP_ITERATIONS.with(|count| count.set(count.get() + 1));
             let (y, dy) = self.scaled_cusp_and_deriv(t);
             let (y, dy) = (s * y, s * dy);
             if y > 0.0 {
@@ -488,8 +496,8 @@ impl CubicOffset {
         }
 
         let seg = self.piece(rec);
-        let (accepted, best_effort) = self.approximate(&seg, rec, &mut Unshared);
-        self.emit_or_subdivide(rec, accepted, best_effort, result);
+        let (accepted, best_effort, split) = self.approximate(&seg, rec, &mut Unshared);
+        self.emit_or_subdivide(rec, accepted, best_effort, split, result);
     }
 
     /// Approximate the offset of one piece.
@@ -503,7 +511,7 @@ impl CubicOffset {
         seg: &CubicBez,
         rec: &OffsetRec,
         sharing: &mut impl Sharing,
-    ) -> (Option<CubicBez>, CubicBez) {
+    ) -> (Option<CubicBez>, CubicBez, Option<f64>) {
         let d = self.d;
         let tolerance = self.tolerance;
 
@@ -513,7 +521,7 @@ impl CubicOffset {
         if 2.0 * d.abs() <= tolerance {
             let arc = self.draw_arc(seg, rec);
             if self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx) {
-                return (Some(arc.approx), arc.approx);
+                return (Some(arc.approx), arc.approx, None);
             }
         }
 
@@ -527,7 +535,7 @@ impl CubicOffset {
             let arc = self.draw_arc(seg, rec);
             if let Some(bound) = hull_bound(seg, rec, &arc.delta, d) {
                 if self.accepts(bound, seg, &arc.approx) {
-                    return (Some(arc.approx), arc.approx);
+                    return (Some(arc.approx), arc.approx, None);
                 }
             }
         }
@@ -540,7 +548,7 @@ impl CubicOffset {
             let arc = self.draw_arc(seg, rec);
             if let Some(bound) = small_piece_bound(seg, rec, &arc, d) {
                 if self.accepts(bound, seg, &arc.approx) {
-                    return (Some(arc.approx), arc.approx);
+                    return (Some(arc.approx), arc.approx, None);
                 }
             }
         }
@@ -563,8 +571,9 @@ impl CubicOffset {
         // is a few multiply-adds per sample, against the Taylor polynomials,
         // certificate and bound, which cost more even when they succeed.
         // It is trusted only where its leading-order model holds: the
-        // curvature times `d` does not change much over the piece, and the
-        // fit does not slip far along the offset.
+        // curvature times `d` does not change much over the piece, it has no
+        // cusp at the samples, and a two-point fit does not slip far along
+        // the offset.
         let cusp_min = rec.cusp0.min(rec.cusp1);
         let cusp_max = rec.cusp0.max(rec.cusp1);
         if !self.strict && cusp_min > 0.0 && cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min {
@@ -580,8 +589,29 @@ impl CubicOffset {
                 None => self.draw_arc(seg, rec),
             };
             let limit = tolerance / (OSCULATING_SAFETY * d.abs());
-            if let Some(accepted) = osculating_decision(seg, &fit.delta, d, limit) {
-                return (accepted.then_some(fit.approx), fit.approx);
+            // Only the two-point fit leaves the slip free. With one-point,
+            // and with arc drawing, a large slip did not make the estimate
+            // fall short, and limiting it sent most pieces with a vanishing
+            // end derivative to the slower path.
+            let two_point_fit = has_inflection && linear_fit.is_some() && !fit.clamped;
+            let max_slip = if two_point_fit {
+                OSCULATING_MAX_SLIP
+            } else {
+                f64::INFINITY
+            };
+            match osculating_decision(seg, &fit.delta, d, limit, max_slip) {
+                Osculating::Decided(accepted) => {
+                    return (accepted.then_some(fit.approx), fit.approx, None);
+                }
+                // The cusp value is negative at a sample, and positive at
+                // both ends: there are at least two cusps in the piece.
+                // Split there, so that both halves see a cusp. Not at an end
+                // where the derivative vanishes, whose cusp value is not
+                // its limit.
+                Osculating::Cusp(t) if !self.touches_vanishing_derivative(rec) => {
+                    return (None, fit.approx, Some(rec.t0 + t * (rec.t1 - rec.t0)));
+                }
+                Osculating::Cusp(_) | Osculating::Untrusted => {}
             }
         }
         if let Some((a, b)) = linear_fit {
@@ -605,23 +635,23 @@ impl CubicOffset {
                 if let Some(bound) = certified {
                     // The certified bounds are tight, so take their word.
                     if self.accepts(bound, seg, &fit.approx) {
-                        return (Some(fit.approx), fit.approx);
+                        return (Some(fit.approx), fit.approx, None);
                     }
                     // Close enough that the higher order fit may succeed.
                     let retry = g1_retry::get();
                     if !has_inflection && bound <= retry * tolerance {
                         if let Some(approx) = self.try_midpoint_g1(seg, rec) {
-                            return (Some(approx), approx);
+                            return (Some(approx), approx, None);
                         }
                     }
-                    return (None, fit.approx);
+                    return (None, fit.approx, None);
                 }
                 // The certificate failed. Fall back to the bound that does
                 // not need one, and then to the estimate.
                 if self.accept_uncertified(seg, rec, &fit, &taylor) {
-                    return (Some(fit.approx), fit.approx);
+                    return (Some(fit.approx), fit.approx, None);
                 }
-                return (None, fit.approx);
+                return (None, fit.approx, None);
             }
         }
 
@@ -635,14 +665,22 @@ impl CubicOffset {
         if let Some(certificate) = sharing.certificate(&taylor) {
             if let Some(bound) = crude_certified_bound(&taylor, &certificate, d) {
                 if self.accepts(bound, seg, &arc.approx) {
-                    return (Some(arc.approx), arc.approx);
+                    return (Some(arc.approx), arc.approx, None);
                 }
             }
         }
         if self.accept_uncertified(seg, rec, &arc, &taylor) {
-            return (Some(arc.approx), arc.approx);
+            return (Some(arc.approx), arc.approx, None);
         }
-        (None, arc.approx)
+        (None, arc.approx, None)
+    }
+
+    /// Whether the piece ends where the derivative of the source vanishes.
+    #[inline(always)]
+    fn touches_vanishing_derivative(&self, rec: &OffsetRec) -> bool {
+        const EPSILON: f64 = 1e-12;
+        (rec.t0 == 0.0 && self.q.p0.to_vec2().hypot2() < EPSILON)
+            || (rec.t1 == 1.0 && self.q.p2.to_vec2().hypot2() < EPSILON)
     }
 
     /// Whether a strict `bound` on the error of `approx` shows it to be
@@ -749,10 +787,20 @@ impl CubicOffset {
         rec: &OffsetRec,
         accepted: Option<CubicBez>,
         best_effort: CubicBez,
+        split: Option<f64>,
         result: &mut BezPath,
     ) {
+        const UTAN_EPSILON: f64 = 1e-12;
         if let Some(approx) = accepted {
             result.curve_to(approx.p1, approx.p2, approx.p3);
+        } else if let Some((t, q_t)) = split
+            .filter(|_| rec.depth < MAX_DEPTH)
+            .map(|t| (t, self.q.eval(t).to_vec2()))
+            .filter(|(_, q_t)| q_t.length_squared() >= UTAN_EPSILON)
+        {
+            // At a sample with a negative cusp value, inside the piece.
+            let cusp = self.cusp_sign(t);
+            self.subdivide(rec, result, t, q_t.normalize(), cusp, cusp);
         } else if rec.depth < MAX_DEPTH {
             let SubdivisionPoint { t, utan } = self.find_subdivision_point(rec);
             let cusp = self.cusp_sign(t);
@@ -2245,14 +2293,18 @@ const OSCULATING_SAMPLES: [f64; 8] = [
 const OSCULATING_SAFETY: f64 = 1.2;
 
 /// The largest slip, the tangential part of `D / d`, for which the
-/// osculating parabola estimate is trusted.
+/// osculating parabola estimate is trusted on a two-point fit.
 ///
 /// The two-point fit does not control the slip, and with a large one the
-/// estimate fell short by up to 4 times.
+/// estimate fell short by up to 4 times. The other fits need no such limit.
 const OSCULATING_MAX_SLIP: f64 = 0.5;
 
 /// The largest ratio between the cusp values at the ends of a piece for
 /// which the osculating parabola estimate is trusted.
+///
+/// Inside the piece only the sign is checked, at the samples. A ratio there
+/// sent most pieces ending where the derivative vanishes, whose cusp value
+/// at that end is not its limit, to the slower path.
 ///
 /// Where the curvature changes quickly, as at the tip of a sharp turn, the
 /// error gathers near one end, between the samples.
@@ -2429,20 +2481,27 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 /// ```
 ///
 /// and it is within `limit` when `|A s E - d s^2 E + K B^2 / 2|` is within
-/// `limit |d s^2 E|`. The slip is within [`OSCULATING_MAX_SLIP`] when
-/// `B^2 <= OSCULATING_MAX_SLIP^2 d^2 s^2`.
+/// `limit |d s^2 E|`. The slip is within `max_slip` when
+/// `B^2 <= max_slip^2 d^2 s^2`, and the cusp value is positive when `E` is.
 ///
-/// Returns `None` if the slip is too large at a sample before any sample
-/// is over the limit, in which case the estimate is not to be trusted;
-/// otherwise whether every sample is within `limit`.
-fn osculating_decision(seg: &CubicBez, delta: &[Vec2; 4], d: f64, limit: f64) -> Option<bool> {
+/// The first sample that settles anything decides: over the limit, too much
+/// slip, or a cusp value that is not positive. The caller has checked that
+/// it is positive at both ends, so in the last case there are at least two
+/// cusps in the piece, which the signs at the ends do not show.
+fn osculating_decision(
+    seg: &CubicBez,
+    delta: &[Vec2; 4],
+    d: f64,
+    limit: f64,
+    max_slip: f64,
+) -> Osculating {
     let c1 = [
         3.0 * (seg.p1 - seg.p0),
         3.0 * (seg.p2 - seg.p1),
         3.0 * (seg.p3 - seg.p2),
     ];
     let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
-    let slip_scale = OSCULATING_MAX_SLIP * OSCULATING_MAX_SLIP * d * d;
+    let slip_scale = max_slip * max_slip * d * d;
     for t in OSCULATING_SAMPLES {
         let mt = 1.0 - t;
         let d_t = delta[0] * (mt * mt * mt)
@@ -2454,20 +2513,40 @@ fn osculating_decision(seg: &CubicBez, delta: &[Vec2; 4], d: f64, limit: f64) ->
         let s2 = q.hypot2();
         let b = q.dot(d_t);
         if b * b > slip_scale * s2 {
-            return None;
+            return Osculating::Untrusted;
         }
         let s = s2.sqrt();
         let a = q.turn_90().dot(d_t);
         let k = qq.cross(q);
-        let e = s2 * s + k * d;
+        let s3 = s2 * s;
+        let e = s3 + k * d;
+        // The cusp value here is `e / s3`, and `s3` is not negative.
+        if !(e > 0.0) {
+            return if e <= 0.0 {
+                Osculating::Cusp(t)
+            } else {
+                Osculating::Untrusted
+            };
+        }
         let numerator = a * s * e - d * s2 * e + 0.5 * k * b * b;
         let denominator = d * s2 * e;
         // Written so that a NaN rejects.
         if !(numerator.abs() <= limit * denominator.abs()) {
-            return Some(false);
+            return Osculating::Decided(false);
         }
     }
-    Some(true)
+    Osculating::Decided(true)
+}
+
+/// The outcome of [`osculating_decision`].
+enum Osculating {
+    /// Whether every sample is within the limit.
+    Decided(bool),
+    /// The slip is too large, or a value is not finite: the estimate is not
+    /// to be trusted.
+    Untrusted,
+    /// The cusp value is not positive at this sample.
+    Cusp(f64),
 }
 
 /// Estimate the error by the osculating parabola, at `n` samples.
@@ -2556,6 +2635,8 @@ mod tests {
     thread_local! {
         /// The number of pieces emitted at the maximum depth without a bound.
         pub(super) static OUT_OF_DEPTH: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+        /// The number of evaluations in `find_cusp`.
+        pub(super) static CUSP_ITERATIONS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
     }
 
     /// A small deterministic random number generator.
@@ -2997,6 +3078,164 @@ mod tests {
             }
         }
         assert!(n_checked > 50, "{n_checked}");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn default_result_with_hidden_cusp_pair() {
+        // The cusp value is close to 1 at both ends of this piece, of a
+        // random cubic, but runs from about -500 to 1500 inside it. With `d`
+        // of -10, the offset has a pair of cusps that the signs at the ends
+        // do not show. The osculating estimate, with its guards looking only
+        // at the ends, accepted a piece 9.5 times over the tolerance.
+        let c = CubicBez::new(
+            (79.057_384_592_444_27, 48.466_008_655_533_074),
+            (12.503_273_981_653_885, 44.382_261_036_215_43),
+            (52.908_321_475_974_894, 47.634_604_733_008_06),
+            (28.539_084_055_419_305, 44.786_787_416_066_95),
+        );
+        let (co, _) = setup(c, -10.0);
+        let (cusp_min, _) = cusp_range(&co);
+        assert!(cusp_min < 0.0, "{cusp_min}");
+        let tolerance = 0.25;
+        let mut result = BezPath::new();
+        offset_cubic(c, -10.0, tolerance, &mut result);
+        let error = whole_result_error(c, -10.0, tolerance, &result);
+        assert!(
+            error <= 1.25 * tolerance,
+            "error {error} over tolerance {tolerance}"
+        );
+    }
+
+    #[test]
+    #[ignore = "measurement, prints iteration counts"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print")]
+    fn find_cusp_adversarial() {
+        // Brackets of the scaled cusp value, from random pieces and from
+        // near double roots: where the curvature has an extremum, set `d`
+        // so that the cusp value just dips below zero there. Compare
+        // `find_cusp` with ITP on the same function and bracket.
+        let mut rows: Vec<(&str, usize, usize, f64, f64)> = Vec::new();
+        let mut run = |label: &'static str, c: CubicBez, d: f64, a: f64, b: f64| {
+            let co = CubicOffset::new(c, d, 0.0, true);
+            let f = |t: f64| co.scaled_cusp_and_deriv(t).0;
+            let (ya, yb) = (f(a), f(b));
+            if !(ya * yb < 0.0) {
+                return;
+            }
+            CUSP_ITERATIONS.with(|count| count.set(0));
+            let t = co.find_cusp(a, b, yb.signum());
+            let newton = CUSP_ITERATIONS.with(|count| count.get());
+            // ITP wants the function negative at `a`.
+            let sign = -ya.signum();
+            let mut itp = 0;
+            let t_itp = crate::common::solve_itp(
+                |t| {
+                    itp += 1;
+                    sign * f(t)
+                },
+                a,
+                b,
+                1e-12,
+                1,
+                0.2 / (b - a),
+                sign * ya,
+                sign * yb,
+            );
+            // How far each result is from a sign change: the smallest
+            // interval about it, of the form 2^-k, that brackets one.
+            let miss = |t: f64| {
+                let mut h = 1e-15_f64;
+                while h < 1.0 {
+                    let (l, r) = ((t - h).max(a), (t + h).min(b));
+                    if f(l) * f(r) <= 0.0 {
+                        return h;
+                    }
+                    h *= 2.0;
+                }
+                1.0
+            };
+            rows.push((label, newton, itp, miss(t), miss(t_itp)));
+        };
+        let mut rng = Rng(0x1234_5678_9abc_def1);
+        for _ in 0..400 {
+            let c = rng.cubic();
+            for d in [0.5, -0.5, 3.0, -3.0, 30.0, -30.0] {
+                for n in [1, 2, 4] {
+                    for i in 0..n {
+                        run(
+                            "random",
+                            c,
+                            d,
+                            i as f64 / n as f64,
+                            (i + 1) as f64 / n as f64,
+                        );
+                    }
+                }
+            }
+            // Local maxima of |kappa|, from a grid, refined.
+            let q = c.deriv();
+            let qq = q.deriv();
+            let kappa = |t: f64| {
+                let v = q.eval(t).to_vec2();
+                qq.eval(t).to_vec2().cross(v) / v.hypot().powi(3)
+            };
+            const N: usize = 200;
+            for j in 1..N {
+                let (t0, t1, t2) = (
+                    (j - 1) as f64 / N as f64,
+                    j as f64 / N as f64,
+                    (j + 1) as f64 / N as f64,
+                );
+                let (k0, k1, k2) = (kappa(t0).abs(), kappa(t1).abs(), kappa(t2).abs());
+                if !(k1 > k0 && k1 >= k2) {
+                    continue;
+                }
+                // Refine the maximum of |kappa| by ternary search.
+                let (mut lo, mut hi) = (t0, t2);
+                for _ in 0..100 {
+                    let m1 = lo + (hi - lo) / 3.0;
+                    let m2 = hi - (hi - lo) / 3.0;
+                    if kappa(m1).abs() < kappa(m2).abs() {
+                        lo = m1;
+                    } else {
+                        hi = m2;
+                    }
+                }
+                let t_star = 0.5 * (lo + hi);
+                let k_star = kappa(t_star);
+                for e in [1e-1, 1e-3, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13, 1e-14] {
+                    let d = -(1.0 + e) / k_star;
+                    run("near double", c, d, 0.0, t_star);
+                    run("near double", c, d, t_star, 1.0);
+                    run("near double", c, d, (t_star - 0.1).max(0.0), t_star);
+                    run("near double", c, d, t_star, (t_star + 0.1).min(1.0));
+                }
+            }
+        }
+        for label in ["random", "near double"] {
+            let v: Vec<_> = rows.iter().filter(|r| r.0 == label).collect();
+            let max_n = v.iter().map(|r| r.1).max().unwrap_or(0);
+            let max_i = v.iter().map(|r| r.2).max().unwrap_or(0);
+            let mean_n = v.iter().map(|r| r.1).sum::<usize>() as f64 / v.len() as f64;
+            let mean_i = v.iter().map(|r| r.2).sum::<usize>() as f64 / v.len() as f64;
+            let capped = v.iter().filter(|r| r.1 >= 100).count();
+            let bad_n = v.iter().filter(|r| r.3 > 1e-9).count();
+            let bad_i = v.iter().filter(|r| r.4 > 1e-9).count();
+            let worst_n = v.iter().map(|r| r.3).fold(0.0, f64::max);
+            let worst_i = v.iter().map(|r| r.4).fold(0.0, f64::max);
+            std::println!(
+                "{label}: {} brackets; evaluations Newton mean {:.1} max {max_n} (capped {capped}), ITP mean {:.1} max {max_i}; off a sign change by > 1e-9: Newton {bad_n} (worst {worst_n:.1e}), ITP {bad_i} (worst {worst_i:.1e})",
+                v.len(),
+                mean_n,
+                mean_i,
+            );
+            let mut hist = std::collections::BTreeMap::new();
+            for r in &v {
+                *hist.entry(r.1.min(60) / 5 * 5).or_insert(0) += 1;
+            }
+            std::println!("  Newton evaluations, by 5: {hist:?}");
+        }
     }
 
     #[test]

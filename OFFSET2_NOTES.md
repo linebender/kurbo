@@ -45,9 +45,17 @@ Large, or open questions:
    derivatives. Possibly not worth a special case.
 8. The mirrored certificate for the G1 bound.
 9. Strong correctness: locate every cusp, report reversals, and add
-    evolute sections, which need their own fit and bound.
+    evolute sections, which need their own fit and bound. Hidden pairs
+    of cusps are now found where a sample of the osculating estimate
+    lands between them ("Where the time goes").
+10. **Vanishing end derivatives**: the cusp value at such an end, the
+    clamped fit on one side and the failed certificate ("Where the time
+    goes", "What is left"). The tiger is full of them.
 
-Done or dropped: the rounding allowance (added), a cheap estimate for the
+Done or dropped: the slip guard on two-point fits only, and hidden
+cusp pairs found at the samples (both adopted), the osculating circle and
+deciding both sides in one pass (dropped), Newton against ITP for the
+cusp (measured, kept), the rounding allowance (added), a cheap estimate for the
 default mode (the osculating
 parabola, adopted with guards), misses at the maximum depth (depth raised from 8 to 12),
 the near-line slowdown (did not reproduce), the end subdivision bug (fixed
@@ -899,6 +907,138 @@ time within noise.
 The notes on rounding elsewhere ("not handled yet" in the module's
 documentation, and the rounding note in the original list) are now
 answered by this.
+
+## Where the time goes, and the slip guard (18 November 2026)
+
+A step back on speed, on whole tiger strokes at 1/32, where nearly every
+call makes one or two segments.
+
+**The floor.** With `osculating_decision` stubbed to accept everything,
+the tiger costs 32 ns per call against 96 (`offset_tiger`, 688 segments
+against 911). So two thirds of the time is deciding: the estimate, the
+slower path it hands over to, and the subdivisions that follow. Fitting,
+splitting, regularization, end tangents and emitting cost about 32 ns.
+
+**Who takes the slow path.** Per side at 1/32, about 1,100 decisions: 72
+hairline, 176 root hull, 18 small piece, 518 osculating, and about 320
+through `Taylor`, the certificate (which almost never holds on the tiger:
+1 acceptance) and the sampled estimate. That slow path was about 40% of
+the time, `accept_uncertified` alone (the sampled estimate, inlined) 20%.
+Of those 320, about 100 fail the guard on cusp values (77 on the ratio,
+23 next to a cusp) and 224 come back untrusted for slip: 123 one-point
+fits and 93 arcs (a one-point handle clamped at a zero-length source
+handle), 142 at a vanishing end derivative, and 99 on the thin strokes,
+where a slip of half of `d` is a hundredth of a unit.
+
+**The osculating circle, tried.** The parabola is second order in the slip,
+so the distance from `A(t)` to the offset's circle of curvature, which is
+exact for any slip where the offset is locally circular, looked like the
+fix. In units that need no division:
+`N = K (a^2 + b^2 - d^2 s^2) - 2 s^4 (d s - a)` over
+`s sqrt((s^4 + a K)^2 + (b K)^2) + s^2 |E|`. Against the Fréchet oracle it
+is no better than the parabola in any slip bin (tiger, slip 0.5 to 1:
+p99 1.65 to 1.89 against 1.54 to 1.72). The pieces it underestimates
+have their error between the samples, not in the expansion.
+
+**What the slip guard catches.** Every piece accepted by the osculating
+estimate with the slip guard off, logged and measured with the oracle
+(wild cubics and the tiger at three scales, three tolerances, 38,141
+pieces): the misses with slip over 0.5 are two-point fits (up to 3.5
+times). One-point and arc misses are all mild (at most 1.12 times),
+except one at 9.5 times with slip 0.40, inside the guard. That one is a
+pair of cusps hidden in the piece: the cusp values at the ends are 0.999
+and 0.984, and inside they run from -523 to 1553. It is reachable at
+`8b8ab63` too; `default_result_with_hidden_cusp_pair` fails there (error
+2.36 at tolerance 0.25).
+
+**Changes:**
+
+- The slip guard applies to two-point fits only.
+- `osculating_decision` checks the sign of the cusp value at every sample
+  (`E > 0`; it already computes `E`). Where it is not positive with both
+  ends positive, there are at least two cusps in the piece, and the piece
+  is split at that sample, so that each half shows a sign change and
+  `find_cusp` finds both. Not at an end where the derivative vanishes,
+  whose cusp value is not its limit (see below); there the piece goes to
+  the slower path as before.
+
+Results against `8b8ab63`:
+
+| | Before | After |
+|---|---|---|
+| Whole tiger strokes, pair, µs at 1/32, 1/256, 1/2048 | 66.6, 96.1, 150.9 | 56.6, 89.7, 154.9 |
+| Pair over `offset.rs` | 0.53, 0.18, 0.09 | 0.44, 0.17, 0.09 |
+| Tiger, ns per call, default | 96, 144, 240 | 80, 135, 243 |
+| Tiger segments, default | 911, 1182, 1851 | 892, 1181, 1879 |
+| Tiger calls over tolerance, default | 0, 0, 0 | 1 (1.013 times), 0, 0 |
+| Random families, geometric mean ns, default | 133 | 131 |
+| `offset_compare` calls over tolerance, default | 0% | 0% |
+
+Strict mode is unchanged, bit for bit (fingerprint), and so is the
+default mode on nearly straight and gentle curves; on wild curves it makes
+42,672 segments against 42,859. Slip alone (without the sign check) gave
+51.9, 85.1 and 143.5 µs, so finding hidden cusps costs 5 to 8% on the
+tiger, mostly at fine tolerance.
+
+Tried and dropped:
+
+- A ratio check at the samples (each sample's cusp value within a factor
+  of 2 of both ends) instead of the sign: 63.2 µs at 1/32. The cusp value
+  computed at an end where the derivative vanishes is 1 (`0 * infinity +
+  1` with the clamp in `endpoint_cusp`), while the true values next to it
+  are unbounded, so the check sent those pieces back to the slow path.
+- Rejecting at a negative sample, and subdividing at the usual point:
+  56.5 µs against 57.6 for the slow path, but the usual point seldom
+  falls between the cusps. Splitting at the sample is better (56.0).
+- Deciding both sides in one pass. `W = D / d` is the same for both sides,
+  and at each sample only the signs of `A`, `B` and `d` change, and `E`
+  becomes `s^3 - K d`, so one loop can give both verdicts, bit for bit.
+  It was slower: the pair went from 84 to 98 ns on gentle curves, where
+  every piece fused, with the one-sided path unchanged, and on the tiger
+  only 97 of about 550 decisions can fuse, since at a zero-length handle
+  the linear fit is clamped on exactly one side.
+
+### Newton against ITP for the cusp (18 November 2026)
+
+`find_cusp` is Newton's method safeguarded by a bracket (as `rtsafe`): it
+bisects when the step would leave the bracket or be more than half the
+previous one, so it cannot diverge, and a non-finite step bisects. Unlike
+ITP it has no proven bound in terms of bisection, only a cap of 100
+evaluations, after which it returns the middle of the bracket.
+
+The hard case is a cusp where `kappa' = 0`: the scaled cusp value
+`s^3 (1 + kappa d)` has derivative `3 s^2 s' (1 + kappa d) + s^3 kappa' d`,
+so a root there is double. The ignored test `find_cusp_adversarial`
+builds such brackets from 400 random cubics: at each local maximum of
+`|kappa|`, `d = -(1 + e) / kappa` for `e` from 1e-1 to 1e-14, bracketing
+each root from the extremum.
+
+| Brackets | Newton evaluations, mean / max | ITP, mean / max | Over 1e-9 from a sign change: Newton / ITP |
+|---|---|---|---|
+| Random pieces (1,885) | 10.4 / 44 | 17.9 / 41 | 0 / 0 |
+| Near double roots (19,962) | 20.3 / 45 | 22.2 / 41 | 6 (worst 1e-9) / 9 (worst 4e-9) |
+
+So the near double root takes Newton's advantage away, and its worst case
+is slightly over ITP's, but it never came near the cap, and its accuracy
+is the same as ITP's. Both are limited there by the conditioning: the
+function is tiny over a wide interval, and rounding decides the sign. A
+rule that bisects whenever two steps fail to halve the bracket would give
+a proven bound of about twice bisection, at the cost of interrupting
+one-sided Newton convergence; not done.
+
+### What is left
+
+- The floor, 32 ns per call, is now about 40% of the tiger's time at 1/32.
+- At a vanishing end derivative, three things go wrong together: the cusp
+  value there is computed as 1 when its limit is infinite (with the sign
+  of `d (q2 x q1)`), so the tiny cusp next to that end on the inner side
+  is not found by the signs; one side's linear fit is always clamped to
+  arc drawing; and the certificate fails since `beta(0) = 0`. Computing
+  the end's cusp value properly would expose the cusp, but the outer side
+  would then fail the ratio guard, and the inner side would gain a segment
+  for the cusp; it needs its own treatment.
+- 100 decisions per side at 1/32 still fail the guard on the cusp values
+  at the ends.
 
 ## Where this departs from the original notes
 
