@@ -16,40 +16,39 @@ The one current list. Each points to its section below.
 
 Small:
 
-1. **Rounding allowance.** The original adds 8 ulps of the largest
-   coordinate to every bound (`ROUND_ULPS` in bezfit's `bound/cheap.rs`).
-2. **Newton cusp solve and depth 12 in `offset.rs`**, on the
+1. **Newton cusp solve and depth 12 in `offset.rs`**, on the
    `offset-split-at-end` branch, so that benchmarks compare bounds and
    fits, not solvers and depth limits.
-3. **The midpoint G1 retry**: decide whether to adopt it, and speed up its
+2. **The midpoint G1 retry**: decide whether to adopt it, and speed up its
    solve ("The midpoint G1 fit").
 
 Medium:
 
-4. **Certifying each half separately**: 2 to 5 more points of
+3. **Certifying each half separately**: 2 to 5 more points of
    certification; port from the original's `split` option, with
    remainders per half ("The original certificate, compared").
-5. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
+4. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
    and FootWeighted). The G1 bound is loose in the tail on the midpoint G1
    fit (p90 of bound over error 25 to 34 times).
-6. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
+5. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
    calls exactly but saves only 7% against them; the stroker can use it
    (`OffsetMethod::Offset2Pair`). Sharing the sampled estimate's
    evaluations was tried and made it slower. What is left to share
    depends on `beta` ("Both sides at once").
-7. **Another corpus**, with ordinary end handles, to see how much of the
+6. **Another corpus**, with ordinary end handles, to see how much of the
    tiger's behaviour is the tiger's, and to check the guards on the
    osculating estimate ("The osculating parabola estimate").
 
 Large, or open questions:
 
-8. A certificate that allows `beta` to vanish at an end, for zero end
+7. A certificate that allows `beta` to vanish at an end, for zero end
    derivatives. Possibly not worth a special case.
-9. The mirrored certificate for the G1 bound.
-10. Strong correctness: locate every cusp, report reversals, and add
+8. The mirrored certificate for the G1 bound.
+9. Strong correctness: locate every cusp, report reversals, and add
     evolute sections, which need their own fit and bound.
 
-Done or dropped: a cheap estimate for the default mode (the osculating
+Done or dropped: the rounding allowance (added), a cheap estimate for the
+default mode (the osculating
 parabola, adopted with guards), misses at the maximum depth (depth raised from 8 to 12),
 the near-line slowdown (did not reproduce), the end subdivision bug (fixed
 here, and in `offset.rs` on `offset-split-at-end`), the error oracle (now
@@ -874,6 +873,32 @@ subdivision, and keeping the new function out of line did not help.
 So a cheaper estimator gains only a little more: what is left per sample
 is evaluating `D`, `C'` and `C''` and one square root, and the rest of the
 default mode's time is fitting, splitting and recursion.
+
+## The rounding allowance (18 November 2026)
+
+The bounds are computed for the exact `D`, which offset2 forms directly
+rather than by subtracting control points. But the approximation's
+control points are emitted in absolute coordinates, rounded by about an
+ulp of the largest coordinate, and no bound on `D` sees that. As in the
+original (`ROUND_ULPS` in bezfit's `bound/cheap.rs`), every strict
+acceptance now goes through `CubicOffset::accepts`, which adds 8 ulps of
+the largest coordinate of the source and the approximation to the bound.
+The estimates are not bounds and are unchanged.
+
+`rounding_allowance_covers_large_coordinates` fits and bounds pieces of
+random cubics moved to 1e6 and 1e9 from the origin, moves them back (the
+subtraction is exact there) and measures the error with the oracle. At
+1e9 the bound alone falls short in over 50 cases, since rounding (about
+1e-7) dwarfs the fit's own error on small pieces; with the allowance none
+do. One or two ulps would pass this test too; 8 leaves room for the
+rounding when the curves are evaluated downstream.
+
+At ordinary coordinates the output is unchanged, bit for bit, and the
+time within noise.
+
+The notes on rounding elsewhere ("not handled yet" in the module's
+documentation, and the rounding note in the original list) are now
+answered by this.
 
 ## Where this departs from the original notes
 

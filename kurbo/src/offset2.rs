@@ -92,6 +92,10 @@ pub mod g1_retry {
     }
 }
 
+/// The rounding allowance added to every strict bound, in units in the
+/// last place of the largest coordinate; see [`CubicOffset::accepts`].
+const ROUND_ULPS: f64 = 8.0;
+
 /// Maximum recursion depth.
 ///
 /// This is a robustness guard. A piece at this depth is emitted whether or
@@ -119,30 +123,28 @@ const DET_EPSILON: f64 = 1e-9;
 /// This has the same signature and the same intent as
 /// [`crate::offset::offset_cubic`].
 ///
-/// A piece is accepted when a strict upper bound on its Fréchet distance to
-/// the true offset is within `tolerance`. Where no strict bound applies, a
-/// piece is accepted when a sampled estimate of its error, with a safety
-/// factor, is within `tolerance`. Use [`offset_cubic_strict`] to accept on
-/// strict bounds only.
+/// Where the curvature changes little over a piece and the fit does not slip
+/// far along the offset, a cheap estimate of its error (the osculating
+/// parabola, with a safety factor) decides whether to accept it. Elsewhere a
+/// piece is accepted when a strict upper bound on its Fréchet distance to
+/// the true offset is within `tolerance`, and where no strict bound applies,
+/// when a sampled estimate of its error, with a safety factor, is. Use
+/// [`offset_cubic_strict`] to accept on strict bounds only, and
+/// [`offset_cubic_pair`] for both sides of the source at once.
 ///
-/// Not handled yet:
-///
-/// * Both sides of a stroke share most of the work, but this computes one
-///   side at a time.
-/// * Higher order fits are not attempted.
-/// * Rounding error in the bounds themselves is not accounted for, so the
-///   bounds are strict only down to a small multiple of machine epsilon
-///   times `d`.
+/// Not handled yet: a higher order fit (`midpoint_g1`) exists, but is not
+/// used unless a temporary switch turns it on.
 pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     offset_cubic_impl(c, d, tolerance, result, false);
 }
 
 /// Compute an approximate offset curve, accepting on strict bounds only.
 ///
-/// This is [`offset_cubic`] without the sampled estimate. Every piece of
-/// the result is within `tolerance` of the offset of the regularized input,
-/// with two exceptions: a piece at the maximum recursion depth is emitted
-/// regardless, and see the note on rounding there.
+/// This is [`offset_cubic`] without the estimates. Every piece of the result
+/// is within `tolerance` of the offset of the regularized input, except a
+/// piece at the maximum recursion depth, which is emitted regardless. The
+/// bounds include an allowance for the rounding of the emitted control
+/// points.
 ///
 /// It can produce many more segments than [`offset_cubic`] on curves with
 /// loops, tight turns or cusps.
@@ -510,7 +512,7 @@ impl CubicOffset {
         // is at least `2 |d|`, so only try it when that is small enough.
         if 2.0 * d.abs() <= tolerance {
             let arc = self.draw_arc(seg, rec);
-            if hairline_bound(&arc.delta, d) <= tolerance {
+            if self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx) {
                 return (Some(arc.approx), arc.approx);
             }
         }
@@ -524,7 +526,7 @@ impl CubicOffset {
         if rec.depth == 0 && d.abs() * rec.utan0.cross(rec.utan1).abs() <= tolerance {
             let arc = self.draw_arc(seg, rec);
             if let Some(bound) = hull_bound(seg, rec, &arc.delta, d) {
-                if bound <= tolerance {
+                if self.accepts(bound, seg, &arc.approx) {
                     return (Some(arc.approx), arc.approx);
                 }
             }
@@ -537,7 +539,7 @@ impl CubicOffset {
         if (seg.p3 - seg.p0).hypot2() <= tolerance * tolerance {
             let arc = self.draw_arc(seg, rec);
             if let Some(bound) = small_piece_bound(seg, rec, &arc, d) {
-                if bound <= tolerance {
+                if self.accepts(bound, seg, &arc.approx) {
                     return (Some(arc.approx), arc.approx);
                 }
             }
@@ -593,7 +595,7 @@ impl CubicOffset {
                         // the general bound does. On an easy piece the
                         // general bound is enough, so try it first.
                         match crude_certified_bound(&taylor, &certificate, d) {
-                            Some(bound) if bound <= tolerance => Some(bound),
+                            Some(bound) if self.accepts(bound, seg, &fit.approx) => Some(bound),
                             _ => g1_bound(&taylor, &certificate, d),
                         }
                     }
@@ -602,7 +604,7 @@ impl CubicOffset {
                 };
                 if let Some(bound) = certified {
                     // The certified bounds are tight, so take their word.
-                    if bound <= tolerance {
+                    if self.accepts(bound, seg, &fit.approx) {
                         return (Some(fit.approx), fit.approx);
                     }
                     // Close enough that the higher order fit may succeed.
@@ -632,7 +634,7 @@ impl CubicOffset {
         let taylor = sharing.taylor(seg, &arc.delta, d);
         if let Some(certificate) = sharing.certificate(&taylor) {
             if let Some(bound) = crude_certified_bound(&taylor, &certificate, d) {
-                if bound <= tolerance {
+                if self.accepts(bound, seg, &arc.approx) {
                     return (Some(arc.approx), arc.approx);
                 }
             }
@@ -641,6 +643,26 @@ impl CubicOffset {
             return (Some(arc.approx), arc.approx);
         }
         (None, arc.approx)
+    }
+
+    /// Whether a strict `bound` on the error of `approx` shows it to be
+    /// within tolerance, allowing for rounding in its control points.
+    ///
+    /// The bounds are computed for the exact `D`, but the control points of
+    /// `approx` are rounded in absolute coordinates, which no bound on `D`
+    /// can see. As in the original (`ROUND_ULPS` in bezfit's
+    /// `bound/cheap.rs`), allow a few ulps of the largest coordinate of the
+    /// source and the approximation. It matters only when the tolerance
+    /// approaches that floor.
+    #[inline(always)]
+    fn accepts(&self, bound: f64, seg: &CubicBez, approx: &CubicBez) -> bool {
+        let mut largest = 0.0_f64;
+        for p in [
+            seg.p0, seg.p1, seg.p2, seg.p3, approx.p0, approx.p1, approx.p2, approx.p3,
+        ] {
+            largest = largest.max(p.x.abs()).max(p.y.abs());
+        }
+        bound + ROUND_ULPS * f64::EPSILON * largest <= self.tolerance
     }
 
     /// Fit with [`midpoint_g1`] and accept on the G1 bound, if both succeed.
@@ -654,10 +676,10 @@ impl CubicOffset {
         let taylor = Taylor::new(seg, &fit.delta, d);
         let certificate = Certificate::new(&taylor)?;
         let bound = match crude_certified_bound(&taylor, &certificate, d) {
-            Some(bound) if bound <= self.tolerance => bound,
+            Some(bound) if self.accepts(bound, seg, &fit.approx) => bound,
             _ => g1_bound(&taylor, &certificate, d)?,
         };
-        (bound <= self.tolerance).then_some(fit.approx)
+        self.accepts(bound, seg, &fit.approx).then_some(fit.approx)
     }
 
     /// Decide whether to accept a piece without the foot-point certificate.
@@ -677,7 +699,7 @@ impl CubicOffset {
             bound = hull_bound(seg, rec, &fit.delta, d);
         }
         if let Some(bound) = bound {
-            if bound <= self.tolerance {
+            if self.accepts(bound, seg, &fit.approx) {
                 return true;
             }
         }
@@ -3375,6 +3397,77 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn rounding_allowance_covers_large_coordinates() {
+        // Far from the origin, the control points of an approximation are
+        // rounded by about an ulp of their coordinates, which the bounds,
+        // computed for the exact D, cannot see. Fit and bound there, move
+        // back to the origin, where the subtraction is exact, and measure.
+        use crate::offset_oracle::piece_error;
+        let mut rng = Rng(31337);
+        let mut n_checked = 0;
+        let mut n_needed = 0;
+        for _ in 0..20 {
+            let c = rng.cubic();
+            for i in 0..32 {
+                let piece = c.subsegment(i as f64 / 32.0..(i + 1) as f64 / 32.0);
+                for shift in [1e6, 1e9] {
+                    let shift = Vec2::new(shift, shift);
+                    let far = CubicBez::new(
+                        piece.p0 + shift,
+                        piece.p1 + shift,
+                        piece.p2 + shift,
+                        piece.p3 + shift,
+                    );
+                    for d in [1.0, -1.0] {
+                        let (co, rec) = setup(far, d);
+                        let Some((a, b)) = one_point(&far, &rec) else {
+                            continue;
+                        };
+                        let fit = co.apply(&far, &rec, a, b);
+                        if fit.clamped {
+                            continue;
+                        }
+                        let taylor = Taylor::new(&far, &fit.delta, d);
+                        let Some(certificate) = Certificate::new(&taylor) else {
+                            continue;
+                        };
+                        let Some(bound) = one_point_bound(&taylor, &certificate, d) else {
+                            continue;
+                        };
+                        let back = |c: CubicBez| {
+                            CubicBez::new(c.p0 - shift, c.p1 - shift, c.p2 - shift, c.p3 - shift)
+                        };
+                        let Some(error) = piece_error(back(far), d, back(fit.approx)) else {
+                            continue;
+                        };
+                        let mut largest = 0.0_f64;
+                        for p in [far.p0, far.p1, far.p2, far.p3] {
+                            largest = largest.max(p.x.abs()).max(p.y.abs());
+                        }
+                        for p in [fit.approx.p0, fit.approx.p1, fit.approx.p2, fit.approx.p3] {
+                            largest = largest.max(p.x.abs()).max(p.y.abs());
+                        }
+                        let allowance = ROUND_ULPS * f64::EPSILON * largest;
+                        assert!(
+                            bound + allowance >= error,
+                            "bound {bound:e} plus allowance {allowance:e} below error {error:e}"
+                        );
+                        if bound < error {
+                            n_needed += 1;
+                        }
+                        n_checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(n_checked > 500, "{n_checked}");
+        // At 1e9 the rounding exceeds the fit's own error on small pieces,
+        // so without the allowance the bound would fall short.
+        assert!(n_needed > 50, "{n_needed}");
     }
 
     #[test]
