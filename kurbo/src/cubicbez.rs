@@ -443,7 +443,16 @@ impl CubicBez {
             // without division.
             let d = q.eval(nearest.t);
             let d2 = q.deriv().eval(nearest.t);
-            let cross = d.to_vec2().cross(d2.to_vec2());
+            // At a minimum inside the curve the derivative is perpendicular
+            // to the second derivative, so the cross product is the product
+            // of the lengths. Use that there: at an exact cusp the derivative
+            // is rounding noise, which can lie along the second derivative
+            // and make the cross product zero.
+            let cross = if nearest.t > 0.0 && nearest.t < 1.0 {
+                d.to_vec2().hypot() * d2.to_vec2().hypot()
+            } else {
+                d.to_vec2().cross(d2.to_vec2())
+            };
             if nearest.distance_sq.powi(3) <= (cross * dimension).powi(2) {
                 let a = 3. * det_012 + det_023 - 2. * det_013;
                 let b = -3. * det_012 + det_013;
@@ -1198,6 +1207,25 @@ mod tests {
         let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
         // a single quadratic bezier approximates this cubic for the given tolerance
         assert_eq!(quads, [QuadSpline::new(vec![p0, p0, p1])]);
+    }
+
+    #[test]
+    fn regularize_exact_cusp() {
+        // The derivative vanishes at the midpoint (#615), to rounding, and
+        // the rounding left it along the second derivative, so the curvature
+        // there computed as zero and the cusp was not detected.
+        let c = CubicBez::new(
+            (1.600_000_000_000_000_8, 310.787_665_198_237_9),
+            (5.406_167_400_881_057, 306.981_497_797_356_84),
+            (5.406_167_400_881_058, 310.787_665_198_237_9),
+            (1.6, 306.981_497_797_356_84),
+        );
+        for dimension in [5e-3, 2.5e-5] {
+            let r = c.regularize_cusp(dimension);
+            assert_ne!(r, c, "dimension {dimension}");
+            let moved = (r.p1 - c.p1).hypot().max((r.p2 - c.p2).hypot());
+            assert!(moved <= 1.000_001 * dimension, "moved {moved}");
+        }
     }
 
     #[test]

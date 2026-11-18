@@ -1271,4 +1271,71 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn strokes_from_open_issues() {
+        use super::OffsetMethod;
+        use crate::{Cap, Join, ParamCurve, ParamCurveNearest};
+        let methods = [
+            OffsetMethod::Offset,
+            OffsetMethod::Offset2,
+            OffsetMethod::Offset2Pair,
+        ];
+        let finite = |path: &BezPath| {
+            path.elements().iter().all(|el| match *el {
+                PathEl::MoveTo(p) | PathEl::LineTo(p) => p.is_finite(),
+                PathEl::QuadTo(p1, p2) => p1.is_finite() && p2.is_finite(),
+                PathEl::CurveTo(p1, p2, p3) => p1.is_finite() && p2.is_finite() && p3.is_finite(),
+                PathEl::ClosePath => true,
+            })
+        };
+
+        // #615: an exact cusp at the midpoint was not regularized, and the
+        // outline reached 0.9965 from the centerline at a half width of 0.6.
+        let c = CubicBez::new(
+            (1.600_000_000_000_000_8, 310.787_665_198_237_9),
+            (5.406_167_400_881_057, 306.981_497_797_356_84),
+            (5.406_167_400_881_058, 310.787_665_198_237_9),
+            (1.6, 306.981_497_797_356_84),
+        );
+        let mut path = BezPath::new();
+        path.move_to(c.p0);
+        path.curve_to(c.p1, c.p2, c.p3);
+        for method in methods {
+            let opts = StrokeOpts::default().offset_method(method);
+            let style = Stroke::new(1.2).with_join(Join::Round);
+            let outline = stroke(&path, &style, &opts, 0.02);
+            let mut worst = 0.0_f64;
+            for seg in outline.segments() {
+                for i in 0..=64 {
+                    let p = seg.eval(f64::from(i) / 64.0);
+                    worst = worst.max(c.nearest(p, 1e-9).distance_sq.sqrt());
+                }
+            }
+            assert!(worst <= 0.6 + 0.02, "{method:?}: {worst}");
+        }
+
+        // #617 and #519: a vanishing derivative gave non-finite points. These
+        // remain with `offset`.
+        let mut zero_end = BezPath::new();
+        zero_end.move_to((0.5, -3.0));
+        zero_end.curve_to((-0.25, -0.5), (0.0, 0.0), (0.0, 0.0));
+        let short = BezPath::from_svg(
+            "M47.5884,316.827 C47.5884,316.827 47.4321,317.6239 47.4321,317.6239 \
+             C46.7915,317.7801 46.7915,317.2176 46.7915,317.2176 Z",
+        )
+        .unwrap();
+        for method in [OffsetMethod::Offset2, OffsetMethod::Offset2Pair] {
+            let opts = StrokeOpts::default().offset_method(method);
+            for tolerance in [5e-5, 0.02] {
+                let style = Stroke::new(1.2)
+                    .with_join(Join::Round)
+                    .with_caps(Cap::Round);
+                let outline = stroke(&zero_end, &style, &opts, tolerance);
+                assert!(finite(&outline), "{method:?}, tolerance {tolerance}");
+            }
+            let outline = stroke(&short, &Stroke::new(10.0), &opts, 0.25);
+            assert!(finite(&outline), "{method:?}");
+        }
+    }
 }

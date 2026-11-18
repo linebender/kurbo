@@ -3525,6 +3525,73 @@ mod tests {
         }
     }
 
+    #[test]
+    fn offsets_from_open_issues() {
+        // Repros from open kurbo issues against `offset`. The first (#617)
+        // has a vanishing end derivative, and `offset` gives non-finite
+        // points on its inner side; #344 is an older report of the same
+        // kind. The last (#615) has an exact cusp at its midpoint, which
+        // `detect_cusp` missed, so it was not regularized; the midpoint
+        // split then took the rounding noise there for the tangent, and the
+        // piece after the cusp started on the wrong side (2.9 times the
+        // tolerance at 1e-4, in both modes).
+        let cases = [
+            (
+                CubicBez::new((0.5, -3.0), (-0.25, -0.5), (0.0, 0.0), (0.0, 0.0)),
+                [-0.6, 0.6],
+                [5e-5, 0.02],
+            ),
+            (
+                CubicBez::new(
+                    (51.0, 0.0),
+                    (-0.085_937_5, 161.640_625),
+                    (0.0, 164.0),
+                    (0.0, 164.0),
+                ),
+                [-8.0, 8.0],
+                [0.01, 1e-4],
+            ),
+            (
+                CubicBez::new(
+                    (1.600_000_000_000_000_8, 310.787_665_198_237_9),
+                    (5.406_167_400_881_057, 306.981_497_797_356_84),
+                    (5.406_167_400_881_058, 310.787_665_198_237_9),
+                    (1.6, 306.981_497_797_356_84),
+                ),
+                [-0.6, 0.6],
+                [0.02, 1e-4],
+            ),
+        ];
+        for (c, ds, tolerances) in cases {
+            for d in ds {
+                for tolerance in tolerances {
+                    let mut default = BezPath::new();
+                    offset_cubic(c, d, tolerance, &mut default);
+                    let mut strict = BezPath::new();
+                    offset_cubic_strict(c, d, tolerance, &mut strict);
+                    for (result, mode) in [(default, "default"), (strict, "strict")] {
+                        assert!(
+                            result.elements().iter().all(|el| el
+                                .end_point()
+                                .is_none_or(|p| p.is_finite())
+                                && match *el {
+                                    PathEl::CurveTo(p1, p2, _) => p1.is_finite() && p2.is_finite(),
+                                    _ => true,
+                                }),
+                            "{mode}: non-finite point for {c:?}, d = {d}"
+                        );
+                        let (error, s) = offset_to_result(c, d, &result, 20_000);
+                        assert!(
+                            error <= tolerance,
+                            "{mode}: error {error} at s = {s}, tolerance {tolerance}, \
+                             for {c:?}, d = {d}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// The osculating estimate at the given samples.
     fn osculating_at(seg: &CubicBez, delta: &[Vec2; 4], d: f64, samples: &[f64]) -> f64 {
         let c1 = seg.deriv();
