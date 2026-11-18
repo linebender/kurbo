@@ -1226,6 +1226,25 @@ first side's negated (97 of about 550 before). Two versions:
   asks. This is the third time added state on the pair's path has cost
   more than it saved; the pair is best kept thin.
 
+The ratio guard itself, measured (pieces from random cubics in 1 to 16
+parts at six widths, both cusp values positive, ratio over 2; error over
+the 8-sample estimate, and over a 64-sample one):
+
+| Ratio of cusp values | Pieces | p99, 8 samples | max | p99, 64 samples | max |
+|---|---|---|---|---|---|
+| 2 to 4 | 1,398 | 1.25 | 1.60 | 1.17 | 1.51 |
+| 4 to 16 | 989 | 1.46 | 2.64 | 1.39 | 1.89 |
+| over 16 | 307 | 2.19 | 8.11 | 2.10 | 6.09 |
+
+So up to a ratio of about 4 the estimate is as reliable as on ordinary
+pieces, and above it the model fails, however densely sampled; three more
+samples near the end with the smaller value changed nothing. Raising the
+limit from 2 to 3 or 4 makes whole tiger strokes 2 to 3.5% faster with the
+same segments and keeps `offset_compare` at 0%, but brings back one tiger
+call over tolerance (1.19 times, at 1/256, a piece with a zero-length
+handle). Not adopted, to keep the tiger clean; it is a reasonable trade if
+that one miss is acceptable.
+
 This more than pays back the vanishing end fix: whole tiger strokes are now
 faster than at `46f031b` (56.3, 89.2 and 154.3 µs).
 
