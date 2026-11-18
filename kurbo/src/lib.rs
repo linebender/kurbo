@@ -133,6 +133,9 @@ mod mindist;
 mod moments;
 pub mod offset;
 pub mod offset2;
+#[cfg(feature = "std")]
+#[doc(hidden)]
+pub mod offset_oracle;
 mod param_curve;
 mod point;
 mod quadbez;

@@ -9,16 +9,17 @@
 //! the first is `offset`, the second `offset2::offset_cubic` and the third
 //! `offset2::offset_cubic_strict`.
 //!
-//! The error is the largest distance from a point of the result to the true
-//! offset of the input. Both functions regularize the input first, so near a
-//! cusp of the source both can exceed the tolerance by that measure.
+//! The error is measured by `kurbo::offset_oracle`: the Fréchet distance of
+//! each piece of the result from the offset of the regularized input, which
+//! is what both functions approximate. A piece the oracle cannot measure
+//! counts with a lower bound on its error.
 
 #![allow(clippy::print_stdout, reason = "this example exists to print a table")]
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use kurbo::{BezPath, CubicBez, ParamCurve, ParamCurveDeriv, Point};
+use kurbo::{BezPath, CubicBez, Point};
 
 /// A small deterministic random number generator.
 struct Rng(u64);
@@ -67,46 +68,6 @@ fn nearly_straight(rng: &mut Rng) -> CubicBez {
     )
 }
 
-/// The largest distance from a point of `result` to the true offset of `c`.
-fn result_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
-    const N: usize = 2000;
-    let c1 = c.deriv();
-    let offset_at = |s: f64| c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90();
-    let samples: Vec<Point> = (0..=N).map(|j| offset_at(j as f64 / N as f64)).collect();
-    let mut worst = 0.0_f64;
-    for seg in result.segments() {
-        for i in 0..=10 {
-            let p = seg.eval(i as f64 / 10.0);
-            // Refine around every local minimum of the sampled distance, not
-            // only the smallest. Where the offset comes back near itself,
-            // the nearest sample can be on the wrong strand.
-            let dist: Vec<f64> = samples.iter().map(|s| p.distance_squared(*s)).collect();
-            let mut nearest = f64::INFINITY;
-            for j in 0..=N {
-                let left = j == 0 || dist[j] <= dist[j - 1];
-                let right = j == N || dist[j] <= dist[j + 1];
-                if !(left && right) {
-                    continue;
-                }
-                let mut lo = j.saturating_sub(1) as f64 / N as f64;
-                let mut hi = (j + 1).min(N) as f64 / N as f64;
-                for _ in 0..50 {
-                    let s1 = lo + (hi - lo) / 3.0;
-                    let s2 = hi - (hi - lo) / 3.0;
-                    if p.distance_squared(offset_at(s1)) < p.distance_squared(offset_at(s2)) {
-                        hi = s2;
-                    } else {
-                        lo = s1;
-                    }
-                }
-                nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
-            }
-            worst = worst.max(nearest);
-        }
-    }
-    worst
-}
-
 type OffsetFn = fn(CubicBez, f64, f64, &mut BezPath);
 
 /// A name and a generator for a family of test curves.
@@ -123,7 +84,8 @@ fn measure(f: OffsetFn, curves: &[CubicBez], d: f64, tolerance: f64) -> (f64, f6
         for d in [d, -d] {
             f(*c, d, tolerance, &mut path);
             n_segments += path.segments().count();
-            if result_error(c, d, &path) > tolerance * 1.001 {
+            let report = kurbo::offset_oracle::result_error(*c, d, tolerance, &path);
+            if report.error.max(report.unmeasured_lower) > tolerance * 1.001 {
                 n_over += 1;
             }
             n_calls += 1;

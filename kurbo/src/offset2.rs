@@ -1957,6 +1957,38 @@ mod tests {
         worst
     }
 
+    /// The error of one piece: the Fréchet distance from the oracle where it
+    /// can measure it, and otherwise `fallback`, a one-sided distance.
+    fn piece_frechet(
+        source: &CubicBez,
+        approx: &CubicBez,
+        d: f64,
+        fallback: impl FnOnce() -> f64,
+    ) -> f64 {
+        #[cfg(feature = "std")]
+        if let Some(error) = crate::offset_oracle::piece_error(*source, d, *approx) {
+            return error;
+        }
+        fallback()
+    }
+
+    /// The error of a whole result from `offset_cubic` or
+    /// `offset_cubic_strict`, against the offset of the regularized curve.
+    ///
+    /// With std, this is the Fréchet oracle, taking the lower bound for any
+    /// piece it cannot measure. Without, the sampled one-sided distance.
+    fn whole_result_error(c: CubicBez, d: f64, tolerance: f64, result: &BezPath) -> f64 {
+        #[cfg(feature = "std")]
+        {
+            let report = crate::offset_oracle::result_error(c, d, tolerance, result);
+            report.error.max(report.unmeasured_lower)
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            result_error(&c.regularize_cusp(tolerance * 0.25), d, result)
+        }
+    }
+
     /// Measure the distance between an approximation and the offset of `c`
     /// at equal parameter.
     fn equal_parameter_distance(c: &CubicBez, approx: &CubicBez, d: f64) -> f64 {
@@ -2017,7 +2049,9 @@ mod tests {
             let Some(bound) = one_point_bound(&taylor, &certificate, d) else {
                 return;
             };
-            let error = measured_error(&piece, &fit.approx, d);
+            let error = piece_frechet(&piece, &fit.approx, d, || {
+                measured_error(&piece, &fit.approx, d)
+            });
             assert!(
                 bound >= error - slack(d),
                 "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
@@ -2056,7 +2090,9 @@ mod tests {
             let Some(bound) = g1_bound(&taylor, &certificate, d) else {
                 return;
             };
-            let error = measured_error(&piece, &fit.approx, d);
+            let error = piece_frechet(&piece, &fit.approx, d, || {
+                measured_error(&piece, &fit.approx, d)
+            });
             assert!(
                 bound >= error - slack(d),
                 "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
@@ -2084,7 +2120,9 @@ mod tests {
             let Some(bound) = crude_certified_bound(&taylor, &certificate, d) else {
                 return;
             };
-            let error = measured_error(&piece, &fit.approx, d);
+            let error = piece_frechet(&piece, &fit.approx, d, || {
+                measured_error(&piece, &fit.approx, d)
+            });
             assert!(
                 bound >= error - slack(d),
                 "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
@@ -2168,7 +2206,8 @@ mod tests {
                     let mut result = BezPath::new();
                     result.move_to(fit.approx.p0);
                     result.curve_to(fit.approx.p1, fit.approx.p2, fit.approx.p3);
-                    let error = result_error(&piece, d, &result);
+                    let error =
+                        piece_frechet(&piece, &fit.approx, d, || result_error(&piece, d, &result));
                     assert!(
                         bound >= error - slack(d),
                         "bound {bound:e} below error {error:e} for {piece:?}, d = {d}"
@@ -2266,8 +2305,7 @@ mod tests {
                     let out_of_depth = OUT_OF_DEPTH.with(|count| count.get());
                     // The result approximates the offset of the regularized
                     // curve, so that is what to measure against.
-                    let regularized = c.regularize_cusp(tolerance * 0.25);
-                    let error = result_error(&regularized, d, &result);
+                    let error = whole_result_error(c, d, tolerance, &result);
                     if out_of_depth > 0 {
                         // No bound accepted some piece, so nothing is
                         // promised.
@@ -2326,8 +2364,7 @@ mod tests {
                     if OUT_OF_DEPTH.with(|count| count.get()) > 0 {
                         continue;
                     }
-                    let regularized = c.regularize_cusp(tolerance * 0.25);
-                    let error = result_error(&regularized, d, &result);
+                    let error = whole_result_error(c, d, tolerance, &result);
                     assert!(
                         error <= tolerance * (1.0 + 1e-6) + 1e-9,
                         "error {error:e} over tolerance {tolerance:e} for {c:?}, d = {d}"

@@ -433,7 +433,57 @@ these notes used the old oracle.
 
 The oracle is still not a Fréchet distance: it is one sided (it does not
 see parts of the offset that the result skips), ignores order, and samples.
-bezfit's `frechet.rs` and `min_frechet.rs` could replace it.
+It has since been replaced; see below.
+
+### The Fréchet oracle
+
+`kurbo::offset_oracle` (hidden, std only) is ported from bezfit's
+`frechet.rs`. For one piece, it measures the error along the normal rays
+of the approximation. If the feet of the rays advance along the offset,
+they give a monotone correspondence, so the largest ray error bounds the
+Fréchet distance; the critical points, where the tangents are parallel,
+are found and refined, so that bound is attained. If the feet do not
+advance, the piece is reported as unmeasured, with a sampled lower bound,
+rather than underestimated. `result_error` splits a whole result into
+pieces by recovering each piece's source range from its end points, which
+both modules put exactly on the offset of the regularized curve.
+
+Changes from bezfit, each found by comparing with the sampled oracle on
+the same results (`offset_profile oracle`):
+
+- The maximum includes the coarse samples, not only the refined critical
+  points. bezfit used the extrema alone when there were any, and missed a
+  maximum of 0.24 next to a near cusp, reporting 0.07.
+- 128 coarse rays instead of 32, for the same case: with 32 the check that
+  the feet advance passed by luck.
+- The foot of a ray falls back to bisection when Newton fails. Newton fails
+  near a cusp of the offset, whose speed vanishes there; without the
+  fallback about 1200 pieces were unmeasured on the wild family, nearly all
+  ending at a cusp. With it, 33.
+- Robust end tangents, where the derivative vanishes at an end, and the
+  distances of the end points are included.
+- Recovered parameters are snapped to a cusp of the offset when its point
+  matches, since distance pins `s` down poorly there.
+
+Against the sampled oracle on the same results (1800 calls per family and
+module), the Fréchet oracle is never lower, and is higher where the
+sampled oracle was blind. Calls over tolerance, sampled then Fréchet:
+
+| Family | `offset.rs` | offset2 | strict |
+|---|---|---|---|
+| Nearly straight | 2, 4 | 0, 0 | 0, 0 |
+| Gentle | 17, 24 | 0, 0 | 0, 0 |
+| Wild | 108, 150 | 40, 41 | 42, 42 |
+
+All 42 of strict mode's misses are in calls with a piece at the maximum
+depth, which is emitted unchecked. So by this measure strict mode holds
+wherever it claims to. The tests now use the oracle: the strictness tests
+for the one-point, G1, crude and small-piece bounds measured all of their
+pieces with it (none fell back), and so do the tests on whole results.
+
+On the tiger, `offset.rs` is over tolerance on 6, 23 and 47 of 672 calls at
+1/32, 1/256 and 1/2048 (the sampled oracle said 3, 11 and 41); offset2 and
+strict on none.
 
 ## Where this departs from the original notes
 

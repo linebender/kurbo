@@ -7,6 +7,8 @@
 //   over the same families and settings as `offset_compare`, best of five.
 // - `offset_profile fingerprint`: segment counts and a hash of the output of
 //   offset2 and strict, to check whether a change alters the output.
+// - `offset_profile oracle`: compare `kurbo::offset_oracle` with the sampled
+//   one-sided distance it replaced, on the same results.
 // - `offset_profile FAMILY D TOL WHICH REPS`: a loop to run under a
 //   profiler, where FAMILY is wild, gentle or nearly, and WHICH is old, new
 //   or strict.
@@ -96,6 +98,10 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(|s| s.as_str()) == Some("fingerprint") {
         fingerprint();
+        return;
+    }
+    if args.get(1).map(|s| s.as_str()) == Some("oracle") {
+        oracle_check();
         return;
     }
     if args.get(1).map(|s| s.as_str()) == Some("bench") {
@@ -201,4 +207,125 @@ fn bench() {
         (tot[1] / 27.0).exp(),
         (tot[2] / 27.0).exp()
     );
+}
+
+/// The largest distance from a point of `result` to the offset of `c`, by
+/// sampling: the oracle used before `kurbo::offset_oracle`.
+fn sampled_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
+    use kurbo::{ParamCurve, ParamCurveDeriv};
+    const N: usize = 2000;
+    let c1 = c.deriv();
+    let offset_at = |s: f64| {
+        let s = s.clamp(1e-9, 1.0 - 1e-9);
+        c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90()
+    };
+    let samples: Vec<Point> = (0..=N).map(|j| offset_at(j as f64 / N as f64)).collect();
+    let mut worst = 0.0_f64;
+    for seg in result.segments() {
+        for i in 0..=10 {
+            let p = seg.eval(i as f64 / 10.0);
+            let dist: Vec<f64> = samples.iter().map(|s| p.distance_squared(*s)).collect();
+            let mut nearest = f64::INFINITY;
+            for j in 0..=N {
+                let left = j == 0 || dist[j] <= dist[j - 1];
+                let right = j == N || dist[j] <= dist[j + 1];
+                if !(left && right) {
+                    continue;
+                }
+                let mut lo = j.saturating_sub(1) as f64 / N as f64;
+                let mut hi = (j + 1).min(N) as f64 / N as f64;
+                for _ in 0..50 {
+                    let s1 = lo + (hi - lo) / 3.0;
+                    let s2 = hi - (hi - lo) / 3.0;
+                    if p.distance_squared(offset_at(s1)) < p.distance_squared(offset_at(s2)) {
+                        hi = s2;
+                    } else {
+                        lo = s1;
+                    }
+                }
+                nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
+            }
+            worst = worst.max(nearest);
+        }
+    }
+    worst
+}
+
+/// Compare the Fréchet oracle with the sampled one.
+fn oracle_check() {
+    let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+    println!(
+        "family   which  | calls unmeas | frechet<sampled-eps | frechet>1.1*sampled+eps | over tol: sampled frechet"
+    );
+    for family in ["nearly", "gentle", "wild"] {
+        let curves: Vec<CubicBez> = (0..100).map(|_| make(family, &mut rng)).collect();
+        for (name, f) in [
+            (
+                "old",
+                kurbo::offset::offset_cubic as fn(CubicBez, f64, f64, &mut BezPath),
+            ),
+            ("new", kurbo::offset2::offset_cubic),
+            ("strict", kurbo::offset2::offset_cubic_strict),
+        ] {
+            let (mut calls, mut unmeasured, mut lower, mut higher, mut over_s, mut over_f) =
+                (0, 0, 0, 0, 0, 0);
+            let mut reasons = [0_usize; 3];
+            let mut worst_lower = (0.0, String::new());
+            let mut path = BezPath::new();
+            for c in &curves {
+                for d in [0.5, 2.0, 10.0, -0.5, -2.0, -10.0] {
+                    for tol in [0.25, 0.01, 0.0001] {
+                        f(*c, d, tol, &mut path);
+                        calls += 1;
+                        let sampled =
+                            sampled_error(&kurbo::offset_oracle::regularized(*c, tol), d, &path);
+                        let r = kurbo::offset_oracle::result_error(*c, d, tol, &path);
+                        let eps = 1e-6 * tol;
+                        if r.unmeasured > 0 {
+                            unmeasured += 1;
+                        }
+                        for k in 0..3 {
+                            reasons[k] += r.unmeasured_reasons[k];
+                        }
+                        let frechet = r.error.max(r.unmeasured_lower);
+                        if frechet < sampled - eps - 0.05 * tol {
+                            lower += 1;
+                            let gap = (sampled - frechet) / tol;
+                            if gap > worst_lower.0 {
+                                worst_lower = (
+                                    gap,
+                                    format!(
+                                        "{c:?} d={d} tol={tol} sampled={sampled:e} frechet={frechet:e} unmeasured={}",
+                                        r.unmeasured
+                                    ),
+                                );
+                            }
+                        }
+                        if frechet > 1.1 * sampled + eps {
+                            higher += 1;
+                        }
+                        if sampled > tol * 1.001 {
+                            over_s += 1;
+                        }
+                        if frechet > tol * 1.001 {
+                            over_f += 1;
+                        }
+                    }
+                }
+            }
+            println!(
+                "{family:<8} {name:<6} | {calls:>5} {unmeasured:>6} | {lower:>19} | {higher:>23} | {over_s:>5} {over_f:>5}"
+            );
+            println!(
+                "    unmeasured pieces: no range {}, empty range {}, rays not advancing {}",
+                reasons[0], reasons[1], reasons[2]
+            );
+            if !worst_lower.1.is_empty() {
+                println!(
+                    "    worst lower by {:.2} tol: {}",
+                    worst_lower.0, worst_lower.1
+                );
+            }
+        }
+    }
 }

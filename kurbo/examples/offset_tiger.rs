@@ -16,14 +16,15 @@
 //! minimal and only meant for this file.
 //!
 //! In each group of three columns the first is `offset`, the second
-//! `offset2::offset_cubic` and the third `offset2::offset_cubic_strict`.
+//! `offset2::offset_cubic` and the third `offset2::offset_cubic_strict`. The
+//! error is measured by `kurbo::offset_oracle`, as in `offset_compare`.
 
 #![allow(clippy::print_stdout, reason = "this example exists to print a table")]
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use kurbo::{BezPath, CubicBez, ParamCurve, ParamCurveDeriv, PathSeg, Point};
+use kurbo::{BezPath, CubicBez, PathSeg};
 
 /// The value of an attribute in the text of one element.
 fn attribute<'a>(element: &'a str, name: &str) -> Option<&'a str> {
@@ -60,55 +61,6 @@ fn stroked_cubics(svg: &str) -> Vec<(CubicBez, f64)> {
     cubics
 }
 
-/// The largest distance from a point of `result` to the true offset of `c`.
-///
-/// The same measure as in `offset_compare`, except that the parameter is
-/// kept just inside the ends. Many of the tiger's cubics have a control
-/// point on an end point, where the derivative vanishes and the normal is
-/// only defined as a limit.
-fn result_error(c: &CubicBez, d: f64, result: &BezPath) -> f64 {
-    const N: usize = 2000;
-    const END_EPSILON: f64 = 1e-9;
-    let c1 = c.deriv();
-    let offset_at = |s: f64| {
-        let s = s.clamp(END_EPSILON, 1.0 - END_EPSILON);
-        c.eval(s) + d * c1.eval(s).to_vec2().normalize().turn_90()
-    };
-    let samples: Vec<Point> = (0..=N).map(|j| offset_at(j as f64 / N as f64)).collect();
-    let mut worst = 0.0_f64;
-    for seg in result.segments() {
-        for i in 0..=10 {
-            let p = seg.eval(i as f64 / 10.0);
-            // Refine around every local minimum of the sampled distance, not
-            // only the smallest. Where the offset comes back near itself,
-            // the nearest sample can be on the wrong strand.
-            let dist: Vec<f64> = samples.iter().map(|s| p.distance_squared(*s)).collect();
-            let mut nearest = f64::INFINITY;
-            for j in 0..=N {
-                let left = j == 0 || dist[j] <= dist[j - 1];
-                let right = j == N || dist[j] <= dist[j + 1];
-                if !(left && right) {
-                    continue;
-                }
-                let mut lo = j.saturating_sub(1) as f64 / N as f64;
-                let mut hi = (j + 1).min(N) as f64 / N as f64;
-                for _ in 0..50 {
-                    let s1 = lo + (hi - lo) / 3.0;
-                    let s2 = hi - (hi - lo) / 3.0;
-                    if p.distance_squared(offset_at(s1)) < p.distance_squared(offset_at(s2)) {
-                        hi = s2;
-                    } else {
-                        lo = s1;
-                    }
-                }
-                nearest = nearest.min(p.distance(offset_at(0.5 * (lo + hi))));
-            }
-            worst = worst.max(nearest);
-        }
-    }
-    worst
-}
-
 type OffsetFn = fn(CubicBez, f64, f64, &mut BezPath);
 
 /// Total segments, nanoseconds per call (best of five), and the number of
@@ -121,7 +73,8 @@ fn measure(f: OffsetFn, cubics: &[(CubicBez, f64)], tolerance: f64) -> (usize, f
         for d in [*half_width, -half_width] {
             f(*c, d, tolerance, &mut path);
             n_segments += path.segments().count();
-            if result_error(c, d, &path) > tolerance * 1.001 {
+            let report = kurbo::offset_oracle::result_error(*c, d, tolerance, &path);
+            if report.error.max(report.unmeasured_lower) > tolerance * 1.001 {
                 n_over += 1;
             }
         }
