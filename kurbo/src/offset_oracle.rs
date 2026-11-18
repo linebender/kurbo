@@ -386,23 +386,46 @@ pub fn regularized(c: CubicBez, tolerance: f64) -> CubicBez {
     c.regularize_cusp(tolerance * DIM_TUNE)
 }
 
-/// Measure the error of `result`, an approximation of the offset of `c` by
-/// `d` at `tolerance`, as computed by `crate::offset` or `crate::offset2`.
+/// The error of one piece of a result.
+#[derive(Clone, Copy, Debug)]
+pub enum PieceError {
+    /// The Fréchet distance, as measured by [`piece_error`].
+    Measured(f64),
+    /// The piece could not be measured: its source range was not found,
+    /// the range is empty, or the feet of the rays do not advance. The value
+    /// is a sampled one-sided distance, a lower bound on its error.
+    Unmeasured(Unmeasured, f64),
+}
+
+/// Why a piece could not be measured.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unmeasured {
+    /// Its source range was not found.
+    NoRange,
+    /// Its source range is empty.
+    EmptyRange,
+    /// The feet of the rays do not advance.
+    RaysTurnBack,
+}
+
+/// Measure each piece of `result`, an approximation of the offset of `c`
+/// by `d` at `tolerance`, as computed by `crate::offset` or
+/// `crate::offset2`.
 ///
 /// Both modules approximate the offset of the regularized curve, so that is
 /// what this measures against, and both put the ends of every piece on that
 /// offset. The source range of each piece is recovered from its ends, in
 /// order, and the piece is measured with [`piece_error`].
-pub fn result_error(c: CubicBez, d: f64, tolerance: f64, result: &BezPath) -> ResultError {
+pub fn piece_errors(c: CubicBez, d: f64, tolerance: f64, result: &BezPath) -> Vec<PieceError> {
     let regularized = regularized(c, tolerance);
     let full = SourceOffset::new(regularized, d);
     let cusps = cusp_params(&full);
     let segments: Vec<PathSeg> = result.segments().collect();
-    let mut report = ResultError::default();
+    let mut errors = Vec::with_capacity(segments.len());
     let mut s_start = 0.0;
     for (i, seg) in segments.iter().enumerate() {
         let PathSeg::Cubic(approx) = *seg else {
-            report.unmeasured += 1;
+            errors.push(PieceError::Unmeasured(Unmeasured::NoRange, 0.0));
             continue;
         };
         let s_end = if i + 1 == segments.len() {
@@ -411,29 +434,47 @@ pub fn result_error(c: CubicBez, d: f64, tolerance: f64, result: &BezPath) -> Re
             find_param(&full, &cusps, approx.p3, s_start)
         };
         let Some(s_end) = s_end else {
-            report.unmeasured += 1;
-            report.unmeasured_reasons[0] += 1;
-            report.unmeasured_lower = report
-                .unmeasured_lower
-                .max(sampled_distance(&full, &approx, s_start, 1.0));
+            let lower = sampled_distance(&full, &approx, s_start, 1.0);
+            errors.push(PieceError::Unmeasured(Unmeasured::NoRange, lower));
             continue;
         };
-        let measured = if s_end - s_start > 1e-12 {
-            piece_error(regularized.subsegment(s_start..s_end), d, approx)
+        let error = if s_end - s_start > 1e-12 {
+            match piece_error(regularized.subsegment(s_start..s_end), d, approx) {
+                Some(error) => PieceError::Measured(error),
+                None => PieceError::Unmeasured(
+                    Unmeasured::RaysTurnBack,
+                    sampled_distance(&full, &approx, s_start, s_end),
+                ),
+            }
         } else {
-            None
+            PieceError::Unmeasured(
+                Unmeasured::EmptyRange,
+                sampled_distance(&full, &approx, s_start, s_end),
+            )
         };
-        match measured {
-            Some(error) => report.error = report.error.max(error),
-            None => {
+        errors.push(error);
+        s_start = s_end;
+    }
+    errors
+}
+
+/// Measure the error of a whole result; see [`piece_errors`].
+pub fn result_error(c: CubicBez, d: f64, tolerance: f64, result: &BezPath) -> ResultError {
+    let mut report = ResultError::default();
+    for error in piece_errors(c, d, tolerance, result) {
+        match error {
+            PieceError::Measured(error) => report.error = report.error.max(error),
+            PieceError::Unmeasured(reason, lower) => {
                 report.unmeasured += 1;
-                report.unmeasured_reasons[if s_end - s_start > 1e-12 { 2 } else { 1 }] += 1;
-                report.unmeasured_lower = report
-                    .unmeasured_lower
-                    .max(sampled_distance(&full, &approx, s_start, s_end));
+                report.unmeasured_lower = report.unmeasured_lower.max(lower);
+                let i = match reason {
+                    Unmeasured::NoRange => 0,
+                    Unmeasured::EmptyRange => 1,
+                    Unmeasured::RaysTurnBack => 2,
+                };
+                report.unmeasured_reasons[i] += 1;
             }
         }
-        s_start = s_end;
     }
     report
 }

@@ -368,7 +368,7 @@ Roughly in the order I would take them:
    curves.~~ Does not reproduce on an M5 Max; see the performance pass.
 2. Two-sided output. With `D = d W`, `P` is even in `d`, `Q` is odd, and
    only `beta` differs between the sides. Estimated at 1.3 times one side.
-3. The `kappa d` test in the chooser.
+3. ~~The `kappa d` test in the chooser.~~ Tried; see above. Not adopted.
 4. The split certificate, which certified about 8% more pieces.
 5. The mirrored certificate for the G1 bound.
 6. A rounding allowance. The bounds are strict down to a small multiple of
@@ -484,6 +484,52 @@ pieces with it (none fell back), and so do the tests on whole results.
 On the tiger, `offset.rs` is over tolerance on 6, 23 and 47 of 672 calls at
 1/32, 1/256 and 1/2048 (the sampled oracle said 3, 11 and 41); offset2 and
 strict on none.
+
+### Where the default mode misses
+
+With each piece traced to the path that accepted it and measured with the
+oracle (`piece_errors`), over the wild family (1800 calls):
+
+- 41 calls are over tolerance, and every one has a piece emitted at the
+  maximum depth. Of 95 such pieces, 92 are over tolerance, the worst by
+  20,000 times (2.0 at tolerance 1e-4). The approximation emitted there is
+  whatever fit the last attempt made, with no check at all.
+- The sampled estimate accepted 3086 pieces, one of them over tolerance,
+  by 0.1%. Where it accepted and the error was above 1% of the tolerance,
+  error over estimate had median 1.000, p90 1.011, p99 1.22 and maximum
+  2.31, so the safety factor of 1.25 is doing its job.
+- No strict bound accepted a piece over tolerance.
+
+Nearly straight and gentle curves had no misses. So the misses are a
+question of what to emit at the maximum depth, not of the estimate.
+
+### The `kappa d` test in the chooser, tried
+
+Using the two-point fit, with the G1 bounds, also where
+`|(1 - c) / c| < threshold` for the cusp value `c` at both ends (or at
+either end), in addition to where there is an inflection. Segments and
+calls over tolerance (Fréchet oracle) on the three random families, all
+nine settings each, and geometric mean time per call:
+
+| Setting | Nearly | Gentle | Wild | ns, default | ns, strict |
+|---|---|---|---|---|---|
+| Off | 1800 / 0 | 2971 / 0 | 13319 / 41 | 186 | 200 |
+| Both, 0.0125 | 1809 / 0 | 2921 / 0 | 13330 / 43 | 188 | 210 |
+| Both, 0.025 | 1809 / 0 | 2915 / 0 | 13333 / 43 | 191 | 215 |
+| Either, 0.025 | 1809 / 0 | 2865 / 0 | 13513 / 46 | 197 | 225 |
+| Both, 0.1 | 1809 / 0 | 2930 / 0 | 13662 / 43 | 202 | 230 |
+| Either, 0.2 | 1809 / 0 | 3157 / 0 | 15244 / 48 | 218 | 253 |
+
+On the tiger, "both, 0.0125" gives 897 against 922 segments at 1/32 and
+130 against 135 ns, but 1% and 2% more segments at 1/256 and 1/2048.
+"Either" is worse throughout.
+
+So the regret result above (1.43 against 2.57) does not carry over. It
+compared the errors of single fits. End to end, the two-point fit has to
+be accepted through the G1 bound, which costs about ten times the
+one-point bound, and its certificate succeeds less often (61% against 84%
+of pieces). Not adopted. It might pay with a cheaper G1 path, such as the
+original's `g1_cheap_bound`.
 
 ## Where this departs from the original notes
 
