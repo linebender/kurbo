@@ -35,7 +35,8 @@ Medium:
 6. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
    calls exactly but saves only 7% against them; the stroker can use it
    (`OffsetMethod::Offset2Pair`). Sharing the sampled estimate's
-   evaluations is the next step there ("Both sides at once").
+   evaluations was tried and made it slower. What is left to share
+   depends on `beta` ("Both sides at once").
 7. **Another corpus**, with ordinary end handles, to see how much of the
    tiger's behaviour is the tiger's.
 
@@ -718,8 +719,15 @@ Whole tiger strokes, time per tiger:
 | 1/256 | 529 µs | 173 to 175 µs | 162 to 163 µs | 0.31 |
 | 1/2048 | 1644 µs | 288 to 297 µs | 256 to 261 µs | 0.16 |
 
-Not done: sharing the sampled estimate's evaluations along the piece,
-which are the same on both sides up to sign.
+Sharing the sampled estimate's evaluations was tried and dropped. At each
+sample the estimate needs six dot products, `|D|^2`, `D.C'`, `|C'|^2`,
+`D.C''`, `C'.C''` and `D.C'''`; for the other side the three odd in `D`
+change sign, exactly. Caching them per sample in `Shared`, filled in
+whichever orientation computed them first since either side may stop
+early, kept the output bit for bit, but made the pair 4% slower in the
+default mode and 2% slower in strict, which never takes the estimate.
+Each sample costs a few multiply-adds, no more than checking and storing
+it, and the larger cache costs on every piece.
 
 ## Where this departs from the original notes
 
