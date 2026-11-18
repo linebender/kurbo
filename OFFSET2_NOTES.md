@@ -1161,6 +1161,55 @@ pair of cusps hidden at a sharp turn of the source until subdivision lands
 between them, and runs out of depth on one survey curve (by the oracle;
 the exact measure does not reach its tolerance of 1e-4).
 
+## Pieces ending at a cusp (19 November 2026)
+
+A piece split at a cusp has the value `CUSP_EPSILON` at that end, so the
+ratio guard on the osculating estimate always failed and the piece went to
+the slow path, which on the tiger mostly accepted it anyway: about 100
+decisions per side at 1/32, each paying for `Taylor`, a certificate that
+cannot hold (`beta` vanishes at a cusp), the equal-parameter bound and the
+sampled estimate.
+
+The guard was added for pieces running into the tip of a near cusp, where
+the cusp value falls toward zero without crossing it. Measured on pieces
+that end exactly at a cusp (ignored test
+`osculating_estimate_at_cusp_ends`: 4,575 pieces from 400 random cubics at
+six widths, fitted as `approximate` fits them), error over the osculating
+estimate has median 0.98, p90 1.08, p99 1.16 and maximum 1.59, as good as
+on ordinary pieces. Six more samples near the ends changed nothing.
+
+So an end that is a cusp split (`cusp_min == CUSP_EPSILON`) is exempt from
+the ratio. Results against `ec0dff1`:
+
+| | Before | After |
+|---|---|---|
+| Whole tiger strokes, pair, µs at 1/32, 1/256, 1/2048 | 58.3, 93.9, 153.8 | 55.7, 88.1, 143.8 |
+| Tiger segments (strokes) | 1681, 2272, 3047 | the same |
+| Tiger, ns per call, default | 85, 144, 244 | 79, 132, 228 |
+| Random families, geometric mean ns | 132 to 134 | 129 to 132 |
+| Wild segments, default | 42,672 | 42,636 |
+| `offset_compare` over tolerance | 0% | 0% |
+
+Nearly straight and gentle curves give identical output. In the vanishing
+end survey the exact one-sided measure is unchanged; the oracle reports
+two new cases at `d = 30`, 1.13 and 1.26 times, within the looseness
+measured above.
+
+This more than pays back the vanishing end fix: whole tiger strokes are now
+faster than at `46f031b` (56.3, 89.2 and 154.3 µs).
+
+Also tried in this round, and dropped:
+
+- Computing all eight osculating samples without branches, then checking
+  them in order, so that the compiler might pair them in SIMD registers:
+  it did not, and losing the early exit made it 12% slower.
+- Horner's rule in the power basis for the samples: 1 to 3% slower. The
+  loop is bound by latency, and the Bernstein form's independent products
+  overlap better than Horner's chain.
+- Retrying a rejected one-point fit with the midpoint G1 fit before
+  splitting: 40% slower on the tiger, and 20% on the random families, for
+  0.3 to 2% fewer segments. After a rejection it rarely succeeds.
+
 ## Where this departs from the original notes
 
 The bounds were reconstructed from "Cheap Offset Error Bounds", not ported

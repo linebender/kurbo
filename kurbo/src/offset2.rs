@@ -681,7 +681,11 @@ impl CubicOffset {
         // the offset.
         let cusp_min = rec.cusp0.min(rec.cusp1);
         let cusp_max = rec.cusp0.max(rec.cusp1);
-        if !self.strict && cusp_min > 0.0 && cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min {
+        // A piece ending at a cusp, split there, has the value
+        // `CUSP_EPSILON` at that end; the ratio does not apply to it.
+        let cusp_ratio_ok =
+            cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min || cusp_min == CUSP_EPSILON;
+        if !self.strict && cusp_min > 0.0 && cusp_ratio_ok {
             let fit = match linear_fit {
                 Some((a, b)) => {
                     let fit = self.apply(seg, rec, a, b);
@@ -3514,6 +3518,148 @@ mod tests {
             assert!(
                 error <= 1.25 * tolerance,
                 "error {error} at s = {s}, tolerance {tolerance}, for {c:?}, d = {d}"
+            );
+        }
+    }
+
+    /// The osculating estimate at the given samples.
+    fn osculating_at(seg: &CubicBez, delta: &[Vec2; 4], d: f64, samples: &[f64]) -> f64 {
+        let c1 = seg.deriv();
+        let c2 = c1.deriv();
+        let mut worst = 0.0_f64;
+        for &t in samples {
+            let mt = 1.0 - t;
+            let d_t = delta[0] * (mt * mt * mt)
+                + delta[1] * (3.0 * mt * mt * t)
+                + delta[2] * (3.0 * mt * t * t)
+                + delta[3] * (t * t * t);
+            let q = c1.eval(t).to_vec2();
+            let qq = c2.eval(t).to_vec2();
+            let s = q.hypot();
+            let n = q.turn_90() / s;
+            let w = d_t / d;
+            let dot = n.dot(w);
+            let cross = (q / s).dot(w);
+            let kappa = qq.cross(q) / (s * s * s);
+            let kappa_off = kappa / (1.0 + kappa * d);
+            worst = worst.max(((dot - 1.0) + 0.5 * kappa_off * d * cross * cross).abs());
+        }
+        worst * d.abs()
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    #[ignore = "measurement, prints ratios"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print ratios")]
+    fn osculating_estimate_at_cusp_ends() {
+        // Pieces that end exactly at a cusp of the offset, fitted as
+        // `approximate` fits them, against the Fréchet error: does the
+        // osculating estimate hold there, and do samples near the ends help?
+        use crate::offset_oracle::piece_error;
+        let base: Vec<f64> = OSCULATING_SAMPLES.to_vec();
+        let mut dense = base.clone();
+        dense.extend([0.0078125, 0.015625, 0.03125, 0.96875, 0.984375, 0.9921875]);
+        let mut rows: Vec<(f64, f64, f64)> = Vec::new();
+        let mut rng = Rng(77);
+        for _ in 0..400 {
+            let c = rng.cubic();
+            for d in [0.3, -0.3, 3.0, -3.0, 30.0, -30.0] {
+                let co = CubicOffset::new(c, d, 0.0, false);
+                // Sign changes of the cusp value on a grid.
+                let n = 400;
+                for j in 0..n {
+                    let (a, b) = (j as f64 / n as f64, (j + 1) as f64 / n as f64);
+                    let (ya, yb) = (co.scaled_cusp_and_deriv(a).0, co.scaled_cusp_and_deriv(b).0);
+                    if !(ya * yb < 0.0) || a == 0.0 || b == 1.0 {
+                        continue;
+                    }
+                    let t_star = co.find_cusp(a, b, yb.signum());
+                    for h in [0.4, 0.2, 0.1, 0.05, 0.025] {
+                        for side in [false, true] {
+                            let (t0, t1) = if side {
+                                (t_star, (t_star + h).min(1.0))
+                            } else {
+                                ((t_star - h).max(0.0), t_star)
+                            };
+                            if t1 - t0 < 1e-3 {
+                                continue;
+                            }
+                            let piece = c.subsegment(t0..t1);
+                            let q = c.deriv();
+                            let (u0, u1) = (
+                                q.eval(t0).to_vec2().normalize(),
+                                q.eval(t1).to_vec2().normalize(),
+                            );
+                            let cusp0 = if side {
+                                CUSP_EPSILON.copysign(co.cusp_sign(t1))
+                            } else {
+                                co.cusp_sign(t0)
+                            };
+                            let cusp1 = if side {
+                                co.cusp_sign(t1)
+                            } else {
+                                CUSP_EPSILON.copysign(co.cusp_sign(t0))
+                            };
+                            if !(cusp0 > 0.0 && cusp1 > 0.0) {
+                                continue;
+                            }
+                            let rec = OffsetRec {
+                                t0: 0.0,
+                                t1: 1.0,
+                                utan0: u0,
+                                utan1: u1,
+                                cusp0,
+                                cusp1,
+                                depth: 1,
+                            };
+                            let pco = CubicOffset::new(piece, d, 0.0, false);
+                            let has_inflection = (cusp0 - 1.0) * (cusp1 - 1.0) < 0.0;
+                            let lin = if has_inflection {
+                                two_point(&piece, &rec)
+                            } else {
+                                one_point(&piece, &rec)
+                            };
+                            let fit = match lin {
+                                Some((a, b)) => {
+                                    let f = pco.apply(&piece, &rec, a, b);
+                                    if f.clamped {
+                                        pco.draw_arc(&piece, &rec)
+                                    } else {
+                                        f
+                                    }
+                                }
+                                None => pco.draw_arc(&piece, &rec),
+                            };
+                            let Some(err) = piece_error(piece, d, fit.approx) else {
+                                continue;
+                            };
+                            if !(err > 1e-4 * d.abs() && err < 0.3 * d.abs()) {
+                                continue;
+                            }
+                            rows.push((
+                                err,
+                                osculating_at(&piece, &fit.delta, d, &base),
+                                osculating_at(&piece, &fit.delta, d, &dense),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        for (name, i) in [("8 samples", 1), ("8 + 6 near the ends", 2)] {
+            let mut r: Vec<f64> = rows
+                .iter()
+                .map(|x| x.0 / if i == 1 { x.1 } else { x.2 })
+                .collect();
+            r.sort_by(f64::total_cmp);
+            let q = |p: f64| r[((r.len() - 1) as f64 * p) as usize];
+            std::println!(
+                "{name}: {} pieces; error / estimate median {:.3} p90 {:.3} p99 {:.3} max {:.3}",
+                r.len(),
+                q(0.5),
+                q(0.9),
+                q(0.99),
+                q(1.0)
             );
         }
     }
