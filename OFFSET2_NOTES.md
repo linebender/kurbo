@@ -56,11 +56,15 @@ Large, or open questions:
     handle, kurbo-wide.
 11. **Hidden pairs of cusps in strict mode**, which has no samples to find
     them; see the end of "Vanishing end derivatives".
-12. **Near cusps at tight tolerances run out of depth**, in both modes,
-    with the angle split: every call at a gap of 1e-6 and tolerance 1e-6,
-    and thousands of pieces at 1e-4. Not checked: whether the pieces
-    emitted there are within tolerance. Midpoint splitting converges far
-    better there and far worse on hairpins ("Near cusps").
+12. **Near cusps at tight tolerances still run out of depth**, in both
+    modes, though 3 to 20 times less since the subdivision margin, and the
+    pieces emitted there are far off: strict mode is 28 to 4 million times
+    the tolerance at 1e-4 and below ("Lopsided splits").
+13. **A near cusp hidden inside a piece in the default mode**: both
+    estimates see a piece only at their samples, which can straddle the
+    tip, giving errors up to `2 |d|` (35 to 40 times at tolerance 0.25)
+    where strict mode is within tolerance. A guard on the hodograph fixes
+    it but costs 42 to 48% on the tiger at 1/32 ("Lopsided splits").
 
 Done or dropped: the midpoint G1 retry and the G1 bound (removed, see
 "Trimming"), the slip guard on two-point fits only, and hidden
@@ -1367,4 +1371,56 @@ So the curvature integral in the inflection branch earns its keep on
 hairpins, and neither split converges well everywhere. A split that
 finds the tip of a near cusp directly (the minimum of `|C'|`) may be what
 is missing.
+
+### Lopsided splits (19 November 2026)
+
+Splitting at the minimum of `|C'|` was suggested for near cusps. A trace
+of a failing one showed that the angle split finds the tip at once; the
+trouble is every split after that. Next to the tip nearly all the
+turning is concentrated at one end of the piece, and the bisector of the
+end tangents lands within 1e-6 to 1e-7 of the piece from it, so each split
+leaves a piece that turns a little less but is as long as before (1e-4
+across at tolerance 1e-6), until the maximum depth. Splitting at the
+minimum of `|C'|` would only help the first split of a tip.
+
+So `keep_inside` now moves a split point to at least
+`SUBDIVISION_MIN_SHARE` (10%) of the piece from either end. Midpoint
+fallback instead of moving was much worse on hairpins. On the survey,
+clamping at 5, 10, 15 and 25% all beat none; 10% is the balance (25% is
+best at the extremes and worse on moderate near cusps). Against the
+previous version: pieces at the maximum depth fall 3 to 20 times on near
+cusps, hairpins at tolerance 1e-6 go from 168 times the tolerance to 1.09
+and from 213 such pieces to 15, segments fall, and the tiger and random
+families are unchanged in time (within 1.4%).
+
+The new split points exposed a default-mode miss of 2.2 times on one wild
+curve (`d = 10`, tolerance 0.25): the sampled estimate accepted, at 0.31
+of its true error, a piece next to a regularized near cusp whose end cusp
+values differ 160 times. It now refuses pieces above
+`ESTIMATE_MAX_CUSP_RATIO` (64), as the osculating estimate does above 3,
+with the same exemption for a piece ending at a cusp of the offset. That
+removes the miss with no measured cost; at 16 it costs segments. It adds
+10 to 20% default segments on the near-cusp families at loose tolerances.
+
+Measuring accuracy near cusps needs care. The functions approximate the
+offset of the regularized input, and regularizing alone moves the offset
+near a cusp by up to `2 |d|`; measured against the raw input, every near
+cusp looked off by exactly that. And the oracle's range matching broke
+down here (strict mode at a trillion times the tolerance). The survey now
+reports the one-sided distance from the offset of the regularized input
+to the result, which needs no matching.
+
+With that measure, two problems remain, both from before:
+
+- The default mode misses a near cusp inside a piece (open item 13). The
+  ends of such a piece look ordinary, with cusp values near 1, and the
+  samples straddle the tip. Trusting the estimates only where the tangent
+  turns less than a half turn (the middle hodograph control point within
+  a quarter turn of both end tangents) brings the default mode to strict
+  mode's accuracy on every row, and fixes a random curve at 1.96 times at
+  tolerance 0.25. It costs 42 to 48% on the tiger at 1/32 and 6 to 7% at
+  1/2048 (with end tangents for zero handles; with the handles themselves,
+  2 to 2.8 times), so a finer test is needed.
+- Strict mode emits pieces far from the offset at the maximum depth on
+  near cusps at tolerance 1e-4 and below (open item 12).
 

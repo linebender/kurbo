@@ -81,6 +81,13 @@ const SPLIT_MARGIN: f64 = 1e-6;
 /// last place of the largest coordinate; see [`CubicOffset::accepts`].
 const ROUND_ULPS: f64 = 8.0;
 
+/// The smallest share of a piece's parameter range on either side of a
+/// subdivision point chosen by angle or curvature; see
+/// [`CubicOffset::keep_inside`]. Measured on near cusps and hairpins
+/// (`near_cusp_depth_survey`), 5 to 15% all do far better than none, and 10%
+/// is the best balance; the speed elsewhere does not change.
+const SUBDIVISION_MIN_SHARE: f64 = 0.1;
+
 /// Maximum recursion depth.
 ///
 /// This is a robustness guard. A piece at this depth is emitted whether or
@@ -792,6 +799,17 @@ impl CubicOffset {
         if self.strict {
             return false;
         }
+        // With the curvature times `d` concentrated at one end, the error is
+        // too, between the samples. A piece split at a cusp of the offset has
+        // the value `CUSP_EPSILON` at that end; the ratio does not apply.
+        let cusp_min = rec.cusp0.min(rec.cusp1);
+        let cusp_max = rec.cusp0.max(rec.cusp1);
+        if cusp_min > 0.0
+            && cusp_min != CUSP_EPSILON
+            && cusp_max > ESTIMATE_MAX_CUSP_RATIO * cusp_min
+        {
+            return false;
+        }
         // Where the foot point is ill defined at a sample, which happens
         // if the piece hides a pair of cusps, estimate the distance at
         // equal parameter instead. That overestimates, but it is defined.
@@ -983,7 +1001,8 @@ impl CubicOffset {
         self.keep_inside(rec, subdivision)
     }
 
-    /// Replace a subdivision point at an end of the piece with the midpoint.
+    /// Move a subdivision point that is within [`SUBDIVISION_MIN_SHARE`] of
+    /// an end of the piece to that distance from it.
     ///
     /// Splitting at an end leaves a piece of zero length, whose end tangents
     /// are arbitrary and whose cusp value can be `0 / 0`. Its approximation
@@ -991,12 +1010,17 @@ impl CubicOffset {
     /// at one piece at a time, cannot see is wrong. This happens where the
     /// derivative of the source vanishes at an end: `t = 0` then solves
     /// `tan x c'(t) = 0` for every direction `tan`.
+    ///
+    /// Splitting very near an end is nearly as bad. Next to a near cusp of
+    /// the source almost all the turning is at the tip, and the angle
+    /// bisector lands within a millionth of the piece from it, so each split
+    /// leaves a piece that turns less but is as long as before.
     fn keep_inside(&self, rec: &OffsetRec, subdivision: SubdivisionPoint) -> SubdivisionPoint {
-        let margin = SPLIT_MARGIN * (rec.t1 - rec.t0);
+        let margin = SUBDIVISION_MIN_SHARE * (rec.t1 - rec.t0);
         if subdivision.t > rec.t0 + margin && subdivision.t < rec.t1 - margin {
             return subdivision;
         }
-        let t = 0.5 * (rec.t0 + rec.t1);
+        let t = subdivision.t.clamp(rec.t0 + margin, rec.t1 - margin);
         const UTAN_EPSILON: f64 = 1e-12;
         let q_t = self.q.eval(t).to_vec2();
         let utan = if q_t.length_squared() >= UTAN_EPSILON {
@@ -1904,6 +1928,15 @@ const OSCULATING_MAX_CUSP_RATIO: f64 = 3.0;
 /// short. In tests it was rarely below 0.8 of the true error.
 const ESTIMATE_SAFETY: f64 = 1.25;
 
+/// The largest ratio between the cusp values at the ends of a piece for
+/// which the sampled estimate is trusted.
+///
+/// Above it the curvature is concentrated at one end. A piece next to a
+/// regularized near cusp with a ratio of 160 was accepted at 0.31 of its
+/// true error. The osculating estimate has the much tighter
+/// [`OSCULATING_MAX_CUSP_RATIO`].
+const ESTIMATE_MAX_CUSP_RATIO: f64 = 64.0;
+
 /// The number of samples the estimate takes.
 const N_SAMPLES: usize = 7;
 
@@ -2528,11 +2561,13 @@ mod tests {
         assert!(n_checked > 200, "{n_checked}");
     }
 
-    /// Segments, and pieces emitted at the maximum depth, for families with
-    /// sharp turns: random cubics, hairpins, and cusps made inexact by a
-    /// given gap between the middle control points. These are what the
-    /// small-piece bound is for, and what the random families and the
-    /// tiger hardly contain. Run with `--ignored --nocapture`.
+    /// Segments, pieces emitted at the maximum depth, and the worst error
+    /// (a lower bound: the one-sided distance from the offset to the
+    /// result), for families with sharp turns: random cubics, hairpins, and
+    /// cusps made inexact by a given gap between the middle control points.
+    /// These are what the small-piece bound and the subdivision margin are
+    /// for, and what the random families and the tiger hardly contain. Takes
+    /// a few minutes. Run with `--ignored --nocapture`.
     #[cfg(feature = "std")]
     #[test]
     #[ignore = "measurement, prints counts"]
@@ -2573,13 +2608,15 @@ mod tests {
             families.push((std::format!("cusp, gap {gap:e}"), cusps));
         }
         std::println!(
-            "family, tolerance: segments and pieces at the maximum depth, default | strict"
+            "family, tolerance: segments, pieces at the maximum depth, and the worst distance \
+             from the offset to the result over the tolerance; default | strict"
         );
         for (name, curves) in &families {
             for tolerance in [0.25, 1e-2, 1e-4, 1e-6] {
                 let mut cells = Vec::new();
                 for strict in [false, true] {
                     let (mut n_segments, mut n_out_of_depth) = (0, 0);
+                    let mut worst = 0.0_f64;
                     for c in curves {
                         for d in [1.0, -1.0, 5.0, -5.0] {
                             OUT_OF_DEPTH.with(|count| count.set(0));
@@ -2591,9 +2628,19 @@ mod tests {
                             }
                             n_out_of_depth += OUT_OF_DEPTH.with(|count| count.get());
                             n_segments += result.segments().count();
+                            // Against the offset of the regularized input,
+                            // which is what is approximated: near a cusp,
+                            // regularizing alone moves the offset by up to
+                            // `2 |d|`. The oracle's range matching is
+                            // unreliable here, so use the one-sided measure.
+                            let regularized = c.regularize_cusp(0.25 * tolerance);
+                            let (error, _) = offset_to_result(regularized, d, &result, 4000);
+                            worst = worst.max(error / tolerance);
                         }
                     }
-                    cells.push(std::format!("{n_segments:>7} {n_out_of_depth:>6}"));
+                    cells.push(std::format!(
+                        "{n_segments:>7} {n_out_of_depth:>6} {worst:>9.2}"
+                    ));
                 }
                 std::println!("{name:>16}, {tolerance:e}: {} | {}", cells[0], cells[1]);
             }
