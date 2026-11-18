@@ -68,6 +68,7 @@ the slip term dominates under subdivision.
 | Equal-parameter | any fit, any piece | no | 1 | about 30 ns | median ratio in the hundreds to thousands |
 | Hull | any fit, turn under a right angle | no | 1 in the turning | few ns after a gate | essentially `|d| theta` |
 | Small piece | arc drawing, tangent turns one way | no | none | small | diameter plus `|d| epsilon` |
+| Hairline | any fit, any piece | no | none | trivial | `max |D_i| + |d|`, at least `2 |d|` |
 
 "Ratio" is bound over measured error. Zero cases were found of any bound
 falling below the measured error, once the bugs listed below were fixed.
@@ -84,6 +85,7 @@ certificate). The G1 bound returns `None` there.
 
 ## How a piece is handled
 
+0. If `2 |d|` is within the tolerance: arc drawing with the hairline bound.
 1. Root only, behind a gate on `|d| sin(theta)`: arc drawing with the hull
    bound.
 2. If the chord is under the tolerance: arc drawing with the small piece
@@ -273,11 +275,12 @@ midpoint. The output on the random families is unchanged, bit for bit.
 `strict_result_with_vanishing_end_derivative` covers it. `offset.rs` still
 has the bug.
 
-Results (segments, ns per call best of five, calls over tolerance):
+Results with the hairline bound (segments, ns per call best of five, calls
+over tolerance):
 
 | Tolerance | `offset.rs` | offset2 | strict | `offset.rs` ns | offset2 ns | strict ns | over: `offset.rs` | offset2 | strict |
 |---|---|---|---|---|---|---|---|---|---|
-| 1/32 | 838 | 922 | 1775 | 175 | 140 | 238 | 3 | 0 | 0 |
+| 1/32 | 838 | 922 | 1727 | 175 | 133 | 228 | 3 | 0 | 0 |
 | 1/256 | 1959 | 1197 | 3307 | 758 | 234 | 545 | 11 | 0 | 0 |
 | 1/2048 | 5215 | 1925 | 4847 | 2401 | 389 | 826 | 41 | 0 | 0 |
 
@@ -291,6 +294,47 @@ on every piece that touches such an end, and the uncertified bounds
 subdivide toward it. Handling that end better, for instance by fitting
 the end piece differently or with a bound that allows `beta` to vanish at
 the end, is the obvious next step for this corpus.
+
+### Why offset2 is only 20% faster here
+
+Measured by stroke width at 1/32 (calls; segments for `offset.rs`, offset2,
+strict; ns per call):
+
+| Half width | Calls | Segments | ns |
+|---|---|---|---|
+| 0.0075 | 72 | 72, 72, 120 | 91, 84, 128 |
+| 0.0195 | 204 | 204, 240, 330 | 95, 85, 112 |
+| 0.022 | 104 | 104, 104, 210 | 91, 80, 168 |
+| 0.087 | 40 | 40, 40, 76 | 91, 96, 156 |
+| 0.196 | 252 | 418, 466, 1039 | 314, 233, 419 |
+
+- 420 of the 672 calls have `|d|` below the tolerance. Both modules make
+  one segment, and both cost about 90 ns, mostly fixed cost. The curves
+  turn more than a right angle, so the root hull bound fails, and offset2
+  pays for a fit, `Taylor`, a certificate that fails, and the estimate,
+  only to accept the root.
+- On the widest strokes, 63% of the time, only 32 of 646 pieces are
+  decided by a certified bound, and 494 by the sampled estimate. With
+  `p1 = p0`, `C'(0) = 0` and `C''(0)` is parallel to the tangent, so
+  `beta(0) = 0` exactly and the certificate fails on every piece touching
+  that end. The source handle has zero length, so the fit's handle is
+  often clamped, which sent 201 pieces to arc drawing.
+
+Lengthening a handle shorter than `tol / 4` to that length, in the
+regularizer, was tried and made things worse: 488 against 466 segments on
+the widest strokes, and slower. It turns infinite curvature at the end
+into a very large finite one, and that stretch still needs pieces.
+
+The hairline bound (above) was added for the first point. It takes the
+0.0075 strokes from 84 to 28 ns, and the whole tiger at 1/32 from 140 to
+133 ns (strict: 238 to 228, 1775 to 1727 segments). It cannot reach
+0.0195 or 0.022, where `2.7 |d|` is over the tolerance. No cheap bound
+that pairs hull vertices with cone directions can, since such a bound is
+first order in the turning.
+
+A vanishing end derivative might not deserve a special case. The tiger
+may be unusual in having so many, so another corpus would show whether
+this matters in general.
 
 The error measure in `offset_compare`, and in the tests, used the normal
 of the source at exactly `t = 0`, which is NaN there. The nearest-sample

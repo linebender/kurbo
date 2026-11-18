@@ -360,6 +360,16 @@ impl CubicOffset {
         let d = self.d;
         let tolerance = self.tolerance;
 
+        // A thin stroke can be accepted whatever the shape of the piece,
+        // with arc drawing and a bound that needs no more than the fit. It
+        // is at least `2 |d|`, so only try it when that is small enough.
+        if 2.0 * d.abs() <= tolerance {
+            let arc = self.draw_arc(seg, rec);
+            if hairline_bound(&arc.delta, d) <= tolerance {
+                return (Some(arc.approx), arc.approx);
+            }
+        }
+
         // At the root, a piece that turns very little can be accepted with
         // arc drawing and a bound that costs almost nothing. This also
         // catches straight and nearly straight pieces, for which the linear
@@ -1562,6 +1572,19 @@ fn hull_bound(seg: &CubicBez, rec: &OffsetRec, delta: &[Vec2; 4], d: f64) -> Opt
     Some(worst.sqrt())
 }
 
+/// Bound the distance between any approximation and the offset at equal
+/// parameter, by the triangle inequality alone.
+///
+/// `D(t)` lies in the hull of its control points, and `d n(t)` has length
+/// `|d|`, so `|D(t) - d n(t)|` is at most the largest control point norm
+/// plus `|d|`. This holds for any piece and any fit, across cusps and
+/// whatever the turning, but it is never below `2 |d|`, so it is only
+/// useful where the stroke is thin relative to the tolerance. There it
+/// accepts at the root pieces that turn too far for [`hull_bound`].
+fn hairline_bound(delta: &[Vec2; 4], d: f64) -> f64 {
+    max_norm(delta) + d.abs()
+}
+
 /// Bound the error of arc drawing on a piece that is small.
 ///
 /// Suppose the direction of the source tangent turns one way only over the
@@ -2058,6 +2081,11 @@ mod tests {
                     );
                     n_hull += 1;
                 }
+                let bound = hairline_bound(&fit.delta, d);
+                assert!(
+                    bound >= distance - slack(d),
+                    "hairline bound {bound:e} below distance {distance:e} for {piece:?}, d = {d}"
+                );
             }
         });
         assert!(n_equal_parameter > 1000, "{n_equal_parameter}");
