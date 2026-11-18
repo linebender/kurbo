@@ -1207,6 +1207,25 @@ estimate median 0.77, p99 1.11, maximum 1.30). Letting it decide them
 saved 2% on the tiger at 1/2048 and nothing elsewhere, and cost 0.6% more
 segments on wild curves, so it was not adopted.
 
+Deciding both sides in one pass, tried again. With the stubs fixed, both
+sides of a tiger stroke share their fit far more often: 296 of 719
+osculating decisions at 1/32 are a second side whose `D` is exactly the
+first side's negated (97 of about 550 before). Two versions:
+
+- One loop over the samples computing the shared values and then each
+  side's checks, with per-side state: in isolation 49.6 ns against 43.4
+  for two separate calls. The per-side state checks seem to defeat the
+  overlap between iterations that the plain loop gets from prediction.
+- The shared values for all eight samples into an array first, then each
+  side's checks as its own early-exit loop: in isolation 34.5 against
+  43.6 ns when every sample is needed, and 29.5 against 31.5 with
+  rejections. But in the stroker it was still slower (whole tiger strokes
+  56.8, 90.8 and 150.3 µs against 55.0, 87.4 and 142.8): the cached
+  verdict and `D` make `Shared` bigger on every piece, `approximate` for
+  the pair compiles worse, and a pass is wasted when the other side never
+  asks. This is the third time added state on the pair's path has cost
+  more than it saved; the pair is best kept thin.
+
 This more than pays back the vanishing end fix: whole tiger strokes are now
 faster than at `46f031b` (56.3, 89.2 and 154.3 µs).
 
