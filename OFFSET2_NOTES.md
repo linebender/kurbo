@@ -5,9 +5,57 @@ These notes record the reasoning, measurements and open questions behind
 that produced it. They were written in November 2026 against kurbo commit
 `a5f97ff` (0.13.1).
 
-All timings below are from a 2.1 GHz Xeon sandbox, not from the machine the
-code is meant for. All accuracy figures are from random cubics with control
-points in a 100 unit box, unless stated. Treat both as indicative.
+The first sections, up to "Code that is not in the module", date from the
+web session; timings there are from a 2.1 GHz Xeon sandbox. Later sections
+are dated and use an M5 Max. Accuracy figures are from random cubics with
+control points in a 100 unit box, unless stated.
+
+## Open items
+
+The one current list. Each points to its section below.
+
+Small:
+
+1. **What to emit at the maximum depth.** Every default-mode miss and
+   every strict-mode miss is a piece at depth 8, emitted unchecked, some
+   thousands of times over tolerance ("Where the default mode misses").
+   Likely a question of the subdivision point: the rules inherited from
+   `offset.rs` split by parameter or by angle. The earlier midpoint G1
+   module (fast-stroke, branch `failed_k4`, `interactive/src/midpoint.rs`)
+   split at the source parameter the fit matched, falling back to the
+   parametric midpoint when that is within 10% of an end twice running.
+2. **Rounding allowance.** The original adds 8 ulps of the largest
+   coordinate to every bound (`ROUND_ULPS` in bezfit's `bound/cheap.rs`).
+3. **Newton cusp solve in `offset.rs`**, on the `offset-split-at-end`
+   branch, so that benchmarks compare bounds and fits, not solvers.
+4. **The midpoint G1 retry**: decide whether to adopt it, and speed up its
+   solve ("The midpoint G1 fit").
+
+Medium:
+
+5. **Certifying each half separately**: 2 to 5 more points of
+   certification; port from the original's `split` option, with
+   remainders per half ("The original certificate, compared").
+6. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
+   and FootWeighted). The G1 bound is loose in the tail on the midpoint G1
+   fit (p90 of bound over error 25 to 34 times).
+7. **Both sides in one pass.** Estimated at 1.3 times one side. Deferred.
+8. **Another corpus**, with ordinary end handles, to see how much of the
+   tiger's behaviour is the tiger's.
+
+Large, or open questions:
+
+9. A certificate that allows `beta` to vanish at an end, for zero end
+   derivatives. Possibly not worth a special case.
+10. The mirrored certificate for the G1 bound.
+11. Strong correctness: locate every cusp, report reversals, and add
+    evolute sections, which need their own fit and bound.
+
+Done or dropped: the near-line slowdown (did not reproduce), the end
+subdivision bug (fixed here, and in `offset.rs` on `offset-split-at-end`),
+the error oracle (now Fréchet), the `kappa d` chooser and skip-level
+subdivision (tried, dropped), tuning the estimate's safety factor (not
+needed).
 
 ## What the module is
 
@@ -362,21 +410,7 @@ parameter 1e-9 inside the ends.
 
 ## Not done
 
-Roughly in the order I would take them:
-
-1. ~~The reason near-lines at tight tolerance cost more than gentle
-   curves.~~ Does not reproduce on an M5 Max; see the performance pass.
-2. Two-sided output. With `D = d W`, `P` is even in `d`, `Q` is odd, and
-   only `beta` differs between the sides. Estimated at 1.3 times one side.
-3. ~~The `kappa d` test in the chooser.~~ Tried; see above. Not adopted.
-4. The split certificate, which certified about 8% more pieces.
-5. The mirrored certificate for the G1 bound.
-6. A rounding allowance. The bounds are strict down to a small multiple of
-   machine epsilon times `d`.
-7. The n^6 fits, switched to deep in the recursion.
-8. Strong correctness: locate every cusp, report reversals, and add evolute
-   sections, which need their own fit and bound.
-9. Performance. Nothing here is tuned.
+This list was superseded by "Open items" at the top.
 
 ## The original certificate, compared (18 November 2026)
 
@@ -530,6 +564,59 @@ be accepted through the G1 bound, which costs about ten times the
 one-point bound, and its certificate succeeds less often (61% against 84%
 of pieces). Not adopted. It might pay with a cheaper G1 path, such as the
 original's `g1_cheap_bound`.
+
+## The midpoint G1 fit (18 November 2026)
+
+`midpoint_g1` makes the approximation pass through the offset at `t = 1/2`
+with the offset's tangent there, at a source parameter `s` that is solved
+for, besides G1 at the ends. The error then has double zeros at both ends
+and the midpoint, and is sixth order. It is reconstructed from bezfit's
+`min_frechet.rs` (the augmented determinant, which works with parallel end
+tangents), solved by Newton's method from `s = 1/2` with a numerical
+derivative. The earlier version in `failed_k4` (`perturb.rs`,
+`midpoint.rs`) solved the same condition through the one-point position
+solve, with an analytic derivative, and stopped once the tangent mismatch
+was below 3 times the tolerance.
+
+On ordinary pieces (no cusp, no inflection) of 200 random cubics, by the
+Fréchet oracle (ignored test `midpoint_g1_rates`):
+
+| Pieces per curve | Solved | One-point error / midpoint G1, median | Certified | G1 bound / error, median, p90 |
+|---|---|---|---|---|
+| 1 | 83% | 1.7 | 0.5% | 1.58, 1.58 |
+| 4 | 91% | 3.7 | 52% | 1.30, 8.3 |
+| 8 | 92% | 8.0 | 78% | 1.17, 34 |
+| 16 | 93% | 17 | 89% | 1.09, 34 |
+| 32 | 93% | 37 | 92% | 1.06, 25 |
+
+The ratio doubles per halving, so the fit is one order higher. The notes
+from the web session quote 50 to 170 times at 8 to 32 pieces, which is 3
+to 6 times more than this; that was either a different fit or different
+curves. Newton must stop at a step of 1e-9 in `s`: at 1e-12, rounding in
+the determinant made it fail on 45% of pieces at 32 per curve.
+
+Used as a retry: where the one-point bound rejects a piece but is within
+a factor of the tolerance, fit with midpoint G1 and accept on the crude
+or G1 bound before subdividing. Segments and calls over tolerance on the
+random families, and geometric mean time:
+
+| Factor | Nearly | Gentle | Wild | ns, default | ns, strict |
+|---|---|---|---|---|---|
+| Off | 1800 / 0 | 2971 / 0 | 13319 / 41 | 178 | 197 |
+| 2 | 1800 / 0 | 2769 / 0 | 12943 / 39 | 185 | 206 |
+| 4 | 1800 / 0 | 2657 / 0 | 12740 / 38 | 192 | 214 |
+| 8 | 1800 / 0 | 2601 / 0 | 12650 / 37 | 196 | 218 |
+| 16 | 1800 / 0 | 2574 / 0 | 12594 / 37 | 200 | 222 |
+| 64 | 1800 / 0 | 2564 / 0 | 12572 / 37 | 205 | 227 |
+
+At factor 8: 12% fewer segments on gentle curves and 5% on wild ones, for
+10% more time. On the tiger it does nothing (1924 to 1920 segments at
+1/2048), since there the one-point certificate rarely holds and the
+retry is never reached. It is behind a runtime switch, off by default.
+
+Possible improvements: the analytic derivative from `failed_k4`, fewer
+iterations (stop at a mismatch relative to the tolerance, as there), and
+a retry on the estimate path for the default mode.
 
 ## Where this departs from the original notes
 

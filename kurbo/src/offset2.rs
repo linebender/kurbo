@@ -78,6 +78,20 @@ use crate::{
 /// as a fraction of its parameter length.
 const SPLIT_MARGIN: f64 = 1e-6;
 
+/// Temporary: try the midpoint G1 fit when the one-point bound is within
+/// this factor of the tolerance. Zero turns it off.
+#[allow(missing_docs)]
+pub mod g1_retry {
+    use core::sync::atomic::{AtomicU64, Ordering};
+    static FACTOR: AtomicU64 = AtomicU64::new(0);
+    pub fn set(factor: f64) {
+        FACTOR.store(factor.to_bits(), Ordering::Relaxed);
+    }
+    pub fn get() -> f64 {
+        f64::from_bits(FACTOR.load(Ordering::Relaxed))
+    }
+}
+
 /// Maximum recursion depth.
 ///
 /// As in [`crate::offset`], this is a robustness guard. A piece at this depth
@@ -429,8 +443,17 @@ impl CubicOffset {
                 };
                 if let Some(bound) = certified {
                     // The certified bounds are tight, so take their word.
-                    let accepted = (bound <= tolerance).then_some(fit.approx);
-                    return (accepted, fit.approx);
+                    if bound <= tolerance {
+                        return (Some(fit.approx), fit.approx);
+                    }
+                    // Close enough that the higher order fit may succeed.
+                    let retry = g1_retry::get();
+                    if !has_inflection && bound <= retry * tolerance {
+                        if let Some(approx) = self.try_midpoint_g1(seg, rec) {
+                            return (Some(approx), approx);
+                        }
+                    }
+                    return (None, fit.approx);
                 }
                 // The certificate failed. Fall back to the bound that does
                 // not need one, and then to the estimate.
@@ -459,6 +482,23 @@ impl CubicOffset {
             return (Some(arc.approx), arc.approx);
         }
         (None, arc.approx)
+    }
+
+    /// Fit with [`midpoint_g1`] and accept on the G1 bound, if both succeed.
+    fn try_midpoint_g1(&self, seg: &CubicBez, rec: &OffsetRec) -> Option<CubicBez> {
+        let d = self.d;
+        let (a, b) = midpoint_g1(seg, rec, d)?;
+        let fit = self.apply(seg, rec, a, b);
+        if fit.clamped {
+            return None;
+        }
+        let taylor = Taylor::new(seg, &fit.delta, d);
+        let certificate = Certificate::new(&taylor)?;
+        let bound = match crude_certified_bound(&taylor, &certificate, d) {
+            Some(bound) if bound <= self.tolerance => bound,
+            _ => g1_bound(&taylor, &certificate, d)?,
+        };
+        (bound <= self.tolerance).then_some(fit.approx)
     }
 
     /// Decide whether to accept a piece without the foot-point certificate.
@@ -800,6 +840,116 @@ fn two_point(seg: &CubicBez, rec: &OffsetRec) -> Option<(f64, f64)> {
     let a = (rhs[0] * matrix[1][1] - matrix[0][1] * rhs[1]) / det;
     let b = (matrix[0][0] * rhs[1] - rhs[0] * matrix[1][0]) / det;
     Some((a, b))
+}
+
+/// The midpoint G1 fit.
+///
+/// The approximation passes through the offset at some source parameter
+/// `s`, at `t = 1/2`, with the tangent of the offset there. With G1 at the
+/// ends, the error has double zeros at both ends and at the midpoint, and it
+/// is sixth order in the length of the piece. The conditions are nonlinear in
+/// `s`: three equations in `(a, b)`, solvable when the determinant of the
+/// augmented system vanishes. That is solved by Newton's method from
+/// `s = 1/2`, near where the one-point fit puts the midpoint.
+///
+/// Reconstructed from `min_frechet.rs` in bezfit, which finds every
+/// solution by scanning; here only the one nearest `s = 1/2` is sought.
+///
+/// Returns `None` if Newton's method does not converge, or if the solution
+/// would point a handle or the midpoint tangent the wrong way.
+fn midpoint_g1(seg: &CubicBez, rec: &OffsetRec, d: f64) -> Option<(f64, f64)> {
+    let u0 = rec.utan0;
+    let u1 = rec.utan1;
+    let start = seg.p0 + d * u0.turn_90();
+    let end = seg.p3 + d * u1.turn_90();
+    let mid = start.midpoint(end);
+    let chord = end - start;
+    let q = seg.deriv();
+    // In the absolute handle lengths (h0, h1), with p1 = p0 + h0 u0 and
+    // p2 = p3 + h1 u1, the approximation at t = 1/2 is
+    // mid + 3/8 (h0 u0 + h1 u1), with derivative 3/2 chord + 3/4 (h1 u1 - h0 u0).
+    // The rows: position equal to the offset at s, and the derivative
+    // parallel to the source tangent at s.
+    let system = |s: f64| -> Option<([[f64; 2]; 3], [f64; 3])> {
+        let tan = q.eval(s).to_vec2();
+        let len = tan.hypot();
+        if !(len > 1e-12) {
+            return None;
+        }
+        let u = tan / len;
+        let z = seg.eval(s) + d * u.turn_90() - mid;
+        Some((
+            [
+                [0.375 * u0.x, 0.375 * u1.x],
+                [0.375 * u0.y, 0.375 * u1.y],
+                [-0.75 * u0.cross(u), 0.75 * u1.cross(u)],
+            ],
+            [z.x, z.y, -1.5 * chord.cross(u)],
+        ))
+    };
+    // The determinant of the augmented system, zero where it is solvable.
+    let det = |s: f64| -> Option<f64> {
+        let (k, r) = system(s)?;
+        let minor = |i: usize, j: usize| k[i][0] * k[j][1] - k[i][1] * k[j][0];
+        Some(r[0] * minor(1, 2) - r[1] * minor(0, 2) + r[2] * minor(0, 1))
+    };
+    let mut s = 0.5;
+    let mut converged = false;
+    for _ in 0..12 {
+        const H: f64 = 1e-6;
+        let f = det(s)?;
+        let slope = (det(s + H)? - det(s - H)?) / (2.0 * H);
+        let step = f / slope;
+        if !step.is_finite() {
+            return None;
+        }
+        s -= step;
+        if !(s > 0.0 && s < 1.0) {
+            return None;
+        }
+        // Rounding in the determinant limits how far this converges on a
+        // small piece. An error of 1e-9 in `s` does not show in the fit.
+        if step.abs() < 1e-9 {
+            converged = true;
+            break;
+        }
+    }
+    if !converged {
+        return None;
+    }
+    // At the root the three equations agree; solve them by least squares.
+    let (k, r) = system(s)?;
+    let mut ktk = [[0.0; 2]; 2];
+    let mut ktr = [0.0; 2];
+    for i in 0..3 {
+        for j in 0..2 {
+            ktr[j] += k[i][j] * r[i];
+            for l in 0..2 {
+                ktk[j][l] += k[i][j] * k[i][l];
+            }
+        }
+    }
+    let det2 = ktk[0][0] * ktk[1][1] - ktk[0][1] * ktk[1][0];
+    if !(det2.abs() > 1e-12 * (ktk[0][0] + ktk[1][1]).powi(2)) {
+        return None;
+    }
+    let h0 = (ktr[0] * ktk[1][1] - ktk[0][1] * ktr[1]) / det2;
+    let h1 = (ktk[0][0] * ktr[1] - ktk[1][0] * ktr[0]) / det2;
+    // The handles point along the offset, as `apply` requires, and so does
+    // the tangent at the midpoint.
+    let l0 = h0;
+    let l1 = -h1;
+    let tangent = 1.5 * chord + 0.75 * (h1 * u1 - h0 * u0);
+    let u = q.eval(s).to_vec2();
+    let cusp_sign = rec.cusp0.signum();
+    if !(l0 * rec.cusp0 > 0.0 && l1 * rec.cusp1 > 0.0 && tangent.dot(u) * cusp_sign > 0.0) {
+        return None;
+    }
+    // Convert to the parameters of `apply`: l0 = source_l0 + a d and
+    // l1 = source_l1 - b d.
+    let source_l0 = (seg.p1 - seg.p0).dot(u0);
+    let source_l1 = (seg.p3 - seg.p2).dot(u1);
+    Some(((l0 - source_l0) / d, (source_l1 - l1) / d))
 }
 
 /// The unit normal of a cubic at `t`, or `None` if its derivative vanishes.
@@ -2526,6 +2676,96 @@ mod tests {
                 pct(counts[k][1]),
                 pct(counts[k][2]),
                 pct(counts[k][3])
+            );
+        }
+    }
+
+    /// Compare the midpoint G1 fit with one-point, by the Fréchet oracle,
+    /// and see how tight the G1 bound is on it. Run with `--ignored
+    /// --nocapture`.
+    #[cfg(feature = "std")]
+    #[test]
+    #[ignore = "measurement, prints rates"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print rates")]
+    fn midpoint_g1_rates() {
+        use crate::offset_oracle::piece_error;
+        let mut rng = Rng(0x1234_5678);
+        let curves: Vec<CubicBez> = (0..200).map(|_| rng.cubic()).collect();
+        for n in [1, 2, 4, 8, 16, 32] {
+            let mut log_ratio = 0.0;
+            let mut n_ratio = 0;
+            let mut n_pieces = 0;
+            let mut n_solved = 0;
+            let mut n_bounded = 0;
+            let mut n_bounded_one = 0;
+            let mut tightness: Vec<f64> = Vec::new();
+            let mut gains: Vec<f64> = Vec::new();
+            for c in &curves {
+                for i in 0..n {
+                    let piece = c.subsegment(i as f64 / n as f64..(i + 1) as f64 / n as f64);
+                    for d in [0.3, -0.3, 3.0, -3.0] {
+                        let (co, rec) = setup(piece, d);
+                        // Ordinary pieces only: no cusp, no inflection.
+                        let (cusp_min, _) = cusp_range(&co);
+                        if cusp_min < 0.2 || (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0 {
+                            continue;
+                        }
+                        let Some((a1, b1)) = one_point(&piece, &rec) else {
+                            continue;
+                        };
+                        n_pieces += 1;
+                        let one = co.apply(&piece, &rec, a1, b1);
+                        let Some(e1) = piece_error(piece, d, one.approx) else {
+                            continue;
+                        };
+                        let taylor1 = Taylor::new(&piece, &one.delta, d);
+                        if Certificate::new(&taylor1).is_some() {
+                            n_bounded_one += 1;
+                        }
+                        let Some((a2, b2)) = midpoint_g1(&piece, &rec, d) else {
+                            continue;
+                        };
+                        n_solved += 1;
+                        let g1 = co.apply(&piece, &rec, a2, b2);
+                        let Some(e2) = piece_error(piece, d, g1.approx) else {
+                            continue;
+                        };
+                        if e1 > 1e-12 * d.abs() && e2 > 1e-14 * d.abs() {
+                            log_ratio += (e1 / e2).ln();
+                            n_ratio += 1;
+                            gains.push(e1 / e2);
+                        }
+                        let taylor = Taylor::new(&piece, &g1.delta, d);
+                        if let Some(cert) = Certificate::new(&taylor) {
+                            if let Some(bound) = g1_bound(&taylor, &cert, d) {
+                                n_bounded += 1;
+                                if e2 > 1e-12 * d.abs() {
+                                    tightness.push(bound / e2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            tightness.sort_by(f64::total_cmp);
+            gains.sort_by(f64::total_cmp);
+            let q = |v: &Vec<f64>, p: f64| {
+                if v.is_empty() {
+                    f64::NAN
+                } else {
+                    v[((v.len() - 1) as f64 * p) as usize]
+                }
+            };
+            std::println!(
+                "n={n:>2}: {n_pieces} pieces, solved {:.1}%, error one-point / midpoint G1: geomean {:.1}, p10 {:.2}, median {:.1}; certified {:.1}% (one-point {:.1}%); G1 bound / error median {:.2}, p90 {:.2}",
+                100.0 * n_solved as f64 / n_pieces as f64,
+                (log_ratio / n_ratio as f64).exp(),
+                q(&gains, 0.1),
+                q(&gains, 0.5),
+                100.0 * n_bounded as f64 / n_pieces as f64,
+                100.0 * n_bounded_one as f64 / n_pieces as f64,
+                q(&tightness, 0.5),
+                q(&tightness, 0.9),
             );
         }
     }
