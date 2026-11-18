@@ -729,6 +729,56 @@ default mode and 2% slower in strict, which never takes the estimate.
 Each sample costs a few multiply-adds, no more than checking and storing
 it, and the larger cache costs on every piece.
 
+## An estimate-only default mode, tried (18 November 2026)
+
+The question: does the default mode pay for the strict machinery (the
+Taylor polynomials, the certificate and the bound) when it only promises
+the sampled estimate? Tried by skipping straight from the linear fit (or
+arc drawing, if it is clamped or missing) to the sampled estimate, which
+needs only `D`, `C'`, `C''` and `C'''` along the piece. The cheap strict
+paths (hairline, root hull, small piece) were kept.
+
+Random families, default mode, segments / calls over tolerance by the
+Fréchet oracle / geometric mean ns per call:
+
+| Mode | Nearly | Gentle | Wild | All, ns |
+|---|---|---|---|---|
+| Current | 1800 / 0 / 55 | 2971 / 0 / 121 | 13492 / 1 / 904 | 182 |
+| Estimate only | 1800 / 0 / 68 | 3031 / 0 / 148 | 13632 / 1 / 829 | 202 |
+
+On the tiger (ns per call, segments):
+
+| Tolerance | Current | Estimate only |
+|---|---|---|
+| 1/32 | 137, 922 | 121, 922 |
+| 1/256 | 241, 1196 | 203, 1197 |
+| 1/2048 | 407, 1924 | 412, 2421 |
+
+So the strict machinery is not a tax. On a piece it accepts, the Taylor
+polynomials, the certificate and the one-point bound cost less than the
+sampled estimate does when it accepts, since then it takes all seven
+samples and searches its grid. The certified bound is also tighter (within
+a few percent of the error, against the estimate's factor of 1.25), so it
+needs fewer segments. The estimate wins only where the certificate fails
+anyway: on wild curves (8% faster) and on the tiger at 1/32 and 1/256 (12
+and 16%), whose zero end derivatives defeat the certificate. Accuracy was
+the same throughout.
+
+Routing by the sign of `beta`, tried and dropped: `Taylor::new` was
+staged to compute `beta` first (from `|C'|^2` and `D.C''`), and in the
+default mode a piece whose `beta` coefficients change sign went straight
+to the hull bound and the sampled estimate, skipping `P`, `Q`, the
+certificate and the equal-parameter bound. Output was unchanged in
+segments and accuracy, and the pair still matched exactly. But the tiger
+gained only 1 to 3% (against 12 to 16% for estimate only), since most of
+its certificate failures are not sign changes of `beta`, and everything
+else lost about 5%, strict mode included, though its path barely changed:
+the same kind of inlining and layout cost as with the pair.
+
+What is left from this: a cheaper estimate, such as the osculating
+parabola check from `failed_k4`, since the grid search is most of the
+estimate's cost on acceptance.
+
 ## Where this departs from the original notes
 
 The bounds were reconstructed from "Cheap Offset Error Bounds", not ported
