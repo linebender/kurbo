@@ -867,6 +867,14 @@ impl<'a, T: Iterator<Item = PathEl>> DashIterator<'a, T> {
                 result = Some(seg_to_el(&seg));
             }
             self.dash_remaining -= self.seg_remaining;
+            // Stashed before get_input can stash a ClosePath (it does at once
+            // when the subpath already ends at its start), so the segment
+            // stays ahead of it.
+            if self.state == DashState::ToStash && !self.stable_dash_order {
+                if let Some(el) = result.take() {
+                    self.stash.push(el);
+                }
+            }
             self.get_input();
         }
         result
@@ -992,6 +1000,34 @@ mod tests {
         ];
         let iter = segments(dash(shape.path_elements(0.), 0., &dashes));
         assert_eq!(iter.collect::<Vec<PathSeg>>(), expansion);
+    }
+
+    // A dash longer than a closed subpath whose last segment returns to its
+    // start: the subpath comes back whole, its ClosePath last (it once came
+    // before the last segment: a chord to the start, then a loop).
+    #[test]
+    fn dash_covering_a_subpath_ending_at_its_start() {
+        let mut path = BezPath::new();
+        path.move_to((75.0, -65.0));
+        path.line_to((75.0, 65.0));
+        path.curve_to((75.0, 106.0), (41.0, 140.0), (0.0, 140.0));
+        path.line_to((0.0, 140.0));
+        path.curve_to((-41.0, 140.0), (-75.0, 106.0), (-75.0, 65.0));
+        path.line_to((-75.0, -65.0));
+        path.curve_to((-75.0, -106.0), (-41.0, -140.0), (0.0, -140.0));
+        path.curve_to((41.0, -140.0), (75.0, -106.0), (75.0, -65.0));
+        path.close_path();
+        let dashed: Vec<PathEl> = dash(path.iter(), 0.0, &[760.0, 700.0]).collect();
+        let kind = |e: &PathEl| core::mem::discriminant(e);
+        let want: Vec<_> = path.elements().iter().map(kind).collect();
+        assert_eq!(
+            dashed.iter().map(kind).collect::<Vec<_>>(),
+            want,
+            "{dashed:?}"
+        );
+        assert!(
+            matches!(dashed[dashed.len() - 2], PathEl::CurveTo(_, _, p) if (p - crate::Point::new(75.0, -65.0)).hypot() < 1e-9)
+        );
     }
 
     #[test]
