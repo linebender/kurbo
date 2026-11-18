@@ -557,6 +557,32 @@ impl CubicOffset {
                 one_point(seg, rec)
             }
         });
+        // In the default mode, try the osculating parabola estimate first. It
+        // is a few multiply-adds per sample, against the Taylor polynomials,
+        // certificate and bound, which cost more even when they succeed.
+        // It is trusted only where its leading-order model holds: the
+        // curvature times `d` does not change much over the piece, and the
+        // fit does not slip far along the offset.
+        let cusp_min = rec.cusp0.min(rec.cusp1);
+        let cusp_max = rec.cusp0.max(rec.cusp1);
+        if !self.strict && cusp_min > 0.0 && cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min {
+            let fit = match linear_fit {
+                Some((a, b)) => {
+                    let fit = self.apply(seg, rec, a, b);
+                    if fit.clamped {
+                        self.draw_arc(seg, rec)
+                    } else {
+                        fit
+                    }
+                }
+                None => self.draw_arc(seg, rec),
+            };
+            let (estimate, slip) = osculating_estimate(seg, &fit.delta, d, OSCULATING_SAMPLES);
+            if slip <= OSCULATING_MAX_SLIP {
+                let accepted = OSCULATING_SAFETY * estimate <= tolerance;
+                return (accepted.then_some(fit.approx), fit.approx);
+            }
+        }
         if let Some((a, b)) = linear_fit {
             // The linear fits assume their handles are used as computed.
             let fit = self.apply(seg, rec, a, b);
@@ -2180,6 +2206,33 @@ fn small_piece_bound(seg: &CubicBez, rec: &OffsetRec, arc: &Fit, d: f64) -> Opti
 // ---------------------------------------------------------------------------
 // The sampled estimate
 
+/// The number of samples of the osculating parabola estimate.
+///
+/// With fewer, its misses went up sharply in tests.
+const OSCULATING_SAMPLES: usize = 8;
+
+/// The factor applied to the osculating parabola estimate before comparing
+/// it with the tolerance.
+///
+/// Measured against the Fréchet error on fitted pieces, error over estimate
+/// had median 1.05, p90 1.11 and p99 1.29. With the guards below, this
+/// left no more misses than the default mode had without it.
+const OSCULATING_SAFETY: f64 = 1.2;
+
+/// The largest slip, the tangential part of `D / d`, for which the
+/// osculating parabola estimate is trusted.
+///
+/// The two-point fit does not control the slip, and with a large one the
+/// estimate fell short by up to 4 times.
+const OSCULATING_MAX_SLIP: f64 = 0.5;
+
+/// The largest ratio between the cusp values at the ends of a piece for
+/// which the osculating parabola estimate is trusted.
+///
+/// Where the curvature changes quickly, as at the tip of a sharp turn, the
+/// error gathers near one end, between the samples.
+const OSCULATING_MAX_CUSP_RATIO: f64 = 2.0;
+
 /// The factor applied to the sampled estimate before comparing it with the
 /// tolerance.
 ///
@@ -2336,6 +2389,56 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
         }
     }
     distance_bound(v_max, -v_min, d)
+}
+
+/// Estimate the error by the osculating parabola, at `n` samples.
+///
+/// From the `failed_k4` branch of fast-stroke (`est_arc_error_dot`). At each
+/// sample, with `W = D / d` split into `dot` and `cross` along the normal and
+/// tangent of the source, the error in units of `d` is
+/// `(dot - 1) + kappa_off d cross^2 / 2`: the radial error, and how far the
+/// offset, of curvature `kappa_off = kappa / (1 + kappa d)`, bends away from
+/// its tangent over the slip `d cross`. This is the leading term of the
+/// Newton value `H / d^2`. It is not a bound: there is no remainder, and
+/// nothing between the samples, which are at the midpoints of `n` equal
+/// intervals.
+///
+/// Returns the estimate, and the largest `|cross|`, the slip in units of
+/// `d`, beyond which the estimate is not to be trusted.
+fn osculating_estimate(seg: &CubicBez, delta: &[Vec2; 4], d: f64, n: usize) -> (f64, f64) {
+    let c1 = [
+        3.0 * (seg.p1 - seg.p0),
+        3.0 * (seg.p2 - seg.p1),
+        3.0 * (seg.p3 - seg.p2),
+    ];
+    let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
+    let inv_d = 1.0 / d;
+    let mut worst = 0.0_f64;
+    let mut slip = 0.0_f64;
+    for i in 0..n {
+        let t = (i as f64 + 0.5) / n as f64;
+        let mt = 1.0 - t;
+        let d_t = delta[0] * (mt * mt * mt)
+            + delta[1] * (3.0 * mt * mt * t)
+            + delta[2] * (3.0 * mt * t * t)
+            + delta[3] * (t * t * t);
+        let q = c1[0] * (mt * mt) + c1[1] * (2.0 * mt * t) + c1[2] * (t * t);
+        let qq = c2[0] * mt + c2[1] * t;
+        let speed2 = q.hypot2();
+        let speed = speed2.sqrt();
+        let normal = q.turn_90() / speed;
+        let w = d_t * inv_d;
+        let dot = normal.dot(w);
+        let cross = normal.cross(w);
+        // kurbo's curvature, c'' x c' / |c'|^3, so that 1 + kappa d is the
+        // cusp value.
+        let kappa = qq.cross(q) / (speed2 * speed);
+        let kappa_off = kappa / (1.0 + kappa * d);
+        let error = (dot - 1.0) + 0.5 * kappa_off * d * cross * cross;
+        worst = worst.max(error.abs());
+        slip = slip.max(cross.abs());
+    }
+    (worst * d.abs(), slip)
 }
 
 /// Estimate the largest distance between the approximation and the offset
@@ -3150,6 +3253,69 @@ mod tests {
             }
         }
         assert!(n_segments > 5000, "{n_segments}");
+    }
+
+    /// How the osculating parabola estimate compares with the Fréchet
+    /// error, on fitted pieces. Run with `--ignored --nocapture`.
+    #[cfg(feature = "std")]
+    #[test]
+    #[ignore = "measurement, prints ratios"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print ratios")]
+    fn osculating_estimate_ratios() {
+        use crate::offset_oracle::piece_error;
+        for n in [4, 8] {
+            for (label, curvy) in [("ordinary", false), ("near cusp", true)] {
+                let mut ratios: Vec<f64> = Vec::new();
+                let mut sampled: Vec<f64> = Vec::new();
+                for_each_piece(|piece, d| {
+                    let (co, rec) = setup(piece, d);
+                    let (cusp_min, _) = cusp_range(&co);
+                    if (cusp_min < 0.2) != curvy || cusp_min < 0.0 {
+                        return;
+                    }
+                    let has_inflection = (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0;
+                    let fit = if has_inflection {
+                        two_point(&piece, &rec)
+                    } else {
+                        one_point(&piece, &rec)
+                    };
+                    let Some((a, b)) = fit else { return };
+                    let fit = co.apply(&piece, &rec, a, b);
+                    if fit.clamped {
+                        return;
+                    }
+                    let Some(error) = piece_error(piece, d, fit.approx) else {
+                        return;
+                    };
+                    // Only pieces near acceptance matter: error within
+                    // 1e-3 to 1 of |d| / 10.
+                    if !(error > 1e-4 * d.abs() && error < 0.1 * d.abs()) {
+                        return;
+                    }
+                    let (estimate, _) = osculating_estimate(&piece, &fit.delta, d, n);
+                    ratios.push(error / estimate);
+                    let taylor = Taylor::new(&piece, &fit.delta, d);
+                    if let Some(e) = sampled_estimate(&taylor, &rec, d, f64::INFINITY) {
+                        sampled.push(error / e);
+                    }
+                });
+                for v in [&mut ratios, &mut sampled] {
+                    v.sort_by(f64::total_cmp);
+                }
+                let q = |v: &Vec<f64>, p: f64| v[((v.len() - 1) as f64 * p) as usize];
+                std::println!(
+                    "n={n} {label}: {} pieces; error / osculating: median {:.3}, p90 {:.3}, p99 {:.3}, max {:.3}; error / sampled: median {:.3}, p99 {:.3}, max {:.3}",
+                    ratios.len(),
+                    q(&ratios, 0.5),
+                    q(&ratios, 0.9),
+                    q(&ratios, 0.99),
+                    q(&ratios, 1.0),
+                    q(&sampled, 0.5),
+                    q(&sampled, 0.99),
+                    q(&sampled, 1.0),
+                );
+            }
+        }
     }
 
     #[test]

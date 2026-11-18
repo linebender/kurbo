@@ -38,7 +38,8 @@ Medium:
    evaluations was tried and made it slower. What is left to share
    depends on `beta` ("Both sides at once").
 7. **Another corpus**, with ordinary end handles, to see how much of the
-   tiger's behaviour is the tiger's.
+   tiger's behaviour is the tiger's, and to check the guards on the
+   osculating estimate ("The osculating parabola estimate").
 
 Large, or open questions:
 
@@ -48,7 +49,8 @@ Large, or open questions:
 10. Strong correctness: locate every cusp, report reversals, and add
     evolute sections, which need their own fit and bound.
 
-Done or dropped: misses at the maximum depth (depth raised from 8 to 12),
+Done or dropped: a cheap estimate for the default mode (the osculating
+parabola, adopted with guards), misses at the maximum depth (depth raised from 8 to 12),
 the near-line slowdown (did not reproduce), the end subdivision bug (fixed
 here, and in `offset.rs` on `offset-split-at-end`), the error oracle (now
 Fréchet), the `kappa d` chooser and skip-level subdivision (tried,
@@ -775,9 +777,71 @@ its certificate failures are not sign changes of `beta`, and everything
 else lost about 5%, strict mode included, though its path barely changed:
 the same kind of inlining and layout cost as with the pair.
 
-What is left from this: a cheaper estimate, such as the osculating
-parabola check from `failed_k4`, since the grid search is most of the
-estimate's cost on acceptance.
+What is left from this: a cheaper estimate. The osculating parabola check
+from `failed_k4` turned out to be that; see the next section.
+
+## The osculating parabola estimate (18 November 2026)
+
+From `est_arc_error_dot` on the `failed_k4` branch of fast-stroke
+(commits ca05460 and 4e9deb4). At each of 8 samples, at the midpoints of
+8 equal intervals, `W = D / d` is split into `dot` and `cross` along the
+normal and tangent of the source, and the error in units of `d` is
+
+```text
+(dot - 1) + kappa_off d cross^2 / 2,    kappa_off = kappa / (1 + kappa d)
+```
+
+the radial error, and how far the offset bends away from its tangent over
+the slip `d cross`. It is the leading term of the Newton value `H / d^2`,
+with no remainder and nothing between the samples: a few multiply-adds,
+a square root and two divisions per sample, and no grid search.
+
+Against the Fréchet error on fitted pieces (ignored test
+`osculating_estimate_ratios`), error over estimate with 8 samples had
+median 1.05, p90 1.11, p99 1.29 and maximum 1.81; with 4, p99 1.98 and
+maximum 3.9. The sampled estimate is far tighter (p99 1.02), but costs
+more.
+
+Tried as the whole of the default mode's acceptance (after the cheap
+strict paths), it was 32% faster on the random families, but missed on
+wild curves, up to 3.55 times the tolerance. Tracing the misses gave two
+guards:
+
+- Slip. The misses were two-point fits, which do not control the slip;
+  the estimate fell short by up to 4 times there. Trusting it only where
+  the largest `|cross|` is under 0.5 removed them (at 1.0 they came back).
+- Change of curvature. On the tiger, a piece running into the tip of a
+  sharp turn was 1.19 times over even at a safety factor of 1.4: the
+  error gathers near one end, between the samples. Trusting the estimate
+  only where the cusp values at the ends are positive and within a factor
+  of 2 removed it. A guard on the cusp values alone (above 0, 0.2 or 0.5)
+  did not help with the wild misses.
+
+Adopted, in the default mode only: where the cusp values at the ends are
+positive and within a factor of 2, fit (one-point or two-point, or arc
+drawing if that is clamped or missing) and take the osculating estimate;
+if its slip is under 0.5, accept when 1.2 times it is within the
+tolerance, and otherwise subdivide. Anywhere else, the path is as before.
+A rejection here is final, even where the certified bound might have
+accepted; the figures include that. Strict mode is unchanged.
+
+Results against the previous commit:
+
+| | Before | After |
+|---|---|---|
+| Random families, geometric mean ns, default | 182 | 134 |
+| Calls over tolerance (Fréchet), default | 1 (wild, 1.00 x) | 1 (wild, 1.00 x) |
+| Segments, gentle / wild | 2971 / 13492 | 2983 / 13454 |
+| Tiger ns at 1/32, 1/256, 1/2048 | 137, 239, 404 | 100, 149, 257 |
+| Tiger segments | 922, 1196, 1924 | 911, 1182, 1851 |
+| Whole tiger strokes, pair, over `offset.rs` | 0.74, 0.31, 0.16 | 0.55, 0.19, 0.10 |
+
+The pair's saving over two one-sided calls falls to about 5% in the
+default mode, since the estimate is per side and cheap.
+
+Safety factors of 1.3 and 1.4 gave no fewer misses and up to 3% more
+segments. The guards were tuned on the three random families and the
+tiger; another corpus should check them.
 
 ## Where this departs from the original notes
 
