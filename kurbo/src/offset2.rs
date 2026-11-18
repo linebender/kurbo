@@ -2411,8 +2411,10 @@ const OSCULATING_MAX_SLIP: f64 = 0.5;
 /// at that end is not its limit, to the slower path.
 ///
 /// Where the curvature changes quickly, as at the tip of a sharp turn, the
-/// error gathers near one end, between the samples.
-const OSCULATING_MAX_CUSP_RATIO: f64 = 2.0;
+/// error gathers near one end, between the samples. Up to a ratio of about 4
+/// the estimate is as reliable as on ordinary pieces (p99 1.25 times the
+/// error); 3 leaves some margin.
+const OSCULATING_MAX_CUSP_RATIO: f64 = 3.0;
 
 /// The factor applied to the sampled estimate before comparing it with the
 /// tolerance.

@@ -1242,8 +1242,12 @@ samples near the end with the smaller value changed nothing. Raising the
 limit from 2 to 3 or 4 makes whole tiger strokes 2 to 3.5% faster with the
 same segments and keeps `offset_compare` at 0%, but brings back one tiger
 call over tolerance (1.19 times, at 1/256, a piece with a zero-length
-handle). Not adopted, to keep the tiger clean; it is a reasonable trade if
-that one miss is acceptable.
+handle). Adopted at 3 (19 November 2026), accepting that one miss; 4 would
+leave no margin at the edge of the reliable range. Measured again on
+adoption, interleaved with the guard at 2: whole tiger strokes with the pair
+54.6 to 54.9, 85.7 to 88.7 and 141.2 to 142.4 µs (from 55.7 to 55.9, 88.0
+to 88.5 and 145.6 to 145.8), with 1683, 2272 and 3046 segments (from 1681,
+2272 and 3047); `offset_tiger` over tolerance 0, 1 and 0.
 
 This more than pays back the vanishing end fix: whole tiger strokes are now
 faster than at `46f031b` (56.3, 89.2 and 154.3 µs).
