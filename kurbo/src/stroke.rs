@@ -68,9 +68,25 @@ pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
     /// When `true`, dashes are emitted in the order they appear along the path. The default `false` delays a subpath's first dash so it can be merged with a dash that wraps through `ClosePath`; this option disables both the reorder and the wraparound merge, so a dash spanning the seam is truncated there.
     stable_dash_order: bool,
-    /// Whether to offset cubics with `crate::offset2` instead of
-    /// `crate::offset`. Experimental.
-    offset2: bool,
+    /// How to offset cubics. Experimental.
+    offset_method: OffsetMethod,
+}
+
+/// How the stroker offsets cubics.
+///
+/// This exists for comparing the experimental [`crate::offset2`] with
+/// [`crate::offset`], and will go away.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OffsetMethod {
+    /// [`crate::offset::offset_cubic`], once for each side.
+    #[default]
+    Offset,
+    /// [`crate::offset2::offset_cubic`], once for each side.
+    Offset2,
+    /// [`crate::offset2::offset_cubic_pair`], for both sides at once. The
+    /// result is the same as [`OffsetMethod::Offset2`].
+    Offset2Pair,
 }
 
 /// Optimization level for computing stroke outlines.
@@ -94,7 +110,7 @@ impl Default for StrokeOpts {
         StrokeOpts {
             opt_level,
             stable_dash_order: false,
-            offset2: false,
+            offset_method: OffsetMethod::Offset,
         }
     }
 }
@@ -197,12 +213,12 @@ impl StrokeOpts {
         self
     }
 
-    /// Offset cubics with the experimental [`crate::offset2`] instead of
-    /// [`crate::offset`]. This exists for comparing the two, and will go
+    /// Choose how cubics are offset. This exists for comparing the
+    /// experimental [`crate::offset2`] with [`crate::offset`], and will go
     /// away.
     #[doc(hidden)]
-    pub fn offset2(mut self, enable: bool) -> Self {
-        self.offset2 = enable;
+    pub fn offset_method(mut self, method: OffsetMethod) -> Self {
+        self.offset_method = method;
         self
     }
 }
@@ -230,8 +246,8 @@ pub struct StrokeCtx {
     // Precomputation of the join threshold, to optimize per-join logic.
     // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
-    // Whether to offset cubics with `crate::offset2`.
-    use_offset2: bool,
+    // How to offset cubics.
+    offset_method: OffsetMethod,
 }
 
 impl StrokeCtx {
@@ -300,7 +316,7 @@ pub fn stroke_with(
     tolerance: f64,
     ctx: &mut StrokeCtx,
 ) {
-    ctx.use_offset2 = opts.offset2;
+    ctx.offset_method = opts.offset_method;
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, ctx);
     } else {
@@ -572,10 +588,22 @@ impl StrokeCtx {
             }
         }
 
-        let offset_cubic = if self.use_offset2 {
-            crate::offset2::offset_cubic
-        } else {
-            crate::offset::offset_cubic
+        let offset_cubic = match self.offset_method {
+            OffsetMethod::Offset => crate::offset::offset_cubic,
+            OffsetMethod::Offset2 => crate::offset2::offset_cubic,
+            OffsetMethod::Offset2Pair => {
+                // Both sides at once, appended to the two paths directly.
+                // The forward path is the offset by minus half the width.
+                crate::offset2::offset_cubic_pair(
+                    c,
+                    0.5 * style.width,
+                    tolerance,
+                    &mut self.backward_path,
+                    &mut self.forward_path,
+                );
+                self.last_pt = c.p3;
+                return;
+            }
         };
         offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
         self.forward_path.extend(self.result_path.iter().skip(1));
@@ -1198,5 +1226,49 @@ mod tests {
 
         let infinite_width = Stroke::new(f64::INFINITY);
         assert!(!infinite_width.is_nan());
+    }
+
+    #[test]
+    fn offset2_pair_matches_offset2() {
+        // Offsetting both sides at once gives the same result, bit for bit,
+        // as one side at a time, so the stroke outlines are the same.
+        use super::OffsetMethod;
+        use crate::{Cap, Join, Point};
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1_u64 << 53) as f64 * 100.0
+        };
+        let one_side = StrokeOpts::default().offset_method(OffsetMethod::Offset2);
+        let pair = StrokeOpts::default().offset_method(OffsetMethod::Offset2Pair);
+        for i in 0..40 {
+            let mut path = BezPath::new();
+            path.move_to(Point::new(next(), next()));
+            for _ in 0..3 {
+                path.curve_to((next(), next()), (next(), next()), (next(), next()));
+            }
+            if i % 2 == 0 {
+                path.close_path();
+            }
+            for width in [0.5, 4.0, 20.0] {
+                for (join, cap) in [
+                    (Join::Round, Cap::Round),
+                    (Miter, Butt),
+                    (Join::Bevel, Cap::Square),
+                ] {
+                    let mut style = Stroke::new(width).with_join(join).with_caps(cap);
+                    if i % 5 == 0 {
+                        style = style.with_dashes(1.0, [7.0, 3.0]);
+                    }
+                    for tolerance in [0.25, 1e-3] {
+                        let a = stroke(path.iter(), &style, &one_side, tolerance);
+                        let b = stroke(path.iter(), &style, &pair, tolerance);
+                        assert_eq!(a.elements(), b.elements(), "{path:?}, width {width}");
+                    }
+                }
+            }
+        }
     }
 }

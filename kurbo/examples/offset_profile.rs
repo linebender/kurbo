@@ -7,11 +7,13 @@
 //   over the same families and settings as `offset_compare`, best of five.
 // - `offset_profile fingerprint`: segment counts and a hash of the output of
 //   offset2 and strict, to check whether a change alters the output.
+// - `offset_profile pair`: time `offset_cubic_pair` against two calls of
+//   `offset_cubic`.
 // - `offset_profile oracle`: compare `kurbo::offset_oracle` with the sampled
 //   one-sided distance it replaced, on the same results.
 // - `offset_profile FAMILY D TOL WHICH REPS`: a loop to run under a
-//   profiler, where FAMILY is wild, gentle or nearly, and WHICH is old, new
-//   or strict.
+//   profiler, where FAMILY is wild, gentle or nearly, and WHICH is old, new,
+//   strict or pair.
 #![allow(missing_docs, clippy::print_stdout, reason = "scratch")]
 use kurbo::{BezPath, CubicBez, Point};
 use std::hint::black_box;
@@ -104,6 +106,10 @@ fn main() {
         g1_sweep();
         return;
     }
+    if args.get(1).map(|s| s.as_str()) == Some("pair") {
+        pair_bench();
+        return;
+    }
     if args.get(1).map(|s| s.as_str()) == Some("oracle") {
         oracle_check();
         return;
@@ -147,9 +153,20 @@ fn main() {
         _ => kurbo::offset2::offset_cubic,
     };
     let mut path = BezPath::new();
+    let mut neg = BezPath::new();
     let start = std::time::Instant::now();
     for _ in 0..reps {
         for c in &curves {
+            if which == "pair" {
+                // Both sides in one call: the same work as the loop below.
+                path.truncate(0);
+                neg.truncate(0);
+                path.move_to(c.p0);
+                neg.move_to(c.p0);
+                kurbo::offset2::offset_cubic_pair(black_box(*c), d, tol, &mut path, &mut neg);
+                black_box((&path, &neg));
+                continue;
+            }
             for d in [d, -d] {
                 f(black_box(*c), d, tol, &mut path);
                 black_box(&path);
@@ -384,4 +401,67 @@ fn g1_sweep() {
             );
         }
     }
+}
+
+/// Time `offset_cubic_pair` against two calls of `offset_cubic`, per pair.
+fn pair_bench() {
+    let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+    let mut log_ratio = [0.0; 2];
+    println!(
+        "{:<8}{:>5}{:>8} | {:>8}{:>8}{:>7} | {:>8}{:>8}{:>7}",
+        "family", "d", "tol", "2x one", "pair", "ratio", "strict", "pair", "ratio"
+    );
+    for family in ["nearly", "gentle", "wild"] {
+        let curves: Vec<CubicBez> = (0..100).map(|_| make(family, &mut rng)).collect();
+        for d in [0.5, 2.0, 10.0] {
+            for tol in [0.25, 0.01, 0.0001] {
+                let mut cells = Vec::new();
+                for (k, (one, pair)) in [
+                    (
+                        kurbo::offset2::offset_cubic as fn(CubicBez, f64, f64, &mut BezPath),
+                        kurbo::offset2::offset_cubic_pair
+                            as fn(CubicBez, f64, f64, &mut BezPath, &mut BezPath),
+                    ),
+                    (
+                        kurbo::offset2::offset_cubic_strict,
+                        kurbo::offset2::offset_cubic_pair_strict,
+                    ),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    // time_one does d and -d, so its per-call time doubled is
+                    // the time for both sides.
+                    let two = 2.0 * time_one(one, &curves, d, tol);
+                    let mut pos = BezPath::new();
+                    let mut neg = BezPath::new();
+                    let mut best = f64::INFINITY;
+                    for _ in 0..5 {
+                        let reps = 100;
+                        let start = std::time::Instant::now();
+                        for _ in 0..reps {
+                            for c in &curves {
+                                pos.truncate(0);
+                                neg.truncate(0);
+                                pos.move_to(c.p0);
+                                neg.move_to(c.p0);
+                                pair(black_box(*c), d, tol, &mut pos, &mut neg);
+                                black_box((&pos, &neg));
+                            }
+                        }
+                        best = best
+                            .min(start.elapsed().as_nanos() as f64 / (reps * curves.len()) as f64);
+                    }
+                    log_ratio[k] += (best / two).ln();
+                    cells.push(format!("{two:>8.0}{best:>8.0}{:>7.2}", best / two));
+                }
+                println!("{family:<8}{d:>5}{tol:>8} | {} | {}", cells[0], cells[1]);
+            }
+        }
+    }
+    println!(
+        "geomean ratio: {:.3} default, {:.3} strict",
+        (log_ratio[0] / 27.0).exp(),
+        (log_ratio[1] / 27.0).exp()
+    );
 }

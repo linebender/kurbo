@@ -150,6 +150,106 @@ pub fn offset_cubic_strict(c: CubicBez, d: f64, tolerance: f64, result: &mut Bez
     offset_cubic_impl(c, d, tolerance, result, true);
 }
 
+/// Compute approximate offset curves on both sides of a cubic at once.
+///
+/// This appends an approximation of the offset of `c` by `d` to `positive`,
+/// and one of the offset by `-d` to `negative`, as `curve_to` segments. Each
+/// path must already have a current point, which should be where its offset
+/// starts: `c.p0` plus `d` or `-d` times the unit normal there. This is what
+/// a stroker needs, as it builds the two sides of a stroke in two paths.
+///
+/// The result is the same as [`offset_cubic`] at `d` and at `-d`, without the
+/// initial `move_to`, but the two sides share the work that does not depend
+/// on the side: regularizing and splitting the source, choosing where to
+/// subdivide, and fitting.
+pub fn offset_cubic_pair(
+    c: CubicBez,
+    d: f64,
+    tolerance: f64,
+    positive: &mut BezPath,
+    negative: &mut BezPath,
+) {
+    offset_cubic_pair_impl(c, d, tolerance, positive, negative, false);
+}
+
+/// [`offset_cubic_pair`], accepting on strict bounds only.
+///
+/// The result is the same as [`offset_cubic_strict`] at `d` and at `-d`,
+/// without the initial `move_to`.
+pub fn offset_cubic_pair_strict(
+    c: CubicBez,
+    d: f64,
+    tolerance: f64,
+    positive: &mut BezPath,
+    negative: &mut BezPath,
+) {
+    offset_cubic_pair_impl(c, d, tolerance, positive, negative, true);
+}
+
+fn offset_cubic_pair_impl(
+    c: CubicBez,
+    d: f64,
+    tolerance: f64,
+    positive: &mut BezPath,
+    negative: &mut BezPath,
+    strict: bool,
+) {
+    // As in `offset_cubic_impl`.
+    const DIM_TUNE: f64 = 0.25;
+    let c_regularized = c.regularize_cusp(tolerance * DIM_TUNE);
+    let pos = CubicOffset::new(c_regularized, d, tolerance, strict);
+    let neg = CubicOffset::new(c_regularized, -d, tolerance, strict);
+    let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+    let utan0 = tan0.normalize();
+    let utan1 = tan1.normalize();
+    let root = |co: &CubicOffset| OffsetRec {
+        t0: 0.0,
+        t1: 1.0,
+        utan0,
+        utan1,
+        cusp0: co.endpoint_cusp(co.q.p0.to_vec2(), co.c0),
+        cusp1: co.endpoint_cusp(co.q.p2.to_vec2(), co.c0 + co.c1 + co.c2),
+        depth: 0,
+    };
+    offset_rec_pair(&pos, &neg, &root(&pos), &root(&neg), positive, negative);
+}
+
+/// The recursion of [`CubicOffset::offset_rec`], for both sides at once.
+///
+/// While both sides reject a piece, they are split at the same point, which
+/// depends only on the source. Where one side accepts, the other carries on
+/// alone. Where either side has a cusp in the piece, both carry on alone.
+fn offset_rec_pair(
+    pos: &CubicOffset,
+    neg: &CubicOffset,
+    rec_pos: &OffsetRec,
+    rec_neg: &OffsetRec,
+    out_pos: &mut BezPath,
+    out_neg: &mut BezPath,
+) {
+    if rec_pos.has_cusp() || rec_neg.has_cusp() {
+        pos.offset_rec(rec_pos, out_pos);
+        neg.offset_rec(rec_neg, out_neg);
+        return;
+    }
+    let seg = pos.piece(rec_pos);
+    let mut shared = Shared::default();
+    let (accepted_pos, best_pos) = pos.approximate(&seg, rec_pos, &mut shared);
+    let (accepted_neg, best_neg) = neg.approximate(&seg, rec_neg, &mut shared);
+    if accepted_pos.is_none() && accepted_neg.is_none() && rec_pos.depth < MAX_DEPTH {
+        let SubdivisionPoint { t, utan } = pos.find_subdivision_point(rec_pos);
+        let cusp_pos = pos.cusp_sign(t);
+        let cusp_neg = neg.cusp_sign(t);
+        let (pos0, pos1) = rec_pos.split(t, utan, cusp_pos, cusp_pos);
+        let (neg0, neg1) = rec_neg.split(t, utan, cusp_neg, cusp_neg);
+        offset_rec_pair(pos, neg, &pos0, &neg0, out_pos, out_neg);
+        offset_rec_pair(pos, neg, &pos1, &neg1, out_pos, out_neg);
+    } else {
+        pos.emit_or_subdivide(rec_pos, accepted_pos, best_pos, out_pos);
+        neg.emit_or_subdivide(rec_neg, accepted_neg, best_neg, out_neg);
+    }
+}
+
 fn offset_cubic_impl(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath, strict: bool) {
     result.truncate(0);
     // See `crate::offset` for the reasoning behind regularization.
@@ -207,6 +307,43 @@ struct OffsetRec {
     cusp1: f64,
     /// Recursion depth.
     depth: usize,
+}
+
+impl OffsetRec {
+    /// The two halves of a piece split at `t`.
+    fn split(
+        &self,
+        t: f64,
+        utan_t: Vec2,
+        cusp_t_minus: f64,
+        cusp_t_plus: f64,
+    ) -> (OffsetRec, OffsetRec) {
+        (
+            OffsetRec {
+                t0: self.t0,
+                t1: t,
+                utan0: self.utan0,
+                utan1: utan_t,
+                cusp0: self.cusp0,
+                cusp1: cusp_t_minus,
+                depth: self.depth + 1,
+            },
+            OffsetRec {
+                t0: t,
+                t1: self.t1,
+                utan0: utan_t,
+                utan1: self.utan1,
+                cusp0: cusp_t_plus,
+                cusp1: self.cusp1,
+                depth: self.depth + 1,
+            },
+        )
+    }
+
+    /// Whether the cusp value changes sign over the piece.
+    fn has_cusp(&self) -> bool {
+        self.cusp0 * self.cusp1 < 0.0
+    }
 }
 
 /// Result of choosing where to subdivide.
@@ -326,7 +463,7 @@ impl CubicOffset {
         // If the cusp value changes sign, there is a cusp inside. Find it
         // and subdivide there. This is as in `crate::offset`, except for
         // the solver.
-        if rec.cusp0 * rec.cusp1 < 0.0 {
+        if rec.has_cusp() {
             let a = rec.t0;
             let b = rec.t1;
             let s = rec.cusp1.signum();
@@ -348,25 +485,9 @@ impl CubicOffset {
             return;
         }
 
-        let seg = if rec.depth == 0 {
-            self.c
-        } else {
-            self.c.subsegment(rec.t0..rec.t1)
-        };
-        let (accepted, best_effort) = self.approximate(&seg, rec);
-        if let Some(approx) = accepted {
-            result.curve_to(approx.p1, approx.p2, approx.p3);
-        } else if rec.depth < MAX_DEPTH {
-            let SubdivisionPoint { t, utan } = self.find_subdivision_point(rec);
-            let cusp = self.cusp_sign(t);
-            self.subdivide(rec, result, t, utan, cusp, cusp);
-        } else {
-            // Out of depth. Emit the best approximation we have, though no
-            // bound has accepted it.
-            #[cfg(test)]
-            tests::OUT_OF_DEPTH.with(|count| count.set(count.get() + 1));
-            result.curve_to(best_effort.p1, best_effort.p2, best_effort.p3);
-        }
+        let seg = self.piece(rec);
+        let (accepted, best_effort) = self.approximate(&seg, rec, &mut Unshared);
+        self.emit_or_subdivide(rec, accepted, best_effort, result);
     }
 
     /// Approximate the offset of one piece.
@@ -375,7 +496,12 @@ impl CubicOffset {
     /// shown to be within tolerance, if there is one. The second is an
     /// approximation to fall back on if there is not and the piece cannot
     /// be subdivided further.
-    fn approximate(&self, seg: &CubicBez, rec: &OffsetRec) -> (Option<CubicBez>, CubicBez) {
+    fn approximate(
+        &self,
+        seg: &CubicBez,
+        rec: &OffsetRec,
+        sharing: &mut impl Sharing,
+    ) -> (Option<CubicBez>, CubicBez) {
         let d = self.d;
         let tolerance = self.tolerance;
 
@@ -423,17 +549,20 @@ impl CubicOffset {
         // use the two-point fit. Otherwise use one-point: it is cheaper to
         // bound, and it controls the tangential error better.
         let has_inflection = (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0;
-        let linear_fit = if has_inflection {
-            two_point(seg, rec)
-        } else {
-            one_point(seg, rec)
-        };
+        // The linear fits do not depend on the side.
+        let linear_fit = sharing.linear_fit(has_inflection, || {
+            if has_inflection {
+                two_point(seg, rec)
+            } else {
+                one_point(seg, rec)
+            }
+        });
         if let Some((a, b)) = linear_fit {
             // The linear fits assume their handles are used as computed.
             let fit = self.apply(seg, rec, a, b);
             if !fit.clamped {
-                let taylor = Taylor::new(seg, &fit.delta, d);
-                let certified = match Certificate::new(&taylor) {
+                let taylor = sharing.taylor(seg, &fit.delta, d);
+                let certified = match sharing.certificate(&taylor) {
                     Some(certificate) if has_inflection => {
                         // The G1 bound is tight but costs ten times what
                         // the general bound does. On an easy piece the
@@ -475,8 +604,8 @@ impl CubicOffset {
         // the general ones, from the tightest to the most widely
         // applicable.
         let arc = self.draw_arc(seg, rec);
-        let taylor = Taylor::new(seg, &arc.delta, d);
-        if let Some(certificate) = Certificate::new(&taylor) {
+        let taylor = sharing.taylor(seg, &arc.delta, d);
+        if let Some(certificate) = sharing.certificate(&taylor) {
             if let Some(bound) = crude_certified_bound(&taylor, &certificate, d) {
                 if bound <= tolerance {
                     return (Some(arc.approx), arc.approx);
@@ -550,26 +679,44 @@ impl CubicOffset {
         cusp_t_minus: f64,
         cusp_t_plus: f64,
     ) {
-        let rec0 = OffsetRec {
-            t0: rec.t0,
-            t1: t,
-            utan0: rec.utan0,
-            utan1: utan_t,
-            cusp0: rec.cusp0,
-            cusp1: cusp_t_minus,
-            depth: rec.depth + 1,
-        };
+        let (rec0, rec1) = rec.split(t, utan_t, cusp_t_minus, cusp_t_plus);
         self.offset_rec(&rec0, result);
-        let rec1 = OffsetRec {
-            t0: t,
-            t1: rec.t1,
-            utan0: utan_t,
-            utan1: rec.utan1,
-            cusp0: cusp_t_plus,
-            cusp1: rec.cusp1,
-            depth: rec.depth + 1,
-        };
         self.offset_rec(&rec1, result);
+    }
+
+    /// The piece of the source that `rec` covers.
+    #[inline(always)]
+    fn piece(&self, rec: &OffsetRec) -> CubicBez {
+        if rec.depth == 0 {
+            self.c
+        } else {
+            self.c.subsegment(rec.t0..rec.t1)
+        }
+    }
+
+    /// Emit an accepted piece, or subdivide a rejected one, or at the
+    /// maximum depth emit the best effort anyway.
+    #[inline(always)]
+    fn emit_or_subdivide(
+        &self,
+        rec: &OffsetRec,
+        accepted: Option<CubicBez>,
+        best_effort: CubicBez,
+        result: &mut BezPath,
+    ) {
+        if let Some(approx) = accepted {
+            result.curve_to(approx.p1, approx.p2, approx.p3);
+        } else if rec.depth < MAX_DEPTH {
+            let SubdivisionPoint { t, utan } = self.find_subdivision_point(rec);
+            let cusp = self.cusp_sign(t);
+            self.subdivide(rec, result, t, utan, cusp, cusp);
+        } else {
+            // Out of depth. Emit the best approximation we have, though no
+            // bound has accepted it.
+            #[cfg(test)]
+            tests::OUT_OF_DEPTH.with(|count| count.set(count.get() + 1));
+            result.curve_to(best_effort.p1, best_effort.p2, best_effort.p3);
+        }
     }
 
     /// Convert from (a, b) parameter space to an approximation.
@@ -580,6 +727,7 @@ impl CubicOffset {
     ///
     /// As in `crate::offset`, a handle of the approximation that would point
     /// against the direction the offset travels is clamped to zero length.
+    #[inline(always)]
     fn apply(&self, seg: &CubicBez, rec: &OffsetRec, a: f64, b: f64) -> Fit {
         let d = self.d;
         let n0 = rec.utan0.turn_90();
@@ -617,6 +765,7 @@ impl CubicOffset {
     }
 
     /// The arc drawing approximation of a piece.
+    #[inline(always)]
     fn draw_arc(&self, seg: &CubicBez, rec: &OffsetRec) -> Fit {
         let (a, b) = draw_arc(rec.utan0, rec.utan1);
         self.apply(seg, rec, a, b)
@@ -777,6 +926,7 @@ impl CubicOffset {
 /// circle from one end normal to the other. This is always defined, and it
 /// is exact for a straight piece. Its error is fourth order in the length
 /// of the piece. See `crate::offset`.
+#[inline(always)]
 fn draw_arc(utan0: Vec2, utan1: Vec2) -> (f64, f64) {
     // With theta the angle from utan1 to utan0, the handle length is
     // 4/3 tan(theta / 4) = 4/3 sin(theta / 2) / (1 + cos(theta / 2)).
@@ -797,6 +947,7 @@ fn draw_arc(utan0: Vec2, utan1: Vec2) -> (f64, f64) {
 ///
 /// Returns `None` if the end tangents are parallel or the derivative of the
 /// source vanishes at the midpoint.
+#[inline(always)]
 fn one_point(seg: &CubicBez, rec: &OffsetRec) -> Option<(f64, f64)> {
     let det = rec.utan0.cross(rec.utan1);
     if det.abs() < DET_EPSILON {
@@ -822,6 +973,7 @@ fn one_point(seg: &CubicBez, rec: &OffsetRec) -> Option<(f64, f64)> {
 /// fourth order in the length of the piece.
 ///
 /// Returns `None` if the system is singular.
+#[inline(always)]
 fn two_point(seg: &CubicBez, rec: &OffsetRec) -> Option<(f64, f64)> {
     let n0 = rec.utan0.turn_90();
     let n1 = rec.utan1.turn_90();
@@ -1118,6 +1270,7 @@ fn max_abs_coeff(coeffs: &[f64]) -> f64 {
 
 /// The Taylor coefficients of `F(s) = |A(t) - C(s)|^2 - d^2` about `s = t`,
 /// and the vector polynomials they are built from.
+#[derive(Clone)]
 struct Taylor {
     /// `D = A - C`.
     delta: [Vec2; 4],
@@ -1188,6 +1341,148 @@ impl Taylor {
             c1_dot_c1,
         }
     }
+
+    /// The coefficients for `-D` in place of `D`: the other side of the
+    /// source, for a fit that does not depend on the side.
+    ///
+    /// `P` is even in `D`, `Q` is odd, and `|C'|^2` does not depend on it,
+    /// so only `A'`, `D.C''`, `beta` and `A'.C'` are computed again. The
+    /// result is the same, bit for bit, as [`Taylor::new`] with `-D`.
+    fn mirrored(&self) -> Self {
+        let c1 = self.c1;
+        let delta = self.delta.map(|v| -v);
+        let a1 = [
+            c1[0] + 3.0 * (delta[1] - delta[0]),
+            c1[1] + 3.0 * (delta[2] - delta[1]),
+            c1[2] + 3.0 * (delta[3] - delta[2]),
+        ];
+        let q = self.q.map(|x| -x);
+        // Each product is negated exactly, so this is exactly the negation
+        // of the other side's, as `Taylor::new` would compute it.
+        let delta_dot_c2: [f64; 5] = dot(&delta, &self.c2);
+        let mut beta = [0.0; 5];
+        for i in 0..5 {
+            beta[i] = 2.0 * (self.c1_dot_c1[i] - delta_dot_c2[i]);
+        }
+        let mut a1_dot_c1 = [0.0; 5];
+        for i in 0..5 {
+            a1_dot_c1[i] = 0.5 * beta[i] + 5.0 * (q[i + 1] - q[i]);
+        }
+        Taylor {
+            delta,
+            a1,
+            q,
+            beta,
+            a1_dot_c1,
+            ..*self
+        }
+    }
+}
+
+/// How [`CubicOffset::approximate`] gets the work that does not depend on
+/// the side of the source: the linear fit, the Taylor coefficients, and the
+/// parts of the certificate in [`SharedBounds`].
+///
+/// For one side, [`Unshared`] computes each directly. For both sides,
+/// [`Shared`] keeps what the first side computed for the second.
+trait Sharing {
+    fn linear_fit(
+        &mut self,
+        two_point_chosen: bool,
+        fit: impl FnOnce() -> Option<(f64, f64)>,
+    ) -> Option<(f64, f64)>;
+    fn taylor(&mut self, seg: &CubicBez, delta: &[Vec2; 4], d: f64) -> Taylor;
+    fn certificate(&mut self, taylor: &Taylor) -> Option<Certificate>;
+}
+
+/// Compute everything directly, for one side.
+struct Unshared;
+
+impl Sharing for Unshared {
+    #[inline(always)]
+    fn linear_fit(
+        &mut self,
+        _two_point_chosen: bool,
+        fit: impl FnOnce() -> Option<(f64, f64)>,
+    ) -> Option<(f64, f64)> {
+        fit()
+    }
+
+    #[inline(always)]
+    fn taylor(&mut self, seg: &CubicBez, delta: &[Vec2; 4], d: f64) -> Taylor {
+        Taylor::new(seg, delta, d)
+    }
+
+    #[inline(always)]
+    fn certificate(&mut self, taylor: &Taylor) -> Option<Certificate> {
+        Certificate::new(taylor)
+    }
+}
+
+/// Keep work on a piece for the other side, in [`offset_cubic_pair`].
+#[derive(Default)]
+struct Shared {
+    /// Whether the two-point fit was chosen, and the linear fit's result.
+    linear_fit: Option<(bool, Option<(f64, f64)>)>,
+    /// The last Taylor coefficients computed, and the shared bounds for
+    /// them if a certificate has been attempted.
+    taylor: Option<(Taylor, Option<SharedBounds>)>,
+}
+
+impl Sharing for Shared {
+    fn linear_fit(
+        &mut self,
+        two_point_chosen: bool,
+        fit: impl FnOnce() -> Option<(f64, f64)>,
+    ) -> Option<(f64, f64)> {
+        match self.linear_fit {
+            Some((chosen, result)) if chosen == two_point_chosen => result,
+            _ => {
+                let result = fit();
+                self.linear_fit = Some((two_point_chosen, result));
+                result
+            }
+        }
+    }
+
+    fn taylor(&mut self, seg: &CubicBez, delta: &[Vec2; 4], d: f64) -> Taylor {
+        if let Some((other, _)) = &self.taylor {
+            if is_negation(&other.delta, delta) {
+                return other.mirrored();
+            }
+        }
+        let taylor = Taylor::new(seg, delta, d);
+        self.taylor = Some((taylor.clone(), None));
+        taylor
+    }
+
+    fn certificate(&mut self, taylor: &Taylor) -> Option<Certificate> {
+        let reuse = match &self.taylor {
+            Some((other, Some(shared))) if is_negation(&other.delta, &taylor.delta) => {
+                Some(*shared)
+            }
+            _ => None,
+        };
+        let mut computed = None;
+        let certificate = Certificate::with_shared(taylor, || {
+            reuse.unwrap_or_else(|| {
+                let shared = SharedBounds::new(taylor);
+                computed = Some(shared);
+                shared
+            })
+        });
+        if let (Some(shared), Some((own, slot))) = (computed, &mut self.taylor) {
+            if own.delta == taylor.delta {
+                *slot = Some(shared);
+            }
+        }
+        certificate
+    }
+}
+
+/// Whether `b` is exactly `-a`.
+fn is_negation(a: &[Vec2; 4], b: &[Vec2; 4]) -> bool {
+    (0..4).all(|i| a[i] == -b[i])
 }
 
 /// The result of a successful foot-point certificate.
@@ -1218,8 +1513,54 @@ struct Certificate {
     foot_shortfall: f64,
 }
 
+/// Bounds used by [`Certificate::new`] that do not change when `D` is
+/// negated, so that the other side of the source can reuse them.
+#[derive(Clone, Copy)]
+struct SharedBounds {
+    /// A bound on `|Q|`; see [`q_bound`].
+    q_max: f64,
+    /// A bound on `|C'.C''|`.
+    c1_dot_c2_max: f64,
+    /// Bounds on `|D|`, `|C'|`, `|C''|` and `|C'''|`.
+    delta_norm: f64,
+    c1_norm: f64,
+    c2_norm: f64,
+    c3_norm: f64,
+}
+
+impl SharedBounds {
+    #[inline(always)]
+    fn new(taylor: &Taylor) -> Self {
+        // C'.C'' is half the derivative of |C'|^2. Bounding it by its own
+        // coefficients, rather than by |C'| |C''|, matters where the speed
+        // is nearly uniform and C'.C'' is small.
+        let k = &taylor.c1_dot_c1;
+        let c1_dot_c2 = [
+            2.0 * (k[1] - k[0]),
+            2.0 * (k[2] - k[1]),
+            2.0 * (k[3] - k[2]),
+            2.0 * (k[4] - k[3]),
+        ];
+        SharedBounds {
+            q_max: q_bound(&taylor.q),
+            c1_dot_c2_max: max_abs_coeff(&c1_dot_c2),
+            delta_norm: max_norm(&taylor.delta),
+            c1_norm: max_norm(&taylor.c1),
+            c2_norm: max_norm(&taylor.c2),
+            c3_norm: taylor.c3.hypot(),
+        }
+    }
+}
+
 impl Certificate {
     fn new(taylor: &Taylor) -> Option<Self> {
+        Self::with_shared(taylor, || SharedBounds::new(taylor))
+    }
+
+    /// As [`Certificate::new`], with the bounds that do not depend on the
+    /// side from `shared`, which is called only once `beta` keeps one sign.
+    #[inline(always)]
+    fn with_shared(taylor: &Taylor, shared: impl FnOnce() -> SharedBounds) -> Option<Self> {
         // beta must keep one sign over the piece.
         let sign = if min_coeff(&taylor.beta) > 0.0 {
             1.0
@@ -1234,22 +1575,14 @@ impl Certificate {
             beta_min = beta_min.min(sign * taylor.beta[i]);
             a1_dot_c1_min = a1_dot_c1_min.min(sign * taylor.a1_dot_c1[i]);
         }
-        let q_max = q_bound(&taylor.q);
-        // C'.C'' is half the derivative of |C'|^2. Bounding it by its own
-        // coefficients, rather than by |C'| |C''|, matters where the speed
-        // is nearly uniform and C'.C'' is small.
-        let k = &taylor.c1_dot_c1;
-        let c1_dot_c2 = [
-            2.0 * (k[1] - k[0]),
-            2.0 * (k[2] - k[1]),
-            2.0 * (k[3] - k[2]),
-            2.0 * (k[4] - k[3]),
-        ];
-        let c1_dot_c2_max = max_abs_coeff(&c1_dot_c2);
-        let delta_norm = max_norm(&taylor.delta);
-        let c1_norm = max_norm(&taylor.c1);
-        let c2_norm = max_norm(&taylor.c2);
-        let c3_norm = taylor.c3.hypot();
+        let SharedBounds {
+            q_max,
+            c1_dot_c2_max,
+            delta_norm,
+            c1_norm,
+            c2_norm,
+            c3_norm,
+        } = shared();
         let a1_norm = max_norm(&taylor.a1);
 
         // The derivative bounds must hold for s within `margin` of [0, 1],
@@ -1352,6 +1685,7 @@ fn q_bound(q: &[f64; 6]) -> f64 {
 /// The arguments are such that `V <= v_above` and `-V <= v_below`. Returns
 /// `None` if `rho` could reach zero, in which case the approximation could
 /// cross to the other side of the source curve.
+#[inline(always)]
 fn distance_bound(v_above: f64, v_below: f64, d: f64) -> Option<f64> {
     let d_squared = d * d;
     if !(v_below < d_squared) {
@@ -1373,6 +1707,7 @@ fn distance_bound(v_above: f64, v_below: f64, d: f64) -> Option<f64> {
 /// It makes no use of the zeros of `P` and `Q`, so it is looser than the
 /// bounds for particular fits, but it is second order in the tangential
 /// error and it does not need the approximation to be G1.
+#[inline(always)]
 fn crude_certified_bound(taylor: &Taylor, certificate: &Certificate, d: f64) -> Option<f64> {
     let p_above = max_coeff(&taylor.p).max(0.0);
     let p_below = (-min_coeff(&taylor.p)).max(0.0);
@@ -1415,6 +1750,7 @@ const W2_MAX: f64 = 1.0 / 432.0;
 /// This stays valid for an approximation that is not a one-point fit, since
 /// what is left of `P` and `Q` at the midpoint is carried along as an
 /// error. It is then very loose.
+#[inline(always)]
 fn one_point_bound(taylor: &Taylor, certificate: &Certificate, d: f64) -> Option<f64> {
     let p = &taylor.p;
     let q = &taylor.q;
@@ -1778,6 +2114,7 @@ fn hull_bound(seg: &CubicBez, rec: &OffsetRec, delta: &[Vec2; 4], d: f64) -> Opt
 /// whatever the turning, but it is never below `2 |d|`, so it is only
 /// useful where the stroke is thin relative to the tolerance. There it
 /// accepts at the root pieces that turn too far for [`hull_bound`].
+#[inline(always)]
 fn hairline_bound(delta: &[Vec2; 4], d: f64) -> f64 {
     max_norm(delta) + d.abs()
 }
@@ -1801,6 +2138,7 @@ fn hairline_bound(delta: &[Vec2; 4], d: f64) -> f64 {
 /// Returns `None` if the tangent might not turn one way only, if it turns
 /// through more than about a right angle, or if the approximation is not
 /// plain arc drawing.
+#[inline(always)]
 fn small_piece_bound(seg: &CubicBez, rec: &OffsetRec, arc: &Fit, d: f64) -> Option<f64> {
     if arc.clamped {
         return None;
@@ -2773,6 +3111,45 @@ mod tests {
                 q(&tightness, 0.9),
             );
         }
+    }
+
+    #[test]
+    fn pair_matches_one_side_at_a_time() {
+        // The two-sided recursion shares work but makes the same decisions,
+        // so its output should be the same, bit for bit.
+        let mut rng = Rng(98765);
+        let mut n_segments = 0;
+        for _ in 0..80 {
+            let c = rng.cubic();
+            for d in [0.3, 3.0, 30.0] {
+                for tolerance in [0.25, 1e-2, 1e-4] {
+                    for strict in [false, true] {
+                        let one_side: fn(CubicBez, f64, f64, &mut BezPath) = if strict {
+                            offset_cubic_strict
+                        } else {
+                            offset_cubic
+                        };
+                        let mut expect_pos = BezPath::new();
+                        let mut expect_neg = BezPath::new();
+                        one_side(c, d, tolerance, &mut expect_pos);
+                        one_side(c, -d, tolerance, &mut expect_neg);
+                        let mut pos = BezPath::new();
+                        let mut neg = BezPath::new();
+                        pos.move_to(expect_pos.elements()[0].end_point().unwrap());
+                        neg.move_to(expect_neg.elements()[0].end_point().unwrap());
+                        if strict {
+                            offset_cubic_pair_strict(c, d, tolerance, &mut pos, &mut neg);
+                        } else {
+                            offset_cubic_pair(c, d, tolerance, &mut pos, &mut neg);
+                        }
+                        assert_eq!(pos.elements(), expect_pos.elements(), "{c:?}, d = {d}");
+                        assert_eq!(neg.elements(), expect_neg.elements(), "{c:?}, d = -{d}");
+                        n_segments += pos.elements().len() + neg.elements().len();
+                    }
+                }
+            }
+        }
+        assert!(n_segments > 5000, "{n_segments}");
     }
 
     #[test]

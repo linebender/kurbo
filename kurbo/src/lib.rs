@@ -184,6 +184,8 @@ pub use crate::rounded_rect::{RoundedRect, RoundedRectPathIter};
 pub use crate::rounded_rect_radii::RoundedRectRadii;
 pub use crate::shape::Shape;
 pub use crate::size::Size;
+#[doc(hidden)]
+pub use crate::stroke::OffsetMethod;
 pub use crate::stroke::{
     Cap, Dashes, Join, Stroke, StrokeCtx, StrokeOptLevel, StrokeOpts, dash, stroke, stroke_with,
 };

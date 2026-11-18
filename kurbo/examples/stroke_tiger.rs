@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 //! Time whole-stroke expansion of the Ghostscript tiger, with the cubic
-//! offsets computed by `offset` and by `offset2`.
+//! offsets computed by `offset`, by `offset2` one side at a time, and by
+//! `offset2` for both sides at once (`offset_cubic_pair`). The last two give
+//! the same outline.
 //!
 //! Usage: `cargo run --release --example stroke_tiger -- path/to/tiger.svg`
 //!
@@ -17,7 +19,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use kurbo::{BezPath, Cap, Join, PathEl, Stroke, StrokeCtx, StrokeOpts, stroke_with};
+use kurbo::{BezPath, Cap, Join, OffsetMethod, PathEl, Stroke, StrokeCtx, StrokeOpts, stroke_with};
 
 /// The value of an attribute in the text of one element.
 fn attribute<'a>(element: &'a str, name: &str) -> Option<&'a str> {
@@ -92,22 +94,25 @@ fn main() {
         paths.len()
     );
     println!(
-        "{:>10} |{:>8}{:>8} |{:>9}{:>9}{:>7}",
-        "tol", "segs:", "offset2", "us:", "offset2", "ratio"
+        "{:>10} |{:>8}{:>8} |{:>9}{:>9}{:>9} |{:>8}{:>8}",
+        "tol", "segs:", "offset2", "us:", "offset2", "pair", "ratio:", "pair"
     );
-    let old_opts = StrokeOpts::default();
-    let new_opts = StrokeOpts::default().offset2(true);
+    let opts = |method| StrokeOpts::default().offset_method(method);
     for tolerance in [1.0 / 32.0, 1.0 / 256.0, 1.0 / 2048.0] {
-        let old = measure(&paths, &old_opts, tolerance);
-        let new = measure(&paths, &new_opts, tolerance);
+        let old = measure(&paths, &opts(OffsetMethod::Offset), tolerance);
+        let new = measure(&paths, &opts(OffsetMethod::Offset2), tolerance);
+        let pair = measure(&paths, &opts(OffsetMethod::Offset2Pair), tolerance);
+        assert_eq!(new.0, pair.0, "the pair should give the same outline");
         println!(
-            "{:>10} |{:>8}{:>8} |{:>9.1}{:>9.1}{:>7.2}",
+            "{:>10} |{:>8}{:>8} |{:>9.1}{:>9.1}{:>9.1} |{:>8.2}{:>8.2}",
             format!("1/{}", (1.0 / tolerance).round()),
             old.0,
             new.0,
             old.1,
             new.1,
-            new.1 / old.1
+            pair.1,
+            new.1 / old.1,
+            pair.1 / old.1
         );
     }
 }

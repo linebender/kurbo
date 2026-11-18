@@ -32,7 +32,10 @@ Medium:
 5. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
    and FootWeighted). The G1 bound is loose in the tail on the midpoint G1
    fit (p90 of bound over error 25 to 34 times).
-6. **Both sides in one pass.** Estimated at 1.3 times one side. Deferred.
+6. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
+   calls exactly but saves only 7% against them; the stroker can use it
+   (`OffsetMethod::Offset2Pair`). Sharing the sampled estimate's
+   evaluations is the next step there ("Both sides at once").
 7. **Another corpus**, with ordinary end handles, to see how much of the
    tiger's behaviour is the tiger's.
 
@@ -379,8 +382,8 @@ this matters in general.
 
 ### Whole strokes
 
-`StrokeOpts::offset2(true)`, a hidden switch, makes the stroker use
-offset2. `cargo run --release --example stroke_tiger -- path/to/tiger.svg`
+`StrokeOpts::offset2(true)`, a hidden switch, made the stroker use
+offset2 (now `offset_method`; see "Both sides at once"). `cargo run --release --example stroke_tiger -- path/to/tiger.svg`
 expands every stroked path with the SVG defaults (miter joins, limit 4,
 butt caps), so it includes lines, joins, caps and the stroker's own check
 for nearly straight cubics. Time is per whole tiger, best of five:
@@ -646,6 +649,77 @@ The remaining default-mode miss at depth 12 was not traced; the sampled
 estimate's one known miss, by 0.1%, is the likely candidate. The earlier
 midpoint G1 module in `failed_k4` split at the source parameter the fit
 matched, which was not tried here.
+
+## Both sides at once (18 November 2026)
+
+`offset_cubic_pair(c, d, tolerance, positive, negative)` and its strict
+form append the offsets by `+d` and `-d` to two paths, as `curve_to`
+segments only: each path must already have its current point at the start
+of its offset, as a stroker's forward and backward paths do. There is no
+record of reversals; that is left for the strongly correct stroker.
+
+Design:
+
+- Both sides walk one subdivision tree while neither has a cusp in the
+  piece. The subdivision point depends only on the source and the end
+  tangents, so the split each side would choose alone is the same. Where
+  one side accepts a piece, the other carries on alone; where either side
+  has a cusp, both do (`offset_rec_pair`).
+- `approximate` is generic over `Sharing`. For one side, `Unshared`
+  computes everything. For both, `Shared` hands the second side the linear
+  fit (which does not depend on the side), the Taylor coefficients
+  mirrored (`Taylor::mirrored`: `P` is even in `D`, `Q` odd, `|C'|^2`
+  shared, so only `A'`, `D.C''`, `beta` and `A'.C'` are recomputed), and
+  the parts of the certificate that do not change when `D` is negated
+  (`SharedBounds`: the bound on `|Q|`, and the norms).
+- All of this is exact: the output is the same, bit for bit, as two calls
+  of `offset_cubic` without the initial `move_to`, which
+  `pair_matches_one_side_at_a_time` checks over 80 curves, three
+  distances, three tolerances and both modes.
+
+Time per pair against two calls of `offset_cubic` built from the
+previous commit (separate binaries, best of five), geometric mean over
+the 27 settings: 0.933 in the default mode, 0.937 strict. The saving is
+largest on gentle curves at tight tolerance (0.85 to 0.88), and at d = 10
+on wild curves it is slightly slower (1.01 to 1.04).
+
+The estimate of 1.3 times one side assumed that the work which depends on
+the side is small. It is not: the certificate alone is 25 to 30% of the
+time on gentle curves, and it, the bounds and the sampled estimate all
+depend on `beta`, which differs between the sides. What is shared (the
+fit, most of the Taylor coefficients, the split of the source, the
+recursion) is under half of one side, so this design cannot do much
+better than about 0.8.
+
+Adding the pair made the one-sided functions 2 to 5% slower (7% on gentle
+curves at 1e-4), with no change to their source path. With the pair's
+recursion compiled out the difference disappears. The second
+instantiation of `approximate` gives helpers such as `one_point_bound`,
+`two_point` and `small_piece_bound` a second caller, and the compiler
+stopped inlining them; they are now `#[inline(always)]`, which recovers
+part of it. Of the rest, some is code placement: with every function
+aligned to 64 bytes (`-C llvm-args=-align-all-functions=6`) the gap
+shrinks, but `Taylor::new` was still 15% slower with identical
+instructions and alignment, which was not explained. Aligning `Taylor`
+itself did not help.
+
+In the stroker: `StrokeOpts::offset_method` (hidden) takes an
+`OffsetMethod`, `Offset`, `Offset2` or `Offset2Pair`, replacing the
+earlier `offset2(bool)`. A runtime option lets one binary compare all
+three; a cargo feature would need two builds, and a generic parameter
+would add public API for an experiment. `Offset2Pair` appends both sides
+straight to the forward and backward paths, and gives the same outline as
+`Offset2`, bit for bit (`offset2_pair_matches_offset2` in `stroke.rs`).
+Whole tiger strokes, time per tiger:
+
+| Tolerance | `offset.rs` | offset2 | pair | pair / `offset.rs` |
+|---|---|---|---|---|
+| 1/32 | 126 µs | 101 to 107 µs | 95 to 100 µs | 0.75 to 0.79 |
+| 1/256 | 529 µs | 173 to 175 µs | 162 to 163 µs | 0.31 |
+| 1/2048 | 1644 µs | 288 to 297 µs | 256 to 261 µs | 0.16 |
+
+Not done: sharing the sampled estimate's evaluations along the piece,
+which are the same on both sides up to sign.
 
 ## Where this departs from the original notes
 
