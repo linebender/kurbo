@@ -16,46 +16,39 @@ The one current list. Each points to its section below.
 
 Small:
 
-1. **What to emit at the maximum depth.** Every default-mode miss and
-   every strict-mode miss is a piece at depth 8, emitted unchecked, some
-   thousands of times over tolerance ("Where the default mode misses").
-   Likely a question of the subdivision point: the rules inherited from
-   `offset.rs` split by parameter or by angle. The earlier midpoint G1
-   module (fast-stroke, branch `failed_k4`, `interactive/src/midpoint.rs`)
-   split at the source parameter the fit matched, falling back to the
-   parametric midpoint when that is within 10% of an end twice running.
-2. **Rounding allowance.** The original adds 8 ulps of the largest
+1. **Rounding allowance.** The original adds 8 ulps of the largest
    coordinate to every bound (`ROUND_ULPS` in bezfit's `bound/cheap.rs`).
-3. **Newton cusp solve in `offset.rs`**, on the `offset-split-at-end`
-   branch, so that benchmarks compare bounds and fits, not solvers.
-4. **The midpoint G1 retry**: decide whether to adopt it, and speed up its
+2. **Newton cusp solve and depth 12 in `offset.rs`**, on the
+   `offset-split-at-end` branch, so that benchmarks compare bounds and
+   fits, not solvers and depth limits.
+3. **The midpoint G1 retry**: decide whether to adopt it, and speed up its
    solve ("The midpoint G1 fit").
 
 Medium:
 
-5. **Certifying each half separately**: 2 to 5 more points of
+4. **Certifying each half separately**: 2 to 5 more points of
    certification; port from the original's `split` option, with
    remainders per half ("The original certificate, compared").
-6. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
+5. **The original's tighter G1 bound levels** (`FootCubic`, `HalfFit`,
    and FootWeighted). The G1 bound is loose in the tail on the midpoint G1
    fit (p90 of bound over error 25 to 34 times).
-7. **Both sides in one pass.** Estimated at 1.3 times one side. Deferred.
-8. **Another corpus**, with ordinary end handles, to see how much of the
+6. **Both sides in one pass.** Estimated at 1.3 times one side. Deferred.
+7. **Another corpus**, with ordinary end handles, to see how much of the
    tiger's behaviour is the tiger's.
 
 Large, or open questions:
 
-9. A certificate that allows `beta` to vanish at an end, for zero end
+8. A certificate that allows `beta` to vanish at an end, for zero end
    derivatives. Possibly not worth a special case.
-10. The mirrored certificate for the G1 bound.
-11. Strong correctness: locate every cusp, report reversals, and add
+9. The mirrored certificate for the G1 bound.
+10. Strong correctness: locate every cusp, report reversals, and add
     evolute sections, which need their own fit and bound.
 
-Done or dropped: the near-line slowdown (did not reproduce), the end
-subdivision bug (fixed here, and in `offset.rs` on `offset-split-at-end`),
-the error oracle (now Fréchet), the `kappa d` chooser and skip-level
-subdivision (tried, dropped), tuning the estimate's safety factor (not
-needed).
+Done or dropped: misses at the maximum depth (depth raised from 8 to 12),
+the near-line slowdown (did not reproduce), the end subdivision bug (fixed
+here, and in `offset.rs` on `offset-split-at-end`), the error oracle (now
+Fréchet), the `kappa d` chooser and skip-level subdivision (tried,
+dropped), tuning the estimate's safety factor (not needed).
 
 ## What the module is
 
@@ -617,6 +610,42 @@ retry is never reached. It is behind a runtime switch, off by default.
 Possible improvements: the analytic derivative from `failed_k4`, fewer
 iterations (stop at a mismatch relative to the tolerance, as there), and
 a retry on the estimate path for the default mode.
+
+## The maximum depth (18 November 2026)
+
+Every miss in either mode was a piece emitted unchecked at depth 8. Traced,
+the 518 such pieces over all three modules' runs were nearly all at
+tolerance 1e-4, of parameter width close to 1/256, reached mostly by
+parametric halving (3662 of about 4100 steps), with cusp values in the
+hundreds to tens of thousands at their ends: a near cusp of the source,
+where the offset sweeps an arc of radius `|d|` over a sliver of parameter.
+
+The test that chooses the parametric midpoint compares the sines of the
+angles turned on each side of it, and sines are not monotone past a right
+angle: 160 and 10 degrees pass as balanced. Comparing the angles instead
+halves the pieces out of depth at depth 8, but the depth limit matters
+more. Wild family, segments / calls over tolerance / pieces out of depth,
+and geometric mean time over all three families:
+
+| Setting | Default | Strict | ns, default / strict |
+|---|---|---|---|
+| Sines, depth 8 | 13319 / 41 / 95 | 19258 / 42 / 423 | 180 / 201 |
+| Angles, depth 8 | 13426 / 32 / 37 | 19715 / 30 / 360 | 183 / 207 |
+| Sines, depth 12 | 13492 / 1 / 0 | 20024 / 0 / 6 | 180 / 202 |
+| Angles, depth 12 | 13479 / 4 / 0 | 20323 / 0 / 2 | 183 / 209 |
+| Angles, depth 16 | 13479 / 4 / 0 | 20325 / 0 / 0 | 185 / 209 |
+
+Nearly straight and gentle curves are the same in every row. `MAX_DEPTH`
+is now 12, with the sine test kept. In `offset_compare` offset2 and strict
+are now within tolerance at every setting (they were up to 8% over on wild
+curves at 1e-4), for up to 9% more segments in strict mode at the tightest
+settings; `offset.rs` is still 2 to 20% over there. The tiger is unchanged
+except strict at 1/2048 (4679 to 4710 segments). Timing is unchanged.
+
+The remaining default-mode miss at depth 12 was not traced; the sampled
+estimate's one known miss, by 0.1%, is the likely candidate. The earlier
+midpoint G1 module in `failed_k4` split at the source parameter the fit
+matched, which was not tried here.
 
 ## Where this departs from the original notes
 

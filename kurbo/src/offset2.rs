@@ -94,9 +94,14 @@ pub mod g1_retry {
 
 /// Maximum recursion depth.
 ///
-/// As in [`crate::offset`], this is a robustness guard. A piece at this depth
-/// is emitted whether or not a bound has accepted it.
-const MAX_DEPTH: usize = 8;
+/// This is a robustness guard. A piece at this depth is emitted whether or
+/// not a bound has accepted it, so it should be reached only by input that
+/// cannot be approximated. `crate::offset` uses 8, which is too few at tight
+/// tolerances: near a sharp turn of the source, the offset sweeps an arc of
+/// radius `|d|` over a sliver of parameter, and halving the parameter takes
+/// many levels to reach it. At depth 8, every miss on the wild test family
+/// was a piece emitted at this depth; at 12, none are.
+const MAX_DEPTH: usize = 12;
 
 /// We never let cusp values have an absolute value smaller than this.
 const CUSP_EPSILON: f64 = 1e-12;
