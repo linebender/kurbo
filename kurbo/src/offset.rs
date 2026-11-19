@@ -123,8 +123,8 @@ pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     let (tan0, tan1) = PathSeg::Cubic(c).tangents();
     let utan0 = tan0.normalize();
     let utan1 = tan1.normalize();
-    let cusp0 = co.endpoint_cusp(co.q.p0, co.c0);
-    let cusp1 = co.endpoint_cusp(co.q.p2, co.c0 + co.c1 + co.c2);
+    let cusp0 = co.endpoint_cusp(0.0, co.q.p0, co.c0);
+    let cusp1 = co.endpoint_cusp(1.0, co.q.p2, co.c0 + co.c1 + co.c2);
     result.move_to(c.p0 + d * utan0.turn_90());
     let rec = OffsetRec::new(0., 1., utan0, utan1, cusp0, cusp1, 0);
     co.offset_rec(&rec, result);
@@ -170,13 +170,21 @@ impl CubicOffset {
     /// the start point tangent and `y` should be `c0`. For the end point, `tan` should be
     /// the end point tangent and `y` should be `c0 + c1 + c2`.
     ///
-    /// This is just evaluating the polynomial at t=0 and t=1.
+    /// For a regular endpoint, this is just evaluating the polynomial at t=0 or t=1.
+    /// For a zero-derivative endpoint, evaluate just inside the curve to preserve the
+    /// one-sided sign of the cusp value.
     ///
     /// See [`Self::cusp_sign`] for a description of what "cusp value" means.
-    fn endpoint_cusp(&self, tan: Point, y: f64) -> f64 {
+    fn endpoint_cusp(&self, t: f64, tan: Point, y: f64) -> f64 {
         // Robustness to avoid divide-by-zero when derivatives vanish
         const TAN_DIST_EPSILON: f64 = 1e-12;
-        let tan_dist = tan.to_vec2().hypot().max(TAN_DIST_EPSILON);
+        let tan_dist = tan.to_vec2().hypot();
+        if tan_dist < TAN_DIST_EPSILON {
+            const T_EPSILON: f64 = 1e-6;
+            let t = if t == 0.0 { T_EPSILON } else { 1.0 - T_EPSILON };
+            return self.cusp_sign(t);
+        }
+        let tan_dist = tan_dist.max(TAN_DIST_EPSILON);
         let rsqrt = 1.0 / tan_dist;
         y * (rsqrt * rsqrt * rsqrt) + 1.0
     }
