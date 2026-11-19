@@ -2122,7 +2122,16 @@ fn osculating_decision(
     ];
     let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
     let slip_scale = max_slip * max_slip * d * d;
-    for t in OSCULATING_SAMPLES {
+    // All samples are evaluated before any is looked at, so that this loop
+    // has no branches and vectorizes. The decision below takes them in
+    // order, as before.
+    let mut bb = [0.0; 8];
+    let mut slip = [0.0; 8];
+    let mut e = [0.0; 8];
+    let mut numerator = [0.0; 8];
+    let mut denominator = [0.0; 8];
+    for i in 0..8 {
+        let t = OSCULATING_SAMPLES[i];
         let mt = 1.0 - t;
         let d_t = delta[0] * (mt * mt * mt)
             + delta[1] * (3.0 * mt * mt * t)
@@ -2132,26 +2141,31 @@ fn osculating_decision(
         let qq = c2[0] * mt + c2[1] * t;
         let s2 = q.hypot2();
         let b = q.dot(d_t);
-        if b * b > slip_scale * s2 {
-            return Osculating::Untrusted;
-        }
         let s = s2.sqrt();
         let a = q.turn_90().dot(d_t);
         let k = qq.cross(q);
         let s3 = s2 * s;
-        let e = s3 + k * d;
+        let e_i = s3 + k * d;
+        bb[i] = b * b;
+        slip[i] = slip_scale * s2;
+        e[i] = e_i;
+        numerator[i] = a * s * e_i - d * s2 * e_i + 0.5 * k * b * b;
+        denominator[i] = d * s2 * e_i;
+    }
+    for i in 0..8 {
+        if bb[i] > slip[i] {
+            return Osculating::Untrusted;
+        }
         // The cusp value here is `e / s3`, and `s3` is not negative.
-        if !(e > 0.0) {
-            return if e <= 0.0 {
-                Osculating::Cusp(t)
+        if !(e[i] > 0.0) {
+            return if e[i] <= 0.0 {
+                Osculating::Cusp(OSCULATING_SAMPLES[i])
             } else {
                 Osculating::Untrusted
             };
         }
-        let numerator = a * s * e - d * s2 * e + 0.5 * k * b * b;
-        let denominator = d * s2 * e;
         // Written so that a NaN rejects.
-        if !(numerator.abs() <= limit * denominator.abs()) {
+        if !(numerator[i].abs() <= limit * denominator[i].abs()) {
             return Osculating::Decided(false);
         }
     }
