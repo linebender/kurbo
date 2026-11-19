@@ -301,8 +301,8 @@ fn oracle_check() {
                         if r.unmeasured > 0 {
                             unmeasured += 1;
                         }
-                        for k in 0..3 {
-                            reasons[k] += r.unmeasured_reasons[k];
+                        for (total, n) in reasons.iter_mut().zip(r.unmeasured_reasons) {
+                            *total += n;
                         }
                         let frechet = r.error.max(r.unmeasured_lower);
                         if frechet < sampled - eps - 0.05 * tol {
