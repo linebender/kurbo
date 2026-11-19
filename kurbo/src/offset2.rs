@@ -342,9 +342,26 @@ fn offset_rec_pair(
     out_pos: &mut BezPath,
     out_neg: &mut BezPath,
 ) {
-    if rec_pos.has_cusp() || rec_neg.has_cusp() {
-        pos.offset_rec(rec_pos, out_pos);
-        neg.offset_rec(rec_neg, out_neg);
+    let mut todo = [true; 2];
+    if pos.tries_arc(rec_pos) {
+        let seg = pos.piece(rec_pos);
+        for (i, (co, rec, out)) in [(pos, rec_pos, &mut *out_pos), (neg, rec_neg, &mut *out_neg)]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(approx) = co.accept_arc(&seg, rec) {
+                out.curve_to(approx.p1, approx.p2, approx.p3);
+                todo[i] = false;
+            }
+        }
+    }
+    if todo != [true; 2] || rec_pos.has_cusp() || rec_neg.has_cusp() {
+        if todo[0] {
+            pos.offset_rec_past_arc(rec_pos, out_pos);
+        }
+        if todo[1] {
+            neg.offset_rec_past_arc(rec_neg, out_neg);
+        }
         return;
     }
     let seg = pos.piece(rec_pos);
@@ -369,8 +386,8 @@ fn offset_rec_pair(
         && rec_pos.depth < MAX_DEPTH
     {
         let SubdivisionPoint { t, utan } = pos.find_subdivision_point(rec_pos);
-        let cusp_pos = pos.cusp_sign(t);
-        let cusp_neg = neg.cusp_sign(t);
+        let kappa_d = pos.curvature_times_d(t);
+        let (cusp_pos, cusp_neg) = (kappa_d + 1.0, -kappa_d + 1.0);
         let (pos0, pos1) = rec_pos.split(t, utan, cusp_pos, cusp_pos);
         let (neg0, neg1) = rec_neg.split(t, utan, cusp_neg, cusp_neg);
         offset_rec_pair(pos, neg, &pos0, &neg0, out_pos, out_neg);
@@ -734,8 +751,15 @@ impl CubicOffset {
     /// The offset has a cusp where this crosses zero, and an inflection of
     /// the source is where it equals one. See [`crate::offset`].
     fn cusp_sign(&self, t: f64) -> f64 {
+        self.curvature_times_d(t) + 1.0
+    }
+
+    /// The curvature of the source at `t` times the offset. On the other
+    /// side of the source it is minus this.
+    #[inline(always)]
+    fn curvature_times_d(&self, t: f64) -> f64 {
         let ds2 = self.q.eval(t).to_vec2().hypot2();
-        ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt()) + 1.0
+        ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt())
     }
 
     /// The cusp value times `|c'|^3`, and its derivative with respect to `t`.
@@ -871,6 +895,18 @@ impl CubicOffset {
 
     /// Primary entry point for recursive subdivision.
     fn offset_rec(&self, rec: &OffsetRec, result: &mut BezPath) {
+        if self.tries_arc(rec) {
+            if let Some(approx) = self.accept_arc(&self.piece(rec), rec) {
+                result.curve_to(approx.p1, approx.p2, approx.p3);
+                return;
+            }
+        }
+        self.offset_rec_past_arc(rec, result);
+    }
+
+    /// [`Self::offset_rec`] for a piece that [`Self::accept_arc`] did not
+    /// accept.
+    fn offset_rec_past_arc(&self, rec: &OffsetRec, result: &mut BezPath) {
         // If the cusp value changes sign, there is a cusp inside. Find it
         // and subdivide there. This is as in `crate::offset`, except for
         // the solver.
@@ -999,31 +1035,6 @@ impl CubicOffset {
         let d = self.d;
         let tolerance = self.tolerance;
 
-        // A thin stroke can be accepted whatever the shape of the piece,
-        // with arc drawing and a bound that needs no more than the fit. It
-        // is at least `2 |d|`, so only try it when that is small enough.
-        if 2.0 * d.abs() <= tolerance {
-            let arc = self.draw_arc(seg, rec);
-            if self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx) {
-                return (Some(arc.approx), arc.approx, None);
-            }
-        }
-
-        // At the root, a piece that turns very little can be accepted with
-        // arc drawing and a bound that costs almost nothing. This also
-        // catches straight and nearly straight pieces, for which the linear
-        // fits below are ill conditioned.
-        // The hull bound is at least `|d|` times the sine of the angle
-        // between the end tangents, so skip it when that alone is too much.
-        if rec.depth == 0 && d.abs() * rec.utan0.cross(rec.utan1).abs() <= tolerance {
-            let arc = self.draw_arc(seg, rec);
-            if let Some(bound) = hull_bound(seg, rec, &arc.delta, d) {
-                if self.accepts(bound, seg, &arc.approx) {
-                    return (Some(arc.approx), arc.approx, None);
-                }
-            }
-        }
-
         // A piece that is itself smaller than the tolerance is the tip of a
         // near cusp of the source, or close to one. Its offset is nearly an
         // arc of a circle about the tip, however badly parametrized, and
@@ -1060,16 +1071,10 @@ impl CubicOffset {
         // cusp at the samples, and a two-point fit does not slip far along
         // the offset.
         if self.tries_osculating(rec) {
+            // Arc drawing replaces a linear fit with a clamped handle.
             let fit = match linear_fit {
-                Some((a, b)) => {
-                    let fit = self.apply(seg, rec, a, b);
-                    if fit.clamped {
-                        self.draw_arc(seg, rec)
-                    } else {
-                        fit
-                    }
-                }
-                None => self.draw_arc(seg, rec),
+                Some((a, b)) if !self.clamps(seg, rec, a, b) => self.apply(seg, rec, a, b),
+                _ => self.draw_arc(seg, rec),
             };
             let limit = tolerance / (OSCULATING_SAFETY * d.abs());
             // Only the two-point fit leaves the slip free. With one-point,
@@ -1082,13 +1087,14 @@ impl CubicOffset {
             } else {
                 f64::INFINITY
             };
-            match osculating_decision(seg, &fit.delta, d, limit, max_slip) {
+            let sign = 1.0_f64.copysign(rec.cusp0);
+            match osculating_decision(seg, &fit.delta, d, limit, max_slip, sign) {
                 Osculating::Decided(accepted) => {
                     return (accepted.then_some(fit.approx), fit.approx, None);
                 }
-                // The cusp value is negative at a sample, and positive at
-                // both ends: there are at least two cusps in the piece.
-                // Split there, so that both halves see a cusp.
+                // The cusp value at a sample has the other sign from the
+                // one at both ends: there are at least two cusps in the
+                // piece. Split there, so that both halves see a cusp.
                 Osculating::Cusp(t) => {
                     return (None, fit.approx, Some(rec.t0 + t * (rec.t1 - rec.t0)));
                 }
@@ -1139,18 +1145,59 @@ impl CubicOffset {
         (None, arc.approx, None)
     }
 
+    /// Whether [`Self::accept_arc`] is worth trying on a piece: the end
+    /// normals, times `d`, are within the tolerance of each other. No bound
+    /// on the distance at equal parameter can be under that, and both of its
+    /// bounds are of that kind. A stroke thin enough for the hairline bound
+    /// passes whatever the piece.
+    #[inline(always)]
+    fn tries_arc(&self, rec: &OffsetRec) -> bool {
+        self.d * self.d * (rec.utan1 - rec.utan0).hypot2() <= self.tolerance * self.tolerance
+            || 2.0 * self.d.abs() <= self.tolerance
+    }
+
+    /// Arc drawing on a piece, if one of the two strict bounds that need
+    /// nothing but the fit accepts it.
+    ///
+    /// A thin stroke can be accepted whatever the shape of the piece: the
+    /// hairline bound is at least `2 |d|`, so it is tried when that is small
+    /// enough. A piece that turns very little can be accepted by the hull
+    /// bound; this also catches straight and nearly straight pieces, for
+    /// which the linear fits are ill conditioned.
+    ///
+    /// Both bounds are on the distance at equal parameter, which holds
+    /// across cusps of the offset, so this comes before a piece is split at
+    /// one.
+    #[inline(always)]
+    fn accept_arc(&self, seg: &CubicBez, rec: &OffsetRec) -> Option<CubicBez> {
+        let d = self.d;
+        let arc = self.draw_arc(seg, rec);
+        let hairline = 2.0 * d.abs() <= self.tolerance
+            && self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx);
+        let accepted = hairline
+            || hull_bound(seg, rec, &arc.delta, d)
+                .is_some_and(|bound| self.accepts(bound, seg, &arc.approx));
+        accepted.then_some(arc.approx)
+    }
+
     /// Whether the default mode tries the osculating parabola estimate on a
-    /// piece: the cusp value is positive at both ends, and does not change
-    /// by more than [`OSCULATING_MAX_CUSP_RATIO`] between them.
+    /// piece: the cusp value has the same sign at both ends, and does not
+    /// change by more than [`OSCULATING_MAX_CUSP_RATIO`] between them.
+    ///
+    /// Where it is negative at both, the piece is past a cusp of the offset,
+    /// which runs backward there. The estimate is the same with the signs
+    /// reversed.
     #[inline(always)]
     fn tries_osculating(&self, rec: &OffsetRec) -> bool {
-        let cusp_min = rec.cusp0.min(rec.cusp1);
-        let cusp_max = rec.cusp0.max(rec.cusp1);
+        let cusp0 = rec.cusp0.abs();
+        let cusp1 = rec.cusp1.abs();
+        let cusp_min = cusp0.min(cusp1);
+        let cusp_max = cusp0.max(cusp1);
         // A piece ending at a cusp, split there, has the value
         // `CUSP_EPSILON` at that end; the ratio does not apply to it.
         let cusp_ratio_ok =
             cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min || cusp_min == CUSP_EPSILON;
-        !self.strict && cusp_min > 0.0 && cusp_ratio_ok
+        !self.strict && rec.cusp0 * rec.cusp1 > 0.0 && cusp_ratio_ok
     }
 
     /// [`Self::approximate`] for both sides of the source at once, where
@@ -1158,10 +1205,10 @@ impl CubicOffset {
     /// minus the distance.
     ///
     /// With the same fit on both sides and no handle clamped on either,
-    /// `D` on one side is minus `D` on the other. Then the hull bound is
-    /// the same for both, and the osculating parabola estimate differs
-    /// only in a few signs, so one pass over its samples decides both.
-    /// That is nearly every piece of an ordinary stroke.
+    /// `D` on one side is minus `D` on the other. Then the osculating
+    /// parabola estimate differs only in a few signs, and one pass over
+    /// its samples decides both. That is nearly every piece of an ordinary
+    /// stroke that [`Self::accept_arc`] has not accepted.
     ///
     /// The results are those of [`Self::approximate`] on each side, to the
     /// last bit. Returns `None` where the sides part ways or one of them
@@ -1178,51 +1225,6 @@ impl CubicOffset {
         let tolerance = self.tolerance;
         if self.strict {
             return None;
-        }
-        let accepted = |arc: &Fit, arc_other: &Fit| {
-            Some([
-                (Some(arc.approx), arc.approx, None),
-                (Some(arc_other.approx), arc_other.approx, None),
-            ])
-        };
-        // Arc drawing serves the cheap bounds, and replaces a linear fit
-        // with a clamped handle.
-        let mut arcs: Option<(Fit, Fit)> = None;
-        let draw_arcs = || (self.draw_arc(seg, rec), other.draw_arc(seg, rec_other));
-
-        // The same tests as in `approximate`, in the same order.
-        if 2.0 * d.abs() <= tolerance {
-            let (arc, arc_other) = arcs.get_or_insert_with(draw_arcs);
-            let ok = self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx);
-            let ok_other = other.accepts(
-                hairline_bound(&arc_other.delta, other.d),
-                seg,
-                &arc_other.approx,
-            );
-            if ok != ok_other {
-                return None;
-            }
-            if ok {
-                return accepted(arc, arc_other);
-            }
-        }
-        if rec.depth == 0 && d.abs() * rec.utan0.cross(rec.utan1).abs() <= tolerance {
-            let (arc, arc_other) = arcs.get_or_insert_with(draw_arcs);
-            let bound = hull_bound(seg, rec, &arc.delta, d);
-            let bound_other = if arc.clamped || arc_other.clamped {
-                hull_bound(seg, rec_other, &arc_other.delta, other.d)
-            } else {
-                bound
-            };
-            let ok = bound.is_some_and(|bound| self.accepts(bound, seg, &arc.approx));
-            let ok_other =
-                bound_other.is_some_and(|bound| other.accepts(bound, seg, &arc_other.approx));
-            if ok != ok_other {
-                return None;
-            }
-            if ok {
-                return accepted(arc, arc_other);
-            }
         }
         if (seg.p3 - seg.p0).hypot2() <= tolerance * tolerance {
             return None;
@@ -1241,23 +1243,23 @@ impl CubicOffset {
         } else {
             one_point(seg, rec)
         };
-        let linear_fits = match linear_fit {
+        let unclamped = match linear_fit {
             Some((a, b)) => {
-                let fit = self.apply(seg, rec, a, b);
-                let fit_other = other.apply(seg, rec_other, a, b);
-                if fit.clamped != fit_other.clamped {
+                let clamps = self.clamps(seg, rec, a, b);
+                if clamps != other.clamps(seg, rec_other, a, b) {
                     return None;
                 }
-                (!fit.clamped).then_some((fit, fit_other))
+                (!clamps).then_some((a, b))
             }
             None => None,
         };
-        let (fit, fit_other) = match &linear_fits {
-            Some((fit, fit_other)) => (fit, fit_other),
-            None => {
-                let (arc, arc_other) = arcs.get_or_insert_with(draw_arcs);
-                (&*arc, &*arc_other)
-            }
+        // Arc drawing replaces a linear fit with a clamped handle.
+        let (fit, fit_other) = match unclamped {
+            Some((a, b)) => (
+                self.apply(seg, rec, a, b),
+                other.apply(seg, rec_other, a, b),
+            ),
+            None => (self.draw_arc(seg, rec), other.draw_arc(seg, rec_other)),
         };
         if fit.clamped || fit_other.clamped {
             return None;
@@ -1279,8 +1281,12 @@ impl CubicOffset {
             Osculating::Untrusted => None,
         };
         Some([
-            result(samples.decide(1.0, limit), fit, rec)?,
-            result(samples.decide(-1.0, limit), fit_other, rec_other)?,
+            result(samples.decide(1.0, limit, rec.cusp0), &fit, rec)?,
+            result(
+                samples.decide(-1.0, limit, rec_other.cusp0),
+                &fit_other,
+                rec_other,
+            )?,
         ])
     }
 
@@ -1424,38 +1430,54 @@ impl CubicOffset {
         let n1 = rec.utan1.turn_90();
         let p0 = seg.p0 + d * n0;
         let p3 = seg.p3 + d * n1;
+        let (l0, l1, clamp0, clamp1) = self.handles(seg, rec, a, b);
+
+        // Form D directly, without subtracting control points of A and C,
+        // whose coordinates may be much larger than the offset.
+        let mut p1 = p0 + l0 * rec.utan0;
+        let mut delta1 = d * (n0 + a * rec.utan0);
+        if clamp0 {
+            p1 = p0;
+            delta1 = p1 - seg.p1;
+        }
+        let mut p2 = p3 - l1 * rec.utan1;
+        let mut delta2 = d * (n1 + b * rec.utan1);
+        if clamp1 {
+            p2 = p3;
+            delta2 = p2 - seg.p2;
+        }
+        Fit {
+            approx: CubicBez::new(p0, p1, p2, p3),
+            delta: [d * n0, delta1, delta2, d * n1],
+            clamped: clamp0 || clamp1,
+        }
+    }
+
+    /// The handle lengths of the approximation with the given parameters,
+    /// and whether [`Self::apply`] clamps each to zero.
+    #[inline(always)]
+    fn handles(&self, seg: &CubicBez, rec: &OffsetRec, a: f64, b: f64) -> (f64, f64, bool, bool) {
+        let d = self.d;
         // The handle lengths of the source piece, and of the approximation.
         let source_l0 = (seg.p1 - seg.p0).dot(rec.utan0);
         let source_l1 = (seg.p3 - seg.p2).dot(rec.utan1);
         let l0 = source_l0 + a * d;
         let l1 = source_l1 - b * d;
-
-        // Form D directly, without subtracting control points of A and C,
-        // whose coordinates may be much larger than the offset.
-        let mut clamped = false;
-        let mut p1 = p0 + l0 * rec.utan0;
-        let mut delta1 = d * (n0 + a * rec.utan0);
         // At a smoothed stub the offset arrives moving backward, whatever
         // the cusp value says.
         let flip0 = rec.t0 == 0.0 && self.smoothed_stub[0];
         let flip1 = rec.t1 == 1.0 && self.smoothed_stub[1];
-        if l0 * rec.cusp0 * if flip0 { -1.0 } else { 1.0 } <= 0.0 {
-            p1 = p0;
-            delta1 = p1 - seg.p1;
-            clamped = true;
-        }
-        let mut p2 = p3 - l1 * rec.utan1;
-        let mut delta2 = d * (n1 + b * rec.utan1);
-        if l1 * rec.cusp1 * if flip1 { -1.0 } else { 1.0 } <= 0.0 {
-            p2 = p3;
-            delta2 = p2 - seg.p2;
-            clamped = true;
-        }
-        Fit {
-            approx: CubicBez::new(p0, p1, p2, p3),
-            delta: [d * n0, delta1, delta2, d * n1],
-            clamped,
-        }
+        let clamp0 = l0 * rec.cusp0 * if flip0 { -1.0 } else { 1.0 } <= 0.0;
+        let clamp1 = l1 * rec.cusp1 * if flip1 { -1.0 } else { 1.0 } <= 0.0;
+        (l0, l1, clamp0, clamp1)
+    }
+
+    /// Whether [`Self::apply`] would clamp a handle with these parameters,
+    /// which costs much less to find out than the fit.
+    #[inline(always)]
+    fn clamps(&self, seg: &CubicBez, rec: &OffsetRec, a: f64, b: f64) -> bool {
+        let (_, _, clamp0, clamp1) = self.handles(seg, rec, a, b);
+        clamp0 || clamp1
     }
 
     /// The arc drawing approximation of a piece.
@@ -2658,12 +2680,15 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 ///
 /// and it is within `limit` when `|A s E - d s^2 E + K B^2 / 2|` is within
 /// `limit |d s^2 E|`. The slip is within `max_slip` when
-/// `B^2 <= max_slip^2 d^2 s^2`, and the cusp value is positive when `E` is.
+/// `B^2 <= max_slip^2 d^2 s^2`, and the cusp value has the sign of `E`.
 ///
-/// The first sample with a cusp value that is not positive, or over the
-/// limit, decides. The caller has checked that the cusp value is positive
-/// at both ends, so in the first case there are at least two cusps in the
-/// piece, which the signs at the ends do not show. Too much slip at any
+/// The first sample whose cusp value has not the sign of `cusp_sign`, or
+/// that is over the limit, decides. The caller has checked that the cusp
+/// value has that sign at both ends, so in the first case there are at
+/// least two cusps in the piece, which the signs at the ends do not show.
+/// Past a cusp of the offset the sign is negative, and nothing else
+/// changes: the offset runs backward, on a curve that is as smooth. Too
+/// much slip at any
 /// sample only matters if none of them rejects: the estimate is not to be
 /// trusted to accept then, but a sample over the limit still rejects. The
 /// sampled estimate that such a piece falls back on has fewer samples, and
@@ -2675,8 +2700,9 @@ fn osculating_decision(
     d: f64,
     limit: f64,
     max_slip: f64,
+    cusp_sign: f64,
 ) -> Osculating {
-    OsculatingSamples::new(seg, delta, d, max_slip).decide(1.0, limit)
+    OsculatingSamples::new(seg, delta, d, max_slip).decide(1.0, limit, cusp_sign)
 }
 
 /// The parts of [`osculating_decision`] at each sample that are the same
@@ -2749,9 +2775,10 @@ impl OsculatingSamples {
     }
 
     /// The decision for the side the samples were taken on if `side` is 1,
-    /// and for the other if it is -1.
+    /// and for the other if it is -1. `cusp_sign` has the sign of the cusp
+    /// value at the ends of the piece.
     #[inline(always)]
-    fn decide(&self, side: f64, limit: f64) -> Osculating {
+    fn decide(&self, side: f64, limit: f64, cusp_sign: f64) -> Osculating {
         let mut e = [0.0; 8];
         let mut numerator = [0.0; 8];
         let mut denominator = [0.0; 8];
@@ -2764,7 +2791,7 @@ impl OsculatingSamples {
         let mut trusted = true;
         for i in 0..8 {
             // The cusp value here is `e / s3`, and `s3` is not negative.
-            if e[i] <= 0.0 {
+            if e[i] * cusp_sign <= 0.0 {
                 return Osculating::Cusp(OSCULATING_SAMPLES[i]);
             }
             // Written so that a NaN rejects.
