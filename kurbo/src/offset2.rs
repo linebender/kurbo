@@ -1032,6 +1032,7 @@ impl CubicOffset {
     /// shown to be within tolerance, if there is one. The second is an
     /// approximation to fall back on if there is not and the piece cannot
     /// be subdivided further.
+    #[inline(always)]
     fn approximate(&self, seg: &CubicBez, rec: &OffsetRec) -> Approximation {
         let d = self.d;
         let tolerance = self.tolerance;
