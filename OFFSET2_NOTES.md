@@ -19,10 +19,11 @@ Small:
 1. **Newton cusp solve and depth 12 in `offset.rs`**, on the
    `offset-split-at-end` branch, so that benchmarks compare bounds and
    fits, not solvers and depth limits.
-2. **Midpoint subdivision** in place of the angle and curvature split,
-   which would remove about 110 more lines and is 4 to 6% faster, but
-   needs a guard on the osculating estimate that looks inside the piece,
-   and makes hairpins much worse ("Trimming", "Near cusps").
+2. **Midpoint subdivision everywhere**, in place of the angle split: 2 to
+   8% faster and simpler still, and since the tips no worse on hairpins,
+   but 4% more segments on the tiger at fine tolerances and one wild curve
+   1.35 times over ("After the tips"). The inflection branch is already
+   the midpoint.
 
 Medium:
 
@@ -1592,4 +1593,58 @@ tolerances in both modes: no piece at the maximum depth, and within 1.1
 times the tolerance (strict: within it). It fails at `4f0cadd`.
 `slow_points_finds_every_slow_minimum` in `cubicbez.rs` checks the test
 and the solve against sampled minima of the speed on 4,000 curves.
+
+## After the tips (19 November 2026)
+
+**Where the time is.** Whole tiger strokes with the pair, sampled
+(`sample`, 8 s each): `osculating_decision` is 27% of the time at 1/32 and
+36% at 1/2048; `approximate` for the pair 19 and 16%; `offset_rec` (with
+the one-sided `approximate` inlined) 13%; the stroker itself (`do_join`,
+`stroke_with`, `extend_reversed`, `do_cubic`, `finish_closed`) about 12%
+at 1/32; `subsegment` 3 to 6%; `accept_uncertified` 4 to 7%; the root
+4 to 5%; `hull_bound` 4% at 1/32.
+
+**Fewer samples for the osculating estimate, measured and dropped.** Every
+piece that reaches the estimate was logged on the tiger (three tolerances)
+and on wild and gentle random curves, with its Fréchet error from the
+oracle, and each candidate set of samples scored by what it would accept.
+One-point fits, accepted / over tolerance / worst, at the safety factor
+1.2:
+
+| Samples | Tiger (4022 measured) | Wild (21715) | Gentle (5694) |
+|---|---|---|---|
+| 8 uniform (current) | 2904 / 1 / 1.19 | 13789 / 0 | 4027 / 0 |
+| 6 uniform | 2905 / 1 / 1.01 | 13738 / 8 / 2.07 | 4006 / 0 |
+| 6: .08 .2 .34 .66 .8 .92 | 2915 / 1 / 1.26 | 13876 / 3 / 2.05 | 4038 / 0 |
+| 4: .14 .28 .72 .86 | 2928 / 5 / 1.51 | 13719 / 6 / 2.07 | 4005 / 0 |
+| 4 uniform | 2953 / 25 / 1.37 | 14294 / 235 / 4.04 | 4157 / 71 / 1.33 |
+| 2, at the peaks of `w` | 2934 / 9 / 1.51 | 13798 / 42 / 5.52 | 4006 / 0 |
+
+For the one-point fit the Newton value is exactly
+`w r_mid + w2 (r_slope - 2 g)`, so with `g` constant two samples at
+`1/2 ± 1/sqrt(20)` would determine it, and on gentle curves they do. On
+the tiger and on wild curves `g` varies, and every smaller set lets misses
+through. Two-point fits need all eight (4 uniform: 10 of 271 accepted over
+tolerance on the tiger, worst 1.78). The eight stay.
+
+**Two samples first, then six, dropped.** The first two samples are where
+the one-point fit's error peaks and about 37% of decisions are rejections,
+so evaluating those two, rejecting if either is over, and only then the
+other six, gives the same decisions with less work. It was 2 to 3% slower
+(12 to 20% when the two sets were taken as slices of the sample array, so
+that the weights were no longer constants). The eight samples in one
+branch-free loop overlap in the pipeline; a data-dependent branch after
+two costs more than the six it saves.
+
+**The inflection branch of the subdivision is the midpoint.** With the tips
+split off, subdividing a piece with an inflection by the integral of
+absolute curvature made no difference to the survey (every row within a
+few segments, same errors), and under half a percent to segments on the
+tiger and the random families (tiger 1185 and 1805 against 1184 and 1801
+at 1/256 and 1/2048; strict 3100 and 4670 against 3087 and 4674). It is
+gone, with the forced fallback in `subdivide_for_tangent`: 45 lines less,
+and 0.3 to 1% faster. Midpoint everywhere was measured again too: 2 to 8%
+faster (12% for strict mode on wild curves) and the survey unchanged, but
+1881 against 1801 segments on the tiger at 1/2048 and a wild curve at 1.35
+times its tolerance.
 

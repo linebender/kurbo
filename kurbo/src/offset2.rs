@@ -1275,10 +1275,16 @@ impl CubicOffset {
 
     /// Decide where to subdivide when a piece is not accepted.
     ///
-    /// This is as in `crate::offset`: bisect the angle between the end
-    /// tangents when there is no inflection, and otherwise subdivide by the
-    /// integral of absolute curvature. Unlike there, a point at an end of
-    /// the piece is never chosen; see [`Self::keep_inside`].
+    /// This is the parameter midpoint if the tangent there is roughly midway
+    /// between the end tangents, and otherwise, for a piece with no
+    /// inflection, the point where the tangent bisects them, as in
+    /// `crate::offset`. A point at an end of the piece is never chosen; see
+    /// [`Self::keep_inside`].
+    ///
+    /// For a piece with an inflection, `crate::offset` subdivides by the
+    /// integral of absolute curvature. Here it is the midpoint: with the
+    /// tips of the curve split off first, that made no difference to
+    /// accuracy and under half a percent to the number of segments.
     fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
         if !self.tips[0].is_nan() {
             if let Some(point) = self.split_toward_tip(rec) {
@@ -1290,57 +1296,21 @@ impl CubicOffset {
         let x0 = rec.utan0.cross(q_t).abs();
         let x1 = rec.utan1.cross(q_t).abs();
         const SUBDIVIDE_THRESH: f64 = 0.1;
-        if x0 > SUBDIVIDE_THRESH * x1 && x1 > SUBDIVIDE_THRESH * x0 {
-            let utan = q_t.normalize();
-            return SubdivisionPoint { t, utan };
-        }
-
-        let chord = self.c.eval(rec.t1) - self.c.eval(rec.t0);
-        if chord.cross(rec.utan0) * chord.cross(rec.utan1) < 0.0 {
-            let tan = rec.utan0 + rec.utan1;
-            if let Some(subdivision) =
-                self.subdivide_for_tangent(rec.utan0, rec.t0, rec.t1, tan, false)
-            {
-                return self.keep_inside(rec, subdivision);
+        if !(x0 > SUBDIVIDE_THRESH * x1 && x1 > SUBDIVIDE_THRESH * x0) {
+            let chord = self.c.eval(rec.t1) - self.c.eval(rec.t0);
+            if chord.cross(rec.utan0) * chord.cross(rec.utan1) < 0.0 {
+                if let Some(subdivision) = self.subdivide_for_tangent(rec, rec.utan0 + rec.utan1) {
+                    return self.keep_inside(rec, subdivision);
+                }
             }
         }
-        // Curve definitely has an inflection point. Try to subdivide based
-        // on integral of absolute curvature.
-        let mut tangents: ArrayVec<Vec2, 4> = ArrayVec::new();
-        let mut ts: ArrayVec<f64, 4> = ArrayVec::new();
-        tangents.push(rec.utan0);
-        ts.push(rec.t0);
-        for t in self.c.inflections() {
-            if t > rec.t0 && t < rec.t1 {
-                tangents.push(self.q.eval(t).to_vec2());
-                ts.push(t);
-            }
-        }
-        tangents.push(rec.utan1);
-        ts.push(rec.t1);
-        let mut arc_angles: ArrayVec<f64, 3> = ArrayVec::new();
-        let mut sum = 0.0;
-        for i in 0..tangents.len() - 1 {
-            let tan0 = tangents[i];
-            let tan1 = tangents[i + 1];
-            let th = tan0.cross(tan1).atan2(tan0.dot(tan1));
-            sum += th.abs();
-            arc_angles.push(th);
-        }
-        let mut target = sum * 0.5;
-        let mut i = 0;
-        while arc_angles[i].abs() < target {
-            target -= arc_angles[i].abs();
-            i += 1;
-        }
-        let rotation = Vec2::from_angle(target.copysign(arc_angles[i]));
-        let base = tangents[i];
-        let tan = base.rotate_scale(rotation);
-        let utan0 = if i == 0 { rec.utan0 } else { base.normalize() };
-        let subdivision = self
-            .subdivide_for_tangent(utan0, ts[i], ts[i + 1], tan, true)
-            .unwrap();
-        self.keep_inside(rec, subdivision)
+        const UTAN_EPSILON: f64 = 1e-12;
+        let utan = if q_t.length_squared() >= UTAN_EPSILON {
+            q_t.normalize()
+        } else {
+            rec.utan0
+        };
+        SubdivisionPoint { t, utan }
     }
 
     /// The subdivision point for a piece that runs toward a tip of the
@@ -1428,18 +1398,12 @@ impl CubicOffset {
         SubdivisionPoint { t, utan }
     }
 
-    /// Find a subdivision point, given a tangent vector.
+    /// The point of the piece at which the tangent is along `tan`, if there
+    /// is exactly one.
     ///
-    /// This is as in `crate::offset`, except that roots at the ends of
-    /// `[t0, t1]` are ignored.
-    fn subdivide_for_tangent(
-        &self,
-        utan0: Vec2,
-        t0: f64,
-        t1: f64,
-        tan: Vec2,
-        force: bool,
-    ) -> Option<SubdivisionPoint> {
+    /// This is as in `crate::offset`, except that roots at the ends of the
+    /// piece are ignored.
+    fn subdivide_for_tangent(&self, rec: &OffsetRec, tan: Vec2) -> Option<SubdivisionPoint> {
         let mut t = 0.0;
         let mut n_soln = 0;
         let z0 = tan.cross(self.q.p0.to_vec2());
@@ -1450,33 +1414,24 @@ impl CubicOffset {
         let c2 = (z2 - z1) - (z1 - z0);
         // Roots at the ends are not useful, and where the derivative
         // vanishes at an end, that end is a root for every `tan`.
-        let margin = SPLIT_MARGIN * (t1 - t0);
+        let margin = SPLIT_MARGIN * (rec.t1 - rec.t0);
         for root in solve_quadratic(c0, c1, c2) {
-            if root > t0 + margin && root < t1 - margin {
+            if root > rec.t0 + margin && root < rec.t1 - margin {
                 t = root;
                 n_soln += 1;
             }
         }
         if n_soln != 1 {
-            if !force {
-                return None;
-            }
-            if self.q.eval(t0).to_vec2().length_squared()
-                > self.q.eval(t1).to_vec2().length_squared()
-            {
-                t = t1;
-            } else {
-                t = t0;
-            }
+            return None;
         }
         let q = self.q.eval(t).to_vec2();
         const UTAN_EPSILON: f64 = 1e-12;
-        let utan = if n_soln == 1 && q.length_squared() >= UTAN_EPSILON {
+        let utan = if q.length_squared() >= UTAN_EPSILON {
             q.normalize()
         } else if tan.length_squared() >= UTAN_EPSILON {
             tan.normalize()
         } else {
-            utan0.turn_90()
+            rec.utan0.turn_90()
         };
         Some(SubdivisionPoint { t, utan })
     }
