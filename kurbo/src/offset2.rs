@@ -195,7 +195,7 @@ fn offset_cubic_pair_impl(
     negative: &mut BezPath,
     strict: bool,
 ) {
-    if c.may_have_slow_point(TIP_MAX_WIDTH, tolerance * DIM_TUNE) {
+    if c.may_have_slow_point(TURN_MAX_WIDTH, tolerance * DIM_TUNE) {
         offset_cubic_pair_at_slow_point(c, d, tolerance, positive, negative, strict);
     } else {
         offset_cubic_pair_root(
@@ -373,7 +373,7 @@ fn offset_rec_pair(
 
 fn offset_cubic_impl(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath, strict: bool) {
     result.truncate(0);
-    if c.may_have_slow_point(TIP_MAX_WIDTH, tolerance * DIM_TUNE) {
+    if c.may_have_slow_point(TURN_MAX_WIDTH, tolerance * DIM_TUNE) {
         offset_cubic_at_slow_point(c, d, tolerance, result, strict);
     } else {
         offset_cubic_root(&c, &c, &[], NO_TIPS, d, tolerance, result, strict);
@@ -445,8 +445,30 @@ fn offset_cubic_root(
 /// [`regularize_and_split_tips`].
 const TIP_MAX_WIDTH: f64 = 0.01;
 
+/// The largest width of a sharp turn, as a parameter; see
+/// [`regularize_and_split_tips`].
+///
+/// The samples of the estimates are an eighth of a piece apart, so they
+/// straddle a turn narrower than about 0.06. Splitting up to 0.03 costs
+/// 1% in segments and time on the strokes of the tiger at a tolerance of
+/// 1/32, and nothing at 1/256 and 1/2048; 6 of its 336 curves have such a
+/// turn. It has 31 more with a width up to 0.1; splitting at the turn
+/// alone cost 3% in time up to 0.06, and 5% up to 0.1.
+const TURN_MAX_WIDTH: f64 = 0.03;
+
 /// How many widths either side of a tip the curve is split.
 const TIP_REACH: f64 = 8.0;
+
+/// How many widths either side of a sharp turn that is not a tip the curve
+/// is split.
+///
+/// Split at the turn only, the pieces either side have nearly all of their
+/// curvature at that end, short of the first sample of the sampled
+/// estimate, which accepted some at up to 1.35 times the tolerance. With
+/// splits 2 widths either side it still did (1.38), with 4 not (1.01 at a
+/// tolerance of half the distance, on 2400 offsets of random curves with a
+/// turn this wide), and with 8 one piece was at 3.3.
+const TURN_REACH: f64 = 4.0;
 
 /// The largest ratio of the distances of a piece's ends from a tip that is
 /// left to the usual choice of subdivision point; see
@@ -459,33 +481,43 @@ const DIM_TUNE: f64 = 0.25;
 
 /// The curve to offset, and where to split it before the recursion starts,
 /// for a curve whose speed may have a slow minimum:
-/// `c.may_have_slow_point(TIP_MAX_WIDTH, tolerance * DIM_TUNE)`. For any
+/// `c.may_have_slow_point(TURN_MAX_WIDTH, tolerance * DIM_TUNE)`. For any
 /// other curve these are the curve itself and nowhere, and nearly every
 /// curve is one of those.
 ///
-/// The curve is the input regularized. The splits are at each tip of that,
-/// and [`TIP_REACH`] widths either side of it.
+/// The curve is the input regularized. The splits are at each sharp turn
+/// of that, and [`TURN_REACH`] widths either side of it, or [`TIP_REACH`]
+/// for a tip.
 ///
-/// A tip is a sharp turn or near cusp of the source: a minimum of the speed
-/// `|C'|` inside the curve, at which the tangent turns fast. There `C'` is
-/// perpendicular to `C''`, and near it the tangent turns through
-/// `atan(s / w)` over a parameter distance `s`, with the width
-/// `w = |C'| / |C''|`: nearly a half turn, most of it within a few widths.
-/// The minimum is a tip if its width is under [`TIP_MAX_WIDTH`].
+/// A sharp turn is a minimum of the speed `|C'|` inside the curve, at which
+/// the tangent turns fast. There `C'` is perpendicular to `C''`, and near
+/// it the tangent turns through `atan(s / w)` over a parameter distance
+/// `s`, with the width `w = |C'| / |C''|`: nearly a half turn, most of it
+/// within a few widths. The minimum is a sharp turn if its width is under
+/// [`TURN_MAX_WIDTH`], and a tip, which is a near cusp of the source, if it
+/// is under [`TIP_MAX_WIDTH`].
 ///
-/// Nothing in the recursion sees a tip inside a piece. The estimates sample
-/// the piece, and their samples straddle it. The bounds reject a piece that
-/// turns so far, but the angle and curvature split then lands beside the
-/// tip, and the piece that keeps it is as hard as before. So the tips are
-/// found once, here, and made ends of pieces. The pieces between a tip and
-/// the splits either side turn through most of a quarter turn each, evenly
-/// enough in the parameter to subdivide by angle.
+/// Nothing in the recursion sees a sharp turn inside a piece. The estimates
+/// sample the piece, and their samples straddle it. The guards on them
+/// compare the cusp values at the ends of the piece, and the curvature
+/// peaks at the turn, between them: the offset can even have two cusps
+/// there, with the same sign at both ends. So the turns are found once,
+/// here, and made ends of pieces.
+///
+/// The splits either side are there because a piece that ends at a turn
+/// and runs far from it is as hard as before: nearly all of its curvature
+/// is at that end, short of the first sample, and where the bounds reject
+/// it the angle split lands beside the turn again. The pieces between a
+/// turn and the splits either side turn through most of a quarter turn
+/// each, evenly enough in the parameter to estimate and to subdivide by
+/// angle. A tip is recorded as well, for the pieces that run toward it from
+/// further off: see [`CubicOffset::split_toward_tip`].
 ///
 /// Regularizing looks for a cusp at the same minima of the speed, so they
 /// are found once for both.
 fn regularize_and_split_tips(c: &CubicBez, tolerance: f64) -> (CubicBez, TipSplits) {
     let dimension = tolerance * DIM_TUNE;
-    let minima = c.slow_points(c.cusp_speed_squared(dimension).max(tip_speed_squared(c)));
+    let minima = c.slow_points(c.cusp_speed_squared(dimension).max(turn_speed_squared(c)));
     if minima.is_empty() {
         return (*c, TipSplits::default());
     }
@@ -494,12 +526,13 @@ fn regularize_and_split_tips(c: &CubicBez, tolerance: f64) -> (CubicBez, TipSpli
         (regularized, tip_splits_at(c, &minima))
     } else {
         // Regularizing moved the minima.
-        let minima = regularized.slow_points(tip_speed_squared(&regularized));
+        let minima = regularized.slow_points(turn_speed_squared(&regularized));
         (regularized, tip_splits_at(&regularized, &minima))
     }
 }
 
-/// The tips of a curve, and where to split it for them.
+/// The tips of a curve, and where to split it for them and for its other
+/// sharp turns.
 struct TipSplits {
     /// The parameters of the tips; NaN where there is none.
     tips: [f64; 2],
@@ -519,16 +552,17 @@ impl Default for TipSplits {
 /// The tips of a curve that has none.
 const NO_TIPS: [f64; 2] = [f64::NAN; 2];
 
-/// The largest `|C'|^2` at a minimum of the speed that could be a tip:
-/// there `|C'| < TIP_MAX_WIDTH |C''|`, and `C''` is largest at an end.
-fn tip_speed_squared(c: &CubicBez) -> f64 {
+/// The largest `|C'|^2` at a minimum of the speed that could be a sharp
+/// turn: there `|C'| < TURN_MAX_WIDTH |C''|`, and `C''` is largest at an
+/// end.
+fn turn_speed_squared(c: &CubicBez) -> f64 {
     let c2_start = (c.p2 - c.p1) - (c.p1 - c.p0);
     let c2_end = (c.p3 - c.p2) - (c.p2 - c.p1);
-    (36.0 * TIP_MAX_WIDTH * TIP_MAX_WIDTH) * c2_start.hypot2().max(c2_end.hypot2())
+    (36.0 * TURN_MAX_WIDTH * TURN_MAX_WIDTH) * c2_start.hypot2().max(c2_end.hypot2())
 }
 
-/// The splits for the tips among the given minima of the speed; see
-/// [`regularize_and_split_tips`].
+/// The tips among the given minima of the speed, and the splits for them
+/// and the other sharp turns; see [`regularize_and_split_tips`].
 fn tip_splits_at(c: &CubicBez, minima: &[f64]) -> TipSplits {
     // Parameters closer together than this are not split apart.
     const MIN_GAP: f64 = 1e-14;
@@ -539,13 +573,17 @@ fn tip_splits_at(c: &CubicBez, minima: &[f64]) -> TipSplits {
     for &t in minima {
         let speed_squared = q.eval(t).to_vec2().hypot2();
         let width_squared = speed_squared / q.deriv().eval(t).to_vec2().hypot2();
-        // Written so that a NaN is not a tip.
-        if !(width_squared < TIP_MAX_WIDTH * TIP_MAX_WIDTH) {
+        // Written so that a NaN is not a turn.
+        if !(width_squared < TURN_MAX_WIDTH * TURN_MAX_WIDTH) {
             continue;
         }
-        result.tips[n_tips] = t;
-        n_tips += 1;
-        let reach = TIP_REACH * width_squared.sqrt();
+        let reach = if width_squared < TIP_MAX_WIDTH * TIP_MAX_WIDTH {
+            result.tips[n_tips] = t;
+            n_tips += 1;
+            TIP_REACH
+        } else {
+            TURN_REACH
+        } * width_squared.sqrt();
         for split in [t - reach, t, t + reach] {
             if split > last + MIN_GAP && split < 1.0 - MIN_GAP {
                 result.splits.push(split);
@@ -3479,6 +3517,76 @@ mod tests {
         }
     }
 
+    /// The width `|C'| / |C''|` of the narrowest minimum of the speed inside
+    /// the curve, by sampling; infinite if there is none.
+    #[cfg(feature = "std")]
+    fn narrowest_turn(c: &CubicBez) -> f64 {
+        const N: usize = 2000;
+        let q = c.deriv();
+        let speed: Vec<f64> = (0..=N)
+            .map(|i| q.eval(i as f64 / N as f64).to_vec2().hypot())
+            .collect();
+        let mut narrowest = f64::INFINITY;
+        for i in 1..N {
+            if speed[i] <= speed[i - 1] && speed[i] <= speed[i + 1] {
+                let c2 = q.deriv().eval(i as f64 / N as f64).to_vec2().hypot();
+                narrowest = narrowest.min(speed[i] / c2);
+            }
+        }
+        narrowest
+    }
+
+    /// Measures the default mode on random curves with a sharp turn too
+    /// broad to be a tip, by the width of the turn: segments, calls over
+    /// the tolerance, and the worst error, by the Fréchet oracle. The
+    /// samples of the estimates straddle such a turn. Takes a few seconds.
+    /// Run with `--ignored --nocapture`.
+    #[cfg(feature = "std")]
+    #[test]
+    #[ignore = "measurement, prints counts"]
+    #[allow(clippy::print_stdout, reason = "this test exists to print counts")]
+    fn sharp_turn_survey() {
+        const BANDS: [(f64, f64); 3] = [(0.01, 0.03), (0.03, 0.1), (0.1, 0.3)];
+        const PER_BAND: usize = 400;
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        let mut sets: [Vec<CubicBez>; 3] = Default::default();
+        while sets.iter().any(|set| set.len() < PER_BAND) {
+            let c = rng.cubic();
+            let width = narrowest_turn(&c);
+            for (set, (low, high)) in sets.iter_mut().zip(BANDS) {
+                if width >= low && width < high && set.len() < PER_BAND {
+                    set.push(c);
+                }
+            }
+        }
+        std::println!(
+            "width, tolerance: segments, calls of {} over 1.05 and 1.5 times \
+             the tolerance, worst",
+            6 * PER_BAND
+        );
+        for (set, (low, high)) in sets.iter().zip(BANDS) {
+            for tolerance in [0.25, 1e-2, 1e-4] {
+                let (mut segments, mut over, mut far_over) = (0, 0, 0);
+                let mut worst = 0.0_f64;
+                for c in set {
+                    for d in [0.5, -0.5, 2.0, -2.0, 10.0, -10.0] {
+                        let mut result = BezPath::new();
+                        offset_cubic(*c, d, tolerance, &mut result);
+                        segments += result.segments().count();
+                        let report = crate::offset_oracle::result_error(*c, d, tolerance, &result);
+                        let ratio = report.error.max(report.unmeasured_lower) / tolerance;
+                        over += usize::from(ratio > 1.05);
+                        far_over += usize::from(ratio > 1.5);
+                        worst = worst.max(ratio);
+                    }
+                }
+                std::println!(
+                    "{low} to {high}, {tolerance}: {segments:>6} {over:>3} {far_over:>3} {worst:>6.2}"
+                );
+            }
+        }
+    }
+
     #[cfg(feature = "std")]
     #[test]
     fn results_with_sharp_turns() {
@@ -3487,9 +3595,10 @@ mod tests {
         // In the order here, with the error as a multiple of the tolerance:
         // the sampled estimate measures the distance to the source, and
         // took an approximation on the wrong side of it between two turns
-        // (3.9); and the osculating estimate saw a sample over the limit
-        // after one that slipped, and left the piece to the sampled
-        // estimate, which fell short (2.4).
+        // (3.9); the osculating estimate saw a sample over the limit after
+        // one that slipped, and left the piece to the sampled estimate,
+        // which fell short (2.4); and the samples of the osculating
+        // estimate straddled the turn (2.9).
         let cases = [
             (
                 [
@@ -3508,6 +3617,15 @@ mod tests {
                     (51.880625747832134, 33.42931795389501),
                 ],
                 0.5,
+            ),
+            (
+                [
+                    (0.9055224166763853, 85.56012487359405),
+                    (64.81963576741242, 27.466766809783483),
+                    (62.88663400875335, 2.0243310497624845),
+                    (18.286893883228384, 65.35842253157391),
+                ],
+                -0.5,
             ),
         ];
         for (points, d) in cases {

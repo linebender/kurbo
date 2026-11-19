@@ -61,11 +61,12 @@ Large, or open questions:
     hundred pieces still reach the maximum depth there, and the default
     mode is up to 1.24 times over; everything looser is clean ("Tips at the
     root").
-13. **A sharp turn that is not a tip** (a width between 0.01 and about
-    0.1): the estimates can still miss it, as on one random curve at 1.96
-    times a tolerance of 0.25. Lowering the osculating estimate's trust
-    there, or widening `TIP_MAX_WIDTH`, costs segments on the tiger, whose
-    sharp turns have widths of 0.015 to 0.09 ("Tips at the root").
+13. **A sharp turn of width 0.03 to 0.1**: the samples of the estimates
+    still straddle it. Of 2,400 offsets of random curves with such a turn,
+    at a tolerance of half the distance, 7 are over, the worst at 1.41
+    times (1.96 on one curve of the survey). Splitting them at the root as
+    the narrower ones are costs 3 to 5% on the tiger, which has 31 of them
+    in 336 curves ("Sharp turns").
 14. **The default one-sided call is 2 to 5% slower** than before the tips
     on the cheapest curves, with the pair and strict mode unchanged: code
     layout, not work ("Tips at the root").
@@ -1662,4 +1663,117 @@ and `tips_do_not_exhaust_the_depth` counts pieces at the maximum depth on
 absolute thresholds on `|C'|^2` (`UTAN_EPSILON` in the cusp split,
 `keep_inside` and `subdivide_for_tangent`) have the same flaw in principle
 and were not seen to bite.
+
+## Sharp turns (19 November 2026)
+
+Open item 13 was one random curve at 1.96 times a tolerance of 0.25. A
+survey built for it found more, and three separate causes, two of them
+bugs in the estimates and not a matter of sharp turns at all.
+
+**The survey** (`sharp_turn_survey`, an ignored test): random
+cubics with control points in a 100 unit box, sorted by the width
+`|C'| / |C''|` of their narrowest interior minimum of the speed into three
+bands, 0.01 to 0.03, 0.03 to 0.1 and 0.1 to 0.3, 400 curves each; offsets
+at ±0.5, ±2 and ±10, so 2,400 calls a band at each tolerance; error by the
+Fréchet oracle, and every miss confirmed by the one-sided distance. Nearly
+all the misses are at a tolerance of 0.25 with `|d| = 0.5`. Calls over 1.05
+times the tolerance, and the worst:
+
+| Width | Tolerance | `f2e3592` | Two fixes | With the split |
+|---|---|---|---|---|
+| 0.01 to 0.03 | 0.25 | 20, 3.92 | 14, 2.28 | 0, 1.01 |
+| | 0.01 | 1, 1.09 | 1, 1.09 | 1, 1.14 |
+| 0.03 to 0.1 | 0.25 | 11, 1.41 | 7, 1.41 | 7, 1.41 |
+| | 0.01 | 0 | 0 | 0 |
+| 0.1 to 0.3 | 0.25, 0.01 | 0 | 0 | 0 |
+
+(At 1e-4 one call in the widest band is at 1.09 throughout, and nothing
+else is over.)
+
+**The sampled estimate did not check the side.** It estimates
+`|rho - |d||`, with `rho` the distance from the approximation to the
+source, and a distance is the same on both sides. The worst curve turns
+through 160 degrees and back, with end tangents nearly parallel. The
+two-point fit for the whole curve is close to a translation by `d n0`,
+which between the turns runs along the *wrong* side of the source, at the
+right distance. It crosses the source at each turn, where `rho` passes
+through zero, but between samples. The osculating estimate had it at -1.9
+at four samples, but the first sample slipped too far and that returned
+"untrusted" (next item). Each sample of the sampled estimate now requires
+`d (C' x D) > 0`, and hands the piece to the equal-parameter distance
+otherwise. Strict mode was never affected: its bounds hold for every
+parameter, so they see the crossing.
+
+**"Untrusted" hid a sample over the limit.** `osculating_decision` took
+its samples in order, and returned "untrusted" at the first whose slip was
+over the limit for two-point fits, even if a later sample was far over the
+error limit. The piece then went to the sampled estimate, which has seven
+samples to the osculating eight, at different places, and accepted pieces
+at up to 2.4 times the tolerance that a sample of the osculating estimate
+had at 3.6 times `|d|`, against a limit of 0.42. Now a cusp at a sample,
+or a sample over the limit, decides first; too much slip only stops the
+estimate from accepting. This is also simpler, and no slower: the tiger
+takes the same time at 1/32 and 1/256 and 2% less at 1/2048, with one
+segment more.
+
+These two are commit `674c6ab`. Random families: 1 call of 5,400 over
+before, none after.
+
+**Turns of width 0.01 to 0.03 are split at the root**, at the turn and 4
+widths either side (`TURN_MAX_WIDTH`, `TURN_REACH`). They are not recorded
+as tips, so `split_toward_tip` and the midpoint tangent rule do not apply
+to them. What was tried, on the band 0.01 to 0.03, over 1.05 / worst at
+0.25, then at 0.01, and segments on the tiger at 1/32, 1/256 and 1/2048
+(892, 1185 and 1805 before):
+
+| Variant | 0.25 | 0.01 | Tiger segments |
+|---|---|---|---|
+| No split | 14, 2.28 | 1, 1.09 | 893, 1185, 1805 |
+| At the turn only | 1, 1.35 | 1, 1.15 | 893, 1184, 1801 |
+| 2 widths either side | 2, 1.31 | 3, 1.38 | 912, 1193, 1811 |
+| 4 widths | 0, 1.01 | 1, 1.14 | 912, 1192, 1800 |
+| 8 widths | 2, 3.26 | 0, 1.01 | 912, 1195, 1807 |
+| As tips (`TIP_MAX_WIDTH` 0.03) | 4, 3.26 | 0, 1.01 | 912, 1195, 1807 |
+
+Split at the turn only, each piece has nearly all of its curvature at one
+end, the ratio of the cusp values at its ends is over 3, and it goes to
+the sampled estimate, which reads 0.58 of the true error on such a piece
+(the first sample is an eighth of the way in, past the turn). That put a
+new miss in the random families (1.185) and one in the near-cusp survey
+(1.33 on "random" at 1e-2). With 4 widths the first is gone and the second
+is 1.12: the piece from 4 widths off the turn to the end of the curve,
+whose cusp values are 1.97 and 0.92, inside the osculating estimate's
+guard, with the error a tenth of the way in. The 3.26 with 8 widths was
+not traced.
+
+The near-cusp survey is otherwise as it was, row for row, in both modes.
+Pieces at the maximum depth: 230 to none and 340 to 131 in the default
+mode at 1e-6 (gap 1e-4 and exact cusps), 1026 to 754 in strict mode on
+exact cusps, and 4 new ones in the default mode at gap 1e-4 and 1e-4.
+
+**Why not wider.** The samples are an eighth of a piece apart, so the
+honest limit is about 0.06, and the band 0.03 to 0.1 still has misses. But
+the tiger has no curve with a turn under 0.01, 6 from 0.01 to 0.03, 31
+from 0.03 to 0.1 and 79 from 0.1 to 0.3 (of 336; 210 have no interior
+minimum of the speed), and those 37 take a third of its time already
+(26.5 of 80 microseconds at 1/256). Split at the turn only, a limit of
+0.06 cost 3% on its strokes and 0.1 cost 5%, with 1% more segments: every
+piece next to a turn fails the ratio guard and takes the slower path. At
+0.03 the cost is the root filter passing 76 curves instead of 41, which
+does not show.
+
+**Dropped.**
+
+- *One more osculating sample at the turn, on accept* (the "soft tip"):
+  20 to 12 misses in the first band, 2 to 5% slower on the tiger from a
+  filter width of 0.1 and a check in the hot path.
+- *`ESTIMATE_MAX_CUSP_RATIO` of 8* in place of 64 cures every miss next to
+  a turn split alone, but costs 2.5% in segments and up to 9% in time on
+  the tiger at 1/256. 16 changes nothing.
+- *Two more samples for the sampled estimate*, at 1/16 and 1/32 from the
+  end with the larger curvature: no change to any miss. Its value itself
+  falls short there, not only its sampling.
+- *The sign pattern of `C'.C''` in the root filter*, to keep curves whose
+  slow point is at an end (a short handle) off the cold path: no gain in
+  time, at any width.
 
