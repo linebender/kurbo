@@ -1648,3 +1648,18 @@ faster (12% for strict mode on wild curves) and the survey unchanged, but
 1881 against 1801 segments on the tiger at 1/2048 and a wild curve at 1.35
 times its tolerance.
 
+**A regression in that commit, fixed in the next.** `99f534c` was measured
+as a variant and then rewritten for the commit, and the rewrite gave the
+midpoint's tangent the fallback used elsewhere: the start tangent if
+`|C'|^2 < 1e-12`. Next to a regularized cusp the speed is around 1e-7 and
+the tangent is still well defined, so pieces there got a wrong tangent and
+ran to the maximum depth: on the survey's exact cusps at tolerance 1e-4,
+16,064 such pieces in the default mode where the variant had none (and
+283,450 at 1e-6). Only an exact zero is refused now. The survey on the
+committed code, not on a variant of it, matches the variant row for row,
+and `tips_do_not_exhaust_the_depth` counts pieces at the maximum depth on
+80 near and exact cusps (941 with the bug, none without). The other
+absolute thresholds on `|C'|^2` (`UTAN_EPSILON` in the cusp split,
+`keep_inside` and `subdivide_for_tangent`) have the same flaw in principle
+and were not seen to bite.
+

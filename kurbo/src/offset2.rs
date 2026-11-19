@@ -1304,8 +1304,9 @@ impl CubicOffset {
                 }
             }
         }
-        const UTAN_EPSILON: f64 = 1e-12;
-        let utan = if q_t.length_squared() >= UTAN_EPSILON {
+        // Next to a tip the speed is tiny and the tangent still well
+        // defined, so only an exact zero is refused.
+        let utan = if q_t.hypot2() > 0.0 {
             q_t.normalize()
         } else {
             rec.utan0
@@ -3466,6 +3467,42 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn tips_do_not_exhaust_the_depth() {
+        // Pieces next to the tip of a regularized cusp are a few ulps
+        // across, with speeds around 1e-7. Tests on their control points,
+        // or absolute thresholds on the speed, send them to the maximum
+        // depth by the thousand; see `near_cusp_depth_survey`.
+        let mut rng = Rng(7);
+        for gap in [1e-6, 0.0] {
+            let mut n_out_of_depth = 0;
+            let mut n_segments = 0;
+            for _ in 0..40 {
+                let c = near_cusp(&mut rng, gap);
+                for d in [1.0, -1.0, 5.0, -5.0] {
+                    for strict in [false, true] {
+                        OUT_OF_DEPTH.with(|count| count.set(0));
+                        let mut result = BezPath::new();
+                        if strict {
+                            offset_cubic_strict(c, d, 1e-4, &mut result);
+                        } else {
+                            offset_cubic(c, d, 1e-4, &mut result);
+                        }
+                        n_out_of_depth += OUT_OF_DEPTH.with(|count| count.get());
+                        n_segments += result.segments().count();
+                    }
+                }
+            }
+            // About 7,000 segments, and none or a handful at the maximum
+            // depth.
+            assert!(
+                n_out_of_depth <= 20,
+                "gap {gap}: {n_out_of_depth} out of depth"
+            );
+            assert!(n_segments < 9000, "gap {gap}: {n_segments} segments");
         }
     }
 
