@@ -2381,6 +2381,12 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
         let c1 = taylor.c1[0] * (mt * mt) + taylor.c1[1] * (2.0 * mt * t) + taylor.c1[2] * (t * t);
         let c2 = taylor.c2[0] * mt + taylor.c2[1] * t;
 
+        // The distance to the source does not tell its two sides apart: an
+        // approximation that crosses it between two samples is as far from
+        // it on the wrong side as on the right one.
+        if !(d * c1.cross(delta) > 0.0) {
+            return None;
+        }
         // The Taylor coefficients of F about s = t.
         let p = delta.hypot2() - d * d;
         let q = delta.dot(c1);
@@ -2449,11 +2455,10 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 /// Decide a piece by the osculating parabola estimate.
 ///
 /// This is the estimate of `tests::osculating_estimate` at
-/// [`OSCULATING_SAMPLES`], rearranged to
-/// need one square root per sample and no division, and to stop at the
-/// first sample that decides. With `A = c'^ . D`, `B = c' . D`,
-/// `K = c'' x c'`, `s = |c'|` and `E = s^3 + K d` (`s^3` times the cusp
-/// value), the error in units of `d` is
+/// [`OSCULATING_SAMPLES`], rearranged to need one square root per sample
+/// and no division. With `A = c'^ . D`, `B = c' . D`, `K = c'' x c'`,
+/// `s = |c'|` and `E = s^3 + K d` (`s^3` times the cusp value), the error
+/// in units of `d` is
 ///
 /// ```text
 /// A / (s d) - 1 + K B^2 / (2 d s^2 E)
@@ -2463,10 +2468,15 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 /// `limit |d s^2 E|`. The slip is within `max_slip` when
 /// `B^2 <= max_slip^2 d^2 s^2`, and the cusp value is positive when `E` is.
 ///
-/// The first sample that settles anything decides: over the limit, too much
-/// slip, or a cusp value that is not positive. The caller has checked that
-/// it is positive at both ends, so in the last case there are at least two
-/// cusps in the piece, which the signs at the ends do not show.
+/// The first sample with a cusp value that is not positive, or over the
+/// limit, decides. The caller has checked that the cusp value is positive
+/// at both ends, so in the first case there are at least two cusps in the
+/// piece, which the signs at the ends do not show. Too much slip at any
+/// sample only matters if none of them rejects: the estimate is not to be
+/// trusted to accept then, but a sample over the limit still rejects. The
+/// sampled estimate that such a piece falls back on has fewer samples, and
+/// accepted pieces at up to 2.4 times the tolerance that a sample here
+/// had over the limit.
 fn osculating_decision(
     seg: &CubicBez,
     delta: &[Vec2; 4],
@@ -2511,32 +2521,31 @@ fn osculating_decision(
         numerator[i] = a * s * e_i - d * s2 * e_i + 0.5 * k * b * b;
         denominator[i] = d * s2 * e_i;
     }
+    let mut trusted = true;
     for i in 0..8 {
-        if bb[i] > slip[i] {
-            return Osculating::Untrusted;
-        }
         // The cusp value here is `e / s3`, and `s3` is not negative.
-        if !(e[i] > 0.0) {
-            return if e[i] <= 0.0 {
-                Osculating::Cusp(OSCULATING_SAMPLES[i])
-            } else {
-                Osculating::Untrusted
-            };
+        if e[i] <= 0.0 {
+            return Osculating::Cusp(OSCULATING_SAMPLES[i]);
         }
         // Written so that a NaN rejects.
         if !(numerator[i].abs() <= limit * denominator[i].abs()) {
             return Osculating::Decided(false);
         }
+        trusted &= bb[i] <= slip[i];
     }
-    Osculating::Decided(true)
+    if trusted {
+        Osculating::Decided(true)
+    } else {
+        Osculating::Untrusted
+    }
 }
 
 /// The outcome of [`osculating_decision`].
 enum Osculating {
     /// Whether every sample is within the limit.
     Decided(bool),
-    /// The slip is too large, or a value is not finite: the estimate is not
-    /// to be trusted.
+    /// Every sample is within the limit, but the slip is too large at one:
+    /// the estimate is not to be trusted.
     Untrusted,
     /// The cusp value is not positive at this sample.
     Cusp(f64),
@@ -3467,6 +3476,50 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn results_with_sharp_turns() {
+        // Curves with a turn too broad to be a tip, at a tolerance of half
+        // the distance, that the default mode accepted whole, or nearly.
+        // In the order here, with the error as a multiple of the tolerance:
+        // the sampled estimate measures the distance to the source, and
+        // took an approximation on the wrong side of it between two turns
+        // (3.9); and the osculating estimate saw a sample over the limit
+        // after one that slipped, and left the piece to the sampled
+        // estimate, which fell short (2.4).
+        let cases = [
+            (
+                [
+                    (70.48094071239159, 69.67513157564085),
+                    (60.395361225140846, 21.14518938682526),
+                    (82.70372826510773, 73.15404192150442),
+                    (80.36747186021297, 63.619310802492066),
+                ],
+                -0.5,
+            ),
+            (
+                [
+                    (14.940246361937215, 24.323404923761505),
+                    (16.969975647298806, 57.145266278455665),
+                    (53.36354627583025, 30.428145078542368),
+                    (51.880625747832134, 33.42931795389501),
+                ],
+                0.5,
+            ),
+        ];
+        for (points, d) in cases {
+            let c = CubicBez::new(points[0], points[1], points[2], points[3]);
+            let tolerance = 0.25;
+            let mut result = BezPath::new();
+            offset_cubic(c, d, tolerance, &mut result);
+            let (error, s) = offset_to_result(c, d, &result, 4000);
+            assert!(
+                error <= 1.1 * tolerance,
+                "error {error} at s = {s}: d = {d}, {c:?}"
+            );
         }
     }
 
