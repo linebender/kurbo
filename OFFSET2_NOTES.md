@@ -56,15 +56,18 @@ Large, or open questions:
     handle, kurbo-wide.
 11. **Hidden pairs of cusps in strict mode**, which has no samples to find
     them; see the end of "Vanishing end derivatives".
-12. **Near cusps at tight tolerances still run out of depth**, in both
-    modes, though 3 to 20 times less since the subdivision margin, and the
-    pieces emitted there are far off: strict mode is 28 to 4 million times
-    the tolerance at 1e-4 and below ("Lopsided splits").
-13. **A near cusp hidden inside a piece in the default mode**: both
-    estimates see a piece only at their samples, which can straddle the
-    tip, giving errors up to `2 |d|` (35 to 40 times at tolerance 0.25)
-    where strict mode is within tolerance. A guard on the hodograph fixes
-    it but costs 42 to 48% on the tiger at 1/32 ("Lopsided splits").
+12. **Tolerances of 1e-6 of the curve's size at near cusps**: a few
+    hundred pieces still reach the maximum depth there, and the default
+    mode is up to 1.24 times over; everything looser is clean ("Tips at the
+    root").
+13. **A sharp turn that is not a tip** (a width between 0.01 and about
+    0.1): the estimates can still miss it, as on one random curve at 1.96
+    times a tolerance of 0.25. Lowering the osculating estimate's trust
+    there, or widening `TIP_MAX_WIDTH`, costs segments on the tiger, whose
+    sharp turns have widths of 0.015 to 0.09 ("Tips at the root").
+14. **The default one-sided call is 2 to 5% slower** than before the tips
+    on the cheapest curves, with the pair and strict mode unchanged: code
+    layout, not work ("Tips at the root").
 
 Done or dropped: the midpoint G1 retry and the G1 bound (removed, see
 "Trimming"), the slip guard on two-point fits only, and hidden
@@ -1423,4 +1426,170 @@ With that measure, two problems remain, both from before:
   2 to 2.8 times), so a finer test is needed.
 - Strict mode emits pieces far from the offset at the maximum depth on
   near cusps at tolerance 1e-4 and below (open item 12).
+
+## Tips at the root (19 November 2026)
+
+A tip is a sharp turn or near cusp of the source: a minimum of the speed
+`|C'|` inside the curve at which the tangent turns fast. There `C'` is
+perpendicular to `C''`, and near it the tangent turns through
+`atan(s / w)` over a parameter distance `s`, with the width
+`w = |C'| / |C''|`. A regularized cusp has a width of 1e-6 or less.
+
+**What was wrong.** With the survey's cusps moved to random parameters
+(they were all at `t = 1/2`, where the first midpoint split lands on the
+tip by luck), `968bf57` was badly off in both modes: the default mode up
+to 69,000 times the tolerance and strict mode up to 170,000 times. Two
+causes:
+
+- Nothing in the recursion sees a tip inside a piece. The estimates' samples
+  straddle it, and the cusp values at the ends of such a piece can both be
+  near 1, so every guard passes. The default mode then misses the whole
+  sweep around the tip, an error of `2 |d|`.
+- The bounds reject a piece that turns so far, but the angle split lands
+  beside the tip, and the piece that keeps it is as hard as before, down to
+  the maximum depth, where it is emitted unchecked.
+
+**Per piece, tried first.** A test for a dip of `|C'|` inside the piece
+(the middle control point of the hodograph within a quarter turn of both
+end tangents clears most pieces; then, for a zero-length handle, a
+point-to-segment distance; then the distance from the origin to the
+hodograph's control triangle; then a nearest-point solve), used to distrust
+the estimates and as the split point of a rejected piece. It fixed the
+accuracy, but the guard cost 1 to 5% and the split another 3 to 8% on the
+tiger, most of it from the extra code in `find_subdivision_point` and not
+from extra work: even a threshold that almost never split cost 2.5 to 4%.
+Comparing the tangents at neighbouring samples, which is cheaper, does not
+work at all: regularizing turns a cusp into a tiny loop or a double
+inflection, and the tangents either side of it agree.
+
+**At the root.** A tip is a property of the curve, not of a piece: the
+minima of the speed are the roots of the cubic `C'.C''` at which it rises,
+at most two. So they are found once, in `regularize_and_split_tips`, and
+the curve is split there before the recursion starts: at the tip, and
+`TIP_REACH` (8) widths either side, so that the pieces next to it turn
+through most of a quarter turn each. A minimum is a tip if its width is
+under `TIP_MAX_WIDTH` (0.01). The recursion has no guard and no state for
+this on its hot path.
+
+Nearly every curve has no tip, and the test for that
+(`CubicBez::may_have_slow_point`) has to cost less than offsetting a simple
+curve:
+
+- `|C'|^2` is no less than the smallest of its five Bernstein coefficients,
+  which are dot products of the hodograph's control points. If that exceeds
+  `(TIP_MAX_WIDTH |C''|)^2`, with `C''` at its larger end, there is no tip.
+- With a zero-length handle that bound is zero, and 78% of the tiger's
+  curves have one. Then `C' / 3 = t (a + t m)`, and `C'.C''` is `t` times
+  the quadratic `|a|^2 + 3 a.m t + 2 |m|^2 t^2`. The speed has a minimum
+  inside only at its larger root, which is inside (0, 1) under conditions on
+  `a.a`, `a.m` and `m.m`, and is no less than the vertex
+  `-3 a.m / (4 |m|^2)`; with the exact minimum of `|a + t m|` on [0, 1]
+  that bounds the speed at the minimum from below. No square root.
+- Regularizing looks for a cusp at the same minima, so the one test covers
+  both (its limit is `|C'|^2 <= |C''| dimension`), and `regularize_cusp`
+  uses it too.
+
+A curve that passes goes to `CubicBez::slow_points`, out of line: the sign
+pattern of the Bernstein coefficients of `C'.C''` (a rising root needs a
+negative one before a positive one), then the minimum itself. Writing the
+hodograph as `A t^2 + B t + C`, its cross product with `A` is linear in
+`t`, zero at one parameter, and a point of the hodograph within `r` of the
+origin is within `r |A| / |A x B|` of it; when that range is small, four
+Newton steps from there find the minimum, and otherwise `solve_cubic` does.
+
+What each step of that bought, on the tiger (336 curves): solving the cubic
+on every curve with a possible minimum, 126 solves and 17 to 37% slower;
+with the Bernstein bound, the zero-handle test without the root's position,
+then without a bound on the speed there, 131 and 122 curves reached the
+slow path, 3 to 9% slower; with both, 41 do, of which 31 have a minimum and
+none is a tip. The Newton path in place of `solve_cubic` made no measurable
+difference by then. What mattered as much as the arithmetic was the shape
+of the root: returning the regularized curve and the splits from the test,
+or passing them to a cold function by reference, cost 2 to 5% on the
+cheapest calls. The root now computes one boolean, and a curve that passes
+goes to a separate cold entry (`offset_cubic_at_slow_point`) that shares
+the root's body.
+
+The old check in `regularize_cusp` was not free either: with no
+regularization at all the tiger is 1 to 4% faster and nearly straight
+random curves 8%.
+
+**Two bugs in `detect_cusp`,** both shared with `offset.rs` and the
+stroker. It required the control polygon to be in a region (three
+determinant signs) that does not contain every cusp: the survey's exact
+cusps at random parameters were never regularized, the tip split then
+landed on a true zero of `C'`, and the pieces either side collapsed to
+zero width. The region test is gone; the classification into loop and
+double inflection is kept. And a zero-length handle is now excluded
+explicitly (the region test did so by accident, and the nudges divide by
+the handle lengths).
+
+**Three more changes this needed.**
+
+- `small_piece_bound` judged whether the tangent turns one way from
+  `seg.p2 - seg.p1`. Next to a tip the piece is a few ulps across and that
+  difference is rounding noise, so the pieces were rejected down to the
+  maximum depth: 469,000 segments on one survey row. The same direction is
+  now taken from the curve's own derivative (`hodograph_middle`).
+- Beyond a few widths from a tip the curvature falls off as the cube of the
+  distance from it. A rejected piece whose ends are at distances in a ratio
+  over `TIP_SPLIT_RATIO` (2) from a tip is split at their geometric mean
+  (`split_toward_tip`), which halves the range in log scale; the angle
+  split, clamped to 10%, took ten times as many levels. This is the only
+  state the tips add to the recursion (`CubicOffset::tips`, checked for NaN
+  in `find_subdivision_point`).
+- A split at a cusp of the offset no longer counts toward the depth limit.
+  Neither half has a cusp, so there are only as many as the offset has
+  cusps, and with a wide offset they used up half the depth before any
+  ordinary subdivision. Written into `offset_rec` this made curves with no
+  cusp 3% slower; it is in `split_at_cusp`, out of line.
+
+**Results.** The survey (`near_cusp_depth_survey`; 800 calls per row;
+segments, pieces at the maximum depth, worst error over tolerance by the
+one-sided measure, default | strict), `968bf57` and now:
+
+| Family, tolerance | `968bf57` default | strict | Now default | strict |
+|---|---|---|---|---|
+| Random, 0.25 | 2844, 0, 1.96 | 5978, 0, 0.65 | 2862, 0, 1.96 | 5842, 0, 0.65 |
+| Random, 1e-6 | 28447, 2, 5.35 | 32530, 284, 5.35 | 28452, 0, 0.99 | 32915, 116, 0.99 |
+| Hairpin, 1e-2 | 5298, 3, 0.80 | 13321, 4, 0.64 | 5394, 0, 0.50 | 10830, 0, 0.12 |
+| Hairpin, 1e-6 | 39227, 15, 1.09 | 51277, 110, 0.98 | 38518, 0, 0.99 | 47456, 0, 0.99 |
+| Gap 1e-2, 0.25 | 5412, 0, 17.9 | 9010, 25, 0.49 | 4876, 0, 0.84 | 5823, 0, 0.06 |
+| Gap 1e-2, 1e-2 | 8636, 34, 25.4 | 12672, 104, 9.68 | 5962, 0, 0.91 | 10564, 0, 0.81 |
+| Gap 1e-2, 1e-4 | 12951, 220, 685 | 24499, 451, 1663 | 12200, 0, 0.99 | 23181, 0, 0.99 |
+| Gap 1e-2, 1e-6 | 32901, 2280, 67900 | 43555, 3929, 169850 | 39034, 0, 0.99 | 51059, 68, 0.99 |
+| Gap 1e-4, 0.25 | 5799, 0, 23.2 | 9352, 86, 0.46 | 5018, 0, 0.83 | 6147, 0, 0.23 |
+| Gap 1e-4, 1e-4 | 13234, 786, 769 | 19873, 1156, 814 | 13297, 0, 0.95 | 22655, 0, 0.96 |
+| Gap 1e-4, 1e-6 | 17577, 1335, 69239 | 29625, 3450, 69572 | 22938, 230, 1.24 | 42608, 280, 0.99 |
+| Gap 1e-6, 0.25 | 5744, 0, 17.8 | 9478, 110, 0.52 | 4969, 0, 0.79 | 5959, 0, 0.47 |
+| Gap 1e-6, 1e-4 | 12432, 950, 41.3 | 16013, 1197, 42.8 | 12093, 1, 0.94 | 18937, 0, 0.96 |
+| Gap 1e-6, 1e-6 | 15017, 1231, 6871 | 21033, 2416, 6871 | 21162, 124, 1.12 | 34633, 374, 0.99 |
+| Exact cusp, 0.25 | 5732, 0, 24.1 | 9377, 115, 0.56 | 4946, 0, 0.83 | 5927, 0, 0.11 |
+| Exact cusp, 1e-4 | 12329, 930, 85.3 | 15598, 1153, 85.3 | 12240, 0, 0.98 | 18803, 1, 0.98 |
+| Exact cusp, 1e-6 | 15530, 1686, 10877 | 20221, 2879, 6884 | 21227, 346, 0.99 | 32187, 1025, 0.99 |
+
+Strict mode is within tolerance on every row. The default mode is within
+1.04 times everywhere but three rows: 1.12 and 1.24 at a tolerance of 1e-6
+of the curve's size, and the random curve at 1.96 (open item 13), which is
+a sharp turn of width over 0.01 and untouched by this. At loose tolerances
+the tips also save segments, up to 40% in strict mode.
+
+Time against `4f0cadd`, interleaved, best of four runs: whole tiger strokes
+with the pair +0.4 to +0.8% (noise), one side at a time +2 to +6%; random
+families +2.8% in the default mode (nearly straight +1.2, gentle +3.3, wild
++3.4) and -0.2% in strict. Tiger segments are the same in the default mode
+(892, 1184, 1801 by `offset_tiger`); strict at 1/256 and 1/2048 gains 4 and
+1 (3087, 4674), from the cusp splits.
+
+Tried on the way and dropped: a threshold of 0.1 for a tip (the tiger's
+ordinary sharp turns, with widths of 0.015 to 0.09, were then split: 5%
+more segments and a call over tolerance); a clamp of 1% or none on split
+points once the tips were known (far worse); the root's body out of line,
+called from both entries (no better).
+
+`results_with_tips` keeps 18 near cusps at three distances and three
+tolerances in both modes: no piece at the maximum depth, and within 1.1
+times the tolerance (strict: within it). It fails at `4f0cadd`.
+`slow_points_finds_every_slow_minimum` in `cubicbez.rs` checks the test
+and the solve against sampled minima of the speed on 4,000 curves.
 

@@ -195,12 +195,69 @@ fn offset_cubic_pair_impl(
     negative: &mut BezPath,
     strict: bool,
 ) {
-    // As in `offset_cubic_impl`.
-    const DIM_TUNE: f64 = 0.25;
-    let c_regularized = c.regularize_cusp(tolerance * DIM_TUNE);
-    let mut pos = CubicOffset::new(c_regularized, d, tolerance, strict);
-    let mut neg = CubicOffset::new(c_regularized, -d, tolerance, strict);
-    let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+    if c.may_have_slow_point(TIP_MAX_WIDTH, tolerance * DIM_TUNE) {
+        offset_cubic_pair_at_slow_point(c, d, tolerance, positive, negative, strict);
+    } else {
+        offset_cubic_pair_root(
+            &c,
+            &c,
+            &[],
+            NO_TIPS,
+            d,
+            tolerance,
+            positive,
+            negative,
+            strict,
+        );
+    }
+}
+
+/// [`offset_cubic_pair_impl`] for a curve whose speed may have a slow
+/// minimum; see [`regularize_and_split_tips`].
+#[cold]
+#[inline(never)]
+fn offset_cubic_pair_at_slow_point(
+    c: CubicBez,
+    d: f64,
+    tolerance: f64,
+    positive: &mut BezPath,
+    negative: &mut BezPath,
+    strict: bool,
+) {
+    let (regularized, tips) = regularize_and_split_tips(&c, tolerance);
+    offset_cubic_pair_root(
+        &c,
+        &regularized,
+        &tips.splits,
+        tips.tips,
+        d,
+        tolerance,
+        positive,
+        negative,
+        strict,
+    );
+}
+
+/// [`offset_cubic_pair_impl`], given the regularized curve and where to
+/// split it before the recursion starts.
+#[inline(always)]
+#[allow(clippy::too_many_arguments, reason = "the two roots share this")]
+fn offset_cubic_pair_root(
+    c: &CubicBez,
+    c_regularized: &CubicBez,
+    splits: &[f64],
+    tips: [f64; 2],
+    d: f64,
+    tolerance: f64,
+    positive: &mut BezPath,
+    negative: &mut BezPath,
+    strict: bool,
+) {
+    let mut pos = CubicOffset::new(*c_regularized, d, tolerance, strict);
+    let mut neg = CubicOffset::new(*c_regularized, -d, tolerance, strict);
+    pos.tips = tips;
+    neg.tips = tips;
+    let (tan0, tan1) = PathSeg::Cubic(*c).tangents();
     let utan0 = tan0.normalize();
     let utan1 = tan1.normalize();
     let root = |co: &mut CubicOffset| OffsetRec {
@@ -214,7 +271,62 @@ fn offset_cubic_pair_impl(
     };
     let rec_pos = root(&mut pos);
     let rec_neg = root(&mut neg);
-    offset_rec_pair(&pos, &neg, &rec_pos, &rec_neg, positive, negative);
+    if splits.is_empty() {
+        offset_rec_pair(&pos, &neg, &rec_pos, &rec_neg, positive, negative);
+    } else {
+        offset_root_pieces_pair(&pos, &neg, &rec_pos, &rec_neg, splits, positive, negative);
+    }
+}
+
+/// [`offset_rec_pair`] for the pieces of the whole curve between the given
+/// parameters, as [`CubicOffset::offset_root_pieces`] is for one side.
+#[cold]
+#[inline(never)]
+fn offset_root_pieces_pair(
+    pos: &CubicOffset,
+    neg: &CubicOffset,
+    root_pos: &OffsetRec,
+    root_neg: &OffsetRec,
+    splits: &[f64],
+    out_pos: &mut BezPath,
+    out_neg: &mut BezPath,
+) {
+    // Depth 0 is the whole curve.
+    let mut rest_pos = OffsetRec {
+        depth: 1,
+        ..*root_pos
+    };
+    let mut rest_neg = OffsetRec {
+        depth: 1,
+        ..*root_neg
+    };
+    for &t in splits {
+        let q_t = pos.q.eval(t).to_vec2();
+        if !(q_t.hypot2() > 0.0) {
+            continue;
+        }
+        let utan = q_t.normalize();
+        let piece = |co: &CubicOffset, rest: &mut OffsetRec| {
+            let cusp = co.cusp_sign(t);
+            let piece = OffsetRec {
+                t1: t,
+                utan1: utan,
+                cusp1: cusp,
+                ..*rest
+            };
+            *rest = OffsetRec {
+                t0: t,
+                utan0: utan,
+                cusp0: cusp,
+                ..*rest
+            };
+            piece
+        };
+        let piece_pos = piece(pos, &mut rest_pos);
+        let piece_neg = piece(neg, &mut rest_neg);
+        offset_rec_pair(pos, neg, &piece_pos, &piece_neg, out_pos, out_neg);
+    }
+    offset_rec_pair(pos, neg, &rest_pos, &rest_neg, out_pos, out_neg);
 }
 
 /// The recursion of [`CubicOffset::offset_rec`], for both sides at once.
@@ -261,11 +373,53 @@ fn offset_rec_pair(
 
 fn offset_cubic_impl(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath, strict: bool) {
     result.truncate(0);
-    // See `crate::offset` for the reasoning behind regularization.
-    const DIM_TUNE: f64 = 0.25;
-    let c_regularized = c.regularize_cusp(tolerance * DIM_TUNE);
-    let mut co = CubicOffset::new(c_regularized, d, tolerance, strict);
-    let (tan0, tan1) = PathSeg::Cubic(c).tangents();
+    if c.may_have_slow_point(TIP_MAX_WIDTH, tolerance * DIM_TUNE) {
+        offset_cubic_at_slow_point(c, d, tolerance, result, strict);
+    } else {
+        offset_cubic_root(&c, &c, &[], NO_TIPS, d, tolerance, result, strict);
+    }
+}
+
+/// [`offset_cubic_impl`] for a curve whose speed may have a slow minimum;
+/// see [`regularize_and_split_tips`].
+#[cold]
+#[inline(never)]
+fn offset_cubic_at_slow_point(
+    c: CubicBez,
+    d: f64,
+    tolerance: f64,
+    result: &mut BezPath,
+    strict: bool,
+) {
+    let (regularized, tips) = regularize_and_split_tips(&c, tolerance);
+    offset_cubic_root(
+        &c,
+        &regularized,
+        &tips.splits,
+        tips.tips,
+        d,
+        tolerance,
+        result,
+        strict,
+    );
+}
+
+/// [`offset_cubic_impl`], given the regularized curve and where to split it
+/// before the recursion starts.
+#[inline(always)]
+fn offset_cubic_root(
+    c: &CubicBez,
+    c_regularized: &CubicBez,
+    splits: &[f64],
+    tips: [f64; 2],
+    d: f64,
+    tolerance: f64,
+    result: &mut BezPath,
+    strict: bool,
+) {
+    let mut co = CubicOffset::new(*c_regularized, d, tolerance, strict);
+    co.tips = tips;
+    let (tan0, tan1) = PathSeg::Cubic(*c).tangents();
     let utan0 = tan0.normalize();
     let utan1 = tan1.normalize();
     let cusp0 = co.end_cusp(false);
@@ -280,7 +434,126 @@ fn offset_cubic_impl(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath, 
         cusp1,
         depth: 0,
     };
-    co.offset_rec(&rec, result);
+    if splits.is_empty() {
+        co.offset_rec(&rec, result);
+    } else {
+        co.offset_root_pieces(&rec, splits, result);
+    }
+}
+
+/// The largest width of a tip, as a parameter; see
+/// [`regularize_and_split_tips`].
+const TIP_MAX_WIDTH: f64 = 0.01;
+
+/// How many widths either side of a tip the curve is split.
+const TIP_REACH: f64 = 8.0;
+
+/// The largest ratio of the distances of a piece's ends from a tip that is
+/// left to the usual choice of subdivision point; see
+/// [`CubicOffset::split_toward_tip`].
+const TIP_SPLIT_RATIO: f64 = 2.0;
+
+/// The dimension below which a cusp is regularized, as a fraction of the
+/// tolerance. See `crate::offset` for the reasoning behind regularization.
+const DIM_TUNE: f64 = 0.25;
+
+/// The curve to offset, and where to split it before the recursion starts,
+/// for a curve whose speed may have a slow minimum:
+/// `c.may_have_slow_point(TIP_MAX_WIDTH, tolerance * DIM_TUNE)`. For any
+/// other curve these are the curve itself and nowhere, and nearly every
+/// curve is one of those.
+///
+/// The curve is the input regularized. The splits are at each tip of that,
+/// and [`TIP_REACH`] widths either side of it.
+///
+/// A tip is a sharp turn or near cusp of the source: a minimum of the speed
+/// `|C'|` inside the curve, at which the tangent turns fast. There `C'` is
+/// perpendicular to `C''`, and near it the tangent turns through
+/// `atan(s / w)` over a parameter distance `s`, with the width
+/// `w = |C'| / |C''|`: nearly a half turn, most of it within a few widths.
+/// The minimum is a tip if its width is under [`TIP_MAX_WIDTH`].
+///
+/// Nothing in the recursion sees a tip inside a piece. The estimates sample
+/// the piece, and their samples straddle it. The bounds reject a piece that
+/// turns so far, but the angle and curvature split then lands beside the
+/// tip, and the piece that keeps it is as hard as before. So the tips are
+/// found once, here, and made ends of pieces. The pieces between a tip and
+/// the splits either side turn through most of a quarter turn each, evenly
+/// enough in the parameter to subdivide by angle.
+///
+/// Regularizing looks for a cusp at the same minima of the speed, so they
+/// are found once for both.
+fn regularize_and_split_tips(c: &CubicBez, tolerance: f64) -> (CubicBez, TipSplits) {
+    let dimension = tolerance * DIM_TUNE;
+    let minima = c.slow_points(c.cusp_speed_squared(dimension).max(tip_speed_squared(c)));
+    if minima.is_empty() {
+        return (*c, TipSplits::default());
+    }
+    let regularized = c.regularize_cusp_at(dimension, &minima);
+    if regularized == *c {
+        (regularized, tip_splits_at(c, &minima))
+    } else {
+        // Regularizing moved the minima.
+        let minima = regularized.slow_points(tip_speed_squared(&regularized));
+        (regularized, tip_splits_at(&regularized, &minima))
+    }
+}
+
+/// The tips of a curve, and where to split it for them.
+struct TipSplits {
+    /// The parameters of the tips; NaN where there is none.
+    tips: [f64; 2],
+    /// The parameters at which to split the curve, in increasing order.
+    splits: ArrayVec<f64, 6>,
+}
+
+impl Default for TipSplits {
+    fn default() -> Self {
+        TipSplits {
+            tips: NO_TIPS,
+            splits: ArrayVec::new(),
+        }
+    }
+}
+
+/// The tips of a curve that has none.
+const NO_TIPS: [f64; 2] = [f64::NAN; 2];
+
+/// The largest `|C'|^2` at a minimum of the speed that could be a tip:
+/// there `|C'| < TIP_MAX_WIDTH |C''|`, and `C''` is largest at an end.
+fn tip_speed_squared(c: &CubicBez) -> f64 {
+    let c2_start = (c.p2 - c.p1) - (c.p1 - c.p0);
+    let c2_end = (c.p3 - c.p2) - (c.p2 - c.p1);
+    (36.0 * TIP_MAX_WIDTH * TIP_MAX_WIDTH) * c2_start.hypot2().max(c2_end.hypot2())
+}
+
+/// The splits for the tips among the given minima of the speed; see
+/// [`regularize_and_split_tips`].
+fn tip_splits_at(c: &CubicBez, minima: &[f64]) -> TipSplits {
+    // Parameters closer together than this are not split apart.
+    const MIN_GAP: f64 = 1e-14;
+    let q = c.deriv();
+    let mut result = TipSplits::default();
+    let mut n_tips = 0;
+    let mut last = 0.0;
+    for &t in minima {
+        let speed_squared = q.eval(t).to_vec2().hypot2();
+        let width_squared = speed_squared / q.deriv().eval(t).to_vec2().hypot2();
+        // Written so that a NaN is not a tip.
+        if !(width_squared < TIP_MAX_WIDTH * TIP_MAX_WIDTH) {
+            continue;
+        }
+        result.tips[n_tips] = t;
+        n_tips += 1;
+        let reach = TIP_REACH * width_squared.sqrt();
+        for split in [t - reach, t, t + reach] {
+            if split > last + MIN_GAP && split < 1.0 - MIN_GAP {
+                result.splits.push(split);
+                last = split;
+            }
+        }
+    }
+    result
 }
 
 /// State used for computing an offset curve of a single cubic.
@@ -304,6 +577,9 @@ struct CubicOffset {
     /// curve that is smoothed over rather than fitted. See
     /// [`CubicOffset::end_cusp`].
     smoothed_stub: [bool; 2],
+    /// The parameters of the tips of the curve; NaN where there is none.
+    /// See [`regularize_and_split_tips`].
+    tips: [f64; 2],
 }
 
 /// State local to a subdivision.
@@ -396,6 +672,7 @@ impl CubicOffset {
             tolerance,
             strict,
             smoothed_stub: [false; 2],
+            tips: NO_TIPS,
         }
     }
 
@@ -572,13 +849,72 @@ impl CubicOffset {
             };
             let cusp_t_minus = CUSP_EPSILON.copysign(rec.cusp0);
             let cusp_t_plus = CUSP_EPSILON.copysign(rec.cusp1);
-            self.subdivide(rec, result, t, utan_t, cusp_t_minus, cusp_t_plus);
+            self.split_at_cusp(rec, result, t, utan_t, cusp_t_minus, cusp_t_plus);
             return;
         }
 
         let seg = self.piece(rec);
         let (accepted, best_effort, split) = self.approximate(&seg, rec, &mut Unshared);
         self.emit_or_subdivide(rec, accepted, best_effort, split, result);
+    }
+
+    /// [`Self::offset_rec`] for the pieces of the whole curve between the
+    /// given parameters, which are those of [`regularize_and_split_tips`].
+    #[cold]
+    #[inline(never)]
+    fn offset_root_pieces(&self, root: &OffsetRec, splits: &[f64], result: &mut BezPath) {
+        // Depth 0 is the whole curve.
+        let mut rest = OffsetRec { depth: 1, ..*root };
+        for &t in splits {
+            let q_t = self.q.eval(t).to_vec2();
+            // At an exact cusp there is no tangent to split with.
+            if !(q_t.hypot2() > 0.0) {
+                continue;
+            }
+            let utan = q_t.normalize();
+            let cusp = self.cusp_sign(t);
+            let piece = OffsetRec {
+                t1: t,
+                utan1: utan,
+                cusp1: cusp,
+                ..rest
+            };
+            self.offset_rec(&piece, result);
+            rest = OffsetRec {
+                t0: t,
+                utan0: utan,
+                cusp0: cusp,
+                ..rest
+            };
+        }
+        self.offset_rec(&rest, result);
+    }
+
+    /// Subdivide at a cusp of the offset, without counting it toward the
+    /// depth limit.
+    ///
+    /// Neither half has a cusp, so there are no more of these splits than
+    /// the offset has cusps, and counting them left the pieces next to a
+    /// cusp short of depth where the offset has several. Depth 0 is kept
+    /// for the whole curve.
+    ///
+    /// This is out of line: written into [`Self::offset_rec`], it made
+    /// curves with no cusp 3% slower.
+    #[inline(never)]
+    fn split_at_cusp(
+        &self,
+        rec: &OffsetRec,
+        result: &mut BezPath,
+        t: f64,
+        utan_t: Vec2,
+        cusp_t_minus: f64,
+        cusp_t_plus: f64,
+    ) {
+        let (mut rec0, mut rec1) = rec.split(t, utan_t, cusp_t_minus, cusp_t_plus);
+        rec0.depth = rec.depth.max(1);
+        rec1.depth = rec0.depth;
+        self.offset_rec(&rec0, result);
+        self.offset_rec(&rec1, result);
     }
 
     /// [`Self::offset_rec`] for a piece whose cusp lies at one of its ends,
@@ -641,7 +977,8 @@ impl CubicOffset {
         // arc drawing with a purely geometric bound deals with it.
         if (seg.p3 - seg.p0).hypot2() <= tolerance * tolerance {
             let arc = self.draw_arc(seg, rec);
-            if let Some(bound) = small_piece_bound(seg, rec, &arc, d) {
+            let middle = self.hodograph_middle(rec);
+            if let Some(bound) = small_piece_bound(seg, rec, middle, &arc, d) {
                 if self.accepts(bound, seg, &arc.approx) {
                     return (Some(arc.approx), arc.approx, None);
                 }
@@ -943,6 +1280,11 @@ impl CubicOffset {
     /// integral of absolute curvature. Unlike there, a point at an end of
     /// the piece is never chosen; see [`Self::keep_inside`].
     fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
+        if !self.tips[0].is_nan() {
+            if let Some(point) = self.split_toward_tip(rec) {
+                return point;
+            }
+        }
         let t = 0.5 * (rec.t0 + rec.t1);
         let q_t = self.q.eval(t).to_vec2();
         let x0 = rec.utan0.cross(q_t).abs();
@@ -999,6 +1341,61 @@ impl CubicOffset {
             .subdivide_for_tangent(utan0, ts[i], ts[i + 1], tan, true)
             .unwrap();
         self.keep_inside(rec, subdivision)
+    }
+
+    /// The subdivision point for a piece that runs toward a tip of the
+    /// curve from some way off, if it is one.
+    ///
+    /// Beyond a few widths from a tip the curvature falls off as the cube
+    /// of the distance from it, so what a piece spans is the ratio of its
+    /// ends' distances from the tip, and a piece spanning a large ratio is
+    /// split at their geometric mean. Splitting by angle would take a sliver
+    /// off the end nearer the tip each time.
+    #[cold]
+    #[inline(never)]
+    fn split_toward_tip(&self, rec: &OffsetRec) -> Option<SubdivisionPoint> {
+        // The tip nearest the piece, as the distances of the piece's ends
+        // from it and the direction away from it. A tip is never inside a
+        // piece: the curve was split there.
+        let mut nearest: Option<(f64, f64, f64, f64)> = None;
+        for tip in self.tips {
+            let (near, far, away) = if tip <= rec.t0 {
+                (rec.t0 - tip, rec.t1 - tip, 1.0)
+            } else if tip >= rec.t1 {
+                (tip - rec.t1, tip - rec.t0, -1.0)
+            } else {
+                // Not a tip (NaN), or inside the piece.
+                continue;
+            };
+            if nearest.is_none_or(|(nearest, ..)| near < nearest) {
+                nearest = Some((near, far, tip, away));
+            }
+        }
+        let (near, far, tip, away) = nearest?;
+        // A piece that starts at the tip turns evenly enough to split by
+        // angle.
+        if !(near > 0.0 && far > TIP_SPLIT_RATIO * near) {
+            return None;
+        }
+        let t = tip + away * (near * far).sqrt();
+        let q_t = self.q.eval(t).to_vec2();
+        (q_t.hypot2() > 0.0).then(|| SubdivisionPoint {
+            t,
+            utan: q_t.normalize(),
+        })
+    }
+
+    /// The middle control point of the hodograph of the piece, up to scale:
+    /// the derivative at its start, plus half its parameter length times the
+    /// second derivative there.
+    ///
+    /// The piece's own control points give the same thing by subtraction,
+    /// which is rounding noise for a piece a few ulps across, as next to the
+    /// tip of a near cusp.
+    #[inline(always)]
+    fn hodograph_middle(&self, rec: &OffsetRec) -> Vec2 {
+        self.q.eval(rec.t0).to_vec2()
+            + (0.5 * (rec.t1 - rec.t0)) * self.q.deriv().eval(rec.t0).to_vec2()
     }
 
     /// Move a subdivision point that is within [`SUBDIVISION_MIN_SHARE`] of
@@ -1842,14 +2239,20 @@ fn hairline_bound(delta: &[Vec2; 4], d: f64) -> f64 {
 /// through more than about a right angle, or if the approximation is not
 /// plain arc drawing.
 #[inline(always)]
-fn small_piece_bound(seg: &CubicBez, rec: &OffsetRec, arc: &Fit, d: f64) -> Option<f64> {
+fn small_piece_bound(
+    seg: &CubicBez,
+    rec: &OffsetRec,
+    middle: Vec2,
+    arc: &Fit,
+    d: f64,
+) -> Option<f64> {
     if arc.clamped {
         return None;
     }
     // The tangent turns one way only if the control points of the
     // hodograph are in angular order. The end ones may vanish, so use the
-    // end tangents for their directions.
-    let middle = seg.p2 - seg.p1;
+    // end tangents for their directions. `middle` is the middle one, up to
+    // scale; see `CubicOffset::hodograph_middle`.
     let turn_0 = rec.utan0.cross(middle);
     let turn_1 = middle.cross(rec.utan1);
     let turn = rec.utan0.cross(rec.utan1);
@@ -2556,7 +2959,8 @@ mod tests {
                     let (co, rec) = setup(piece, d);
                     let (a, b) = draw_arc(rec.utan0, rec.utan1);
                     let fit = co.apply(&piece, &rec, a, b);
-                    let Some(bound) = small_piece_bound(&piece, &rec, &fit, d) else {
+                    let middle = co.hodograph_middle(&rec);
+                    let Some(bound) = small_piece_bound(&piece, &rec, middle, &fit, d) else {
                         continue;
                     };
                     let mut result = BezPath::new();
@@ -2601,24 +3005,7 @@ mod tests {
             .collect();
         families.push(("hairpin".into(), hairpins));
         for gap in [1e-2, 1e-4, 1e-6, 0.0] {
-            // The middle control points crossed over the chord give an
-            // exact cusp at t = 1/2; moving them apart makes it a near one.
-            let cusps = (0..200)
-                .map(|_| {
-                    let p0 = Point::new(rng.next() * 100.0, rng.next() * 100.0);
-                    let p3 = Point::new(rng.next() * 100.0, rng.next() * 100.0);
-                    let m = p0.midpoint(p3)
-                        + Vec2::new(rng.next() * 60.0 - 30.0, rng.next() * 60.0 - 30.0);
-                    let half_chord = (p3 - p0) * 0.5;
-                    let dir = Vec2::new(rng.next() - 0.5, rng.next() - 0.5).normalize();
-                    CubicBez::new(
-                        p0,
-                        m + half_chord + gap * dir,
-                        m - half_chord - gap * dir,
-                        p3,
-                    )
-                })
-                .collect();
+            let cusps = (0..200).map(|_| near_cusp(&mut rng, gap)).collect();
             families.push((std::format!("cusp, gap {gap:e}"), cusps));
         }
         std::println!(
@@ -3055,6 +3442,73 @@ mod tests {
                         over[1],
                         worst[1]
                     );
+                }
+            }
+        }
+    }
+
+    /// A cubic with a cusp at a random parameter, from the hodograph
+    /// `(t - t_cusp)(a + b t)`, made inexact by adding `3 gap` in a random
+    /// direction to the derivative. A cusp at `t = 1/2` would flatter
+    /// midpoint splits.
+    fn near_cusp(rng: &mut Rng, gap: f64) -> CubicBez {
+        let t_cusp = 0.15 + 0.7 * rng.next();
+        let mut random_vector =
+            || Vec2::new(rng.next() * 300.0 - 150.0, rng.next() * 300.0 - 150.0);
+        let a = random_vector();
+        let b = random_vector();
+        let dir = Vec2::new(rng.next() - 0.5, rng.next() - 0.5).normalize();
+        // The hodograph in the power basis, then its control points, then
+        // the curve's.
+        let (pow2, pow1, pow0) = (b, a - b * t_cusp, 3.0 * gap * dir - a * t_cusp);
+        let q0 = pow0;
+        let q1 = pow0 + 0.5 * pow1;
+        let q2 = pow0 + pow1 + pow2;
+        let p0 = Point::new(rng.next() * 100.0, rng.next() * 100.0);
+        let p1 = p0 + q0 / 3.0;
+        let p2 = p1 + q1 / 3.0;
+        CubicBez::new(p0, p1, p2, p2 + q2 / 3.0)
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn results_with_tips() {
+        // A near cusp of the source inside a piece was invisible to the
+        // estimates, whose samples straddle it, and the bounds' subdivision
+        // landed beside it: before tips were split at the root, the default
+        // mode missed the sweep around the tip (up to 40 times the tolerance
+        // at 0.25) and strict mode ran out of depth (up to 1,700 times at
+        // 1e-4). Measured by the one-sided distance against the regularized
+        // curve; see `near_cusp_depth_survey`.
+        let mut rng = Rng(2026);
+        for gap in [1e-2, 1e-5, 0.0] {
+            for _ in 0..6 {
+                let c = near_cusp(&mut rng, gap);
+                for d in [1.0, -1.0, 5.0] {
+                    for tolerance in [0.25, 1e-2, 1e-4] {
+                        let regularized = c.regularize_cusp(0.25 * tolerance);
+                        for strict in [false, true] {
+                            OUT_OF_DEPTH.with(|count| count.set(0));
+                            let mut result = BezPath::new();
+                            if strict {
+                                offset_cubic_strict(c, d, tolerance, &mut result);
+                            } else {
+                                offset_cubic(c, d, tolerance, &mut result);
+                            }
+                            assert_eq!(
+                                OUT_OF_DEPTH.with(|count| count.get()),
+                                0,
+                                "out of depth: strict {strict}, d = {d}, tolerance {tolerance}, {c:?}"
+                            );
+                            let (error, s) = offset_to_result(regularized, d, &result, 4000);
+                            let limit = if strict { 1.0 } else { 1.1 };
+                            assert!(
+                                error <= limit * tolerance,
+                                "error {error} at s = {s}: strict {strict}, d = {d}, \
+                                 tolerance {tolerance}, {c:?}"
+                            );
+                        }
+                    }
                 }
             }
         }
