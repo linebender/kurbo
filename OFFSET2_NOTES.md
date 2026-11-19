@@ -1777,3 +1777,28 @@ does not show.
   slow point is at an end (a short handle) off the cold path: no gain in
   time, at any width.
 
+**Where it stands** (`a1c8150`, M5 Max). Whole tiger strokes, baseline and
+pair: 121 and 52 microseconds at 1/32 (1629 and 1703 segments), 500 and 80
+at 1/256 (3046 and 2279), 1562 and 126 at 1/2048 (6454 and 3039): 2.3,
+6.3 and 12.4 times. Against `f2e3592` in the same runs the pair takes 1%
+longer at 1/32, 1% less at 1/256 and 4% less at 1/2048.
+
+| `offset_tiger` (baseline / default / strict) | 1/32 | 1/256 | 1/2048 |
+|---|---|---|---|
+| Segments | 838 / 912 / 1673 | 1959 / 1192 / 3091 | 5215 / 1800 / 4651 |
+| ns per call | 168 / 78 / 239 | 725 / 122 / 548 | 2296 / 200 / 865 |
+| Calls over tolerance | 6 / 0 / 0 | 25 / 1 / 0 | 50 / 0 / 0 |
+
+| Random families | Baseline | Default | Strict |
+|---|---|---|---|
+| Geometric mean, ns | 322 | 120 | 210 |
+| Nearly straight, gentle, wild | 104, 208, 1548 | 43, 71, 565 | 60, 125, 1220 |
+| Segments | 17232 | 18103 | 25376 |
+| Calls over tolerance (of 5,400) | 178 | 0 | 0 |
+
+The 135 ns for the default mode on the random families in earlier tables,
+and 59 for its nearly straight curves, were artefacts: they were timed in
+the run that also measures errors, where the first function timed came out
+slow on its first family. Timed alone the default mode was 120 to 122 ns
+at `f2e3592`, and the nearly straight family 42 to 44.
+
