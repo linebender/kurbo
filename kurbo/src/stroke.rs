@@ -68,6 +68,25 @@ pub struct StrokeOpts {
     opt_level: StrokeOptLevel,
     /// When `true`, dashes are emitted in the order they appear along the path. The default `false` delays a subpath's first dash so it can be merged with a dash that wraps through `ClosePath`; this option disables both the reorder and the wraparound merge, so a dash spanning the seam is truncated there.
     stable_dash_order: bool,
+    /// How to offset cubics. Experimental.
+    offset_method: OffsetMethod,
+}
+
+/// How the stroker offsets cubics.
+///
+/// This exists for comparing the experimental [`crate::offset2`] with
+/// [`crate::offset`], and will go away.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OffsetMethod {
+    /// [`crate::offset::offset_cubic`], once for each side.
+    #[default]
+    Offset,
+    /// [`crate::offset2::offset_cubic`], once for each side.
+    Offset2,
+    /// [`crate::offset2::offset_cubic_pair`], for both sides at once. The
+    /// result is the same as [`OffsetMethod::Offset2`].
+    Offset2Pair,
 }
 
 /// Optimization level for computing stroke outlines.
@@ -91,6 +110,7 @@ impl Default for StrokeOpts {
         StrokeOpts {
             opt_level,
             stable_dash_order: false,
+            offset_method: OffsetMethod::Offset,
         }
     }
 }
@@ -192,6 +212,15 @@ impl StrokeOpts {
         self.stable_dash_order = stable;
         self
     }
+
+    /// Choose how cubics are offset. This exists for comparing the
+    /// experimental [`crate::offset2`] with [`crate::offset`], and will go
+    /// away.
+    #[doc(hidden)]
+    pub fn offset_method(mut self, method: OffsetMethod) -> Self {
+        self.offset_method = method;
+        self
+    }
 }
 
 /// Collection of values representing lengths in a dash pattern.
@@ -217,6 +246,8 @@ pub struct StrokeCtx {
     // Precomputation of the join threshold, to optimize per-join logic.
     // If hypot < (hypot + dot) * join_thresh, omit join altogether.
     join_thresh: f64,
+    // How to offset cubics.
+    offset_method: OffsetMethod,
 }
 
 impl StrokeCtx {
@@ -285,6 +316,7 @@ pub fn stroke_with(
     tolerance: f64,
     ctx: &mut StrokeCtx,
 ) {
+    ctx.offset_method = opts.offset_method;
     if style.dash_pattern.is_empty() {
         stroke_undashed(path, style, tolerance, ctx);
     } else {
@@ -556,9 +588,26 @@ impl StrokeCtx {
             }
         }
 
-        crate::offset::offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
+        let offset_cubic = match self.offset_method {
+            OffsetMethod::Offset => crate::offset::offset_cubic,
+            OffsetMethod::Offset2 => crate::offset2::offset_cubic,
+            OffsetMethod::Offset2Pair => {
+                // Both sides at once, appended to the two paths directly.
+                // The forward path is the offset by minus half the width.
+                crate::offset2::offset_cubic_pair(
+                    c,
+                    0.5 * style.width,
+                    tolerance,
+                    &mut self.backward_path,
+                    &mut self.forward_path,
+                );
+                self.last_pt = c.p3;
+                return;
+            }
+        };
+        offset_cubic(c, -0.5 * style.width, tolerance, &mut self.result_path);
         self.forward_path.extend(self.result_path.iter().skip(1));
-        crate::offset::offset_cubic(c, 0.5 * style.width, tolerance, &mut self.result_path);
+        offset_cubic(c, 0.5 * style.width, tolerance, &mut self.result_path);
         self.backward_path.extend(self.result_path.iter().skip(1));
         self.last_pt = c.p3;
     }
@@ -1177,5 +1226,116 @@ mod tests {
 
         let infinite_width = Stroke::new(f64::INFINITY);
         assert!(!infinite_width.is_nan());
+    }
+
+    #[test]
+    fn offset2_pair_matches_offset2() {
+        // Offsetting both sides at once gives the same result, bit for bit,
+        // as one side at a time, so the stroke outlines are the same.
+        use super::OffsetMethod;
+        use crate::{Cap, Join, Point};
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1_u64 << 53) as f64 * 100.0
+        };
+        let one_side = StrokeOpts::default().offset_method(OffsetMethod::Offset2);
+        let pair = StrokeOpts::default().offset_method(OffsetMethod::Offset2Pair);
+        for i in 0..40 {
+            let mut path = BezPath::new();
+            path.move_to(Point::new(next(), next()));
+            for _ in 0..3 {
+                path.curve_to((next(), next()), (next(), next()), (next(), next()));
+            }
+            if i % 2 == 0 {
+                path.close_path();
+            }
+            for width in [0.5, 4.0, 20.0] {
+                for (join, cap) in [
+                    (Join::Round, Cap::Round),
+                    (Miter, Butt),
+                    (Join::Bevel, Cap::Square),
+                ] {
+                    let mut style = Stroke::new(width).with_join(join).with_caps(cap);
+                    if i % 5 == 0 {
+                        style = style.with_dashes(1.0, [7.0, 3.0]);
+                    }
+                    for tolerance in [0.25, 1e-3] {
+                        let a = stroke(path.iter(), &style, &one_side, tolerance);
+                        let b = stroke(path.iter(), &style, &pair, tolerance);
+                        assert_eq!(a.elements(), b.elements(), "{path:?}, width {width}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn strokes_from_open_issues() {
+        use super::OffsetMethod;
+        use crate::{Cap, Join, ParamCurve, ParamCurveNearest};
+        let methods = [
+            OffsetMethod::Offset,
+            OffsetMethod::Offset2,
+            OffsetMethod::Offset2Pair,
+        ];
+        let finite = |path: &BezPath| {
+            path.elements().iter().all(|el| match *el {
+                PathEl::MoveTo(p) | PathEl::LineTo(p) => p.is_finite(),
+                PathEl::QuadTo(p1, p2) => p1.is_finite() && p2.is_finite(),
+                PathEl::CurveTo(p1, p2, p3) => p1.is_finite() && p2.is_finite() && p3.is_finite(),
+                PathEl::ClosePath => true,
+            })
+        };
+
+        // #615: an exact cusp at the midpoint was not regularized, and the
+        // outline reached 0.9965 from the centerline at a half width of 0.6.
+        let c = CubicBez::new(
+            (1.600_000_000_000_000_8, 310.787_665_198_237_9),
+            (5.406_167_400_881_057, 306.981_497_797_356_84),
+            (5.406_167_400_881_058, 310.787_665_198_237_9),
+            (1.6, 306.981_497_797_356_84),
+        );
+        let mut path = BezPath::new();
+        path.move_to(c.p0);
+        path.curve_to(c.p1, c.p2, c.p3);
+        for method in methods {
+            let opts = StrokeOpts::default().offset_method(method);
+            let style = Stroke::new(1.2).with_join(Join::Round);
+            let outline = stroke(&path, &style, &opts, 0.02);
+            let mut worst = 0.0_f64;
+            for seg in outline.segments() {
+                for i in 0..=64 {
+                    let p = seg.eval(f64::from(i) / 64.0);
+                    worst = worst.max(c.nearest(p, 1e-9).distance_sq.sqrt());
+                }
+            }
+            assert!(worst <= 0.6 + 0.02, "{method:?}: {worst}");
+        }
+
+        // #617 and #519: a vanishing derivative gave non-finite points. These
+        // remain with `offset`.
+        let mut zero_end = BezPath::new();
+        zero_end.move_to((0.5, -3.0));
+        zero_end.curve_to((-0.25, -0.5), (0.0, 0.0), (0.0, 0.0));
+        let short = BezPath::from_svg(
+            "M47.5884,316.827 C47.5884,316.827 47.4321,317.6239 47.4321,317.6239 \
+             C46.7915,317.7801 46.7915,317.2176 46.7915,317.2176 Z",
+        )
+        .unwrap();
+        for method in [OffsetMethod::Offset2, OffsetMethod::Offset2Pair] {
+            let opts = StrokeOpts::default().offset_method(method);
+            for tolerance in [5e-5, 0.02] {
+                let style = Stroke::new(1.2)
+                    .with_join(Join::Round)
+                    .with_caps(Cap::Round);
+                let outline = stroke(&zero_end, &style, &opts, tolerance);
+                assert!(finite(&outline), "{method:?}, tolerance {tolerance}");
+            }
+            let outline = stroke(&short, &Stroke::new(10.0), &opts, 0.25);
+            assert!(finite(&outline), "{method:?}");
+        }
     }
 }
