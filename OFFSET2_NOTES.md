@@ -33,9 +33,11 @@ Medium:
 4. **Whether to keep strict mode**, and whether to keep the pair: both
    are measured in "Trimming".
 5. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
-   calls exactly; whole tiger strokes are 9 to 13% slower without it.
-   Sharing the sampled estimate's evaluations was tried and made it
-   slower, and sharing the Taylor coefficients and certificate saved
+   calls exactly; whole tiger strokes are 28 to 31% slower without it
+   (one side at a time against the pair). Since "The
+   tiger at 1/32" one pass over the osculating samples decides both
+   sides. Sharing the sampled estimate's evaluations was tried and made
+   it slower, and sharing the Taylor coefficients and certificate saved
    nothing measurable ("Both sides at once", "Trimming").
 6. **Another corpus**, with ordinary end handles, to see how much of the
    tiger's behaviour is the tiger's, and to check the guards on the
@@ -68,13 +70,21 @@ Large, or open questions:
     the narrower ones are costs 3 to 5% on the tiger, which has 31 of them
     in 336 curves ("Sharp turns").
 14. **The default one-sided call is 2 to 5% slower** than before the tips
-    on the cheapest curves, with the pair and strict mode unchanged: code
-    layout, not work ("Tips at the root").
+    on the cheapest curves: code layout, not work ("Tips at the root").
+    Since "The tiger at 1/32" it is another 5 to 7% slower on nearly
+    straight and gentle random curves (42 to 45 ns, 72 to 77), 4% faster
+    on wild ones, and 2% slower through the stroker at 1/256 and 1/2048.
+    Not found: the original loop of the estimate, the estimate out of
+    line, and the arc test at the root only each made no difference.
+15. **Slivers at a pair of cusps.** A piece split at its middle between
+    two cusps of a small swallowtail leaves a sliver each side of the
+    split, and four pieces where three would do ("The tiger at 1/32").
 
 Done or dropped: the midpoint G1 retry and the G1 bound (removed, see
 "Trimming"), the slip guard on two-point fits only, and hidden
-cusp pairs found at the samples (both adopted), the osculating circle and
-deciding both sides in one pass (dropped), Newton against ITP for the
+cusp pairs found at the samples (both adopted), the osculating circle
+(dropped), deciding both sides in one pass (dropped, then done another
+way; see "The tiger at 1/32"), Newton against ITP for the
 cusp (measured, kept), the rounding allowance (added), a cheap estimate for the
 default mode (the osculating
 parabola, adopted with guards), misses at the maximum depth (depth raised from 8 to 12),
@@ -1828,4 +1838,150 @@ Most of the tiger's rejections are of whole curves, which have no parent.
 Not worth a flag through the recursion. (The other end of the table, not
 evaluating a side whose parent had it within the limit, would save 5 to 7%
 of the evaluations and accept a few pieces that their own samples reject.)
+
+## The tiger at 1/32 (20 November 2026)
+
+Whole strokes of the Ghostscript tiger with the pair, at a tolerance of
+1/32, is the number other people look at. This is where its time was at
+`bba4e43`, what came off, and what did not.
+
+**What the tiger is.** 336 stroked cubics. 250 have a zero-length first
+handle (`p0 = p1`, from the PostScript `v` operator) and 11 a zero-length
+last one, so three quarters of the offsets have a vanishing end
+derivative. The half widths are 0.008 to 0.2 against a tolerance of
+0.031.
+
+| Curves, at `bba4e43` | Number | ns a pair | Share of the time |
+|---|---|---|---|
+| One segment a side | 277 | 75 | 46% |
+| More | 59 | 420 | 54% |
+
+The one-segment pairs cost 55 to 75 ns whichever test accepts them
+(hairline 36 pairs, hull 89, osculating 152): the root, the fit and the
+emitting are most of it, not the decision. The others are hooks: a
+zero-length first handle, a turn of 130 to 170 degrees concentrated in a
+tenth of the parameter, a half width of 0.2. Their inner side has a cusp
+next to the start (the stub) and often two more at the turn, so four
+pieces before anything is fitted.
+
+**Both sides from one pass** (`757aab5`). For each piece that both sides
+reach together, the sides nearly always take the same route: at the root,
+36 pairs by the hairline bound, 89 by the hull bound, 36 by the one-point
+fit, 140 by arc drawing after the one-point fit clamped a handle on both
+sides at once (with a zero-length handle the clamps are mirror images),
+19 by the two-point fit. With the same fit and no clamp, `D` on one side
+is minus `D` on the other, and the osculating estimate differs in the
+sign of `A`, `B` and `d` only: `approximate_pair` takes the eight samples
+once and decides twice, to the last bit of what `approximate` gives. 306
+of 323 such pieces go that way. The earlier attempt at this ("Where the
+time goes") gave up because one side clamped; both do.
+
+**The cheap bounds before the cusps** (`a1e9287`). The hairline and hull
+bounds are on the distance at equal parameter, which holds across cusps.
+They were tried after a piece had been split at its cusps, and the hull
+bound at the root only. Now `accept_arc` comes first on every piece whose
+end normals times `d` are within the tolerance of each other, which no
+such bound can beat (the old test, on the sine of the turn, let half turns
+through: 144 of its 319 attempts failed). Four thin strokes with a sharp
+turn (half width 0.019, under the tolerance but over half of it) went
+from 10 segments and 790 ns a pair to 8 and 200.
+
+**The estimate past a cusp** (same commit). A piece with a negative cusp
+value at both ends runs backward along a curve that is as smooth, and the
+estimate is the same with the sign reversed. Those were half the pieces
+on the slower path (32 of 63 at 1/32). Against the sampled estimate on
+11,955 such pieces of random curves it accepts 21 that the other rejects.
+
+**The cusp search** (`a793839`). It took 13 evaluations a cusp, not the
+6 to 8 its comment said. Newton's method arrives from one side, the far
+end of the bracket never moves, and a last step that rounded to nothing
+was taken for leaving the bracket, which sent the search back to
+bisecting the whole of it: 40 evaluations for 5 of the tiger's 39 cusps.
+A step under the accuracy asked for now ends it: 7 a cusp.
+
+**ITP in its place, measured.** With `solve_itp` on the cusp value, as in
+`offset.rs`: 21 evaluations a cusp, and whole tiger strokes at 1/32 took
+59.7 microseconds against 46.9. Each evaluation is a square root and a
+division, and each ITP step waits on the last through another division,
+so a cusp costs about 320 ns against 50. Bisection steps overlap in the
+pipeline; these do not.
+
+**Smaller things.** A linear fit that will be clamped is no longer built
+first (`clamps`). The cusp value at a shared split and the hull bound of
+an unclamped arc are computed once for both sides. `Sharing`, `Shared`
+and `Unshared` are gone: what was left for them to share was the fit on
+17 pieces of 323, and strict mode, which is 1.5% slower with the pair.
+
+**Where it stands**, `bba4e43` against `d7b0e94` in the same run, M5 Max:
+
+| Whole tiger strokes | 1/32 | 1/256 | 1/2048 |
+|---|---|---|---|
+| Pair before, µs | 52.5 | 80.2 | 126.5 |
+| Pair now, µs | 44.0 | 71.6 | 115.1 |
+| Change | -16% | -11% | -9% |
+| Baseline (`offset.rs`), µs | 121.4 | 501.3 | 1565 |
+| Baseline over pair | 2.8 | 7.0 | 13.6 |
+| One side at a time, before and now, µs | 59.8, 57.6 | 90.4, 91.7 | 144.3, 147.6 |
+| Segments, before and now | 1703, 1694 | 2279, 2280 | 3039, 3041 |
+
+| `offset_tiger`, default and strict | 1/32 | 1/256 | 1/2048 |
+|---|---|---|---|
+| ns a call, before | 77, 238 | 122, 549 | 201, 864 |
+| ns a call, now | 75, 205 | 126, 498 | 208, 829 |
+| Segments, now | 903, 1648 | 1193, 3053 | 1802, 4645 |
+| Calls over tolerance, now | 0, 0 | 1, 0 | 0, 0 |
+
+Random families, one side at a time: default 120 to 124 ns (nearly
+straight 42 to 45, gentle 72 to 77, wild 569 to 547), strict 211 to 214;
+0 of 5,400 over in both modes, as before. The near-cusp survey has no
+row with a larger worst error, fewer segments at the loose tolerance
+(hairpins 4588 to 4044), and fewer pieces at the depth limit at 1e-6
+(122 to 6, 131 to 55, strict 754 to 377). The sharp-turn survey is
+unchanged.
+
+**A metric that rejects a piece but accepts its halves, measured.** The
+idea: skip the estimate on a half when its parent's result already says
+it will pass. Every piece with a parent was logged with the parent's
+largest sample ratio (estimate over limit) on its side of the split, and
+its own:
+
+| Parent's ratio on this side | Tiger 1/32: pieces, rejected | Wild: pieces, rejected | Hooks: pieces, rejected |
+|---|---|---|---|
+| under 0.25 | 14, 0 | 411, 0 | 123, 0 |
+| 0.25 to 0.5 | 13, 0 | 820, 7 | 397, 2 |
+| 0.5 to 1 | 31, 1 | 2146, 23 | 1519, 13 |
+| 1 to 2 | 63, 3 | 7133, 158 | 4940, 75 |
+| 2 to 4 | 71, 9 | 5960, 368 | 4090, 175 |
+| 4 to 8 | 67, 30 | 4963, 708 | 3521, 333 |
+
+There is no ratio above the limit that guarantees the halves: the error
+of a hook sits in a tenth of the piece, and halving does not divide it
+until the split lands there (a parent at 2.4 times the limit had a half at
+1.1). Below a quarter of the limit no half was rejected, but that is 5%
+of the halves on the tiger at 1/32, a quarter of a microsecond.
+
+**Also tried and dropped.**
+
+- Splitting at the tangent bisector more often (`SUBDIVIDE_THRESH` 0.3,
+  0.6, 1): 1697 to 1690 segments against 1703, and 2 to 6% slower.
+- The cheap bounds at the root before the slow-point filter, with the
+  two sides' state built together (`pair_at_root`, shared end curvature):
+  no gain; the curves that pass the filter built their state twice.
+- A start for the cusp search (the line through the cusp values at the
+  ends; the stub's cusp to leading order with the double root at the end
+  divided out): 6.4 evaluations a cusp at 1/32 and 3.7 for stubs at
+  1/2048, 1% of the tiger's time for 45 lines.
+- An equal-parameter check at the eight samples before the sampled
+  estimate: passes 41 of the 63 slow-path pieces at 1/32 but 45 of 197 at
+  1/2048, and those past a cusp no longer get there.
+
+**What is left of the time**, sampled at `0c4fff4`: the recursion with
+the pair's estimate 44%, the one-sided `approximate` 13%, the stroker
+12%, `hull_bound` 6% (before it was shared), the root 5%, `subsegment`
+3%.
+The eight-sample loop is 227 vector instructions for both sides and near
+what the arithmetic needs without fused multiply-adds. What costs is the
+number of pieces: the hooks take 1.45 fits a segment, and their inner
+side is cut by cusps before anything is fitted. A hidden pair of cusps
+found at a midpoint split leaves two slivers (item 15).
 
