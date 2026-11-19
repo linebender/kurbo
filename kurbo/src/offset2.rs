@@ -348,9 +348,19 @@ fn offset_rec_pair(
         return;
     }
     let seg = pos.piece(rec_pos);
-    let mut shared = Shared::default();
-    let (accepted_pos, best_pos, split_pos) = pos.approximate(&seg, rec_pos, &mut shared);
-    let (accepted_neg, best_neg, split_neg) = neg.approximate(&seg, rec_neg, &mut shared);
+    let [
+        (accepted_pos, best_pos, split_pos),
+        (accepted_neg, best_neg, split_neg),
+    ] = match pos.approximate_pair(neg, &seg, rec_pos, rec_neg) {
+        Some(both) => both,
+        None => {
+            let mut shared = Shared::default();
+            [
+                pos.approximate(&seg, rec_pos, &mut shared),
+                neg.approximate(&seg, rec_neg, &mut shared),
+            ]
+        }
+    };
     // A side that found a pair of cusps splits where it found them, alone.
     if accepted_pos.is_none()
         && accepted_neg.is_none()
@@ -680,6 +690,11 @@ struct SubdivisionPoint {
     /// Unit tangent at subdivision point.
     utan: Vec2,
 }
+
+/// What [`CubicOffset::approximate`] returns: an approximation that was
+/// accepted, if one was; the approximation to fall back on; and where to
+/// split the piece, if the estimate found a place.
+type Approximation = (Option<CubicBez>, CubicBez, Option<f64>);
 
 /// An approximation to the offset of one piece.
 struct Fit {
@@ -1044,13 +1059,7 @@ impl CubicOffset {
         // curvature times `d` does not change much over the piece, it has no
         // cusp at the samples, and a two-point fit does not slip far along
         // the offset.
-        let cusp_min = rec.cusp0.min(rec.cusp1);
-        let cusp_max = rec.cusp0.max(rec.cusp1);
-        // A piece ending at a cusp, split there, has the value
-        // `CUSP_EPSILON` at that end; the ratio does not apply to it.
-        let cusp_ratio_ok =
-            cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min || cusp_min == CUSP_EPSILON;
-        if !self.strict && cusp_min > 0.0 && cusp_ratio_ok {
+        if self.tries_osculating(rec) {
             let fit = match linear_fit {
                 Some((a, b)) => {
                     let fit = self.apply(seg, rec, a, b);
@@ -1128,6 +1137,151 @@ impl CubicOffset {
             return (Some(arc.approx), arc.approx, None);
         }
         (None, arc.approx, None)
+    }
+
+    /// Whether the default mode tries the osculating parabola estimate on a
+    /// piece: the cusp value is positive at both ends, and does not change
+    /// by more than [`OSCULATING_MAX_CUSP_RATIO`] between them.
+    #[inline(always)]
+    fn tries_osculating(&self, rec: &OffsetRec) -> bool {
+        let cusp_min = rec.cusp0.min(rec.cusp1);
+        let cusp_max = rec.cusp0.max(rec.cusp1);
+        // A piece ending at a cusp, split there, has the value
+        // `CUSP_EPSILON` at that end; the ratio does not apply to it.
+        let cusp_ratio_ok =
+            cusp_max <= OSCULATING_MAX_CUSP_RATIO * cusp_min || cusp_min == CUSP_EPSILON;
+        !self.strict && cusp_min > 0.0 && cusp_ratio_ok
+    }
+
+    /// [`Self::approximate`] for both sides of the source at once, where
+    /// they go the same way: `self` is one side, and `other` the other, at
+    /// minus the distance.
+    ///
+    /// With the same fit on both sides and no handle clamped on either,
+    /// `D` on one side is minus `D` on the other. Then the hull bound is
+    /// the same for both, and the osculating parabola estimate differs
+    /// only in a few signs, so one pass over its samples decides both.
+    /// That is nearly every piece of an ordinary stroke.
+    ///
+    /// The results are those of [`Self::approximate`] on each side, to the
+    /// last bit. Returns `None` where the sides part ways or one of them
+    /// needs more than the estimate; the caller then takes each side on its
+    /// own.
+    fn approximate_pair(
+        &self,
+        other: &CubicOffset,
+        seg: &CubicBez,
+        rec: &OffsetRec,
+        rec_other: &OffsetRec,
+    ) -> Option<[Approximation; 2]> {
+        let d = self.d;
+        let tolerance = self.tolerance;
+        if self.strict {
+            return None;
+        }
+        let accepted = |arc: &Fit, arc_other: &Fit| {
+            Some([
+                (Some(arc.approx), arc.approx, None),
+                (Some(arc_other.approx), arc_other.approx, None),
+            ])
+        };
+        // Arc drawing serves the cheap bounds, and replaces a linear fit
+        // with a clamped handle.
+        let mut arcs: Option<(Fit, Fit)> = None;
+        let draw_arcs = || (self.draw_arc(seg, rec), other.draw_arc(seg, rec_other));
+
+        // The same tests as in `approximate`, in the same order.
+        if 2.0 * d.abs() <= tolerance {
+            let (arc, arc_other) = arcs.get_or_insert_with(draw_arcs);
+            let ok = self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx);
+            let ok_other = other.accepts(
+                hairline_bound(&arc_other.delta, other.d),
+                seg,
+                &arc_other.approx,
+            );
+            if ok != ok_other {
+                return None;
+            }
+            if ok {
+                return accepted(arc, arc_other);
+            }
+        }
+        if rec.depth == 0 && d.abs() * rec.utan0.cross(rec.utan1).abs() <= tolerance {
+            let (arc, arc_other) = arcs.get_or_insert_with(draw_arcs);
+            let bound = hull_bound(seg, rec, &arc.delta, d);
+            let bound_other = if arc.clamped || arc_other.clamped {
+                hull_bound(seg, rec_other, &arc_other.delta, other.d)
+            } else {
+                bound
+            };
+            let ok = bound.is_some_and(|bound| self.accepts(bound, seg, &arc.approx));
+            let ok_other =
+                bound_other.is_some_and(|bound| other.accepts(bound, seg, &arc_other.approx));
+            if ok != ok_other {
+                return None;
+            }
+            if ok {
+                return accepted(arc, arc_other);
+            }
+        }
+        if (seg.p3 - seg.p0).hypot2() <= tolerance * tolerance {
+            return None;
+        }
+
+        let has_inflection = (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0;
+        let has_inflection_other = (rec_other.cusp0 - 1.0) * (rec_other.cusp1 - 1.0) < 0.0;
+        if has_inflection != has_inflection_other
+            || !self.tries_osculating(rec)
+            || !other.tries_osculating(rec_other)
+        {
+            return None;
+        }
+        let linear_fit = if has_inflection {
+            two_point(seg, rec)
+        } else {
+            one_point(seg, rec)
+        };
+        let linear_fits = match linear_fit {
+            Some((a, b)) => {
+                let fit = self.apply(seg, rec, a, b);
+                let fit_other = other.apply(seg, rec_other, a, b);
+                if fit.clamped != fit_other.clamped {
+                    return None;
+                }
+                (!fit.clamped).then_some((fit, fit_other))
+            }
+            None => None,
+        };
+        let (fit, fit_other) = match &linear_fits {
+            Some((fit, fit_other)) => (fit, fit_other),
+            None => {
+                let (arc, arc_other) = arcs.get_or_insert_with(draw_arcs);
+                (&*arc, &*arc_other)
+            }
+        };
+        if fit.clamped || fit_other.clamped {
+            return None;
+        }
+
+        let limit = tolerance / (OSCULATING_SAFETY * d.abs());
+        // As in `approximate`, which see.
+        let max_slip = if has_inflection && linear_fit.is_some() {
+            OSCULATING_MAX_SLIP
+        } else {
+            f64::INFINITY
+        };
+        let samples = OsculatingSamples::new(seg, &fit.delta, d, max_slip);
+        let result = |decision, fit: &Fit, rec: &OffsetRec| match decision {
+            Osculating::Decided(accepted) => {
+                Some((accepted.then_some(fit.approx), fit.approx, None))
+            }
+            Osculating::Cusp(t) => Some((None, fit.approx, Some(rec.t0 + t * (rec.t1 - rec.t0)))),
+            Osculating::Untrusted => None,
+        };
+        Some([
+            result(samples.decide(1.0, limit), fit, rec)?,
+            result(samples.decide(-1.0, limit), fit_other, rec_other)?,
+        ])
     }
 
     /// Whether a strict `bound` on the error of `approx` shows it to be
@@ -2522,59 +2676,108 @@ fn osculating_decision(
     limit: f64,
     max_slip: f64,
 ) -> Osculating {
-    let c1 = [
-        3.0 * (seg.p1 - seg.p0),
-        3.0 * (seg.p2 - seg.p1),
-        3.0 * (seg.p3 - seg.p2),
-    ];
-    let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
-    let slip_scale = max_slip * max_slip * d * d;
-    // All samples are evaluated before any is looked at, so that this loop
-    // has no branches and vectorizes. The decision below takes them in
-    // order, as before.
-    let mut bb = [0.0; 8];
-    let mut slip = [0.0; 8];
-    let mut e = [0.0; 8];
-    let mut numerator = [0.0; 8];
-    let mut denominator = [0.0; 8];
-    for i in 0..8 {
-        let t = OSCULATING_SAMPLES[i];
-        let mt = 1.0 - t;
-        let d_t = delta[0] * (mt * mt * mt)
-            + delta[1] * (3.0 * mt * mt * t)
-            + delta[2] * (3.0 * mt * t * t)
-            + delta[3] * (t * t * t);
-        let q = c1[0] * (mt * mt) + c1[1] * (2.0 * mt * t) + c1[2] * (t * t);
-        let qq = c2[0] * mt + c2[1] * t;
-        let s2 = q.hypot2();
-        let b = q.dot(d_t);
-        let s = s2.sqrt();
-        let a = q.turn_90().dot(d_t);
-        let k = qq.cross(q);
-        let s3 = s2 * s;
-        let e_i = s3 + k * d;
-        bb[i] = b * b;
-        slip[i] = slip_scale * s2;
-        e[i] = e_i;
-        numerator[i] = a * s * e_i - d * s2 * e_i + 0.5 * k * b * b;
-        denominator[i] = d * s2 * e_i;
-    }
-    let mut trusted = true;
-    for i in 0..8 {
-        // The cusp value here is `e / s3`, and `s3` is not negative.
-        if e[i] <= 0.0 {
-            return Osculating::Cusp(OSCULATING_SAMPLES[i]);
+    OsculatingSamples::new(seg, delta, d, max_slip).decide(1.0, limit)
+}
+
+/// The parts of [`osculating_decision`] at each sample that are the same
+/// for the offset at `-d` with `-D`, which is what the other side of the
+/// source has when both use the same fit: in the notation there, `A s`,
+/// `d s^2`, `s^3`, `K d`, `K B^2 / 2`, `B^2`, and the limit on `B^2`.
+///
+/// On the other side `A`, `B` and `d` change sign, so `E` is `s^3 - K d`,
+/// and the numerator is `d s^2 E - A s E + K B^2 / 2` with these values.
+struct OsculatingSamples {
+    a_s: [f64; 8],
+    d_s2: [f64; 8],
+    s3: [f64; 8],
+    k_d: [f64; 8],
+    half_k_bb: [f64; 8],
+    bb: [f64; 8],
+    slip: [f64; 8],
+}
+
+impl OsculatingSamples {
+    #[inline(always)]
+    fn new(seg: &CubicBez, delta: &[Vec2; 4], d: f64, max_slip: f64) -> Self {
+        let c1 = [
+            3.0 * (seg.p1 - seg.p0),
+            3.0 * (seg.p2 - seg.p1),
+            3.0 * (seg.p3 - seg.p2),
+        ];
+        let c2 = [2.0 * (c1[1] - c1[0]), 2.0 * (c1[2] - c1[1])];
+        let slip_scale = max_slip * max_slip * d * d;
+        let mut a_s = [0.0; 8];
+        let mut d_s2 = [0.0; 8];
+        let mut s3 = [0.0; 8];
+        let mut k_d = [0.0; 8];
+        let mut half_k_bb = [0.0; 8];
+        let mut bb = [0.0; 8];
+        let mut slip = [0.0; 8];
+        // All samples are evaluated before any is looked at, so that this
+        // loop has no branches and vectorizes.
+        for i in 0..8 {
+            let t = OSCULATING_SAMPLES[i];
+            let mt = 1.0 - t;
+            let d_t = delta[0] * (mt * mt * mt)
+                + delta[1] * (3.0 * mt * mt * t)
+                + delta[2] * (3.0 * mt * t * t)
+                + delta[3] * (t * t * t);
+            let q = c1[0] * (mt * mt) + c1[1] * (2.0 * mt * t) + c1[2] * (t * t);
+            let qq = c2[0] * mt + c2[1] * t;
+            let s2 = q.hypot2();
+            let b = q.dot(d_t);
+            let s = s2.sqrt();
+            let a = q.turn_90().dot(d_t);
+            let k = qq.cross(q);
+            a_s[i] = a * s;
+            d_s2[i] = d * s2;
+            s3[i] = s2 * s;
+            k_d[i] = k * d;
+            half_k_bb[i] = 0.5 * k * b * b;
+            bb[i] = b * b;
+            slip[i] = slip_scale * s2;
         }
-        // Written so that a NaN rejects.
-        if !(numerator[i].abs() <= limit * denominator[i].abs()) {
-            return Osculating::Decided(false);
+        OsculatingSamples {
+            a_s,
+            d_s2,
+            s3,
+            k_d,
+            half_k_bb,
+            bb,
+            slip,
         }
-        trusted &= bb[i] <= slip[i];
     }
-    if trusted {
-        Osculating::Decided(true)
-    } else {
-        Osculating::Untrusted
+
+    /// The decision for the side the samples were taken on if `side` is 1,
+    /// and for the other if it is -1.
+    #[inline(always)]
+    fn decide(&self, side: f64, limit: f64) -> Osculating {
+        let mut e = [0.0; 8];
+        let mut numerator = [0.0; 8];
+        let mut denominator = [0.0; 8];
+        for i in 0..8 {
+            e[i] = self.s3[i] + side * self.k_d[i];
+            denominator[i] = self.d_s2[i] * e[i];
+            numerator[i] = side * (self.a_s[i] * e[i] - denominator[i]) + self.half_k_bb[i];
+        }
+        // The decision takes the samples in order.
+        let mut trusted = true;
+        for i in 0..8 {
+            // The cusp value here is `e / s3`, and `s3` is not negative.
+            if e[i] <= 0.0 {
+                return Osculating::Cusp(OSCULATING_SAMPLES[i]);
+            }
+            // Written so that a NaN rejects.
+            if !(numerator[i].abs() <= limit * denominator[i].abs()) {
+                return Osculating::Decided(false);
+            }
+            trusted &= self.bb[i] <= self.slip[i];
+        }
+        if trusted {
+            Osculating::Decided(true)
+        } else {
+            Osculating::Untrusted
+        }
     }
 }
 
