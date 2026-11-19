@@ -1802,3 +1802,30 @@ the run that also measures errors, where the first function timed came out
 slow on its first family. Timed alone the default mode was 120 to 122 ns
 at `f2e3592`, and the nearly straight family 42 to 44.
 
+**Splitting twice on a bad estimate, measured and dropped.** Rejections
+are 39% of the evaluations on the tiger at 1/2048 (1,015 to 1,800 accepted
+pieces), and a rejected piece's osculating samples say how far over each
+half is, so a half that is far over could be split again without being
+evaluated. Every piece was logged with the largest sample ratio (estimate
+over limit) its parent had on its side of the split, one side at a time:
+
+| Parent's ratio on this side | Tiger 1/32 | 1/256 | 1/2048 | Wild 1e-4 |
+|---|---|---|---|---|
+| under 1 (accepted / rejected) | 57 / 1 | 92 / 0 | 208 / 0 | 1635 / 2 |
+| 1 to 4 | 122 / 14 | 380 / 11 | 626 / 24 | 8453 / 188 |
+| 4 to 16 | 37 / 38 | 105 / 47 | 378 / 112 | 5342 / 1077 |
+| 16 to 64 | 0 / 7 | 65 / 83 | 126 / 149 | 2190 / 2624 |
+| 64 to 256 | 0 / 0 | 0 / 7 | 23 / 109 | 557 / 2697 |
+| 256 to 1024 | 0 / 0 | 0 / 4 | 26 / 50 | 112 / 2215 |
+| over 1024 | 0 / 0 | 0 / 0 | 0 / 7 | 39 / 3337 |
+| no such parent | 696 / 98 | 550 / 276 | 413 / 564 | 6739 / 9108 |
+
+The ratio predicts poorly: a side at 16 to 64 times the limit is accepted
+almost as often as not once it has its own fit. A threshold of 256 would
+skip 3% of the evaluations on the tiger at 1/2048 for 1.4% more segments,
+and none at the looser tolerances; on wild curves at 1e-4, 12% for 0.6%.
+Most of the tiger's rejections are of whole curves, which have no parent.
+Not worth a flag through the recursion. (The other end of the table, not
+evaluating a side whose parent had it within the limit, would save 5 to 7%
+of the evaluations and accept a few pieces that their own samples reject.)
+
