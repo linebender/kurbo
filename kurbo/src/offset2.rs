@@ -370,13 +370,10 @@ fn offset_rec_pair(
         (accepted_neg, best_neg, split_neg),
     ] = match pos.approximate_pair(neg, &seg, rec_pos, rec_neg) {
         Some(both) => both,
-        None => {
-            let mut shared = Shared::default();
-            [
-                pos.approximate(&seg, rec_pos, &mut shared),
-                neg.approximate(&seg, rec_neg, &mut shared),
-            ]
-        }
+        None => [
+            pos.approximate(&seg, rec_pos),
+            neg.approximate(&seg, rec_neg),
+        ],
     };
     // A side that found a pair of cusps splits where it found them, alone.
     if accepted_pos.is_none()
@@ -951,7 +948,7 @@ impl CubicOffset {
         }
 
         let seg = self.piece(rec);
-        let (accepted, best_effort, split) = self.approximate(&seg, rec, &mut Unshared);
+        let (accepted, best_effort, split) = self.approximate(&seg, rec);
         self.emit_or_subdivide(rec, accepted, best_effort, split, result);
     }
 
@@ -1034,12 +1031,7 @@ impl CubicOffset {
     /// shown to be within tolerance, if there is one. The second is an
     /// approximation to fall back on if there is not and the piece cannot
     /// be subdivided further.
-    fn approximate(
-        &self,
-        seg: &CubicBez,
-        rec: &OffsetRec,
-        sharing: &mut impl Sharing,
-    ) -> (Option<CubicBez>, CubicBez, Option<f64>) {
+    fn approximate(&self, seg: &CubicBez, rec: &OffsetRec) -> Approximation {
         let d = self.d;
         let tolerance = self.tolerance;
 
@@ -1063,14 +1055,11 @@ impl CubicOffset {
         // use the two-point fit. Otherwise use one-point: it is cheaper to
         // bound, and it controls the tangential error better.
         let has_inflection = (rec.cusp0 - 1.0) * (rec.cusp1 - 1.0) < 0.0;
-        // The linear fits do not depend on the side.
-        let linear_fit = sharing.linear_fit(has_inflection, || {
-            if has_inflection {
-                two_point(seg, rec)
-            } else {
-                one_point(seg, rec)
-            }
-        });
+        let linear_fit = if has_inflection {
+            two_point(seg, rec)
+        } else {
+            one_point(seg, rec)
+        };
         // In the default mode, try the osculating parabola estimate first. It
         // is a few multiply-adds per sample, against the Taylor polynomials,
         // certificate and bound, which cost more even when they succeed.
@@ -1936,59 +1925,6 @@ impl Taylor {
             beta,
             a1_dot_c1,
             c1_dot_c1,
-        }
-    }
-}
-
-/// How [`CubicOffset::approximate`] gets the linear fit, which does not
-/// depend on the side of the source. For one side, [`Unshared`] computes it.
-/// For both sides, [`Shared`] keeps what the first side computed for the
-/// second.
-trait Sharing {
-    fn linear_fit(
-        &mut self,
-        two_point_chosen: bool,
-        fit: impl FnOnce() -> Option<(f64, f64)>,
-    ) -> Option<(f64, f64)>;
-}
-
-/// Compute the linear fit directly, for one side.
-struct Unshared;
-
-impl Sharing for Unshared {
-    #[inline(always)]
-    fn linear_fit(
-        &mut self,
-        _two_point_chosen: bool,
-        fit: impl FnOnce() -> Option<(f64, f64)>,
-    ) -> Option<(f64, f64)> {
-        fit()
-    }
-}
-
-/// Keep the linear fit on a piece for the other side, in
-/// [`offset_cubic_pair`]. Sharing the Taylor coefficients and the parts of
-/// the certificate that do not depend on the side as well saved nothing
-/// measurable.
-#[derive(Default)]
-struct Shared {
-    /// Whether the two-point fit was chosen, and the linear fit's result.
-    linear_fit: Option<(bool, Option<(f64, f64)>)>,
-}
-
-impl Sharing for Shared {
-    fn linear_fit(
-        &mut self,
-        two_point_chosen: bool,
-        fit: impl FnOnce() -> Option<(f64, f64)>,
-    ) -> Option<(f64, f64)> {
-        match self.linear_fit {
-            Some((chosen, result)) if chosen == two_point_chosen => result,
-            _ => {
-                let result = fit();
-                self.linear_fit = Some((two_point_chosen, result));
-                result
-            }
         }
     }
 }
