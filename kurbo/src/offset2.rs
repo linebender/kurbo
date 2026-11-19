@@ -781,9 +781,10 @@ impl CubicOffset {
     /// negative at `a` and positive at `b`.
     ///
     /// This is Newton's method on [`Self::scaled_cusp_and_deriv`],
-    /// safeguarded by bisection, to an accuracy of about `1e-12` in `t`. It
-    /// takes 6 to 8 evaluations where the ITP solver in `crate::offset`
-    /// takes about 22.
+    /// safeguarded by bisection, to an accuracy of about `1e-12` in `t`. On
+    /// the strokes of the Ghostscript tiger it takes 7 evaluations a cusp.
+    /// The ITP solver of `crate::offset`, on the cusp value itself, took 21,
+    /// each with a division, and the whole tiger a quarter longer.
     fn find_cusp(&self, mut a: f64, mut b: f64, s: f64) -> f64 {
         const EPS: f64 = 1e-12;
         let mut t = 0.5 * (a + b);
@@ -803,15 +804,22 @@ impl CubicOffset {
             if b - a <= 2.0 * EPS {
                 break;
             }
-            let newton = t - y / dy;
+            let step = y / dy;
+            // A step this small ends the search wherever it leads. Newton
+            // comes to the root from one side, with the other end of the
+            // bracket still where it started, and its last steps round to
+            // nothing: taken for leaving the bracket, they sent the search
+            // back to bisecting all of it, 40 evaluations where 7 had
+            // found the root.
+            if step.abs() < EPS {
+                return (t - step).clamp(a, b);
+            }
+            let newton = t - step;
             // Bisect if Newton leaves the bracket, or is not converging
             // faster than bisection would.
             if newton > a && newton < b && (2.0 * y).abs() <= (step_old * dy).abs() {
-                step_old = (newton - t).abs();
+                step_old = step.abs();
                 t = newton;
-                if step_old < EPS {
-                    return t;
-                }
             } else {
                 step_old = 0.5 * (b - a);
                 t = 0.5 * (a + b);
@@ -1281,9 +1289,9 @@ impl CubicOffset {
             Osculating::Untrusted => None,
         };
         Some([
-            result(samples.decide(1.0, limit, rec.cusp0), &fit, rec)?,
+            result(samples.decide(limit, rec.cusp0), &fit, rec)?,
             result(
-                samples.decide(-1.0, limit, rec_other.cusp0),
+                samples.decide_other(limit, rec_other.cusp0),
                 &fit_other,
                 rec_other,
             )?,
@@ -2702,7 +2710,7 @@ fn osculating_decision(
     max_slip: f64,
     cusp_sign: f64,
 ) -> Osculating {
-    OsculatingSamples::new(seg, delta, d, max_slip).decide(1.0, limit, cusp_sign)
+    OsculatingSamples::new(seg, delta, d, max_slip).decide(limit, cusp_sign)
 }
 
 /// The parts of [`osculating_decision`] at each sample that are the same
@@ -2720,6 +2728,11 @@ struct OsculatingSamples {
     half_k_bb: [f64; 8],
     bb: [f64; 8],
     slip: [f64; 8],
+    /// `E`, and the numerator and the denominator of the error, on the side
+    /// the samples were taken on.
+    e: [f64; 8],
+    numerator: [f64; 8],
+    denominator: [f64; 8],
 }
 
 impl OsculatingSamples {
@@ -2739,8 +2752,12 @@ impl OsculatingSamples {
         let mut half_k_bb = [0.0; 8];
         let mut bb = [0.0; 8];
         let mut slip = [0.0; 8];
+        let mut e = [0.0; 8];
+        let mut numerator = [0.0; 8];
+        let mut denominator = [0.0; 8];
         // All samples are evaluated before any is looked at, so that this
-        // loop has no branches and vectorizes.
+        // loop has no branches and vectorizes. What only the other side
+        // needs costs nothing where it is not asked for.
         for i in 0..8 {
             let t = OSCULATING_SAMPLES[i];
             let mt = 1.0 - t;
@@ -2762,6 +2779,9 @@ impl OsculatingSamples {
             half_k_bb[i] = 0.5 * k * b * b;
             bb[i] = b * b;
             slip[i] = slip_scale * s2;
+            e[i] = s3[i] + k_d[i];
+            denominator[i] = d_s2[i] * e[i];
+            numerator[i] = a_s[i] * e[i] - denominator[i] + half_k_bb[i];
         }
         OsculatingSamples {
             a_s,
@@ -2771,23 +2791,49 @@ impl OsculatingSamples {
             half_k_bb,
             bb,
             slip,
+            e,
+            numerator,
+            denominator,
         }
     }
 
-    /// The decision for the side the samples were taken on if `side` is 1,
-    /// and for the other if it is -1. `cusp_sign` has the sign of the cusp
-    /// value at the ends of the piece.
+    /// The decision for the side the samples were taken on. `cusp_sign`
+    /// has the sign of the cusp value at the ends of the piece.
     #[inline(always)]
-    fn decide(&self, side: f64, limit: f64, cusp_sign: f64) -> Osculating {
+    fn decide(&self, limit: f64, cusp_sign: f64) -> Osculating {
+        self.decision(
+            &self.e,
+            &self.numerator,
+            &self.denominator,
+            limit,
+            cusp_sign,
+        )
+    }
+
+    /// The decision for the other side of the source.
+    #[inline(always)]
+    fn decide_other(&self, limit: f64, cusp_sign: f64) -> Osculating {
         let mut e = [0.0; 8];
         let mut numerator = [0.0; 8];
         let mut denominator = [0.0; 8];
         for i in 0..8 {
-            e[i] = self.s3[i] + side * self.k_d[i];
+            e[i] = self.s3[i] - self.k_d[i];
             denominator[i] = self.d_s2[i] * e[i];
-            numerator[i] = side * (self.a_s[i] * e[i] - denominator[i]) + self.half_k_bb[i];
+            numerator[i] = denominator[i] - self.a_s[i] * e[i] + self.half_k_bb[i];
         }
-        // The decision takes the samples in order.
+        self.decision(&e, &numerator, &denominator, limit, cusp_sign)
+    }
+
+    /// The decision from the values at the samples, taken in order.
+    #[inline(always)]
+    fn decision(
+        &self,
+        e: &[f64; 8],
+        numerator: &[f64; 8],
+        denominator: &[f64; 8],
+        limit: f64,
+        cusp_sign: f64,
+    ) -> Osculating {
         let mut trusted = true;
         for i in 0..8 {
             // The cusp value here is `e / s3`, and `s3` is not negative.
