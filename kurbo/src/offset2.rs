@@ -345,11 +345,12 @@ fn offset_rec_pair(
     let mut todo = [true; 2];
     if pos.tries_arc(rec_pos) {
         let seg = pos.piece(rec_pos);
+        let mut hull = None;
         for (i, (co, rec, out)) in [(pos, rec_pos, &mut *out_pos), (neg, rec_neg, &mut *out_neg)]
             .into_iter()
             .enumerate()
         {
-            if let Some(approx) = co.accept_arc(&seg, rec) {
+            if let Some(approx) = co.accept_arc(&seg, rec, &mut hull) {
                 out.curve_to(approx.p1, approx.p2, approx.p3);
                 todo[i] = false;
             }
@@ -901,7 +902,7 @@ impl CubicOffset {
     /// Primary entry point for recursive subdivision.
     fn offset_rec(&self, rec: &OffsetRec, result: &mut BezPath) {
         if self.tries_arc(rec) {
-            if let Some(approx) = self.accept_arc(&self.piece(rec), rec) {
+            if let Some(approx) = self.accept_arc(&self.piece(rec), rec, &mut None) {
                 result.curve_to(approx.p1, approx.p2, approx.p3);
                 return;
             }
@@ -1165,15 +1166,29 @@ impl CubicOffset {
     /// Both bounds are on the distance at equal parameter, which holds
     /// across cusps of the offset, so this comes before a piece is split at
     /// one.
+    ///
+    /// With no handle clamped, `D` is minus what it is on the other side of
+    /// the source, and the hull bound is the same: `hull` keeps it for that
+    /// side.
     #[inline(always)]
-    fn accept_arc(&self, seg: &CubicBez, rec: &OffsetRec) -> Option<CubicBez> {
+    fn accept_arc(
+        &self,
+        seg: &CubicBez,
+        rec: &OffsetRec,
+        hull: &mut Option<Option<f64>>,
+    ) -> Option<CubicBez> {
         let d = self.d;
         let arc = self.draw_arc(seg, rec);
         let hairline = 2.0 * d.abs() <= self.tolerance
             && self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx);
-        let accepted = hairline
-            || hull_bound(seg, rec, &arc.delta, d)
-                .is_some_and(|bound| self.accepts(bound, seg, &arc.approx));
+        let accepted = hairline || {
+            let bound = if arc.clamped {
+                hull_bound(seg, rec, &arc.delta, d)
+            } else {
+                *hull.get_or_insert_with(|| hull_bound(seg, rec, &arc.delta, d))
+            };
+            bound.is_some_and(|bound| self.accepts(bound, seg, &arc.approx))
+        };
         accepted.then_some(arc.approx)
     }
 
