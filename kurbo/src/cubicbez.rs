@@ -913,7 +913,9 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
 /// (n - 1 - 2k) / (4 (n - 1)) + c v - v³    c = (n - 3) / (4 (n - 1))
 /// ```
 ///
-/// largest for `k = 1`, at `v = √(c / 3)`. The last pieces mirror the first.
+/// largest for `k = 1`: from `n = 9` at `v = √(c / 3)`, and for fewer pieces at
+/// `v = -1/2`, where that piece meets the first and is below the first piece's
+/// largest value. The last pieces mirror the first.
 ///
 /// The result is 4/27 for 2, 27/128 for 3, and grows with `n` towards
 /// `1/4 + √3/36`.
