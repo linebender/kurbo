@@ -132,6 +132,8 @@ mod line;
 mod mindist;
 mod moments;
 pub mod offset;
+#[cfg(all(test, feature = "std"))]
+mod offset_oracle;
 mod param_curve;
 mod point;
 mod quadbez;

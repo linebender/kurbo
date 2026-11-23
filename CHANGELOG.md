@@ -17,6 +17,10 @@ This release has an [MSRV][] of 1.85.
 
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
+- `offset::offset_cubic_pair`, for the offsets on both sides of a cubic at once. (by [@raphlinus][])
+
+## Changed
+- A new algorithm for `offset::offset_cubic`, and so for stroking: 2.8 times as fast on the strokes of the Ghostscript tiger at a tolerance of 1/32, with fewer misses near cusps. (by [@raphlinus][])
 
 ## [0.13.1][] (2026-05-13)
 
