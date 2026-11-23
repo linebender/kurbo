@@ -19,19 +19,14 @@ Small:
 1. **Newton cusp solve and depth 12 in `offset.rs`**, on the
    `offset-split-at-end` branch, so that benchmarks compare bounds and
    fits, not solvers and depth limits.
-2. **Midpoint subdivision everywhere**, in place of the angle split: 2 to
-   8% faster and simpler still, and since the tips no worse on hairpins,
-   but 4% more segments on the tiger at fine tolerances and one wild curve
-   1.35 times over ("After the tips"). The inflection branch is already
-   the midpoint.
+2. (Done: midpoint subdivision everywhere; see "Trimming again".)
 
 Medium:
 
 3. **Certifying each half separately**: 2 to 5 more points of
    certification; port from the original's `split` option, with
    remainders per half ("The original certificate, compared").
-4. **Whether to keep strict mode**, and whether to keep the pair: both
-   are measured in "Trimming".
+4. (Decided: strict mode and the pair both stay; see "Trimming again".)
 5. **Both sides in one pass.** `offset_cubic_pair` matches two one-sided
    calls exactly; whole tiger strokes are 28 to 31% slower without it
    (one side at a time against the pair). Since "The
@@ -65,8 +60,9 @@ Large, or open questions:
     root").
 13. **A sharp turn of width 0.03 to 0.1**: the samples of the estimates
     still straddle it. Of 2,400 offsets of random curves with such a turn,
-    at a tolerance of half the distance, 7 are over, the worst at 1.41
-    times (1.96 on one curve of the survey). Splitting them at the root as
+    at a tolerance of half the distance, 8 are over, the worst at 1.44
+    times (1.96 on one curve of the survey); at a tolerance of 0.01, 2,
+    the worst at 1.43 ("Trimming again"). Splitting them at the root as
     the narrower ones are costs 3 to 5% on the tiger, which has 31 of them
     in 336 curves ("Sharp turns").
 14. **The default one-sided call is 2 to 5% slower** than before the tips
@@ -91,7 +87,9 @@ parabola, adopted with guards), misses at the maximum depth (depth raised from 8
 the near-line slowdown (did not reproduce), the end subdivision bug (fixed
 here, and in `offset.rs` on `offset-split-at-end`), the error oracle (now
 Fréchet), the `kappa d` chooser and skip-level subdivision (tried,
-dropped), tuning the estimate's safety factor (not needed).
+dropped), tuning the estimate's safety factor (not needed), midpoint
+subdivision everywhere and the sampled estimate's removal (both done, see
+"Trimming again").
 
 ## What the module is
 
@@ -177,7 +175,9 @@ certificate). The G1 bound returns `None` there.
 3. Fit: linear two-point if there is an inflection, else one-point.
 4. If the certificate holds: the one-point or G1 bound decides, finally.
 5. If it does not: the equal-parameter bound, then the hull bound, then
-   (unless strict) the sampled estimate times 1.25.
+   (unless strict) the osculating parabola estimate under looser guards.
+   (This was a separate sampled estimate times 1.25 until "Trimming
+   again".)
 6. If there is no usable linear fit: arc drawing, with the general certified
    bound and then step 5.
 7. If nothing accepts: subdivide, or at the depth limit emit the piece
@@ -1292,6 +1292,9 @@ Also tried in this round, and dropped:
 
 ## Where this departs from the original notes
 
+(These "original notes" and "original code" are Claude's, not human work;
+see "Trimming again", under where the ideas came from.)
+
 The bounds were reconstructed from "Cheap Offset Error Bounds", not ported
 from the original code. Choices made where the notes left room: the margin
 growth factor, the form of `K`, the range of `kappa` as an interval product
@@ -1985,3 +1988,109 @@ number of pieces: the hooks take 1.45 fits a segment, and their inner
 side is cut by cusps before anything is fitted. A hidden pair of cusps
 found at a midpoint split leaves two slivers (item 15).
 
+## Trimming again (23 November 2026)
+
+Strict mode and the pair both stay: strict mode by consensus, and the
+pair because whole tiger strokes at 1/32 are 30% slower without it (45.4
+against 58.9 µs; it was 8% at `0403eaf`, before both sides were decided
+from one pass). So this pass looked at the default mode's own code, with
+the tiger at 1/32 as the measure that matters and tighter tolerances
+secondary. Each change was measured alone, interleaved with `9fc9f20`, three
+runs, M5 Max; accuracy by the near-cusp, sharp-turn and vanishing end
+derivative surveys and the random families.
+
+| Change | Non-test lines | Tiger strokes, pair, 1/32 | Elsewhere |
+|---|---|---|---|
+| Midpoint subdivision everywhere (tips still split toward) | -57 | same 1694 segments, -2.5% | strict +1.2% segments at 1/32, default +4% at 1/2048; one more sharp-turn call over 1.05 (1.44 against 1.41) |
+| Osculating estimate in place of the sampled one | -117 net | 1701 segments, -1.5% | wild curves at loose tolerances up to +19% segments; no worst case worse; one near-cusp row 1.24 to 0.98 |
+| No estimate at all after the cheap bounds | -127 | 1718 segments, +1 to 2% | wild curves +18 to 27% segments, +12 to 19% time |
+| One-sided calls through the pair | about -90 | unchanged | one-sided calls 73% slower (78 to 135 ns), strict 81% |
+
+The first two are adopted. Non-test code goes from 1756 to 1577 lines.
+Together, interleaved with `9fc9f20`:
+
+| Whole tiger strokes, pair | 1/32 | 1/256 | 1/2048 |
+|---|---|---|---|
+| Before, µs | 45.5 | 74.3 | 119.4 |
+| After, µs | 44.5 | 77.6 | 114.3 |
+| Segments, before and after | 1694, 1701 | 2280, 2365 | 3041, 3113 |
+
+`offset_tiger` (default, strict): 910 and 1668 segments at 1/32 against
+903 and 1648; strict mode 5 to 7% faster at every tolerance, from the
+cheaper subdivision. No call over tolerance at 1/32 in either mode. The
+surveys are unchanged except the sharp-turn band of width 0.03 to 0.1,
+which neither change makes worse alone: at a tolerance of 0.01, 2 calls
+over 1.05 (worst 1.43, against 0 and 0.98), and at 0.25, 8 (worst 1.44,
+against 7 and 1.41). That band is item 13.
+
+**The fallback estimate.** The osculating estimate replaces the sampled one
+in `accept_uncertified` with its slip limit on every fit (on the first
+try it applies to two-point fits only) and the sampled estimate's cusp
+ratio limit of 64 (`FALLBACK_MAX_CUSP_RATIO`) in place of 3. A cusp at a
+sample rejects, and the piece is subdivided. The sampled estimate fitted
+a polynomial through 7 Newton steps on the foot point and searched a grid
+for its extrema; it was tighter (p99 1.02 against 1.29) but cost more,
+and it was reached by few pieces on the tiger.
+
+**Midpoint subdivision.** Open item 2 since "After the tips". The angle
+split's uneven splits were what the tips were the worst case of; with
+the tips split first and pieces running toward one split at the
+geometric mean, the midpoint does as well. This removes the tangent
+solve, `keep_inside` and `SUBDIVISION_MIN_SHARE`.
+
+**Against `0403eaf`** (`offset2-vectorize`, the last commit before the
+tips), at `9fc9f20`: whole tiger strokes with the pair 14% faster at 1/32
+(52.8 to 45.3 µs), one side at a time 3% slower; random families in the
+default mode 5% slower (124 to 130 ns geometric mean), strict unchanged.
+Non-test code 1346 to 1756 lines: the tips +430 with `cubicbez.rs`, the
+one-pass pair +161. With the near-cusp survey's cusps at random
+parameters (its generator at `9fc9f20`), `0403eaf` was up to 67,894 times
+over in the default mode and 169,850 in strict, with about 13,500 pieces at
+the maximum depth; `9fc9f20` is within 1.24 and 0.99, with 61.
+
+**The baseline, with the end subdivision fixed.** `offset.rs` with the
+fix on `offset-split-at-end` (5693b35), applied to `9fc9f20`: whole tiger
+strokes at 1/32, 1/256 and 1/2048 take 125, 216 and 438 µs, against 126,
+520 and 1615 unfixed, with 1629, 2146 and 2931 segments against 1629,
+3046 and 6454. So the pair's lead over the fixed baseline is 2.8, 2.9
+and 3.7 times, not 2.8, 7.0 and 13.6. Calls over tolerance in
+`offset_tiger`: 6, 17 and 24 of 672, against 6, 25 and 50.
+
+**The order of the fits**, measured with a scratch test: 60 random cubics
+in a 100 unit box for each placement, `d` of 1 and 10, pieces of 0.4 down
+to 0.4 / 256 in the parameter, error by the Fréchet oracle, the exponent
+from each halving:
+
+| Fit | Around an inflection | No inflection |
+|---|---|---|
+| Linear two-point | 6.3, 6.1, 5.7, 5.5, 5.2, then 5.05 | 5.8, 4.9, 4.3, then 4.0 |
+| One-point | 3.0 centred on it, 4.0 off centre | 5.7, 5.4, 5.2, then 5.0 |
+| Arc drawing | 4.0 | 4.0 |
+
+Linear two-point is fifth order at an inflection, not sixth, though it
+looks sixth on large pieces. Presumably its normal error, with zeros at
+both ends (double) and at the two fitted points, is sixth order, and the
+slip term `kappa d slip^2 / 2` is fourth order in general but fifth where
+`kappa` vanishes in the piece. One-point is worse than arc drawing at an
+inflection, which supports choosing two-point there.
+
+**Where the ideas came from.** Checked against `fast-stroke`, Raph's
+research repository, counting a commit as human unless it has a Claude
+co-author trailer. Raph's: the one-point fit (`d7bd193`) and the
+derivative of its error at 1/2 as a rough measure (`fe88c4c`; it
+survives only as `r_slope` in the strict `one_point_bound`); linear
+two-point (`774ca2d`) and choosing it by inflection (`bece728`, the
+`hybrid` branch); arc drawing (`6be3e0b`); the osculating parabola
+estimate, with its 8 samples at interval midpoints and the 1.2 factor
+(`ca05460`, `4e9deb4`); subdivision by angle (`1de3286`); the error being
+linear in `(a, b)`, which makes the fits linear solves; the slip term;
+the method of the Fréchet oracle (`5859687`); clamping a handle by the
+cusp sign (`03c9a48`); and finding cusps from minima of the speed
+(`6333074`). Also from Raph, in `offset.rs`: `A = C + D` with `a` and `b`,
+the cusp value and finding cusps by its sign, and `regularize_cusp`.
+Laurenz Stampfl's: the branch-free osculating samples (`0403eaf`). Not
+human: `bezfit`'s `bound/cheap.rs` and "Cheap Offset Error Bounds"
+(`c0b0d72`, `6091b82`, `6d517d8`), which these notes call the original
+code and notes, so the certificate, the strict bounds, `q_bound` and
+`ROUND_ULPS`; and `bezfit`'s `min_frechet.rs`, the source of the removed
+midpoint G1 fit, whose human precursor is on `failed_k4`.
