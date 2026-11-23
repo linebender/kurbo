@@ -198,7 +198,7 @@ impl CubicBez {
         match n {
             1 => storage.push(*self),
             2 => {
-                let (l, r) = self.subdivide();
+                let (l, r) = self.subdivide_2();
                 storage.try_extend_from_slice(&[r, l]).unwrap();
             }
             3 => {
@@ -206,13 +206,13 @@ impl CubicBez {
                 storage.try_extend_from_slice(&[right, mid, left]).unwrap();
             }
             4 => {
-                let (l, r) = self.subdivide();
-                let (ll, lr) = l.subdivide();
-                let (rl, rr) = r.subdivide();
+                let (l, r) = self.subdivide_2();
+                let (ll, lr) = l.subdivide_2();
+                let (rl, rr) = r.subdivide_2();
                 storage.try_extend_from_slice(&[rr, rl, lr, ll]).unwrap();
             }
             6 => {
-                let (l, r) = self.subdivide();
+                let (l, r) = self.subdivide_2();
                 let (l1, l2, l3) = l.subdivide_3();
                 let (r1, r2, r3) = r.subdivide_3();
                 storage
@@ -323,18 +323,65 @@ impl CubicBez {
     ///
     /// Rust port of cu2qu [cubic_farthest_fit_inside](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L281)
     fn fit_inside(&self, distance: f64) -> bool {
-        if self.p2.to_vec2().hypot() <= distance && self.p1.to_vec2().hypot() <= distance {
+        self.fit_inside_at_depth(distance, 0)
+    }
+
+    /// [`Self::fit_inside`] for a piece that is `depth` halvings into the curve.
+    fn fit_inside_at_depth(&self, distance: f64, depth: u32) -> bool {
+        // After this many halvings the points of a piece differ by rounding alone.
+        const MAX_DEPTH: u32 = 64;
+
+        let (p0, p1, p2, p3) = (
+            self.p0.to_vec2(),
+            self.p1.to_vec2(),
+            self.p2.to_vec2(),
+            self.p3.to_vec2(),
+        );
+        if p2.hypot() <= distance && p1.hypot() <= distance {
             return true;
         }
-        let mid =
-            (self.p0.to_vec2() + 3.0 * (self.p1.to_vec2() + self.p2.to_vec2()) + self.p3.to_vec2())
-                * 0.125;
-        if mid.hypot() > distance {
+        let mid = (p0 + 3.0 * (p1 + p2) + p3) * 0.125;
+        // Written for a NaN to fail the test too.
+        let inside = mid.hypot() <= distance;
+        if !inside {
             return false;
         }
-        // Split in two. Note that cu2qu here uses a 3/8 subdivision. I don't know why.
-        let (left, right) = self.subdivide();
-        left.fit_inside(distance) && right.fit_inside(distance)
+        // A curve that touches the distance can be split without end: a control
+        // point stays the last bit outside while the middle stays inside, and one
+        // half is the same curve again. A piece that small is where its middle is.
+        if depth == MAX_DEPTH {
+            return true;
+        }
+        let (left, right) = self.subdivide_2();
+        left.fit_inside_at_depth(distance, depth + 1)
+            && right.fit_inside_at_depth(distance, depth + 1)
+    }
+
+    /// Split into two halves, with the arithmetic of cu2qu `split_cubic_into_two`.
+    ///
+    /// These are the halves that [`ParamCurve::subdivide`] gives, but for rounding.
+    fn subdivide_2(&self) -> (CubicBez, CubicBez) {
+        let (p0, p1, p2, p3) = (
+            self.p0.to_vec2(),
+            self.p1.to_vec2(),
+            self.p2.to_vec2(),
+            self.p3.to_vec2(),
+        );
+        let mid = (p0 + 3.0 * (p1 + p2) + p3) * 0.125;
+        let deriv3 = (p3 + p2 - p1 - p0) * 0.125;
+        let left = CubicBez::new(
+            self.p0,
+            ((p0 + p1) * 0.5).to_point(),
+            (mid - deriv3).to_point(),
+            mid.to_point(),
+        );
+        let right = CubicBez::new(
+            mid.to_point(),
+            (mid + deriv3).to_point(),
+            ((p2 + p3) * 0.5).to_point(),
+            self.p3,
+        );
+        (left, right)
     }
 
     /// Is this cubic Bezier curve finite?
@@ -1212,6 +1259,65 @@ mod tests {
             quads,
             [QuadSpline::new(vec![p0, p0, (5.0, 5.025).into(), p1])]
         );
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_halves_as_cu2qu() {
+        // Ensure a cubic is split in two with the arithmetic of fonttools cu2qu.
+        // `ParamCurve::subdivide` rounds differently when coordinates are not
+        // integers, and gave 1.199999999999999 for the x of the third point.
+        let cubic = CubicBez::new((5.9, 3.6), (0.0, 9.2), (7.0, 6.6), (-16.2, -7.7));
+        let spline = cubic.approx_spline(1.0).unwrap();
+        assert_eq!(
+            spline.points(),
+            &[
+                Point::new(5.9, 3.6),
+                Point::new(1.4749999999999996, 7.799999999999999),
+                Point::new(1.1999999999999993, 3.0250000000000012),
+                Point::new(-16.2, -7.7),
+            ]
+        );
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_at_the_limit() {
+        // The spline of six quadratics for this cubic is as far from it as the
+        // accuracy, exactly. Testing it for fit used to split a piece without
+        // end, and overflow the stack.
+        let cubic = CubicBez::new(
+            (386.0, -158.0),
+            (527.0, -28.0),
+            (480.0, -99.0),
+            (2270.0, 2329.0),
+        );
+        assert_eq!(cubic.approx_spline(4.0).unwrap().points().len(), 6 + 2);
+
+        // The single quadratic for these is as far from the cubic as the
+        // accuracy, to the last bit, and its test did the same.
+        for (cubic, accuracy) in [
+            (
+                CubicBez::new((-31.0, 97.0), (-51.0, 93.0), (-91.0, 76.0), (-139.0, 52.0)),
+                1.987615979999813,
+            ),
+            (
+                CubicBez::new((-20.0, 7.0), (-20.0, -27.5), (-12.0, -32.5), (4.0, -32.0)),
+                3.5555555555555554,
+            ),
+        ] {
+            assert_eq!(cubic.approx_spline(accuracy).unwrap().points().len(), 1 + 2);
+        }
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_nan() {
+        // These overflowed the stack too.
+        let cubic = CubicBez::new((0.0, 0.0), (f64::NAN, 0.0), (1.0, 1.0), (2.0, 2.0));
+        assert!(cubic.approx_spline(1.0).is_none());
+        assert!(cubics_to_quadratic_splines(&[cubic], 1.0).is_none());
+
+        let cubic = CubicBez::new((0.0, 0.0), (0.0, 100.0), (100.0, 200.0), (354.0, 300.0));
+        assert!(cubic.approx_spline(f64::NAN).is_none());
+        assert!(cubics_to_quadratic_splines(&[cubic], f64::NAN).is_none());
     }
 
     #[test]
