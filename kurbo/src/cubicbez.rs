@@ -1459,6 +1459,16 @@ mod tests {
                 CubicBez::new((-20.0, 7.0), (-20.0, -27.5), (-12.0, -32.5), (4.0, -32.0)),
                 3.5555555555555554,
             ),
+            // The same, with cu2qu's own arithmetic: fontTools did not return
+            // from these two.
+            (
+                CubicBez::new((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (25.0, 0.0)),
+                100.0 / 27.0,
+            ),
+            (
+                CubicBez::new((-45.0, -3.0), (-30.0, -2.0), (0.0, 5.0), (0.0, 9.0)),
+                20.0 / 3.0,
+            ),
         ] {
             assert_eq!(cubic.approx_spline(accuracy).unwrap().points().len(), 1 + 2);
         }
