@@ -623,66 +623,14 @@ impl CubicBez {
         if !rising {
             return minima;
         }
-        Self::slow_points_solve(q0, q1, q2, &b, limit)
-    }
-
-    /// [`Self::slow_points`] for a curve the cheaper tests do not clear,
-    /// given the control points of its hodograph over 3, the Bernstein
-    /// coefficients of `C'.C''` times 3, and the largest `|C'|^2 / 9` of
-    /// interest.
-    ///
-    /// Write the hodograph over 3 as `A t^2 + B t + C`. Its cross product
-    /// with `A` is linear in `t`, with one zero, at `beta`. Where the
-    /// hodograph is within `r` of the origin, that cross product is at most
-    /// `r |A|`, so the parameter is within `r |A| / |A x B|` of `beta`. If
-    /// that is a small range, a slow point can only be in it, and Newton's
-    /// method from `beta` finds it.
-    fn slow_points_solve(
-        q0: Vec2,
-        q1: Vec2,
-        q2: Vec2,
-        b: &[f64; 4],
-        limit: f64,
-    ) -> ArrayVec<f64, 2> {
         // A zero-length handle makes an end a root, which a solver can
         // return as a parameter just inside the curve.
         const INSIDE: f64 = 1e-12;
-        // The largest range around `beta` to trust Newton's method over.
-        const MAX_RANGE: f64 = 0.05;
         // The cubic `C'.C''`, times a positive constant, in the power basis.
         let c0 = b[0];
         let c1 = 3.0 * (b[1] - b[0]);
         let c2 = 3.0 * (b[0] - 2.0 * b[1] + b[2]);
         let c3 = b[3] - 3.0 * b[2] + 3.0 * b[1] - b[0];
-        let mut minima = ArrayVec::new();
-
-        let a = q0 - 2.0 * q1 + q2;
-        let a_cross_b = 2.0 * a.cross(q1 - q0);
-        let range_squared = limit * a.hypot2() / (a_cross_b * a_cross_b);
-        // Written so that a NaN, or an infinity from a degenerate hodograph,
-        // takes the general path.
-        if range_squared < MAX_RANGE * MAX_RANGE {
-            let range = range_squared.sqrt();
-            let mut t = q0.cross(a) / a_cross_b;
-            if !(t > -range && t < 1.0 + range) {
-                return minima;
-            }
-            let mut step = f64::INFINITY;
-            for _ in 0..4 {
-                let value = c0 + t * (c1 + t * (c2 + t * c3));
-                let slope = c1 + t * (2.0 * c2 + t * 3.0 * c3);
-                step = value / slope;
-                t -= step;
-            }
-            // Converged on a root at which the cubic rises.
-            let slope = c1 + t * (2.0 * c2 + t * 3.0 * c3);
-            if step.abs() < 1e-9 && slope > 0.0 {
-                if t > INSIDE && t < 1.0 - INSIDE {
-                    minima.push(t);
-                }
-                return minima;
-            }
-        }
         for t in solve_cubic(c0, c1, c2, c3) {
             let slope = c1 + t * (2.0 * c2 + t * 3.0 * c3);
             if t > INSIDE && t < 1.0 - INSIDE && slope > 0.0 && !minima.is_full() {

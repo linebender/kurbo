@@ -2023,6 +2023,17 @@ which neither change makes worse alone: at a tolerance of 0.01, 2 calls
 over 1.05 (worst 1.43, against 0 and 0.98), and at 0.25, 8 (worst 1.44,
 against 7 and 1.41). That band is item 13.
 
+**The slow-point solve** (`CubicBez::slow_points`). Replacing both of its
+shortcuts with a plain `solve_cubic` (41 lines) made whole tiger strokes
+with the pair 2.5% slower at 1/32. Measured separately, four runs each:
+without the quadratic for a zero-length handle (14 lines), 45.0 µs
+against 43.9; without the Newton step from the closed-form start (27
+lines), 43.7. Three quarters of the tiger's offsets have a zero-length
+handle, and the quadratic takes one square root where the cubic solve
+takes several. The Newton step is removed; the surveys are unchanged but
+for segment counts within 0.4% and pieces at the depth limit at 1e-6
+(65 to 54, 377 to 344, 234 to 236).
+
 **The fallback estimate.** The osculating estimate replaces the sampled one
 in `accept_uncertified` with its slip limit on every fit (on the first
 try it applies to two-point fits only) and the sampled estimate's cusp
