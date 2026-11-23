@@ -25,6 +25,15 @@ use crate::common::FloatFuncs;
 
 const MAX_SPLINE_SPLIT: usize = 100;
 
+/// A single quadratic is not tried for a third difference of more than this
+/// many times the accuracy.
+///
+/// A quadratic with the end points of a cubic gets at least `√3/36` of the
+/// cubic's third difference away from it, wherever its control point is, so
+/// none fits above `36/√3 = 20.78`; this is past that by more than the fit
+/// test can be wrong. As in cu2qu.
+const QUADRATIC_MAX_D3: f64 = 21.0;
+
 /// A single cubic Bézier segment.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -101,55 +110,44 @@ impl CubicBez {
     /// Returns `None` if no suitable approximation is found within the given
     /// tolerance.
     pub fn approx_spline(&self, accuracy: f64) -> Option<QuadSpline> {
-        (1..=MAX_SPLINE_SPLIT).find_map(|n| self.approx_spline_n(n, accuracy))
+        if let Some(quad) = self.try_approx_quadratic(accuracy) {
+            return Some(QuadSpline::new(vec![quad.p0, quad.p1, quad.p2]));
+        }
+        // No need to try: how many quadratics it takes is known.
+        let n = spline_count(self.third_difference(), accuracy)?;
+        Some(self.approx_spline_n(n))
     }
 
-    // Approximate a cubic curve with a quadratic spline of `n` curves
-    fn approx_spline_n(&self, n: usize, accuracy: f64) -> Option<QuadSpline> {
-        if n == 1 {
-            return self
-                .try_approx_quadratic(accuracy)
-                .map(|quad| QuadSpline::new(vec![quad.p0, quad.p1, quad.p2]));
-        }
-        let mut cubics = self.split_into_n(n);
-
-        // The above function guarantees that the iterator returns n items,
-        // which is why we're unwrapping things with wild abandon.
-        let mut next_cubic = cubics.next().unwrap();
-        let mut next_q1: Point = next_cubic.approx_quad_control(0.0);
-        let mut q2 = self.p0;
-        let mut d1 = Vec2::ZERO;
-        let mut spline = vec![self.p0, next_q1];
-        for i in 1..=n {
-            let current_cubic: CubicBez = next_cubic;
-            let q0 = q2;
-            let q1 = next_q1;
-            q2 = if i < n {
-                next_cubic = cubics.next().unwrap();
-                next_q1 = next_cubic.approx_quad_control(i as f64 / (n - 1) as f64);
-
-                spline.push(next_q1);
-                q1.midpoint(next_q1)
-            } else {
-                current_cubic.p3
-            };
-            let d0 = d1;
-            d1 = q2.to_vec2() - current_cubic.p3.to_vec2();
-
-            if d1.hypot() > accuracy
-                || !CubicBez::new(
-                    d0.to_point(),
-                    q0.lerp(q1, 2.0 / 3.0) - current_cubic.p1.to_vec2(),
-                    q2.lerp(q1, 2.0 / 3.0) - current_cubic.p2.to_vec2(),
-                    d1.to_point(),
-                )
-                .fit_inside(accuracy)
-            {
-                return None;
-            }
+    /// Approximate a cubic curve with a quadratic spline of `n > 1` curves.
+    ///
+    /// The cubic is split into `n` pieces of equal parameter length, and each
+    /// piece gives one off-curve point: between the two that its end tangents
+    /// suggest, going from the first for the first piece to the second for the
+    /// last. On-curve points are implied, halfway between consecutive off-curve
+    /// points.
+    ///
+    /// How far the spline gets from the cubic depends only on `n` and on the
+    /// cubic's third difference (see [`spline_error_factor`]), so nothing is
+    /// tested here: [`spline_count`] gives the `n` for an accuracy.
+    ///
+    /// Rust port of cu2qu `cubic_spline`.
+    fn approx_spline_n(&self, n: usize) -> QuadSpline {
+        let mut spline = Vec::with_capacity(n + 2);
+        spline.push(self.p0);
+        for (i, cubic) in self.split_into_n(n).enumerate() {
+            spline.push(cubic.approx_quad_control(i as f64 / (n - 1) as f64));
         }
         spline.push(self.p3);
-        Some(QuadSpline::new(spline))
+        QuadSpline::new(spline)
+    }
+
+    /// The length of the third difference of the control points.
+    ///
+    /// Zero for a cubic that is a quadratic, and what decides how many
+    /// quadratics another one takes.
+    fn third_difference(&self) -> f64 {
+        (self.p3.to_vec2() - 3.0 * self.p2.to_vec2() + 3.0 * self.p1.to_vec2() - self.p0.to_vec2())
+            .hypot()
     }
 
     fn approx_quad_control(&self, t: f64) -> Point {
@@ -163,6 +161,11 @@ impl CubicBez {
     /// Returns a quadratic approximating the given cubic that maintains
     /// endpoint tangents if that is within tolerance, or `None` otherwise.
     fn try_approx_quadratic(&self, accuracy: f64) -> Option<QuadBez> {
+        // Not worth trying if the third difference rules it out. (A NaN does too.)
+        let may_fit = self.third_difference() <= accuracy * QUADRATIC_MAX_D3;
+        if !may_fit {
+            return None;
+        }
         if let Some(q1) = Line::new(self.p0, self.p1)
             .crossing_point(Line::new(self.p2, self.p3))
             .or_else(|| {
@@ -198,7 +201,7 @@ impl CubicBez {
         match n {
             1 => storage.push(*self),
             2 => {
-                let (l, r) = self.subdivide();
+                let (l, r) = self.subdivide_2();
                 storage.try_extend_from_slice(&[r, l]).unwrap();
             }
             3 => {
@@ -206,13 +209,13 @@ impl CubicBez {
                 storage.try_extend_from_slice(&[right, mid, left]).unwrap();
             }
             4 => {
-                let (l, r) = self.subdivide();
-                let (ll, lr) = l.subdivide();
-                let (rl, rr) = r.subdivide();
+                let (l, r) = self.subdivide_2();
+                let (ll, lr) = l.subdivide_2();
+                let (rl, rr) = r.subdivide_2();
                 storage.try_extend_from_slice(&[rr, rl, lr, ll]).unwrap();
             }
             6 => {
-                let (l, r) = self.subdivide();
+                let (l, r) = self.subdivide_2();
                 let (l1, l2, l3) = l.subdivide_3();
                 let (r1, r2, r3) = r.subdivide_3();
                 storage
@@ -323,18 +326,65 @@ impl CubicBez {
     ///
     /// Rust port of cu2qu [cubic_farthest_fit_inside](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L281)
     fn fit_inside(&self, distance: f64) -> bool {
-        if self.p2.to_vec2().hypot() <= distance && self.p1.to_vec2().hypot() <= distance {
+        self.fit_inside_at_depth(distance, 0)
+    }
+
+    /// [`Self::fit_inside`] for a piece that is `depth` halvings into the curve.
+    fn fit_inside_at_depth(&self, distance: f64, depth: u32) -> bool {
+        // After this many halvings the points of a piece differ by rounding alone.
+        const MAX_DEPTH: u32 = 64;
+
+        let (p0, p1, p2, p3) = (
+            self.p0.to_vec2(),
+            self.p1.to_vec2(),
+            self.p2.to_vec2(),
+            self.p3.to_vec2(),
+        );
+        if p2.hypot() <= distance && p1.hypot() <= distance {
             return true;
         }
-        let mid =
-            (self.p0.to_vec2() + 3.0 * (self.p1.to_vec2() + self.p2.to_vec2()) + self.p3.to_vec2())
-                * 0.125;
-        if mid.hypot() > distance {
+        let mid = (p0 + 3.0 * (p1 + p2) + p3) * 0.125;
+        // Written for a NaN to fail the test too.
+        let inside = mid.hypot() <= distance;
+        if !inside {
             return false;
         }
-        // Split in two. Note that cu2qu here uses a 3/8 subdivision. I don't know why.
-        let (left, right) = self.subdivide();
-        left.fit_inside(distance) && right.fit_inside(distance)
+        // A curve that touches the distance can be split without end: a control
+        // point stays the last bit outside while the middle stays inside, and one
+        // half is the same curve again. A piece that small is where its middle is.
+        if depth == MAX_DEPTH {
+            return true;
+        }
+        let (left, right) = self.subdivide_2();
+        left.fit_inside_at_depth(distance, depth + 1)
+            && right.fit_inside_at_depth(distance, depth + 1)
+    }
+
+    /// Split into two halves, with the arithmetic of cu2qu `split_cubic_into_two`.
+    ///
+    /// These are the halves that [`ParamCurve::subdivide`] gives, but for rounding.
+    fn subdivide_2(&self) -> (CubicBez, CubicBez) {
+        let (p0, p1, p2, p3) = (
+            self.p0.to_vec2(),
+            self.p1.to_vec2(),
+            self.p2.to_vec2(),
+            self.p3.to_vec2(),
+        );
+        let mid = (p0 + 3.0 * (p1 + p2) + p3) * 0.125;
+        let deriv3 = (p3 + p2 - p1 - p0) * 0.125;
+        let left = CubicBez::new(
+            self.p0,
+            ((p0 + p1) * 0.5).to_point(),
+            (mid - deriv3).to_point(),
+            mid.to_point(),
+        );
+        let right = CubicBez::new(
+            mid.to_point(),
+            (mid + deriv3).to_point(),
+            ((p2 + p3) * 0.5).to_point(),
+            self.p3,
+        );
+        (left, right)
     }
 
     /// Is this cubic Bezier curve finite?
@@ -808,28 +858,96 @@ impl Iterator for ToQuads {
 ///
 /// Rust port of cu2qu [cubic_approx_quadratic](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L322)
 pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option<Vec<QuadSpline>> {
-    let mut result = Vec::new();
-    let mut split_order = 0;
-
-    while split_order <= MAX_SPLINE_SPLIT {
-        split_order += 1;
-        result.clear();
-
-        for curve in curves {
-            match curve.approx_spline_n(split_order, accuracy) {
-                Some(spline) => result.push(spline),
-                None => break,
-            }
-        }
-
-        if result.len() == curves.len() {
-            return Some(result);
-        }
+    // A single quadratic each, if every curve fits one.
+    let singles: Option<Vec<QuadSpline>> = curves
+        .iter()
+        .map(|curve| {
+            curve
+                .try_approx_quadratic(accuracy)
+                .map(|quad| QuadSpline::new(vec![quad.p0, quad.p1, quad.p2]))
+        })
+        .collect();
+    if singles.is_some() {
+        return singles;
     }
-    None
+
+    // The same number of quadratics for all: the most that any of them takes.
+    // A spline of more quadratics than a curve takes is within accuracy too.
+    let mut n = 0;
+    for curve in curves {
+        n = n.max(spline_count(curve.third_difference(), accuracy)?);
+    }
+    Some(
+        curves
+            .iter()
+            .map(|curve| curve.approx_spline_n(n))
+            .collect(),
+    )
 }
+
+/// How far the spline of `n > 1` quadratics that [`CubicBez::approx_spline`]
+/// makes gets from its cubic.
+///
+/// The distance is between points at equal parameters, and it is returned as a
+/// multiple of the length of `d`, where `d` is the cubic's third difference
+/// `p3 - 3 p2 + 3 p1 - p0` over `n³`: the third difference of each of the `n`
+/// pieces. Nothing else about the cubic matters.
+///
+/// That is because the two points that `approx_quad_control` goes between are
+/// `d / 2` apart, and the points halfway between them, for two consecutive
+/// pieces, have the point where the cubic was split as their midpoint. So the
+/// off-curve point of piece `k` is `d (1 - 2k / (n - 1)) / 4` from such a
+/// halfway point, the implied on-curve point before it is
+/// `d (n - 2k) / (4 (n - 1))` from the cubic, and the spline minus the cubic is
+/// `d` times a polynomial in the parameter `u` of the piece, from 0 to 1. For
+/// the first piece that is
+///
+/// ```text
+/// u² (1 + g) - u³                          g = (n - 2) / (4 (n - 1))
+/// ```
+///
+/// largest at `u = 2 (1 + g) / 3`. For piece `k` in between it is, with
+/// `v = u - 1/2`,
+///
+/// ```text
+/// (n - 1 - 2k) / (4 (n - 1)) + c v - v³    c = (n - 3) / (4 (n - 1))
+/// ```
+///
+/// largest for `k = 1`: from `n = 9` at `v = √(c / 3)`, and for fewer pieces at
+/// `v = -1/2`, where that piece meets the first and is below the first piece's
+/// largest value. The last pieces mirror the first.
+///
+/// The result is 4/27 for 2, 27/128 for 3, and grows with `n` towards
+/// `1/4 + √3/36`.
+///
+/// Rust port of cu2qu `spline_error_factor`.
+fn spline_error_factor(n: usize) -> f64 {
+    let n = n as f64;
+    let g = (n - 2.0) / (4.0 * (n - 1.0));
+    let mut error = (4.0 / 27.0) * (1.0 + g) * (1.0 + g) * (1.0 + g);
+    if n > 3.0 {
+        let c = (n - 3.0) / (4.0 * (n - 1.0));
+        let w = c / 3.0;
+        error = error.max(c + 2.0 * w * w.sqrt());
+    }
+    error
+}
+
+/// The least `n > 1` for which the spline of `n` quadratics is within
+/// `accuracy` of a cubic whose third difference has length `d3`.
+///
+/// Returns `None` if there is none up to [`MAX_SPLINE_SPLIT`].
+///
+/// The spline of `n` quadratics takes a third difference of up to `n³` over
+/// [`spline_error_factor`] times the accuracy: 54 times for two quadratics,
+/// 128 for three, about 272 for four.
+fn spline_count(d3: f64, accuracy: f64) -> Option<usize> {
+    (2..=MAX_SPLINE_SPLIT).find(|&n| d3 <= accuracy * ((n * n * n) as f64 / spline_error_factor(n)))
+}
+
 #[cfg(test)]
 mod tests {
+    use super::{MAX_SPLINE_SPLIT, spline_error_factor};
     use crate::{
         Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
         ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, QuadSpline,
@@ -1056,7 +1174,7 @@ mod tests {
         let quad = c1.try_approx_quadratic(343.0);
         assert!(quad.is_none());
 
-        let spline = c1.approx_spline_n(2, 343.0);
+        let spline = c1.approx_spline(343.0);
         assert!(spline.is_some());
         let spline = spline.unwrap();
         let expected = [
@@ -1175,11 +1293,98 @@ mod tests {
             p3: (106.0, 303.0).into(),
         };
 
-        // FontTools can approximate this curve successfully in 7 splits, we can too
-        assert!(cubic.approx_spline_n(7, 1.0).is_some());
+        // FontTools approximates this curve with 6 quadratics, we do too
+        assert_eq!(cubic.approx_spline(1.0).unwrap().points().len(), 6 + 2);
 
-        // FontTools can solve this with accuracy 0.001, we can too
-        assert!(cubics_to_quadratic_splines(&[cubic], 0.001).is_some());
+        // FontTools solves this with accuracy 0.001, with 61 quadratics, we do too
+        let splines = cubics_to_quadratic_splines(&[cubic], 0.001).unwrap();
+        assert_eq!(splines[0].points().len(), 61 + 2);
+    }
+
+    /// The largest distance between a cubic and its spline at equal parameters.
+    fn spline_distance(cubic: CubicBez, spline: &QuadSpline) -> f64 {
+        const STEPS: usize = 512;
+        let n = spline.points().len() - 2;
+        let mut distance = 0.0_f64;
+        for (k, quad) in spline.to_quads().enumerate() {
+            for j in 0..=STEPS {
+                let u = j as f64 / STEPS as f64;
+                let t = (k as f64 + u) / n as f64;
+                distance = distance.max(quad.eval(u).distance(cubic.eval(t)));
+            }
+        }
+        distance
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_computes_n() {
+        // How far the spline of n quadratics gets from a cubic is known from n and
+        // the cubic's third difference, so the number of quadratics is computed and
+        // the spline is not tested. Check that the distance is the one expected,
+        // and that n is the least that fits.
+        let cubic = CubicBez::new((0.0, 0.0), (30.0, 100.0), (-20.0, 180.0), (120.0, 250.0));
+        let d3 = cubic.third_difference();
+        assert_eq!(d3, 73000.0_f64.sqrt());
+        for n in [2, 3, 4, 5, 6, 7, 12, 25, 60, MAX_SPLINE_SPLIT] {
+            let error = spline_error_factor(n) * d3 / (n * n * n) as f64;
+
+            let spline = cubic.approx_spline(error * (1.0 + 1e-9)).unwrap();
+            assert_eq!(spline.points().len(), n + 2);
+            let distance = spline_distance(cubic, &spline);
+            assert!(
+                (distance - error).abs() < 1e-4 * error,
+                "{n} quadratics: got {distance} wanted {error}"
+            );
+
+            let spline = cubic.approx_spline(error * (1.0 - 1e-9));
+            if n < MAX_SPLINE_SPLIT {
+                assert_eq!(spline.unwrap().points().len(), n + 3);
+            } else {
+                assert!(spline.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_third_difference_at_the_limit() {
+        // Two quadratics take a third difference of up to 54 times the accuracy,
+        // three of up to 128 times: exactly that much still fits.
+        for (x, n) in [(354.0, 2), (355.0, 3), (428.0, 3), (429.0, 4)] {
+            let cubic = CubicBez::new((0.0, 0.0), (0.0, 100.0), (100.0, 200.0), (x, 300.0));
+            assert_eq!(cubic.approx_spline(1.0).unwrap().points().len(), n + 2);
+        }
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_more_quadratics_fit_too() {
+        // `cubics_to_quadratic_splines` gives all its curves the number of
+        // quadratics of the one that takes most: a spline of more quadratics
+        // must not be farther.
+        let limit = |n: usize| (n * n * n) as f64 / spline_error_factor(n);
+        assert_eq!(limit(2), 54.0);
+        assert_eq!(limit(3), 128.0);
+        for n in 2..MAX_SPLINE_SPLIT {
+            assert!(limit(n) < limit(n + 1), "{n}");
+        }
+    }
+
+    #[test]
+    fn cubics_to_quadratic_splines_same_number_of_quadratics() {
+        let curves = [
+            // takes one quadratic,
+            CubicBez::new((0.0, 0.0), (2.0, 2.0), (4.0, 2.0), (6.0, 0.0)),
+            // two,
+            CubicBez::new((0.0, 0.0), (0.0, 100.0), (100.0, 200.0), (354.0, 300.0)),
+            // three
+            CubicBez::new((0.0, 0.0), (0.0, 100.0), (100.0, 200.0), (428.0, 300.0)),
+        ];
+        for count in 1..=3 {
+            let splines = cubics_to_quadratic_splines(&curves[..count], 1.0).unwrap();
+            assert_eq!(splines.len(), count);
+            for spline in splines {
+                assert_eq!(spline.points().len(), count + 2);
+            }
+        }
     }
 
     #[test]
@@ -1212,6 +1417,75 @@ mod tests {
             quads,
             [QuadSpline::new(vec![p0, p0, (5.0, 5.025).into(), p1])]
         );
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_halves_as_cu2qu() {
+        // Ensure a cubic is split in two with the arithmetic of fonttools cu2qu.
+        // `ParamCurve::subdivide` rounds differently when coordinates are not
+        // integers, and gave 1.199999999999999 for the x of the third point.
+        let cubic = CubicBez::new((5.9, 3.6), (0.0, 9.2), (7.0, 6.6), (-16.2, -7.7));
+        let spline = cubic.approx_spline(1.0).unwrap();
+        assert_eq!(
+            spline.points(),
+            &[
+                Point::new(5.9, 3.6),
+                Point::new(1.4749999999999996, 7.799999999999999),
+                Point::new(1.1999999999999993, 3.0250000000000012),
+                Point::new(-16.2, -7.7),
+            ]
+        );
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_at_the_limit() {
+        // The spline of six quadratics for this cubic is as far from it as the
+        // accuracy, exactly. Testing it for fit used to split a piece without
+        // end, and overflow the stack.
+        let cubic = CubicBez::new(
+            (386.0, -158.0),
+            (527.0, -28.0),
+            (480.0, -99.0),
+            (2270.0, 2329.0),
+        );
+        assert_eq!(cubic.approx_spline(4.0).unwrap().points().len(), 6 + 2);
+
+        // The single quadratic for these is as far from the cubic as the
+        // accuracy, to the last bit, and its test did the same.
+        for (cubic, accuracy) in [
+            (
+                CubicBez::new((-31.0, 97.0), (-51.0, 93.0), (-91.0, 76.0), (-139.0, 52.0)),
+                1.987615979999813,
+            ),
+            (
+                CubicBez::new((-20.0, 7.0), (-20.0, -27.5), (-12.0, -32.5), (4.0, -32.0)),
+                3.5555555555555554,
+            ),
+            // The same, with cu2qu's own arithmetic: fontTools did not return
+            // from these two.
+            (
+                CubicBez::new((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (25.0, 0.0)),
+                100.0 / 27.0,
+            ),
+            (
+                CubicBez::new((-45.0, -3.0), (-30.0, -2.0), (0.0, 5.0), (0.0, 9.0)),
+                20.0 / 3.0,
+            ),
+        ] {
+            assert_eq!(cubic.approx_spline(accuracy).unwrap().points().len(), 1 + 2);
+        }
+    }
+
+    #[test]
+    fn cubicbez_approx_spline_nan() {
+        // These overflowed the stack too.
+        let cubic = CubicBez::new((0.0, 0.0), (f64::NAN, 0.0), (1.0, 1.0), (2.0, 2.0));
+        assert!(cubic.approx_spline(1.0).is_none());
+        assert!(cubics_to_quadratic_splines(&[cubic], 1.0).is_none());
+
+        let cubic = CubicBez::new((0.0, 0.0), (0.0, 100.0), (100.0, 200.0), (354.0, 300.0));
+        assert!(cubic.approx_spline(f64::NAN).is_none());
+        assert!(cubics_to_quadratic_splines(&[cubic], f64::NAN).is_none());
     }
 
     #[test]
