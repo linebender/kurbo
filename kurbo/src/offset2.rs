@@ -69,9 +69,7 @@ use arrayvec::ArrayVec;
 #[cfg(not(feature = "std"))]
 use crate::common::FloatFuncs;
 
-use crate::{
-    BezPath, CubicBez, ParamCurve, ParamCurveDeriv, PathSeg, QuadBez, Vec2, common::solve_quadratic,
-};
+use crate::{BezPath, CubicBez, ParamCurve, ParamCurveDeriv, PathSeg, QuadBez, Vec2};
 
 /// The smallest distance from a subdivision point to an end of the piece,
 /// as a fraction of its parameter length.
@@ -80,13 +78,6 @@ const SPLIT_MARGIN: f64 = 1e-6;
 /// The rounding allowance added to every strict bound, in units in the
 /// last place of the largest coordinate; see [`CubicOffset::accepts`].
 const ROUND_ULPS: f64 = 8.0;
-
-/// The smallest share of a piece's parameter range on either side of a
-/// subdivision point chosen by angle or curvature; see
-/// [`CubicOffset::keep_inside`]. Measured on near cusps and hairpins
-/// (`near_cusp_depth_survey`), 5 to 15% all do far better than none, and 10%
-/// is the best balance; the speed elsewhere does not change.
-const SUBDIVISION_MIN_SHARE: f64 = 0.1;
 
 /// Maximum recursion depth.
 ///
@@ -130,7 +121,7 @@ const DET_EPSILON: f64 = 1e-9;
 /// parabola, with a safety factor) decides whether to accept it. Elsewhere a
 /// piece is accepted when a strict upper bound on its Fréchet distance to
 /// the true offset is within `tolerance`, and where no strict bound applies,
-/// when a sampled estimate of its error, with a safety factor, is. Use
+/// when the same estimate, under looser guards, is. Use
 /// [`offset_cubic_strict`] to accept on strict bounds only, and
 /// [`offset_cubic_pair`] for both sides of the source at once.
 pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
@@ -532,10 +523,10 @@ const DIM_TUNE: f64 = 0.25;
 /// The splits either side are there because a piece that ends at a turn
 /// and runs far from it is as hard as before: nearly all of its curvature
 /// is at that end, short of the first sample, and where the bounds reject
-/// it the angle split lands beside the turn again. The pieces between a
-/// turn and the splits either side turn through most of a quarter turn
-/// each, evenly enough in the parameter to estimate and to subdivide by
-/// angle. A tip is recorded as well, for the pieces that run toward it from
+/// it a split of the piece lands beside the turn again. The pieces between
+/// a turn and the splits either side turn through most of a quarter turn
+/// each, evenly enough in the parameter to estimate and to subdivide at the
+/// midpoint. A tip is recorded as well, for the pieces that run toward it from
 /// further off: see [`CubicOffset::split_toward_tip`].
 ///
 /// Regularizing looks for a cusp at the same minima of the speed, so they
@@ -1326,7 +1317,16 @@ impl CubicOffset {
     /// Decide whether to accept a piece without the foot-point certificate.
     ///
     /// The strict bounds that need no certificate are tried first. Unless
-    /// `self.strict` is set, the sampled estimate is tried after them.
+    /// `self.strict` is set, the osculating parabola estimate is tried after
+    /// them, with the limit on the slip for every fit and a looser limit on
+    /// the ratio of the cusp values ([`FALLBACK_MAX_CUSP_RATIO`]).
+    ///
+    /// This used to be a separate estimate, sampled at 7 points with a Newton
+    /// step on the foot point at each and a polynomial model between them.
+    /// The osculating estimate in its place gave 7 more segments of 1694 on
+    /// the tiger at 1/32 and was 1.5% faster, and moved no worst case in the
+    /// surveys, for 117 fewer lines. It does cost up to 19% more segments
+    /// on wild curves at loose tolerances.
     fn accept_uncertified(
         &self,
         seg: &CubicBez,
@@ -1354,16 +1354,21 @@ impl CubicOffset {
         let cusp_max = rec.cusp0.max(rec.cusp1);
         if cusp_min > 0.0
             && cusp_min != CUSP_EPSILON
-            && cusp_max > ESTIMATE_MAX_CUSP_RATIO * cusp_min
+            && cusp_max > FALLBACK_MAX_CUSP_RATIO * cusp_min
         {
             return false;
         }
-        // Where the foot point is ill defined at a sample, which happens
-        // if the piece hides a pair of cusps, estimate the distance at
-        // equal parameter instead. That overestimates, but it is defined.
-        let estimate = sampled_estimate(taylor, rec, d, self.tolerance / ESTIMATE_SAFETY)
-            .unwrap_or_else(|| sampled_equal_parameter_distance(taylor, d));
-        ESTIMATE_SAFETY * estimate <= self.tolerance
+        // A cusp at a sample, or too much slip, rejects: the piece is then
+        // subdivided.
+        if !(rec.cusp0 * rec.cusp1 > 0.0) {
+            return false;
+        }
+        let limit = self.tolerance / (OSCULATING_SAFETY * d.abs());
+        let sign = 1.0_f64.copysign(rec.cusp0);
+        matches!(
+            osculating_decision(seg, &fit.delta, d, limit, OSCULATING_MAX_SLIP, sign),
+            Osculating::Decided(true)
+        )
     }
 
     /// Recursively subdivide.
@@ -1502,16 +1507,17 @@ impl CubicOffset {
 
     /// Decide where to subdivide when a piece is not accepted.
     ///
-    /// This is the parameter midpoint if the tangent there is roughly midway
-    /// between the end tangents, and otherwise, for a piece with no
-    /// inflection, the point where the tangent bisects them, as in
-    /// `crate::offset`. A point at an end of the piece is never chosen; see
-    /// [`Self::keep_inside`].
+    /// This is the parameter midpoint, except for a piece that runs toward
+    /// a tip of the curve; see [`Self::split_toward_tip`].
     ///
-    /// For a piece with an inflection, `crate::offset` subdivides by the
-    /// integral of absolute curvature. Here it is the midpoint: with the
-    /// tips of the curve split off first, that made no difference to
-    /// accuracy and under half a percent to the number of segments.
+    /// `crate::offset` splits where the tangent bisects the end tangents
+    /// when the tangent at the midpoint is far from midway between them,
+    /// and by the integral of absolute curvature when the piece has an
+    /// inflection. Its uneven splits are what the tips were the worst case
+    /// of, and with those split off first the midpoint does as well: the
+    /// same segments on the tiger at 1/32 and 2.5% faster, and no change in
+    /// accuracy beyond one curve of the sharp-turn survey (1.41 to 1.44
+    /// times the tolerance).
     fn find_subdivision_point(&self, rec: &OffsetRec) -> SubdivisionPoint {
         if !self.tips[0].is_nan() {
             if let Some(point) = self.split_toward_tip(rec) {
@@ -1520,17 +1526,6 @@ impl CubicOffset {
         }
         let t = 0.5 * (rec.t0 + rec.t1);
         let q_t = self.q.eval(t).to_vec2();
-        let x0 = rec.utan0.cross(q_t).abs();
-        let x1 = rec.utan1.cross(q_t).abs();
-        const SUBDIVIDE_THRESH: f64 = 0.1;
-        if !(x0 > SUBDIVIDE_THRESH * x1 && x1 > SUBDIVIDE_THRESH * x0) {
-            let chord = self.c.eval(rec.t1) - self.c.eval(rec.t0);
-            if chord.cross(rec.utan0) * chord.cross(rec.utan1) < 0.0 {
-                if let Some(subdivision) = self.subdivide_for_tangent(rec, rec.utan0 + rec.utan1) {
-                    return self.keep_inside(rec, subdivision);
-                }
-            }
-        }
         // Next to a tip the speed is tiny and the tangent still well
         // defined, so only an exact zero is refused.
         let utan = if q_t.hypot2() > 0.0 {
@@ -1547,8 +1542,9 @@ impl CubicOffset {
     /// Beyond a few widths from a tip the curvature falls off as the cube
     /// of the distance from it, so what a piece spans is the ratio of its
     /// ends' distances from the tip, and a piece spanning a large ratio is
-    /// split at their geometric mean. Splitting by angle would take a sliver
-    /// off the end nearer the tip each time.
+    /// split at their geometric mean. Splitting at the midpoint would halve
+    /// the distance from the far end each time, and take many splits to
+    /// reach the part near the tip, where the turning is.
     #[cold]
     #[inline(never)]
     fn split_toward_tip(&self, rec: &OffsetRec) -> Option<SubdivisionPoint> {
@@ -1570,8 +1566,8 @@ impl CubicOffset {
             }
         }
         let (near, far, tip, away) = nearest?;
-        // A piece that starts at the tip turns evenly enough to split by
-        // angle.
+        // A piece that starts at the tip turns evenly enough to split at
+        // its midpoint.
         if !(near > 0.0 && far > TIP_SPLIT_RATIO * near) {
             return None;
         }
@@ -1594,74 +1590,6 @@ impl CubicOffset {
     fn hodograph_middle(&self, rec: &OffsetRec) -> Vec2 {
         self.q.eval(rec.t0).to_vec2()
             + (0.5 * (rec.t1 - rec.t0)) * self.q.deriv().eval(rec.t0).to_vec2()
-    }
-
-    /// Move a subdivision point that is within [`SUBDIVISION_MIN_SHARE`] of
-    /// an end of the piece to that distance from it.
-    ///
-    /// Splitting at an end leaves a piece of zero length, whose end tangents
-    /// are arbitrary and whose cusp value can be `0 / 0`. Its approximation
-    /// is then an arc fanned about the end point, which the bounds, looking
-    /// at one piece at a time, cannot see is wrong. This happens where the
-    /// derivative of the source vanishes at an end: `t = 0` then solves
-    /// `tan x c'(t) = 0` for every direction `tan`.
-    ///
-    /// Splitting very near an end is nearly as bad. Next to a near cusp of
-    /// the source almost all the turning is at the tip, and the angle
-    /// bisector lands within a millionth of the piece from it, so each split
-    /// leaves a piece that turns less but is as long as before.
-    fn keep_inside(&self, rec: &OffsetRec, subdivision: SubdivisionPoint) -> SubdivisionPoint {
-        let margin = SUBDIVISION_MIN_SHARE * (rec.t1 - rec.t0);
-        if subdivision.t > rec.t0 + margin && subdivision.t < rec.t1 - margin {
-            return subdivision;
-        }
-        let t = subdivision.t.clamp(rec.t0 + margin, rec.t1 - margin);
-        const UTAN_EPSILON: f64 = 1e-12;
-        let q_t = self.q.eval(t).to_vec2();
-        let utan = if q_t.length_squared() >= UTAN_EPSILON {
-            q_t.normalize()
-        } else {
-            subdivision.utan
-        };
-        SubdivisionPoint { t, utan }
-    }
-
-    /// The point of the piece at which the tangent is along `tan`, if there
-    /// is exactly one.
-    ///
-    /// This is as in `crate::offset`, except that roots at the ends of the
-    /// piece are ignored.
-    fn subdivide_for_tangent(&self, rec: &OffsetRec, tan: Vec2) -> Option<SubdivisionPoint> {
-        let mut t = 0.0;
-        let mut n_soln = 0;
-        let z0 = tan.cross(self.q.p0.to_vec2());
-        let z1 = tan.cross(self.q.p1.to_vec2());
-        let z2 = tan.cross(self.q.p2.to_vec2());
-        let c0 = z0;
-        let c1 = 2.0 * (z1 - z0);
-        let c2 = (z2 - z1) - (z1 - z0);
-        // Roots at the ends are not useful, and where the derivative
-        // vanishes at an end, that end is a root for every `tan`.
-        let margin = SPLIT_MARGIN * (rec.t1 - rec.t0);
-        for root in solve_quadratic(c0, c1, c2) {
-            if root > rec.t0 + margin && root < rec.t1 - margin {
-                t = root;
-                n_soln += 1;
-            }
-        }
-        if n_soln != 1 {
-            return None;
-        }
-        let q = self.q.eval(t).to_vec2();
-        const UTAN_EPSILON: f64 = 1e-12;
-        let utan = if q.length_squared() >= UTAN_EPSILON {
-            q.normalize()
-        } else if tan.length_squared() >= UTAN_EPSILON {
-            tan.normalize()
-        } else {
-            rec.utan0.turn_90()
-        };
-        Some(SubdivisionPoint { t, utan })
     }
 }
 
@@ -1721,7 +1649,9 @@ fn one_point(seg: &CubicBez, rec: &OffsetRec) -> Option<(f64, f64)> {
 /// at the same parameter equals `d`. Unlike one-point this works when the
 /// end tangents are parallel, as they can be when the piece has an
 /// inflection. It does not control the tangential error, and its error is
-/// fourth order in the length of the piece.
+/// fourth order in the length of the piece, but fifth where the piece has
+/// an inflection, which is where it is used: the slip term is proportional
+/// to the curvature, which vanishes there.
 ///
 /// Returns `None` if the system is singular.
 #[inline(always)]
@@ -2414,7 +2344,7 @@ fn small_piece_bound(
 }
 
 // ---------------------------------------------------------------------------
-// The sampled estimate
+// The osculating parabola estimate
 
 /// The samples of the osculating parabola estimate, at the midpoints of 8
 /// equal intervals, in the order [`osculating_decision`] takes them: where
@@ -2453,178 +2383,16 @@ const OSCULATING_MAX_SLIP: f64 = 0.5;
 /// error); 3 leaves some margin.
 const OSCULATING_MAX_CUSP_RATIO: f64 = 3.0;
 
-/// The factor applied to the sampled estimate before comparing it with the
-/// tolerance.
-///
-/// The estimate is unbiased on short pieces, but it is used on the long and
-/// sharply turning ones where the certificate fails, and there it can fall
-/// short. In tests it was rarely below 0.8 of the true error.
-const ESTIMATE_SAFETY: f64 = 1.25;
-
 /// The largest ratio between the cusp values at the ends of a piece for
-/// which the sampled estimate is trusted.
+/// which the osculating estimate is trusted where no bound has accepted the
+/// piece; see [`CubicOffset::accept_uncertified`].
 ///
-/// Above it the curvature is concentrated at one end. A piece next to a
-/// regularized near cusp with a ratio of 160 was accepted at 0.31 of its
-/// true error. The osculating estimate has the much tighter
-/// [`OSCULATING_MAX_CUSP_RATIO`].
-const ESTIMATE_MAX_CUSP_RATIO: f64 = 64.0;
-
-/// The number of samples the estimate takes.
-const N_SAMPLES: usize = 7;
-
-/// The order in which the samples are taken: the quarter points, the
-/// midpoint, then the rest.
-const SAMPLE_ORDER: [usize; N_SAMPLES] = [1, 5, 3, 0, 6, 2, 4];
-
-/// The number of interior points of the grid on which the estimate
-/// searches for the extrema of its model.
-const N_GRID: usize = 15;
-
-/// Maps samples of `V` to values of the model on the grid.
-///
-/// The samples are at `t = i / (N_SAMPLES + 1)` and the grid points at
-/// `t = j / (N_GRID + 1)`. The error has double zeros at both ends, so it
-/// is modelled as `u^2 X(t)`, with `u = t (1 - t)` and `X` the polynomial
-/// through the sampled values of `V / u^2`.
-const SAMPLE_TABLE: [[f64; N_SAMPLES]; N_GRID] = sample_table();
-
-const fn sample_table() -> [[f64; N_SAMPLES]; N_GRID] {
-    let mut table = [[0.0; N_SAMPLES]; N_GRID];
-    let mut j = 0;
-    while j < N_GRID {
-        let t = (j + 1) as f64 / (N_GRID + 1) as f64;
-        let u = t * (1.0 - t);
-        let mut i = 0;
-        while i < N_SAMPLES {
-            let node_i = (i + 1) as f64 / (N_SAMPLES + 1) as f64;
-            // The Lagrange basis polynomial for sample i, at t.
-            let mut basis = 1.0;
-            let mut k = 0;
-            while k < N_SAMPLES {
-                if k != i {
-                    let node_k = (k + 1) as f64 / (N_SAMPLES + 1) as f64;
-                    basis *= (t - node_k) / (node_i - node_k);
-                }
-                k += 1;
-            }
-            let u_i = node_i * (1.0 - node_i);
-            table[j][i] = basis * (u * u) / (u_i * u_i);
-            i += 1;
-        }
-        j += 1;
-    }
-    table
-}
-
-/// Estimate the largest value of `|rho - |d||` over a piece.
-///
-/// This is not a bound. At each sample it takes one Newton step on the
-/// foot point, corrected by the cubic Taylor term and the leading part of a
-/// second step. It then fits the model described at [`SAMPLE_TABLE`] and
-/// takes its extrema.
-///
-/// As soon as one sample shows that the estimate exceeds `limit`, this
-/// returns what that sample gives, which is over `limit`. Pass infinity to
-/// get the full estimate.
-///
-/// Returns `None` if the foot point is ill defined at a sample, as it is
-/// at a cusp of the offset.
-fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Option<f64> {
-    // The sign `beta` should have: negative past a cusp.
-    let sign = if rec.cusp0 > 0.0 { 1.0 } else { -1.0 };
-    // The values of V beyond which the distance is over `limit`.
-    let d_abs = d.abs();
-    let v_too_far = limit * (2.0 * d_abs + limit);
-    let v_too_near = if limit < d_abs {
-        limit * (limit - 2.0 * d_abs)
-    } else {
-        f64::NEG_INFINITY
-    };
-    let mut v = [0.0; N_SAMPLES];
-    // Take the samples where the error tends to be largest first, so that
-    // a piece that is clearly over the limit is rejected sooner.
-    for i in SAMPLE_ORDER {
-        let t = (i + 1) as f64 / (N_SAMPLES + 1) as f64;
-        let mt = 1.0 - t;
-        // Evaluate D, C' and C'' at t.
-        let delta = taylor.delta[0] * (mt * mt * mt)
-            + taylor.delta[1] * (3.0 * mt * mt * t)
-            + taylor.delta[2] * (3.0 * mt * t * t)
-            + taylor.delta[3] * (t * t * t);
-        let c1 = taylor.c1[0] * (mt * mt) + taylor.c1[1] * (2.0 * mt * t) + taylor.c1[2] * (t * t);
-        let c2 = taylor.c2[0] * mt + taylor.c2[1] * t;
-
-        // The distance to the source does not tell its two sides apart: an
-        // approximation that crosses it between two samples is as far from
-        // it on the wrong side as on the right one.
-        if !(d * c1.cross(delta) > 0.0) {
-            return None;
-        }
-        // The Taylor coefficients of F about s = t.
-        let p = delta.hypot2() - d * d;
-        let q = delta.dot(c1);
-        let beta = 2.0 * c1.hypot2() - 2.0 * delta.dot(c2);
-        if !(sign * beta > 0.0) {
-            return None;
-        }
-        // The first Newton step, and F there to third order.
-        let sigma = 2.0 * q / beta;
-        let f_sss = 6.0 * c1.dot(c2) - 2.0 * delta.dot(taylor.c3);
-        let f = p - q * sigma + f_sss * sigma.powi(3) / 6.0;
-        // F_s and F_ss there to leading order, and one more step.
-        let f_s = 0.5 * f_sss * sigma * sigma;
-        let f_ss = beta + f_sss * sigma;
-        if !(sign * f_ss > 0.0) {
-            return None;
-        }
-        let value = f - f_s * f_s / (2.0 * f_ss);
-        // The grid below contains the sample points, and the model takes
-        // the sampled values there exactly, so the estimate is at least
-        // what any one sample gives. If that is over `limit`, stop.
-        if value > v_too_far || value < v_too_near {
-            return distance_bound(value.max(0.0), (-value).max(0.0), d);
-        }
-        v[i] = value;
-    }
-
-    // Evaluate the model on the grid. It is zero at both ends.
-    let mut y = [0.0; N_GRID + 2];
-    for j in 0..N_GRID {
-        let mut sum = 0.0;
-        for i in 0..N_SAMPLES {
-            sum += SAMPLE_TABLE[j][i] * v[i];
-        }
-        y[j + 1] = sum;
-    }
-    // Find the largest and smallest values, refining each local extremum
-    // with the parabola through it and its two neighbors.
-    let mut v_max = 0.0_f64;
-    let mut v_min = 0.0_f64;
-    for j in 1..=N_GRID {
-        let prev = y[j - 1];
-        let here = y[j];
-        let next = y[j + 1];
-        let second_diff = prev - 2.0 * here + next;
-        if here >= prev && here >= next && here > 0.0 {
-            let refined = if second_diff < 0.0 {
-                here - 0.125 * (prev - next) * (prev - next) / second_diff
-            } else {
-                here
-            };
-            v_max = v_max.max(refined);
-        }
-        if here <= prev && here <= next && here < 0.0 {
-            let refined = if second_diff > 0.0 {
-                here - 0.125 * (prev - next) * (prev - next) / second_diff
-            } else {
-                here
-            };
-            v_min = v_min.min(refined);
-        }
-    }
-    distance_bound(v_max, -v_min, d)
-}
+/// Above it the curvature is concentrated at one end. This was the limit on
+/// the sampled estimate that the osculating one replaced there, where a
+/// piece next to a regularized near cusp with a ratio of 160 was accepted
+/// at 0.31 of its true error. The first try of the osculating estimate has
+/// the much tighter [`OSCULATING_MAX_CUSP_RATIO`].
+const FALLBACK_MAX_CUSP_RATIO: f64 = 64.0;
 
 /// Decide a piece by the osculating parabola estimate.
 ///
@@ -2650,10 +2418,10 @@ fn sampled_estimate(taylor: &Taylor, rec: &OffsetRec, d: f64, limit: f64) -> Opt
 /// changes: the offset runs backward, on a curve that is as smooth. Too
 /// much slip at any
 /// sample only matters if none of them rejects: the estimate is not to be
-/// trusted to accept then, but a sample over the limit still rejects. The
-/// sampled estimate that such a piece falls back on has fewer samples, and
-/// accepted pieces at up to 2.4 times the tolerance that a sample here
-/// had over the limit.
+/// trusted to accept then, but a sample over the limit still rejects. (The
+/// sampled estimate that such a piece used to fall back on has fewer
+/// samples, and accepted pieces at up to 2.4 times the tolerance that a
+/// sample here had over the limit.)
 fn osculating_decision(
     seg: &CubicBez,
     delta: &[Vec2; 4],
@@ -2815,32 +2583,6 @@ enum Osculating {
     Untrusted,
     /// The cusp value is not positive at this sample.
     Cusp(f64),
-}
-
-/// Estimate the largest distance between the approximation and the offset
-/// at equal parameter.
-///
-/// This samples the quantity that [`equal_parameter_bound`] bounds. It is
-/// not a bound, and it overestimates the error by the tangential mismatch,
-/// but it is defined wherever the derivative of the source is nonzero.
-fn sampled_equal_parameter_distance(taylor: &Taylor, d: f64) -> f64 {
-    let mut worst = 0.0_f64;
-    for i in 0..N_SAMPLES {
-        let t = (i + 1) as f64 / (N_SAMPLES + 1) as f64;
-        let mt = 1.0 - t;
-        let delta = taylor.delta[0] * (mt * mt * mt)
-            + taylor.delta[1] * (3.0 * mt * mt * t)
-            + taylor.delta[2] * (3.0 * mt * t * t)
-            + taylor.delta[3] * (t * t * t);
-        let c1 = taylor.c1[0] * (mt * mt) + taylor.c1[1] * (2.0 * mt * t) + taylor.c1[2] * (t * t);
-        let speed = c1.hypot();
-        if !(speed > 0.0) {
-            return f64::INFINITY;
-        }
-        let offset_vector = c1.turn_90() * (d / speed);
-        worst = worst.max((delta - offset_vector).hypot2());
-    }
-    worst.sqrt()
 }
 
 #[cfg(test)]
@@ -3821,12 +3563,12 @@ mod tests {
         // Curves with a turn too broad to be a tip, at a tolerance of half
         // the distance, that the default mode accepted whole, or nearly.
         // In the order here, with the error as a multiple of the tolerance:
-        // the sampled estimate measures the distance to the source, and
-        // took an approximation on the wrong side of it between two turns
-        // (3.9); the osculating estimate saw a sample over the limit after
-        // one that slipped, and left the piece to the sampled estimate,
-        // which fell short (2.4); and the samples of the osculating
-        // estimate straddled the turn (2.9).
+        // the sampled estimate (since removed) measured the distance to the
+        // source, and took an approximation on the wrong side of it between
+        // two turns (3.9); the osculating estimate saw a sample over the
+        // limit after one that slipped, and left the piece to the sampled
+        // estimate, which fell short (2.4); and the samples of the
+        // osculating estimate straddled the turn (2.9).
         let cases = [
             (
                 [
@@ -4415,7 +4157,6 @@ mod tests {
         for n in [4, 8] {
             for (label, curvy) in [("ordinary", false), ("near cusp", true)] {
                 let mut ratios: Vec<f64> = Vec::new();
-                let mut sampled: Vec<f64> = Vec::new();
                 for_each_piece(|piece, d| {
                     let (co, rec) = setup(piece, d);
                     let (cusp_min, _) = cusp_range(&co);
@@ -4443,25 +4184,16 @@ mod tests {
                     }
                     let (estimate, _) = osculating_estimate(&piece, &fit.delta, d, n);
                     ratios.push(error / estimate);
-                    let taylor = Taylor::new(&piece, &fit.delta, d);
-                    if let Some(e) = sampled_estimate(&taylor, &rec, d, f64::INFINITY) {
-                        sampled.push(error / e);
-                    }
                 });
-                for v in [&mut ratios, &mut sampled] {
-                    v.sort_by(f64::total_cmp);
-                }
+                ratios.sort_by(f64::total_cmp);
                 let q = |v: &Vec<f64>, p: f64| v[((v.len() - 1) as f64 * p) as usize];
                 std::println!(
-                    "n={n} {label}: {} pieces; error / osculating: median {:.3}, p90 {:.3}, p99 {:.3}, max {:.3}; error / sampled: median {:.3}, p99 {:.3}, max {:.3}",
+                    "n={n} {label}: {} pieces; error / osculating: median {:.3}, p90 {:.3}, p99 {:.3}, max {:.3}",
                     ratios.len(),
                     q(&ratios, 0.5),
                     q(&ratios, 0.9),
                     q(&ratios, 0.99),
                     q(&ratios, 1.0),
-                    q(&sampled, 0.5),
-                    q(&sampled, 0.99),
-                    q(&sampled, 1.0),
                 );
             }
         }
@@ -4536,45 +4268,6 @@ mod tests {
         // At 1e9 the rounding exceeds the fit's own error on small pieces,
         // so without the allowance the bound would fall short.
         assert!(n_needed > 50, "{n_needed}");
-    }
-
-    #[test]
-    fn sampled_estimate_is_close() {
-        // The estimate is not a bound, but on pieces where the certificate
-        // holds it should be close to the truth.
-        let mut n_checked = 0;
-        let mut n_far = 0;
-        for_each_piece(|piece, d| {
-            let (co, rec) = setup(piece, d);
-            let (cusp_min, cusp_max) = cusp_range(&co);
-            if cusp_min * cusp_max <= 0.0 || cusp_min.abs().min(cusp_max.abs()) < 0.2 {
-                return;
-            }
-            let Some((a, b)) = one_point(&piece, &rec) else {
-                return;
-            };
-            let fit = co.apply(&piece, &rec, a, b);
-            if fit.clamped {
-                return;
-            }
-            let taylor = Taylor::new(&piece, &fit.delta, d);
-            if Certificate::new(&taylor).is_none() {
-                return;
-            }
-            let Some(estimate) = sampled_estimate(&taylor, &rec, d, f64::INFINITY) else {
-                return;
-            };
-            let error = measured_error(&piece, &fit.approx, d);
-            if error < 1e-9 * d.abs() {
-                return;
-            }
-            n_checked += 1;
-            if !(0.8..=1.25).contains(&(estimate / error)) {
-                n_far += 1;
-            }
-        });
-        assert!(n_checked > 1000, "{n_checked}");
-        assert!(n_far * 100 < n_checked, "{n_far} of {n_checked}");
     }
 
     #[test]
