@@ -18,6 +18,9 @@ This release has an [MSRV][] of 1.85.
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
 
+## Fixed
+- `offset_cubic` and `stroke` no longer return NaN points for a cubic with a control point on an endpoint. ([#626][] by [@josefguenther][])
+
 ## [0.13.1][] (2026-05-13)
 
 This release has an [MSRV][] of 1.85.
@@ -207,6 +210,7 @@ Note: A changelog was not kept for or before this release
 [@GabrielDertoni]: https://github.com/GabrielDertoni
 [@gemberg]: https://github.com/gemberg
 [@jneem]: https://github.com/jneem
+[@josefguenther]: https://github.com/josefguenther
 [@jrmoulton]: https://github.com/jrmoulton
 [@juliapaci]: https://github.com/juliapaci
 [@Keavon]: https://github.com/Keavon
@@ -317,6 +321,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#626]: https://github.com/linebender/kurbo/pull/626
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
