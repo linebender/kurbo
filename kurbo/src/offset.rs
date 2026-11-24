@@ -176,8 +176,17 @@ impl CubicOffset {
     fn endpoint_cusp(&self, tan: Point, y: f64) -> f64 {
         // Robustness to avoid divide-by-zero when derivatives vanish
         const TAN_DIST_EPSILON: f64 = 1e-12;
-        let tan_dist = tan.to_vec2().hypot().max(TAN_DIST_EPSILON);
-        let rsqrt = 1.0 / tan_dist;
+        let tan_dist = tan.to_vec2().hypot();
+        // When the derivative vanishes at the endpoint, `y` has a double root
+        // there: it is `c2` times the squared distance in t from the endpoint.
+        // Curvature tends to infinity approaching the endpoint, with the sign of
+        // `c2`, so use that sign rather than the zero at the endpoint itself.
+        let y = if tan_dist < TAN_DIST_EPSILON {
+            self.c2
+        } else {
+            y
+        };
+        let rsqrt = 1.0 / tan_dist.max(TAN_DIST_EPSILON);
         y * (rsqrt * rsqrt * rsqrt) + 1.0
     }
 
@@ -664,5 +673,35 @@ mod tests {
         let cubic = CubicBez::new((0., 0.), (10., 0.), (20., 0.), (30., 0.));
         let mut result = BezPath::new();
         offset_cubic(cubic, 5., 1e-6, &mut result);
+    }
+
+    /// A control point coinciding with an endpoint, so the derivative vanishes there.
+    /// The offset on the inside of the curve used to have NaN points.
+    #[test]
+    fn control_point_on_endpoint() {
+        let end = CubicBez::new(
+            (98.59, 63.94),
+            (103.44, 63.94),
+            (103.81, 62.22),
+            (103.81, 62.22),
+        );
+        let start = CubicBez::new(
+            (103.81, 62.22),
+            (103.81, 62.22),
+            (103.44, 63.94),
+            (98.59, 63.94),
+        );
+        for c in [end, start] {
+            for d in [-0.9792, 0.9792] {
+                let mut result = BezPath::new();
+                offset_cubic(c, d, 0.01, &mut result);
+                assert!(result.elements().len() <= 4, "{result:?}");
+                for el in result.elements() {
+                    if let PathEl::CurveTo(p1, p2, p3) = el {
+                        assert!(p1.is_finite() && p2.is_finite() && p3.is_finite());
+                    }
+                }
+            }
+        }
     }
 }
