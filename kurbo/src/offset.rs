@@ -276,12 +276,13 @@ fn offset_rec_pair(
     let mut todo = [true; 2];
     if pos.tries_arc(rec_pos) {
         let seg = pos.piece(rec_pos);
+        let arc = draw_arc(rec_pos.utan0, rec_pos.utan1);
         let mut hull = None;
         for (i, (co, rec, out)) in [(pos, rec_pos, &mut *out_pos), (neg, rec_neg, &mut *out_neg)]
             .into_iter()
             .enumerate()
         {
-            if let Some(approx) = co.accept_arc(&seg, rec, &mut hull) {
+            if let Some(approx) = co.accept_arc(&seg, rec, arc, &mut hull) {
                 out.curve_to(approx.p1, approx.p2, approx.p3);
                 todo[i] = false;
             }
@@ -878,7 +879,8 @@ impl CubicOffset {
     /// fit; see [`Self::accept_arc`].
     fn offset_rec(&self, rec: &OffsetRec, result: &mut BezPath) {
         if self.tries_arc(rec) {
-            if let Some(approx) = self.accept_arc(&self.piece(rec), rec, &mut None) {
+            let arc = draw_arc(rec.utan0, rec.utan1);
+            if let Some(approx) = self.accept_arc(&self.piece(rec), rec, arc, &mut None) {
                 result.curve_to(approx.p1, approx.p2, approx.p3);
                 return;
             }
@@ -1095,7 +1097,9 @@ impl CubicOffset {
     }
 
     /// The arc drawing approximation of a piece, if one of the two strict
-    /// geometric bounds, which require no error estimate, accepts it.
+    /// geometric bounds, which require no error estimate, accepts it. `arc`
+    /// holds the parameters of arc drawing, which depend only on the endpoint
+    /// tangents and so are the same on both sides of the source.
     ///
     /// For a thin stroke, a piece of any shape can be accepted: the hairline
     /// bound is at least `2 |d|`, so it is only tried when that is within
@@ -1114,10 +1118,11 @@ impl CubicOffset {
         &self,
         seg: &CubicBez,
         rec: &OffsetRec,
+        arc: (f64, f64),
         hull: &mut Option<Option<f64>>,
     ) -> Option<CubicBez> {
         let d = self.d;
-        let arc = self.draw_arc(seg, rec);
+        let arc = self.apply(seg, rec, arc.0, arc.1);
         let hairline = 2.0 * d.abs() <= self.tolerance
             && self.accepts(hairline_bound(&arc.delta, d), seg, &arc.approx);
         let accepted = hairline || {
