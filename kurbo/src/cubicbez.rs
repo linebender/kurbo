@@ -53,6 +53,15 @@ pub enum CuspType {
     DoubleInflection,
 }
 
+/// The largest width `|C'| / |C''|`, in parameter units, of a minimum of
+/// the speed that [`CubicBez::regularize_cusp_at`] treats as a cusp.
+///
+/// A near-cusp turns through nearly a half turn within a few widths, so its
+/// width is small whatever the size of the curve. The curvature of a curve
+/// small relative to the dimension is large everywhere, but its width is
+/// not, and regularizing it would only distort it.
+const CUSP_MAX_WIDTH: f64 = 0.03;
+
 impl CubicBez {
     /// Create a new cubic Bézier segment.
     #[inline(always)]
@@ -479,7 +488,9 @@ impl CubicBez {
             // rounding error that may be parallel to the second derivative.
             let d = q.eval(t).to_vec2();
             let d2 = q.deriv().eval(t).to_vec2();
-            if d.hypot2() <= d2.hypot() * dimension {
+            if d.hypot2() <= d2.hypot() * dimension
+                && d.hypot2() < (CUSP_MAX_WIDTH * CUSP_MAX_WIDTH) * d2.hypot2()
+            {
                 let d02 = self.p2 - self.p0;
                 let d03 = self.p3 - self.p0;
                 let det_012 = d01.cross(d02);

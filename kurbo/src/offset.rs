@@ -2952,6 +2952,25 @@ mod tests {
     }
 
     #[test]
+    fn small_curves_are_not_regularized() {
+        // The curvature of a curve that is small relative to the tolerance
+        // is large everywhere. Such a curve was taken for a cusp and
+        // regularized, which lengthened its handles beyond its chord and
+        // created a sharp turn, at which the curve was then subdivided.
+        // Small quarter circles, stroked with a half-width much larger than
+        // their radius, are common in some PDF files.
+        for r in [0.01, 0.02, 0.04, 0.06] {
+            let k = 0.552_284_749_8 * r;
+            let c = CubicBez::new((r, 0.0), (r, k), (k, r), (0.0, r));
+            for d in [0.5, -0.5] {
+                let mut result = BezPath::new();
+                offset_cubic(c, d, 0.25, &mut result);
+                assert_eq!(result.segments().count(), 1, "r = {r}, d = {d}");
+            }
+        }
+    }
+
+    #[test]
     fn offsets_from_open_issues() {
         // Reproductions of open kurbo issues against the previous version of
         // this module. The first (#617) has a vanishing endpoint derivative,
