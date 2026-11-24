@@ -511,11 +511,11 @@ impl CubicBez {
     }
 
     /// Whether the speed `|C'|` may have an interior local minimum at which
-    /// it is small: either `|C'| < max_width |C''|`, or
-    /// `|C'|^2 <= |C''| dimension`, with `|C''|` the larger of its values at
-    /// the endpoints. The first condition indicates a sharp turn (see
-    /// `crate::offset`), and the second a cusp to be regularized (see
-    /// [`Self::cusp_speed_squared`]).
+    /// it is small: either `|C'| < max_width |C''|`, or both
+    /// `|C'|^2 <= |C''| dimension` and `|C'| < CUSP_MAX_WIDTH |C''|`, with
+    /// `|C''|` the larger of its values at the endpoints. The first condition
+    /// indicates a sharp turn (see `crate::offset`), and the second a cusp to
+    /// be regularized (see [`Self::detect_cusp`]).
     ///
     /// This is an inexpensive conservative test, which nearly every curve
     /// fails, to be followed by [`Self::slow_points`] for those that pass. It
@@ -533,9 +533,10 @@ impl CubicBez {
         let q1 = self.p2 - self.p1;
         let q2 = self.p3 - self.p2;
         // With `c2` the square of `|C''| / 6`, the limit on `|C'|^2 / 9` is
-        // `sharp c2` for a sharp turn, and for a cusp it is the value whose
-        // square is `cusp c2`.
+        // `sharp c2` for a sharp turn, and for a cusp it is both `narrow c2`
+        // and the value whose square is `cusp c2`.
         let sharp = 4.0 * max_width * max_width;
+        let narrow = 4.0 * CUSP_MAX_WIDTH * CUSP_MAX_WIDTH;
         let cusp = (4.0 / 9.0) * dimension * dimension;
         if q0 == Vec2::ZERO || q2 == Vec2::ZERO {
             let (a, m) = Self::zero_handle_factor(q0, q1, q2);
@@ -566,7 +567,8 @@ impl CubicBez {
             // handle, and `a / 2 + m` at the other.
             let c2 = (0.25 * a_a).max(0.25 * a_a + a_m + m_m);
             return !(bound > sharp * c2 * denominator
-                && bound * bound > cusp * c2 * denominator * denominator);
+                && (bound > narrow * c2 * denominator
+                    || bound * bound > cusp * c2 * denominator * denominator));
         }
         let (q0_q0, q1_q1, q2_q2) = (q0.hypot2(), q1.hypot2(), q2.hypot2());
         let (q0_q1, q1_q2, q0_q2) = (q0.dot(q1), q1.dot(q2), q0.dot(q2));
@@ -577,7 +579,7 @@ impl CubicBez {
             .min(q1_q2)
             .min(q2_q2);
         let c2 = (q0_q0 - 2.0 * q0_q1 + q1_q1).max(q1_q1 - 2.0 * q1_q2 + q2_q2);
-        !(smallest > sharp * c2 && smallest * smallest > cusp * c2)
+        !(smallest > sharp * c2 && (smallest > narrow * c2 || smallest * smallest > cusp * c2))
     }
 
     /// With a zero-length handle, the hodograph divided by 3 is
@@ -1040,6 +1042,7 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
 }
 #[cfg(test)]
 mod tests {
+    use super::CUSP_MAX_WIDTH;
     use crate::{
         Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
         ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, QuadSpline, Vec2,
@@ -1480,7 +1483,8 @@ mod tests {
                     continue;
                 }
                 for &(t, here) in &minima {
-                    let slow = here.sqrt() < max_width * c2 || here <= c2 * dimension;
+                    let slow = here.sqrt() < max_width * c2
+                        || (here <= c2 * dimension && here.sqrt() < CUSP_MAX_WIDTH * c2);
                     assert!(
                         !slow,
                         "slow minimum near {t} missed, width {max_width}, dimension {dimension}, for {c:?}"
