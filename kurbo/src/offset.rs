@@ -96,11 +96,12 @@ const DET_EPSILON: f64 = 1e-9;
 /// Compute an approximate offset curve.
 ///
 /// The offset of `c` by the distance `d` is written to `result`, beginning
-/// with a `move_to`. An offset distance of zero reproduces the source curve.
+/// with a `move_to`. An offset distance of zero reproduces the source curve,
+/// as does a source curve that is a single point, which has no normal.
 /// See [`offset_cubic_pair`] for computing both sides at once.
 pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     result.truncate(0);
-    if d == 0.0 {
+    if d == 0.0 || is_point(&c) {
         result.move_to(c.p0);
         result.curve_to(c.p1, c.p2, c.p3);
         return;
@@ -125,6 +126,9 @@ pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
 /// `-d`, apart from the initial `move_to`, but the work that does not depend
 /// on the side is shared: regularization and root subdivision of the source,
 /// the choice of subdivision points, and the fits themselves.
+///
+/// As with [`offset_cubic`], an offset distance of zero, or a source curve
+/// that is a single point, appends the source curve to both paths.
 pub fn offset_cubic_pair(
     c: CubicBez,
     d: f64,
@@ -132,7 +136,7 @@ pub fn offset_cubic_pair(
     positive: &mut BezPath,
     negative: &mut BezPath,
 ) {
-    if d == 0.0 {
+    if d == 0.0 || is_point(&c) {
         positive.curve_to(c.p1, c.p2, c.p3);
         negative.curve_to(c.p1, c.p2, c.p3);
         return;
@@ -142,6 +146,14 @@ pub fn offset_cubic_pair(
     } else {
         offset_cubic_pair_root(&c, &c, &[], NO_TIPS, d, tolerance, positive, negative);
     }
+}
+
+/// Whether all the control points of `c` coincide. The endpoint tangents of
+/// such a curve are zero, and without this check every piece would be
+/// rejected down to the maximum depth, with non-finite output.
+#[inline(always)]
+fn is_point(c: &CubicBez) -> bool {
+    c.p0 == c.p1 && c.p1 == c.p2 && c.p2 == c.p3
 }
 
 /// [`offset_cubic_pair`] for a curve that may contain a sharp turn; see
@@ -2954,6 +2966,27 @@ mod tests {
                 "error {error} at s = {s}, tolerance {tolerance}, for {c:?}, d = {d}"
             );
         }
+    }
+
+    #[test]
+    fn point_is_offset_to_a_point() {
+        // A curve whose control points coincide has no normal. Every piece
+        // was rejected down to the maximum depth, producing thousands of
+        // non-finite segments.
+        let c = CubicBez::new((5.0, 5.0), (5.0, 5.0), (5.0, 5.0), (5.0, 5.0));
+        let mut result = BezPath::new();
+        offset_cubic(c, 1.0, 0.25, &mut result);
+        assert_eq!(
+            result.elements(),
+            [PathEl::MoveTo(c.p0), PathEl::CurveTo(c.p0, c.p0, c.p0)]
+        );
+        let mut positive = BezPath::new();
+        let mut negative = BezPath::new();
+        positive.move_to(c.p0);
+        negative.move_to(c.p0);
+        offset_cubic_pair(c, 1.0, 0.25, &mut positive, &mut negative);
+        assert_eq!(positive.elements().len(), 2);
+        assert_eq!(negative.elements().len(), 2);
     }
 
     #[test]
