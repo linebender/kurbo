@@ -183,23 +183,25 @@ fn offset_cubic_pair_root(
     negative: &mut BezPath,
 ) {
     let mut pos = CubicOffset::new(*c_regularized, d, tolerance);
-    let mut neg = CubicOffset::new(*c_regularized, -d, tolerance);
+    let mut neg = pos.other_side();
     pos.tips = tips;
     neg.tips = tips;
     let (tan0, tan1) = PathSeg::Cubic(*c).tangents();
     let utan0 = tan0.normalize();
     let utan1 = tan1.normalize();
-    let root = |co: &mut CubicOffset| OffsetRec {
+    let (cusp0_pos, cusp0_neg) = CubicOffset::end_cusps(&mut pos, &mut neg, EndpointSide::Start);
+    let (cusp1_pos, cusp1_neg) = CubicOffset::end_cusps(&mut pos, &mut neg, EndpointSide::End);
+    let root = |cusp0, cusp1| OffsetRec {
         t0: 0.0,
         t1: 1.0,
         utan0,
         utan1,
-        cusp0: co.end_cusp(EndpointSide::Start),
-        cusp1: co.end_cusp(EndpointSide::End),
+        cusp0,
+        cusp1,
         depth: 0,
     };
-    let rec_pos = root(&mut pos);
-    let rec_neg = root(&mut neg);
+    let rec_pos = root(cusp0_pos, cusp1_pos);
+    let rec_neg = root(cusp0_neg, cusp1_neg);
     if splits.is_empty() {
         offset_rec_pair(&pos, &neg, &rec_pos, &rec_neg, positive, negative);
     } else {
@@ -543,6 +545,10 @@ fn tip_splits_at(c: &CubicBez, minima: &[f64]) -> TipSplits {
     result
 }
 
+/// The length of the derivative at an endpoint below which it is treated as
+/// vanishing; see [`CubicOffset::end_cusp`].
+const END_TAN_EPSILON: f64 = 1e-12;
+
 /// State used for computing an offset curve of a single cubic.
 struct CubicOffset {
     /// The cubic being offset. This has been regularized.
@@ -709,6 +715,17 @@ impl CubicOffset {
         }
     }
 
+    /// The state for the offset by `-d`.
+    fn other_side(&self) -> Self {
+        CubicOffset {
+            d: -self.d,
+            c0: -self.c0,
+            c1: -self.c1,
+            c2: -self.c2,
+            ..*self
+        }
+    }
+
     /// Compute curvature of the source curve times offset plus 1.
     ///
     /// This quantity is called the cusp value because the offset has a cusp
@@ -816,13 +833,9 @@ impl CubicOffset {
     /// for use by [`Self::handles`], and so it is called exactly once for
     /// each endpoint, at the root.
     fn end_cusp(&mut self, side: EndpointSide) -> f64 {
-        let (tan, y) = match side {
-            EndpointSide::Start => (self.q.p0.to_vec2(), self.c0),
-            EndpointSide::End => (self.q.p2.to_vec2(), self.c0 + self.c1 + self.c2),
-        };
-        const TAN_DIST_EPSILON: f64 = 1e-12;
+        let (tan, y) = self.end_derivative(side);
         let tan_dist = tan.hypot();
-        if tan_dist >= TAN_DIST_EPSILON {
+        if tan_dist >= END_TAN_EPSILON {
             let rsqrt = 1.0 / tan_dist;
             return y * (rsqrt * rsqrt * rsqrt) + 1.0;
         }
@@ -832,6 +845,28 @@ impl CubicOffset {
             1.0
         } else {
             -1.0
+        }
+    }
+
+    /// [`Self::end_cusp`] for both sides, `pos` and its [`Self::other_side`].
+    fn end_cusps(pos: &mut Self, neg: &mut Self, side: EndpointSide) -> (f64, f64) {
+        let (tan, y) = pos.end_derivative(side);
+        let tan_dist = tan.hypot();
+        if tan_dist >= END_TAN_EPSILON {
+            let rsqrt = 1.0 / tan_dist;
+            let r3 = rsqrt * rsqrt * rsqrt;
+            return (y * r3 + 1.0, -y * r3 + 1.0);
+        }
+        (pos.end_cusp(side), neg.end_cusp(side))
+    }
+
+    /// The derivative at an endpoint, and the numerator `c0 + c1 t + c2 t^2`
+    /// of the cusp value there.
+    #[inline(always)]
+    fn end_derivative(&self, side: EndpointSide) -> (Vec2, f64) {
+        match side {
+            EndpointSide::Start => (self.q.p0.to_vec2(), self.c0),
+            EndpointSide::End => (self.q.p2.to_vec2(), self.c0 + self.c1 + self.c2),
         }
     }
 
