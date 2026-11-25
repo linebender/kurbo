@@ -11,9 +11,8 @@ rust-version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-# There are no platform specific docs.
 default-target = "x86_64-unknown-linux-gnu"
-targets = []
+targets = ["aarch64-apple-darwin"]
 
 [features]
 default = ["std"]
@@ -26,6 +25,8 @@ libm = ["dep:libm", "polycool/libm", "euclid?/libm"]
 mint = ["dep:mint"]
 # Enable `From`/`Into` conversion of Kurbo and euclid types
 euclid = ["dep:euclid"]
+# Enable conversion of Kurbo and Apple platform types on 64-bit Apple targets.
+objc2 = ["dep:objc2-core-foundation", "dep:objc2-core-graphics"]
 # Implement `serde::Deserialize` and `serde::Serialize` on various types
 serde = ["smallvec/serde", "dep:serde"]
 # Add best-effort support for using Kurbo types in JSON schemas using schemars
@@ -40,6 +41,10 @@ polycool = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["alloc", "derive"] }
 smallvec = { workspace = true, features = ["const_new"] }
+
+[target.'cfg(all(target_vendor = "apple", target_pointer_width = "64"))'.dependencies]
+objc2-core-foundation = { workspace = true, optional = true, features = ["CFCGTypes"] }
+objc2-core-graphics = { workspace = true, optional = true, features = ["CGPath"] }
 
 [dev-dependencies]
 # This is used for research but not really needed; maybe refactor.
