@@ -96,16 +96,20 @@ const DET_EPSILON: f64 = 1e-9;
 /// Compute an approximate offset curve.
 ///
 /// The offset of `c` by the distance `d` is written to `result`, beginning
-/// with a `move_to`. An offset distance of zero reproduces the source curve,
-/// as does a source curve that is a single point, which has no normal.
+/// with a `move_to`. An offset distance of zero reproduces the source curve.
 /// See [`offset_cubic_pair`] for computing both sides at once.
+///
+/// For a nonzero `d`, the control points of `c` must not all coincide: such
+/// a curve has no normal, and the result is not finite. This is checked by a
+/// debug assertion.
 pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
     result.truncate(0);
-    if d == 0.0 || is_point(&c) {
+    if d == 0.0 {
         result.move_to(c.p0);
         result.curve_to(c.p1, c.p2, c.p3);
         return;
     }
+    debug_assert!(!is_point(&c), "offset of a cubic that is a single point");
     if c.may_have_slow_point(TURN_MAX_WIDTH, tolerance * DIM_TUNE) {
         offset_cubic_at_slow_point(c, d, tolerance, result);
     } else {
@@ -127,8 +131,8 @@ pub fn offset_cubic(c: CubicBez, d: f64, tolerance: f64, result: &mut BezPath) {
 /// on the side is shared: regularization and root subdivision of the source,
 /// the choice of subdivision points, and the fits themselves.
 ///
-/// As with [`offset_cubic`], an offset distance of zero, or a source curve
-/// that is a single point, appends the source curve to both paths.
+/// As with [`offset_cubic`], for a nonzero `d` the control points of `c`
+/// must not all coincide.
 pub fn offset_cubic_pair(
     c: CubicBez,
     d: f64,
@@ -136,11 +140,12 @@ pub fn offset_cubic_pair(
     positive: &mut BezPath,
     negative: &mut BezPath,
 ) {
-    if d == 0.0 || is_point(&c) {
+    if d == 0.0 {
         positive.curve_to(c.p1, c.p2, c.p3);
         negative.curve_to(c.p1, c.p2, c.p3);
         return;
     }
+    debug_assert!(!is_point(&c), "offset of a cubic that is a single point");
     if c.may_have_slow_point(TURN_MAX_WIDTH, tolerance * DIM_TUNE) {
         offset_cubic_pair_at_slow_point(c, d, tolerance, positive, negative);
     } else {
@@ -148,9 +153,9 @@ pub fn offset_cubic_pair(
     }
 }
 
-/// Whether all the control points of `c` coincide. The endpoint tangents of
-/// such a curve are zero, and without this check every piece would be
-/// rejected down to the maximum depth, with non-finite output.
+/// Whether all the control points of `c` coincide, so that its endpoint
+/// tangents are zero. Every piece of such a curve would be rejected down to
+/// the maximum depth, with non-finite output.
 #[inline(always)]
 fn is_point(c: &CubicBez) -> bool {
     c.p0 == c.p1 && c.p1 == c.p2 && c.p2 == c.p3
@@ -2968,25 +2973,27 @@ mod tests {
         }
     }
 
+    // A curve whose control points coincide has no normal, so its offset is
+    // undefined. Every piece was rejected down to the maximum depth, giving
+    // thousands of non-finite segments without any indication of the error.
+    #[cfg(debug_assertions)]
     #[test]
-    fn point_is_offset_to_a_point() {
-        // A curve whose control points coincide has no normal. Every piece
-        // was rejected down to the maximum depth, producing thousands of
-        // non-finite segments.
+    #[should_panic(expected = "single point")]
+    fn offset_of_a_point_is_asserted() {
         let c = CubicBez::new((5.0, 5.0), (5.0, 5.0), (5.0, 5.0), (5.0, 5.0));
-        let mut result = BezPath::new();
-        offset_cubic(c, 1.0, 0.25, &mut result);
-        assert_eq!(
-            result.elements(),
-            [PathEl::MoveTo(c.p0), PathEl::CurveTo(c.p0, c.p0, c.p0)]
-        );
+        offset_cubic(c, 1.0, 0.25, &mut BezPath::new());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "single point")]
+    fn offset_pair_of_a_point_is_asserted() {
+        let c = CubicBez::new((5.0, 5.0), (5.0, 5.0), (5.0, 5.0), (5.0, 5.0));
         let mut positive = BezPath::new();
         let mut negative = BezPath::new();
         positive.move_to(c.p0);
         negative.move_to(c.p0);
         offset_cubic_pair(c, 1.0, 0.25, &mut positive, &mut negative);
-        assert_eq!(positive.elements().len(), 2);
-        assert_eq!(negative.elements().len(), 2);
     }
 
     #[test]
