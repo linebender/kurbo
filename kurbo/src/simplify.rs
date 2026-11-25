@@ -378,9 +378,9 @@ impl SimplifyOptions {
 
 #[cfg(test)]
 mod tests {
-    use crate::BezPath;
+    use crate::{BezPath, Point, fit_to_bezpath_opt};
 
-    use super::{SimplifyOptions, simplify_bezpath};
+    use super::{SimplifyBezPath, SimplifyOptions, simplify_bezpath};
 
     #[test]
     fn simplify_lines_corner() {
@@ -392,5 +392,22 @@ mod tests {
         let options = SimplifyOptions::default();
         let simplified = simplify_bezpath(path.clone(), 1.0, &options);
         assert_eq!(path, simplified);
+    }
+
+    #[test]
+    fn simplify_sliver() {
+        // A closed quadrilateral whose vertices are nearly collinear, making
+        // the shape a very thin sliver. Optimized fitting of such a path used
+        // to panic.
+        let pts = [(1.0, 0.7), (4.1, 2.0), (4.4, 2.1), (0.0, 0.0)];
+        let mut path = BezPath::new();
+        path.move_to(Point::new(pts[0].0, pts[0].1));
+        for (x, y) in &pts[1..] {
+            path.line_to(Point::new(*x, *y));
+        }
+        path.close_path();
+
+        let simplified = fit_to_bezpath_opt(&SimplifyBezPath::new(path), 2.0);
+        assert!(!simplified.is_empty());
     }
 }
