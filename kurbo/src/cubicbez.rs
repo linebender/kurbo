@@ -53,6 +53,15 @@ pub enum CuspType {
     DoubleInflection,
 }
 
+/// The largest width `|C'| / |C''|`, in parameter units, of a minimum of
+/// the speed that [`CubicBez::regularize_cusp_at`] treats as a cusp.
+///
+/// A near-cusp turns through nearly a half turn within a few widths, so its
+/// width is small whatever the size of the curve. The curvature of a curve
+/// small relative to the dimension is large everywhere, but its width is
+/// not, and regularizing it would only distort it.
+const CUSP_MAX_WIDTH: f64 = 0.03;
+
 impl CubicBez {
     /// Create a new cubic Bézier segment.
     #[inline(always)]
@@ -393,58 +402,100 @@ impl CubicBez {
     /// If the cubic Bézier segment has zero or near-zero derivatives as an interior
     /// cusp, perturb the control points to make curvature finite, avoiding
     /// numerical robustness problems in offset and stroke.
+    ///
+    /// The offset code calls the constituent functions separately, so that
+    /// tip detection can share the minima of the speed; the tests use this
+    /// combined form as the reference against which errors are measured.
+    #[cfg(test)]
     pub(crate) fn regularize_cusp(&self, dimension: f64) -> CubicBez {
-        let mut c = *self;
-        // First step: if control point is too near the endpoint, nudge it away
-        // along the tangent.
-        if let Some(cusp_type) = self.detect_cusp(dimension) {
-            let d01 = c.p1 - c.p0;
-            let d01h = d01.hypot();
-            let d23 = c.p3 - c.p2;
-            let d23h = d23.hypot();
-            match cusp_type {
-                CuspType::Loop => {
-                    c.p1 += (dimension / d01h) * d01;
-                    c.p2 -= (dimension / d23h) * d23;
-                }
-                CuspType::DoubleInflection => {
-                    // Avoid making control distance smaller than dimension
-                    if d01h > 2.0 * dimension {
-                        c.p1 -= (dimension / d01h) * d01;
-                    }
-                    if d23h > 2.0 * dimension {
-                        c.p2 += (dimension / d23h) * d23;
-                    }
-                }
-            }
+        if !self.may_have_slow_point(0.0, dimension) {
+            return *self;
         }
-        c
+        let minima = self.slow_points(self.cusp_speed_squared(dimension));
+        self.regularize_cusp_at(dimension, &minima).unwrap_or(*self)
     }
 
-    /// Detect whether there is a cusp.
+    /// An upper bound on `|C'|^2` at a minimum of the speed for which
+    /// `Self::regularize_cusp` might detect a cusp.
+    ///
+    /// At a minimum of the speed, the derivative is perpendicular to the
+    /// second derivative, so the curvature is `|C''| / |C'|^2`. It exceeds
+    /// `1 / dimension` where `|C'|^2 <= |C''| dimension`, and `|C''|` attains
+    /// its maximum at an endpoint.
+    #[inline(always)]
+    pub(crate) fn cusp_speed_squared(&self, dimension: f64) -> f64 {
+        let d01 = self.p1 - self.p0;
+        let d12 = self.p2 - self.p1;
+        let d23 = self.p3 - self.p2;
+        6.0 * (d12 - d01).hypot2().max((d23 - d12).hypot2()).sqrt() * dimension
+    }
+
+    /// `Self::regularize_cusp`, given the minima of the speed computed by
+    /// [`Self::slow_points`] with a limit of at least
+    /// [`Self::cusp_speed_squared`].
+    ///
+    /// Returns `None` if no control point was moved.
+    #[cold]
+    pub(crate) fn regularize_cusp_at(&self, dimension: f64, minima: &[f64]) -> Option<CubicBez> {
+        let cusp_type = self.detect_cusp(dimension, minima)?;
+        let mut c = *self;
+        // If a control point is too near its endpoint, displace it along the
+        // tangent.
+        let d01 = c.p1 - c.p0;
+        let d01h = d01.hypot();
+        let d23 = c.p3 - c.p2;
+        let d23h = d23.hypot();
+        match cusp_type {
+            CuspType::Loop => {
+                c.p1 += (dimension / d01h) * d01;
+                c.p2 -= (dimension / d23h) * d23;
+                Some(c)
+            }
+            CuspType::DoubleInflection => {
+                // Avoid making control distance smaller than dimension
+                let nudge0 = d01h > 2.0 * dimension;
+                let nudge1 = d23h > 2.0 * dimension;
+                if nudge0 {
+                    c.p1 -= (dimension / d01h) * d01;
+                }
+                if nudge1 {
+                    c.p2 += (dimension / d23h) * d23;
+                }
+                (nudge0 || nudge1).then_some(c)
+            }
+        }
+    }
+
+    /// Detect whether there is a cusp at one of the given minima of the
+    /// speed.
     ///
     /// Return a cusp classification if there is a cusp with curvature greater than
     /// the reciprocal of the given dimension.
-    fn detect_cusp(&self, dimension: f64) -> Option<CuspType> {
+    fn detect_cusp(&self, dimension: f64, minima: &[f64]) -> Option<CuspType> {
         let d01 = self.p1 - self.p0;
-        let d02 = self.p2 - self.p0;
-        let d03 = self.p3 - self.p0;
-        let d12 = self.p2 - self.p1;
         let d23 = self.p3 - self.p2;
-        let det_012 = d01.cross(d02);
-        let det_123 = d12.cross(d23);
-        let det_013 = d01.cross(d03);
-        let det_023 = d02.cross(d03);
-        if det_012 * det_123 > 0.0 && det_012 * det_013 < 0.0 && det_012 * det_023 < 0.0 {
-            let q = self.deriv();
-            // accuracy isn't used for quadratic nearest
-            let nearest = q.nearest(Point::ORIGIN, 1e-9);
-            // detect whether curvature at minimum derivative exceeds 1/dimension,
-            // without division.
-            let d = q.eval(nearest.t);
-            let d2 = q.deriv().eval(nearest.t);
-            let cross = d.to_vec2().cross(d2.to_vec2());
-            if nearest.distance_sq.powi(3) <= (cross * dimension).powi(2) {
+        // A zero-length handle means a vanishing derivative at the endpoint,
+        // which is not regularized; the displacements in
+        // `regularize_cusp_at` divide by the handle lengths.
+        if d01.hypot2() == 0.0 || d23.hypot2() == 0.0 {
+            return None;
+        }
+        let q = self.deriv();
+        for &t in minima {
+            // The curvature is `|C''| / |C'|^2` here; see
+            // `cusp_speed_squared`. Unlike the cross product, this form is
+            // robust at an exact cusp, where the derivative consists of
+            // rounding error that may be parallel to the second derivative.
+            let d = q.eval(t).to_vec2();
+            let d2 = q.deriv().eval(t).to_vec2();
+            if d.hypot2() <= d2.hypot() * dimension
+                && d.hypot2() < (CUSP_MAX_WIDTH * CUSP_MAX_WIDTH) * d2.hypot2()
+            {
+                let d02 = self.p2 - self.p0;
+                let d03 = self.p3 - self.p0;
+                let det_012 = d01.cross(d02);
+                let det_013 = d01.cross(d03);
+                let det_023 = d02.cross(d03);
                 let a = 3. * det_012 + det_023 - 2. * det_013;
                 let b = -3. * det_012 + det_013;
                 let c = det_012;
@@ -457,6 +508,167 @@ impl CubicBez {
             }
         }
         None
+    }
+
+    /// Whether the speed `|C'|` may have an interior local minimum at which
+    /// it is small: either `|C'| < max_width |C''|`, or both
+    /// `|C'|^2 <= |C''| dimension` and `|C'| < CUSP_MAX_WIDTH |C''|`, with
+    /// `|C''|` the larger of its values at the endpoints. The first condition
+    /// indicates a sharp turn (see `crate::offset`), and the second a cusp to
+    /// be regularized (see [`Self::detect_cusp`]).
+    ///
+    /// This is an inexpensive conservative test, which nearly every curve
+    /// fails, to be followed by [`Self::slow_points`] for those that pass. It
+    /// compares the limits with a lower bound on `|C'|^2`, namely the
+    /// smallest of its Bernstein coefficients. With a zero-length handle that
+    /// coefficient is zero, and a different bound is used: then
+    /// `C' / 3 = t (a + t m)`, and a minimum lies at the larger root of a
+    /// quadratic (see [`Self::slow_points`]). That root is no less than the
+    /// minimizer of the quadratic, and `|a + t m|^2` is no less than its
+    /// minimum on `[0, 1]`.
+    #[inline(always)]
+    pub(crate) fn may_have_slow_point(&self, max_width: f64, dimension: f64) -> bool {
+        // The control points of the hodograph over 3.
+        let q0 = self.p1 - self.p0;
+        let q1 = self.p2 - self.p1;
+        let q2 = self.p3 - self.p2;
+        // With `c2` the square of `|C''| / 6`, the limit on `|C'|^2 / 9` is
+        // `sharp c2` for a sharp turn, and for a cusp it is both `narrow c2`
+        // and the value whose square is `cusp c2`.
+        let sharp = 4.0 * max_width * max_width;
+        let narrow = 4.0 * CUSP_MAX_WIDTH * CUSP_MAX_WIDTH;
+        let cusp = (4.0 / 9.0) * dimension * dimension;
+        if q0 == Vec2::ZERO || q2 == Vec2::ZERO {
+            let (a, m) = Self::zero_handle_factor(q0, q1, q2);
+            let (a_a, a_m, m_m) = (a.hypot2(), a.dot(m), m.hypot2());
+            // Check that the larger root of `|a|^2 + 3 a.m t + 2 |m|^2 t^2`
+            // lies in (0, 1): the roots are real and positive, and the
+            // larger one is below 1. Written so that a NaN yields `false`.
+            if !(a_m < 0.0
+                && 9.0 * a_m * a_m > 8.0 * a_a * m_m
+                && -3.0 * a_m < 4.0 * m_m
+                && a_a + 3.0 * a_m + 2.0 * m_m > 0.0)
+            {
+                return false;
+            }
+            // The quadratic attains its minimum at `-3 a.m / (4 |m|^2)`, and
+            // `|a + t m|^2` at `-a.m / |m|^2` if that is below 1, where its
+            // value is `(|a|^2 |m|^2 - (a.m)^2) / |m|^2`, and otherwise at 1.
+            let (smallest, denominator) = if -a_m < m_m {
+                (a_a * m_m - a_m * a_m, m_m)
+            } else {
+                (a_a + 2.0 * a_m + m_m, 1.0)
+            };
+            // A lower bound on `|C'|^2 / 9` at the minimum, as a numerator and
+            // denominator.
+            let bound = 9.0 * a_m * a_m * smallest;
+            let denominator = 16.0 * m_m * m_m * denominator;
+            // `C'' / 6` is `a / 2` at the endpoint with the zero-length
+            // handle, and `a / 2 + m` at the other.
+            let c2 = (0.25 * a_a).max(0.25 * a_a + a_m + m_m);
+            return !(bound > sharp * c2 * denominator
+                && (bound > narrow * c2 * denominator
+                    || bound * bound > cusp * c2 * denominator * denominator));
+        }
+        let (q0_q0, q1_q1, q2_q2) = (q0.hypot2(), q1.hypot2(), q2.hypot2());
+        let (q0_q1, q1_q2, q0_q2) = (q0.dot(q1), q1.dot(q2), q0.dot(q2));
+        // The Bernstein coefficients of `|C'|^2 / 9`.
+        let smallest = q0_q0
+            .min(q0_q1)
+            .min((2.0 * q1_q1 + q0_q2) * (1.0 / 3.0))
+            .min(q1_q2)
+            .min(q2_q2);
+        let c2 = (q0_q0 - 2.0 * q0_q1 + q1_q1).max(q1_q1 - 2.0 * q1_q2 + q2_q2);
+        !(smallest > sharp * c2 && (smallest > narrow * c2 || smallest * smallest > cusp * c2))
+    }
+
+    /// With a zero-length handle, the hodograph divided by 3 is
+    /// `t (a + t m)`, with `t` measured from the endpoint with that handle.
+    /// This returns `a` and `m`, given the control points of the hodograph
+    /// divided by 3.
+    #[inline(always)]
+    fn zero_handle_factor(q0: Vec2, q1: Vec2, q2: Vec2) -> (Vec2, Vec2) {
+        let a = 2.0 * q1;
+        (a, if q0 == Vec2::ZERO { q2 - a } else { q0 - a })
+    }
+
+    /// The interior parameters at which the speed `|C'|` has a local minimum
+    /// whose square may be as small as `speed_squared`, in increasing order.
+    /// A cubic has at most two minima of the speed.
+    ///
+    /// This returns every minimum at which the speed is that small, and may
+    /// also return others, or parameters close to them; the caller is
+    /// expected to test the results. As this is relatively expensive, it
+    /// should only be called when [`Self::may_have_slow_point`] passes.
+    ///
+    /// A minimum is a root of the cubic `C'.C''` at which it changes from
+    /// negative to positive. With a zero-length handle, `C'(t) / 3` is
+    /// `t (a + t m)`, so `C'.C''` is `t` times the quadratic
+    /// `|a|^2 + 3 a.m t + 2 |m|^2 t^2`, and the speed has an interior minimum
+    /// at its larger root, if there is one.
+    #[cold]
+    pub(crate) fn slow_points(&self, speed_squared: f64) -> ArrayVec<f64, 2> {
+        let mut minima = ArrayVec::new();
+        // The control points of the hodograph over 3.
+        let q0 = self.p1 - self.p0;
+        let q1 = self.p2 - self.p1;
+        let q2 = self.p3 - self.p2;
+        let limit = speed_squared * (1.0 / 9.0);
+        if q0 == Vec2::ZERO || q2 == Vec2::ZERO {
+            let (a, m) = Self::zero_handle_factor(q0, q1, q2);
+            let (a_a, a_m, m_m) = (a.hypot2(), a.dot(m), m.hypot2());
+            let discriminant = 9.0 * a_m * a_m - 8.0 * a_a * m_m;
+            // Both roots are positive only if `a.m` is negative. Written so
+            // that a NaN yields no minimum. When both handles are zero, the
+            // larger root is 1 up to rounding, and a parameter just below 1
+            // may be returned; the caller discards such a point.
+            if a_m < 0.0 && discriminant > 0.0 {
+                let t = (-3.0 * a_m + discriminant.sqrt()) / (4.0 * m_m);
+                if t < 1.0 && t * t * (a + t * m).hypot2() <= limit {
+                    minima.push(if q0 == Vec2::ZERO { t } else { 1.0 - t });
+                }
+            }
+            return minima;
+        }
+        let (q0_q1, q1_q2, q0_q2) = (q0.dot(q1), q1.dot(q2), q0.dot(q2));
+        let (q0_q0, q1_q1, q2_q2) = (q0.hypot2(), q1.hypot2(), q2.hypot2());
+        // The Bernstein coefficients of `C'.C''`, times a positive constant.
+        // With `e0 = q1 - q0` and `e1 = q2 - q1`, they are `3 q0.e0`,
+        // `q0.e1 + 2 q1.e0`, `2 q1.e1 + q2.e0` and `3 q2.e1`. By the variation
+        // diminishing property, a rising root requires a negative coefficient
+        // followed by a positive one.
+        let b = [
+            3.0 * (q0_q1 - q0_q0),
+            q0_q2 - 3.0 * q0_q1 + 2.0 * q1_q1,
+            3.0 * q1_q2 - 2.0 * q1_q1 - q0_q2,
+            3.0 * (q2_q2 - q1_q2),
+        ];
+        let mut negative = false;
+        let mut rising = false;
+        for x in b {
+            negative |= x < 0.0;
+            rising |= negative && x > 0.0;
+        }
+        if !rising {
+            return minima;
+        }
+        // With a nearly zero-length handle a root lies very close to an
+        // endpoint, and the solver may return it as a parameter just inside
+        // the curve.
+        const INSIDE: f64 = 1e-12;
+        // The cubic `C'.C''`, times a positive constant, in the power basis.
+        let c0 = b[0];
+        let c1 = 3.0 * (b[1] - b[0]);
+        let c2 = 3.0 * (b[0] - 2.0 * b[1] + b[2]);
+        let c3 = b[3] - 3.0 * b[2] + 3.0 * b[1] - b[0];
+        for t in solve_cubic(c0, c1, c2, c3) {
+            let slope = c1 + t * (2.0 * c2 + t * 3.0 * c3);
+            if t > INSIDE && t < 1.0 - INSIDE && slope > 0.0 && !minima.is_full() {
+                minima.push(t);
+            }
+        }
+        minima.sort_unstable_by(|a, b| a.total_cmp(b));
+        minima
     }
 
     /// Finds the value of `t` for which `self.eval(t)` is about `y`.
@@ -830,9 +1042,10 @@ pub fn cubics_to_quadratic_splines(curves: &[CubicBez], accuracy: f64) -> Option
 }
 #[cfg(test)]
 mod tests {
+    use super::CUSP_MAX_WIDTH;
     use crate::{
         Affine, CubicBez, Nearest, ParamCurve, ParamCurveArclen, ParamCurveArea, ParamCurveDeriv,
-        ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, QuadSpline,
+        ParamCurveExtrema, ParamCurveNearest, Point, QuadBez, QuadSpline, Vec2,
         cubics_to_quadratic_splines,
     };
 
@@ -1198,6 +1411,107 @@ mod tests {
         let quads = cubics_to_quadratic_splines(&[cubic], 0.1).unwrap();
         // a single quadratic bezier approximates this cubic for the given tolerance
         assert_eq!(quads, [QuadSpline::new(vec![p0, p0, p1])]);
+    }
+
+    #[test]
+    fn slow_points_finds_every_slow_minimum() {
+        // Compare with the minima of the speed found by sampling.
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let mut n_slow = 0;
+        for i in 0..1000 {
+            let mut point = || Point::new(next() * 100.0, next() * 100.0);
+            let mut c = CubicBez::new(point(), point(), point(), point());
+            match i % 4 {
+                // A near cusp at a random parameter, from the hodograph
+                // `(t - t_cusp)(a + b t)` plus a small constant.
+                1 => {
+                    let t_cusp = 0.05 + 0.9 * next();
+                    let a = c.p1.to_vec2() * 3.0 - Vec2::new(150.0, 150.0);
+                    let b = c.p2.to_vec2() * 3.0 - Vec2::new(150.0, 150.0);
+                    let e = Vec2::new(next() - 0.5, next() - 0.5) * 10.0_f64.powf(-6.0 * next());
+                    let (pow2, pow1, pow0) = (b, a - b * t_cusp, e - a * t_cusp);
+                    let p1 = c.p0 + pow0 / 3.0;
+                    let p2 = p1 + (pow0 + 0.5 * pow1) / 3.0;
+                    c = CubicBez::new(c.p0, p1, p2, p2 + (pow0 + pow1 + pow2) / 3.0);
+                }
+                // A zero-length handle at one end.
+                2 => c.p1 = c.p0,
+                3 => c.p2 = c.p3,
+                _ => {}
+            }
+            let q = c.deriv();
+            let scale = q.p0.to_vec2().hypot2().max(q.p2.to_vec2().hypot2());
+            const N: usize = 20_000;
+            let speed_squared: Vec<f64> = (0..=N)
+                .map(|j| q.eval(j as f64 / N as f64).to_vec2().hypot2())
+                .collect();
+            // The sampled minima, as parameters with the squared speed there.
+            let minima: Vec<(f64, f64)> = (1..N)
+                .filter(|&j| {
+                    speed_squared[j] <= speed_squared[j - 1]
+                        && speed_squared[j] < speed_squared[j + 1]
+                })
+                .map(|j| (j as f64 / N as f64, speed_squared[j]))
+                .collect();
+            for limit in [1e-6 * scale, 1e-3 * scale, 0.1 * scale] {
+                let found = c.slow_points(limit);
+                for &(t, here) in &minima {
+                    if here <= limit {
+                        n_slow += 1;
+                        assert!(
+                            found.iter().any(|&u| (u - t).abs() < 2.0 / N as f64),
+                            "minimum near {t} under {limit} not in {found:?} for {c:?}"
+                        );
+                    }
+                }
+            }
+            // The cheap test must pass every curve with a slow minimum.
+            let c2 = q
+                .deriv()
+                .p0
+                .to_vec2()
+                .hypot()
+                .max(q.deriv().p1.to_vec2().hypot());
+            for (max_width, dimension) in [(0.01, 0.0), (0.0, 0.01), (0.1, 1e-4)] {
+                if c.may_have_slow_point(max_width, dimension) {
+                    continue;
+                }
+                for &(t, here) in &minima {
+                    let slow = here.sqrt() < max_width * c2
+                        || (here <= c2 * dimension && here.sqrt() < CUSP_MAX_WIDTH * c2);
+                    assert!(
+                        !slow,
+                        "slow minimum near {t} missed, width {max_width}, dimension {dimension}, for {c:?}"
+                    );
+                }
+            }
+        }
+        assert!(n_slow > 1000, "{n_slow}");
+    }
+
+    #[test]
+    fn regularize_exact_cusp() {
+        // The derivative vanishes at the midpoint (#615), to rounding, and
+        // the rounding left it along the second derivative, so the curvature
+        // there computed as zero and the cusp was not detected.
+        let c = CubicBez::new(
+            (1.600_000_000_000_000_8, 310.787_665_198_237_9),
+            (5.406_167_400_881_057, 306.981_497_797_356_84),
+            (5.406_167_400_881_058, 310.787_665_198_237_9),
+            (1.6, 306.981_497_797_356_84),
+        );
+        for dimension in [5e-3, 2.5e-5] {
+            let r = c.regularize_cusp(dimension);
+            assert_ne!(r, c, "dimension {dimension}");
+            let moved = (r.p1 - c.p1).hypot().max((r.p2 - c.p2).hypot());
+            assert!(moved <= 1.000_001 * dimension, "moved {moved}");
+        }
     }
 
     #[test]

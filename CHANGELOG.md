@@ -17,6 +17,10 @@ This release has an [MSRV][] of 1.85.
 
 ## Added
 - `serde` and `schemars` support for `Axis`. ([#591][] by [@waywardmonkeys][])
+- `offset::offset_cubic_pair`, for the offsets on both sides of a cubic at once. ([#628][] by [@raphlinus][])
+
+## Changed
+- A new algorithm for `offset::offset_cubic`, and so for stroking: 2.8 times as fast on the strokes of the Ghostscript tiger at a tolerance of 1/32, with fewer misses near cusps. ([#628][] by [@raphlinus][], [@tomcur][] and [@LaurenzV][])
 
 ## [0.13.1][] (2026-05-13)
 
@@ -317,6 +321,7 @@ Note: A changelog was not kept for or before this release
 [#580]: https://github.com/linebender/kurbo/pull/580
 [#585]: https://github.com/linebender/kurbo/pull/585
 [#591]: https://github.com/linebender/kurbo/pull/591
+[#628]: https://github.com/linebender/kurbo/pull/628
 
 [Unreleased]: https://github.com/linebender/kurbo/compare/v0.13.1...HEAD
 [0.13.1]: https://github.com/linebender/kurbo/releases/tag/v0.13.1
