@@ -398,12 +398,21 @@ struct CubicOffset {
     /// The tolerance.
     tolerance: f64,
     /// Whether the offset has a stub that is smoothed over rather than
-    /// fitted, at the start and at the end of the curve, on each side; see
+    /// fitted, indexed by [`EndpointSide`] and then by side; see
     /// [`CubicOffset::end_cusp`].
     smoothed_stub: [[bool; 2]; 2],
     /// The parameters of the tips of the curve, or NaN where there are fewer
     /// than two; see [`TipSplits`].
     tips: [f64; 2],
+}
+
+/// One endpoint of a curve or of a piece.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EndpointSide {
+    /// The start, at the smaller parameter value.
+    Start,
+    /// The end, at the larger parameter value.
+    End,
 }
 
 /// A piece of the source curve in the recursive subdivision.
@@ -449,6 +458,15 @@ impl OffsetRec {
     }
 }
 
+/// The decision of [`CubicOffset::accept_fit`] on the fit of a piece.
+struct Acceptance {
+    /// Whether the fit is accepted.
+    accepted: bool,
+    /// Where to split the piece, as a parameter local to it, if the estimate
+    /// found two cusps of the offset inside it.
+    split: Option<f64>,
+}
+
 /// An approximation to the offset of one piece, with its delta.
 struct Fit {
     /// The approximation itself.
@@ -491,8 +509,8 @@ impl CubicOffset {
             t1: 1.0,
             utan0: tan0.normalize(),
             utan1: tan1.normalize(),
-            cusp0: self.end_cusp(0),
-            cusp1: self.end_cusp(1),
+            cusp0: self.end_cusp(EndpointSide::Start),
+            cusp1: self.end_cusp(EndpointSide::End),
             depth: 0,
         }
     }
@@ -513,8 +531,8 @@ impl CubicOffset {
         ((self.c2 * t + self.c1) * t + self.c0) / (ds2 * ds2.sqrt())
     }
 
-    /// The cusp values of both sides at the start (`end` of 0, at `t = 0`) or
-    /// at the end (1, at `t = 1`) of the curve.
+    /// The cusp values of both sides at the start (`t = 0`) or the end
+    /// (`t = 1`) of the curve.
     ///
     /// Where the derivative vanishes at the endpoint, the curvature there is
     /// infinite, and so is the cusp value. Its numerator `c0 + c1 t + c2 t^2`
@@ -527,17 +545,17 @@ impl CubicOffset {
     /// its magnitude is taken as 1.
     ///
     /// The stub is reported as a negative cusp value, so that the cusp is
-    /// found and the stub is fitted, unless the stub is too small to matter. The osculating parabola estimate does not otherwise detect
-    /// it, and the result can then be far out of tolerance.
+    /// found and the stub is fitted, unless the stub is too small to matter.
+    /// The osculating parabola estimate does not otherwise detect it, and the
+    /// result can then be far out of tolerance.
     ///
     /// This also records whether the stub at that endpoint is smoothed over,
     /// for use by [`Self::handles`].
     #[inline(always)]
-    fn end_cusp(&mut self, end: usize) -> [f64; 2] {
-        let (tan, y) = if end == 0 {
-            (self.q.p0.to_vec2(), self.c0)
-        } else {
-            (self.q.p2.to_vec2(), self.c0 + self.c1 + self.c2)
+    fn end_cusp(&mut self, end: EndpointSide) -> [f64; 2] {
+        let (tan, y) = match end {
+            EndpointSide::Start => (self.q.p0.to_vec2(), self.c0),
+            EndpointSide::End => (self.q.p2.to_vec2(), self.c0 + self.c1 + self.c2),
         };
         const TAN_DIST_EPSILON: f64 = 1e-12;
         let tan_dist = tan.hypot();
@@ -552,13 +570,13 @@ impl CubicOffset {
     /// [`Self::end_cusp`] for an endpoint at which the derivative vanishes.
     #[cold]
     #[inline(never)]
-    fn end_cusp_of_stub(&mut self, end: usize) -> [f64; 2] {
+    fn end_cusp_of_stub(&mut self, end: EndpointSide) -> [f64; 2] {
         let mut cusp = [1.0; 2];
         // The side on the inside of the curve, if there is one.
         if self.c2 != 0.0 && !self.c2.is_nan() {
             let side = usize::from(self.c2 > 0.0);
             if self.smooths_stub(end) {
-                self.smoothed_stub[end][side] = true;
+                self.smoothed_stub[end as usize][side] = true;
             } else {
                 cusp[side] = -1.0;
             }
@@ -566,8 +584,8 @@ impl CubicOffset {
         cusp
     }
 
-    /// Whether the stub of the offset at the given endpoint (0 or 1) is small
-    /// enough to be smoothed over. The derivative is known to vanish at that
+    /// Whether the stub of the offset at the given endpoint is small enough
+    /// to be smoothed over. The derivative is known to vanish at that
     /// endpoint.
     ///
     /// Let `q1` be the middle control point of the derivative and `q_other`
@@ -583,9 +601,13 @@ impl CubicOffset {
     /// With the handle clamped, the fit would fall back to arc drawing, which
     /// could exceed the tolerance by several times even for a stub much
     /// smaller than the tolerance.
-    fn smooths_stub(&self, end: usize) -> bool {
+    fn smooths_stub(&self, end: EndpointSide) -> bool {
         let q1 = self.q.p1.to_vec2();
-        let other = if end == 0 { self.q.p2 } else { self.q.p0 }.to_vec2();
+        let other = match end {
+            EndpointSide::Start => self.q.p2,
+            EndpointSide::End => self.q.p0,
+        }
+        .to_vec2();
         // With `m = |d (q1 x q_other)|`, the cusp is at `u = m / (4 |q1|^3)`
         // and the extent of the stub is `m^2 / (16 |q1|^5)`; both are
         // compared without division.
@@ -595,6 +617,17 @@ impl CubicOffset {
         len2 > 0.0
             && m <= 4.0 * STUB_MAX_PARAM * len2 * len
             && m * m <= 16.0 * STUB_MAX_EXTENT * self.tolerance * len2 * len2 * len
+    }
+
+    /// Whether the offset of `side` has a smoothed stub at the given endpoint
+    /// of `rec`, which is then also an endpoint of the curve.
+    #[inline(always)]
+    fn smoothed_at(&self, rec: &OffsetRec, end: EndpointSide, side: usize) -> bool {
+        let at_curve_end = match end {
+            EndpointSide::Start => rec.t0 == 0.0,
+            EndpointSide::End => rec.t1 == 1.0,
+        };
+        at_curve_end && self.smoothed_stub[end as usize][side]
     }
 
     /// The offset distance of a side.
@@ -666,7 +699,10 @@ impl CubicOffset {
         let first = usize::from(!sides[0]);
         let fit = self.fit(first, &seg, rec, linear_fit, &mut arc);
         let mut samples = Samples::new(&seg, &fit.delta, self.d);
-        let (mut accepted, split) = self.judge(first, rec, &fit, &samples, two_point);
+        let Acceptance {
+            mut accepted,
+            split,
+        } = self.accept_fit(first, rec, &fit, &samples, two_point);
         if accepted && self.at_stub(first, rec) {
             accepted = !self.overshoots_stub(first, rec, &fit.approx);
         }
@@ -688,7 +724,10 @@ impl CubicOffset {
             if fit.delta != delta {
                 samples = Samples::new(&seg, &fit.delta, self.d);
             }
-            let (mut accepted, split) = self.judge(1, rec, &fit, &samples, two_point);
+            let Acceptance {
+                mut accepted,
+                split,
+            } = self.accept_fit(1, rec, &fit, &samples, two_point);
             if accepted && self.at_stub(1, rec) {
                 accepted = !self.overshoots_stub(1, rec, &fit.approx);
             }
@@ -879,18 +918,19 @@ impl CubicOffset {
         }
     }
 
-    /// Whether the fit of a piece is accepted on one side, by the error
-    /// estimate at the samples. `two_point` is whether there is a two-point
-    /// linear fit, which is the fit unless a handle would be clamped.
+    /// Decide whether the fit of a piece is accepted on one side, by the error
+    /// estimate at the samples; see [`Acceptance`]. `two_point` is whether
+    /// there is a two-point linear fit, which is the fit unless a handle
+    /// would be clamped.
     #[inline(always)]
-    fn judge(
+    fn accept_fit(
         &self,
         side: usize,
         rec: &OffsetRec,
         fit: &Fit,
         samples: &Samples,
         two_point: bool,
-    ) -> (bool, Option<f64>) {
+    ) -> Acceptance {
         let (cusp0, cusp1) = (rec.cusp0[side], rec.cusp1[side]);
         let limit = self.tolerance / (ESTIMATE_SAFETY * self.d.abs());
         let side_sign = SIDE_SIGNS[side];
@@ -902,7 +942,10 @@ impl CubicOffset {
         // each cusp would cover with several pieces. A piece that it rejects
         // is split at the cusp.
         if cusp0 * cusp1 < 0.0 {
-            return (samples.equal_parameter_within(limit), None);
+            return Acceptance {
+                accepted: samples.equal_parameter_within(limit),
+                split: None,
+            };
         }
         // The osculating parabola estimate is trusted where its leading-order
         // model is valid: the curvature times `d` varies little over the
@@ -920,11 +963,21 @@ impl CubicOffset {
                 f64::INFINITY
             };
             match samples.osculating(side_sign, limit, max_slip, cusp_sign) {
-                Osculating::Decided(accepted) => return (accepted, None),
+                Osculating::Decided(accepted) => {
+                    return Acceptance {
+                        accepted,
+                        split: None,
+                    };
+                }
                 // The cusp value at a sample has the opposite sign from the
                 // one at both endpoints, so the piece contains at least two
                 // cusps; it is split at that sample.
-                Osculating::Cusp(u) => return (false, Some(u)),
+                Osculating::Cusp(u) => {
+                    return Acceptance {
+                        accepted: false,
+                        split: Some(u),
+                    };
+                }
                 Osculating::Untrusted => {}
             }
         }
@@ -933,15 +986,18 @@ impl CubicOffset {
                 samples.osculating(side_sign, limit, OSCULATING_MAX_SLIP, cusp_sign),
                 Osculating::Decided(true)
             );
-        (accepted, None)
+        Acceptance {
+            accepted,
+            split: None,
+        }
     }
 
     /// Whether a piece begins or ends, on `side`, at a stub that is smoothed
     /// over; see [`Self::overshoots_stub`].
     #[inline(always)]
     fn at_stub(&self, side: usize, rec: &OffsetRec) -> bool {
-        (rec.t0 == 0.0 && self.smoothed_stub[0][side])
-            || (rec.t1 == 1.0 && self.smoothed_stub[1][side])
+        self.smoothed_at(rec, EndpointSide::Start, side)
+            || self.smoothed_at(rec, EndpointSide::End, side)
     }
 
     /// Whether the approximation of a piece that begins or ends at a smoothed
@@ -971,8 +1027,8 @@ impl CubicOffset {
             !(behind && short) && overshoot(c) > self.tolerance
         };
         let reversed = CubicBez::new(approx.p3, approx.p2, approx.p1, approx.p0);
-        (rec.t0 == 0.0 && self.smoothed_stub[0][side] && runs_past(&reversed))
-            || (rec.t1 == 1.0 && self.smoothed_stub[1][side] && runs_past(approx))
+        (self.smoothed_at(rec, EndpointSide::Start, side) && runs_past(&reversed))
+            || (self.smoothed_at(rec, EndpointSide::End, side) && runs_past(approx))
     }
 
     /// Whether [`Self::accept_arc`] is worth trying on a piece whose chord is
@@ -1183,8 +1239,8 @@ impl CubicOffset {
         // Where the cusp value is negative the offset runs backward, and so
         // does the handle. At a smoothed stub the offset arrives traveling
         // backward, irrespective of the cusp value.
-        let flip0 = rec.t0 == 0.0 && self.smoothed_stub[0][side];
-        let flip1 = rec.t1 == 1.0 && self.smoothed_stub[1][side];
+        let flip0 = self.smoothed_at(rec, EndpointSide::Start, side);
+        let flip1 = self.smoothed_at(rec, EndpointSide::End, side);
         let clamp0 = l0 * rec.cusp0[side] * if flip0 { -1.0 } else { 1.0 } <= 0.0;
         let clamp1 = l1 * rec.cusp1[side] * if flip1 { -1.0 } else { 1.0 } <= 0.0;
         (l0, l1, clamp0, clamp1)
