@@ -29,7 +29,9 @@
 //! # Error estimation and subdivision
 //!
 //! The error of an approximation is estimated from the osculating parabola
-//! of the offset curve at eight sample points (see `Samples`).
+//! of the offset curve at eight sample points (see `Samples`). A piece that
+//! contains a cusp of the offset is judged instead by the distance at equal
+//! parameter at those samples, which remains valid across the cusp.
 //! Arc drawing can also be accepted on geometric bounds, when the piece is
 //! small, thin, or nearly straight relative to the tolerance.
 //!
@@ -607,8 +609,8 @@ impl CubicOffset {
     /// A side that accepts the piece emits its approximation and takes no
     /// further part. The subdivision point depends only on the source, so
     /// the sides that remain share the two halves, except where the offset
-    /// of a side has a cusp: that side continues on its own, split at the
-    /// cusp; see [`Self::split_at_cusp`].
+    /// of a side has a cusp in a piece that it rejects: that side continues
+    /// on its own, split at the cusp; see [`Self::split_at_cusp`].
     fn offset_rec(&self, rec: &OffsetRec, mut sides: [bool; 2], out: &mut Outputs<'_>) {
         let seg = self.piece(rec);
         fn emit(out: &mut Outputs<'_>, side: usize, approx: &CubicBez) {
@@ -641,18 +643,6 @@ impl CubicOffset {
             }
         }
 
-        // A side whose cusp value changes sign over the piece is split at the
-        // cusp of its offset, on its own.
-        for side in 0..2 {
-            if sides[side] && rec.cusp0[side] * rec.cusp1[side] < 0.0 {
-                sides[side] = false;
-                self.split_at_cusp(side, rec, out);
-            }
-        }
-        if sides == [false; 2] {
-            return;
-        }
-
         // An inflection is a sign change of the curvature, which shows as the
         // cusp value crossing one. When the piece contains an inflection its
         // endpoint tangents may be parallel, where one-point is singular, so
@@ -680,7 +670,10 @@ impl CubicOffset {
         if accepted && self.at_stub(first, rec) {
             accepted = !self.overshoots_stub(first, rec, &fit.approx);
         }
-        if accepted || at_limit {
+        if !accepted && rec.cusp0[first] * rec.cusp1[first] < 0.0 {
+            sides[first] = false;
+            self.split_at_cusp(first, rec, out);
+        } else if accepted || at_limit {
             count_unaccepted(accepted);
             emit(out, first, &fit.approx);
             sides[first] = false;
@@ -699,7 +692,10 @@ impl CubicOffset {
             if accepted && self.at_stub(1, rec) {
                 accepted = !self.overshoots_stub(1, rec, &fit.approx);
             }
-            if accepted || at_limit {
+            if !accepted && rec.cusp0[1] * rec.cusp1[1] < 0.0 {
+                sides[1] = false;
+                self.split_at_cusp(1, rec, out);
+            } else if accepted || at_limit {
                 count_unaccepted(accepted);
                 emit(out, 1, &fit.approx);
                 sides[1] = false;
@@ -898,6 +894,16 @@ impl CubicOffset {
         let (cusp0, cusp1) = (rec.cusp0[side], rec.cusp1[side]);
         let limit = self.tolerance / (ESTIMATE_SAFETY * self.d.abs());
         let side_sign = SIDE_SIGNS[side];
+        // A piece that contains a cusp of the offset is judged by the
+        // distance at equal parameter, which remains a bound across the cusp.
+        // It counts the slip along the offset as error, and so is pessimistic
+        // near the cusp, but it accepts a piece across a swallowtail or a
+        // stub that is small compared with the tolerance, which splitting at
+        // each cusp would cover with several pieces. A piece that it rejects
+        // is split at the cusp.
+        if cusp0 * cusp1 < 0.0 {
+            return (samples.equal_parameter_within(limit), None);
+        }
         // The osculating parabola estimate is trusted where its leading-order
         // model is valid: the curvature times `d` varies little over the
         // piece, there is no cusp at the samples, and a two-point fit does
@@ -1689,6 +1695,24 @@ impl Samples {
             half_k_bb,
             bb,
         }
+    }
+
+    /// Whether the distance at equal parameter, `|D - n|` in units of the
+    /// offset distance, is within `limit` at every sample.
+    ///
+    /// Its square is `((A - s)^2 + B^2) / s^2`, and the comparison is made
+    /// with both sides multiplied by `s^4`, so that it requires no division.
+    #[inline(always)]
+    fn equal_parameter_within(&self, limit: f64) -> bool {
+        let limit_squared = limit * limit;
+        let mut within = true;
+        for i in 0..8 {
+            let radial = self.a_s[i] - self.s2[i];
+            // Written so that a NaN results in rejection.
+            within &= radial * radial + self.bb[i] * self.s2[i]
+                <= limit_squared * self.s2[i] * self.s2[i];
+        }
+        within
     }
 
     /// The decision of the osculating parabola estimate for the side with
