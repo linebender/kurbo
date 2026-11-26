@@ -676,7 +676,10 @@ impl CubicOffset {
         let first = usize::from(!sides[0]);
         let fit = self.fit(first, &seg, rec, linear_fit, &mut arc);
         let mut samples = Samples::new(&seg, &fit.delta, self.d);
-        let (accepted, split) = self.judge(first, rec, &fit, &samples, two_point);
+        let (mut accepted, split) = self.judge(first, rec, &fit, &samples, two_point);
+        if accepted && self.at_stub(first, rec) {
+            accepted = !self.overshoots_stub(first, rec, &fit.approx);
+        }
         if accepted || at_limit {
             count_unaccepted(accepted);
             emit(out, first, &fit.approx);
@@ -692,7 +695,10 @@ impl CubicOffset {
             if fit.delta != delta {
                 samples = Samples::new(&seg, &fit.delta, self.d);
             }
-            let (accepted, split) = self.judge(1, rec, &fit, &samples, two_point);
+            let (mut accepted, split) = self.judge(1, rec, &fit, &samples, two_point);
+            if accepted && self.at_stub(1, rec) {
+                accepted = !self.overshoots_stub(1, rec, &fit.approx);
+            }
             if accepted || at_limit {
                 count_unaccepted(accepted);
                 emit(out, 1, &fit.approx);
@@ -922,6 +928,45 @@ impl CubicOffset {
                 Osculating::Decided(true)
             );
         (accepted, None)
+    }
+
+    /// Whether a piece begins or ends, on `side`, at a stub that is smoothed
+    /// over; see [`Self::overshoots_stub`].
+    #[inline(always)]
+    fn at_stub(&self, side: usize, rec: &OffsetRec) -> bool {
+        (rec.t0 == 0.0 && self.smoothed_stub[0][side])
+            || (rec.t1 == 1.0 && self.smoothed_stub[1][side])
+    }
+
+    /// Whether the approximation of a piece that begins or ends at a smoothed
+    /// stub runs past that endpoint by more than the tolerance.
+    ///
+    /// There the handle points back along the stub, so the approximation
+    /// runs past the endpoint and returns to it. The offset does the same,
+    /// but only by the extent of the stub, which is small; see
+    /// [`Self::smooths_stub`]. The osculating parabola estimate continues the
+    /// offset past the endpoint, and does not see the overshoot, so this is
+    /// checked for an approximation that the estimate accepts.
+    ///
+    /// The test is conservative: where part of the piece lies beyond the
+    /// endpoint along the handle, that part counts as overshoot, and the
+    /// piece may be subdivided needlessly.
+    #[cold]
+    #[inline(never)]
+    fn overshoots_stub(&self, side: usize, rec: &OffsetRec, approx: &CubicBez) -> bool {
+        let runs_past = |c: &CubicBez| {
+            // When the other two control points lie behind the endpoint along
+            // the handle, the overshoot is at most 4/9 of the length of the
+            // handle.
+            let handle = c.p2 - c.p3;
+            let behind = (c.p0 - c.p3).dot(handle) <= 0.0 && (c.p1 - c.p3).dot(handle) <= 0.0;
+            let short =
+                (4.0 / 9.0) * (4.0 / 9.0) * handle.hypot2() <= self.tolerance * self.tolerance;
+            !(behind && short) && overshoot(c) > self.tolerance
+        };
+        let reversed = CubicBez::new(approx.p3, approx.p2, approx.p1, approx.p0);
+        (rec.t0 == 0.0 && self.smoothed_stub[0][side] && runs_past(&reversed))
+            || (rec.t1 == 1.0 && self.smoothed_stub[1][side] && runs_past(approx))
     }
 
     /// Whether [`Self::accept_arc`] is worth trying on a piece whose chord is
@@ -1475,6 +1520,31 @@ fn small_piece_bound(
     let sin_quarter_squared = 0.5 * (1.0 - cos_half);
     let epsilon = (2.0 / 27.0) * sin_quarter_squared.powi(3) / cos_quarter_squared;
     Some(diameter_squared.sqrt() + d.abs() * epsilon)
+}
+
+/// How far `c` runs past its end point, along the direction from that point
+/// to the last control point but one.
+fn overshoot(c: &CubicBez) -> f64 {
+    let dir = c.p2 - c.p3;
+    let length = dir.hypot();
+    if !(length > 0.0) {
+        return 0.0;
+    }
+    let dir = dir / length;
+    let x = [(c.p0 - c.p3).dot(dir), (c.p1 - c.p3).dot(dir), length, 0.0];
+    let at = |u: f64| {
+        let mu = 1.0 - u;
+        x[0] * mu * mu * mu + 3.0 * mu * u * (x[1] * mu + x[2] * u) + x[3] * u * u * u
+    };
+    // The derivative, divided by 3, in the power basis.
+    let (a, b, e) = (x[1] - x[0], x[2] - x[1], x[3] - x[2]);
+    let mut most = x[0].max(0.0);
+    for u in crate::common::solve_quadratic(a, 2.0 * (b - a), a - 2.0 * b + e) {
+        if u > 0.0 && u < 1.0 {
+            most = most.max(at(u));
+        }
+    }
+    most
 }
 
 // ---------------------------------------------------------------------------
@@ -2268,6 +2338,123 @@ mod tests {
             }
         }
         worst
+    }
+
+    /// The largest distance from a point of `result` to the offset of `c` by
+    /// `d`, to within half of `spacing`.
+    ///
+    /// The offset is represented by points no further apart than `spacing`,
+    /// so that the arc it traces about a sharp turn of the source is
+    /// resolved; uniform samples of the parameter step across it. Together
+    /// with [`offset_to_result`], which measures in the other direction, this
+    /// detects an approximation that strays from the offset, as well as one
+    /// that cuts it short.
+    fn result_to_offset(c: CubicBez, d: f64, result: &BezPath, spacing: f64) -> f64 {
+        let q = c.deriv();
+        let (limit0, limit1) = PathSeg::Cubic(c).tangents();
+        let offset_at = |s: f64| {
+            let v = q.eval(s).to_vec2();
+            let v = if v.hypot2() > 1e-300 {
+                v
+            } else if s < 0.5 {
+                limit0
+            } else {
+                limit1
+            };
+            c.eval(s) + d * v.normalize().turn_90()
+        };
+        // Bisect the parameter intervals, in order, until the ends of each
+        // are within the spacing, and so is the point at the middle from the
+        // middle of the chord. Near a sharp turn of the source, the inner
+        // offset can form a loop whose ends are close together, which the
+        // first test alone would leave unsampled.
+        const N: usize = 64;
+        let mut pending: Vec<(f64, f64)> = (0..N)
+            .rev()
+            .map(|i| (i as f64 / N as f64, (i + 1) as f64 / N as f64))
+            .collect();
+        let mut points = vec![offset_at(0.0)];
+        while let Some((s0, s1)) = pending.pop() {
+            let (p0, p1) = (offset_at(s0), offset_at(s1));
+            let mid = 0.5 * (s0 + s1);
+            let bulge = offset_at(mid).distance(p0.midpoint(p1));
+            if (p0.distance(p1) > spacing || bulge > spacing) && s1 - s0 > 1e-13 {
+                pending.push((mid, s1));
+                pending.push((s0, mid));
+            } else {
+                points.push(p1);
+            }
+        }
+        let mut worst = 0.0_f64;
+        for seg in result.segments() {
+            for i in 0..=32 {
+                let p = seg.eval(i as f64 / 32.0);
+                let nearest = points
+                    .iter()
+                    .map(|point| point.distance_squared(p))
+                    .fold(f64::INFINITY, f64::min);
+                worst = worst.max(nearest.sqrt());
+            }
+        }
+        worst
+    }
+
+    #[test]
+    fn results_near_cusps_of_the_offset() {
+        // Curves whose offset has cusps, measured in both directions. The
+        // first two have a sharp turn, with cusps of the inner offset on
+        // either side of it. The third has a vanishing derivative at its end,
+        // with a stub small enough to be smoothed over. The handle at that
+        // end points back along the stub, and the approximation of the piece
+        // from the last cusp to that end ran past the endpoint by more than
+        // twice the tolerance. The osculating parabola estimate does not see
+        // this, and nor does the distance from the offset to the result.
+        let cases = [
+            (
+                CubicBez::new(
+                    (50.70379356982498, 97.31579361970653),
+                    (54.408713681427315, 99.62040910077242),
+                    (46.59558023356715, 104.59659647574499),
+                    (63.10848861740551, 72.84200738122556),
+                ),
+                1.0,
+            ),
+            (
+                CubicBez::new(
+                    (68.19282651769628, 64.02157963849669),
+                    (65.63887693529813, 102.62679821651291),
+                    (76.9955138820981, 109.10380160425157),
+                    (71.3351350259059, 103.23868143174104),
+                ),
+                -5.0,
+            ),
+            (
+                CubicBez::new(
+                    (48.091559827693544, 96.6665041125934),
+                    (8.427831923733642, 28.106428183666686),
+                    (30.525434722905253, 68.48298765242757),
+                    (30.525434722905253, 68.48298765242757),
+                ),
+                -30.0,
+            ),
+        ];
+        let tolerance = 0.01;
+        for (c, d) in cases {
+            let regularized = c.regularize_cusp(0.25 * tolerance);
+            let mut result = BezPath::new();
+            offset_cubic(c, d, tolerance, &mut result);
+            let (forward, s) = offset_to_result(regularized, d, &result, 4000);
+            assert!(
+                forward <= 1.1 * tolerance,
+                "offset to result {forward} at s = {s}: d = {d}, {c:?}"
+            );
+            let spacing = tolerance / 8.0;
+            let backward = result_to_offset(regularized, d, &result, spacing);
+            assert!(
+                backward <= 1.1 * tolerance + 0.5 * spacing,
+                "result to offset {backward}: d = {d}, {c:?}"
+            );
+        }
     }
 
     #[cfg(feature = "std")]
